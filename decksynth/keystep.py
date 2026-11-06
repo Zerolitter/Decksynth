@@ -80,6 +80,23 @@ def current_pattern(state):
     return pattern if pattern is not None else empty_pattern(s['length'],s['division'])
 
 
+def reconcile_pattern_timing(state,pattern=None,preserve_chain=False):
+    """Sync controls to effective timing; callers supply a validated/candidate copy.
+
+    Legacy loads can use seq timing as the fallback for absent chain entries.
+    Resolve those empty entries before changing that fallback, preserving playback
+    in the existing pattern schema without rewriting the source project file.
+    """
+    seq=state['seq']
+    chosen=current_pattern(state) if pattern is None else pattern
+    if (preserve_chain and seq['chain_enabled'] and
+            any(seq[k]!=chosen[k] for k in ('length','division'))):
+        for key in seq['chain']:
+            if key not in state['patterns']:
+                state['patterns'][key]=empty_pattern(seq['length'],seq['division'])
+    for key in ('length','division','gate','swing'):seq[key]=chosen[key]
+
+
 def validate_state(value):
     """Reject malformed saved projects before using them in the synth worker."""
     if not isinstance(value, dict): raise ValueError('Invalid performance project')

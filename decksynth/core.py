@@ -9,7 +9,8 @@ import struct
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes,
-                      velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS)
+                      velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS,
+                      reconcile_pattern_timing)
 
 PRESETS = {
     'Atmospheric Pad': ([1,.4,.25,.14,.12,.08,.06,.05,.04,.03,.02,.02,.01,.01,0,0], .7,.8,.75,1.8,.65,.25),
@@ -59,6 +60,8 @@ class Project:
                     assert isinstance(n['velocity'],int) and 1<=n['velocity']<=127
             p.bpm=d['bpm']; p.bars=d['bars']; p.metronome=d['metronome']; p.tracks=d['tracks']
             p.performance=validate_performance(d['performance']) if 'performance' in d else performance_defaults()
+            reconcile_pattern_timing(p.performance,preserve_chain=True)
+            p.performance=validate_performance(p.performance)
             # Recording-arm is a live safety state; never resume armed after reopening a file.
             p.performance['seq']['recording']=False
             return p
@@ -244,8 +247,7 @@ class Engine:
         if section=='seq' and key in ('bank','slot'):
             addr=slot_key(state['seq']['bank'],state['seq']['slot'])
             chosen=state['patterns'].get(addr) or empty_pattern(16,'1/16')
-            state['seq']['length']=chosen['length']
-            state['seq']['division']=chosen['division']
+            reconcile_pattern_timing(state,chosen)
         if section=='seq' and key in ('length','division','gate','swing'):
             key_at=slot_key(state['seq']['bank'],state['seq']['slot'])
             pattern=copy.deepcopy(current_pattern(state))
@@ -283,12 +285,12 @@ class Engine:
         return len(state['patterns'][addr]['steps'][index])
 
     def perform_action(self,action,value=None):
-        self.release_performance('perf_seq')
-        state=self.project.performance
+        converting=action in ('capture_song','arp_to_seq')
+        if not converting:self.release_performance('perf_seq')
+        state=copy.deepcopy(self.project.performance) if converting else self.project.performance
         seq=state['seq']; addr=slot_key(seq['bank'],seq['slot'])
         pattern=current_pattern(state)
         if action=='capture_song':
-            self.snapshot()
             state['patterns'][addr]=pattern_from_song(self.project.tracks[self.selected]['notes'],
                          self.project.bars,seq['division'],seq['length'])
         elif action=='commit_song':
@@ -337,7 +339,7 @@ class Engine:
         elif action=='arp_to_seq':
             notes=self.perform_held.held()
             if not notes:raise ValueError('Play or HOLD notes before Arp to Sequence')
-            self.snapshot(); arp=state['arp']
+            arp=state['arp']
             groups=arp_groups(notes,arp['mode'],arp['octaves'],arp['seed'])
             out=change_pattern_length(pattern,max(1,min(64,len(groups))))
             out['division']=arp['division'];out['gate']=arp['gate'];out['swing']=arp['swing']
@@ -362,7 +364,12 @@ class Engine:
             root=int(value[0]); offsets=[max(-48,min(48,int(x)-root)) for x in value]
             self.snapshot(); state['chord']['user']=offsets; state['chord']['preset']='User'
         else:raise ValueError('Unknown performance action')
-        validate_performance(state)
+        if converting:reconcile_pattern_timing(state)
+        validated=validate_performance(state)
+        if converting:
+            self.release_performance('perf_seq')
+            self.snapshot()
+            self.project.performance=validated
         return action
 
     def receive_midi_clock(self,status,timestamp=None):

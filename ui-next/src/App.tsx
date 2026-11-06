@@ -131,6 +131,8 @@ function App() {
           const active=next.state.performance.patterns[seq.bank+':'+seq.slot];
           seq.length=active?.length??16;
           seq.division=active?.division??'1/16';
+          seq.gate=active?.gate??.8;
+          seq.swing=active?.swing??.5;
         }
         if(section==='seq'&&['length','division','gate','swing'].includes(key)){
           const seq=next.state.performance.seq,keyname=seq.bank+':'+seq.slot;
@@ -170,6 +172,8 @@ function App() {
         };
         if(action==='clear')existing.steps.forEach(step=>step.splice(0));
         if(action==='capture_song'){
+          // Match the native converter's timing defaults; notes keep the preview algorithm.
+          existing.gate=.8;existing.swing=.5;
           const beat=.25;
           existing.steps.forEach(step=>step.splice(0));
           owner.notes.forEach(note=>{
@@ -177,6 +181,8 @@ function App() {
             if(existing.steps[i].length<8)existing.steps[i].push({
               note:note.note,velocity:note.velocity,tie:Math.min(8,Math.max(1,Math.round(note.duration/beat)))});
           });
+          seq.length=existing.length;seq.division=existing.division;
+          seq.gate=existing.gate;seq.swing=existing.swing;
         }
         if(action==='commit_song'){
           const converted=existing.steps.flatMap((step,i)=>step.map(note=>({

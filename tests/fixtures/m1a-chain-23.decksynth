@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "bpm": 120,
+  "bars": 4,
+  "metronome": false,
+  "tracks": [
+    {
+      "name": "Track 1",
+      "preset": "Warm Keys",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.5,
+          0.22,
+          0.12,
+          0.08,
+          0.04,
+          0.02,
+          0.01,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.008,
+        "decay": 0.6,
+        "sustain": 0.35,
+        "release": 0.5,
+        "filter": 0.85,
+        "modulation": 0.08
+      },
+      "volume": 0.7,
+      "mute": false,
+      "notes": [
+        {
+          "start": 1.0,
+          "duration": 0.5,
+          "note": 48,
+          "velocity": 90
+        }
+      ]
+    },
+    {
+      "name": "Track 2",
+      "preset": "Bass",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.45,
+          0.22,
+          0.1,
+          0.06,
+          0.02,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.004,
+        "decay": 0.2,
+        "sustain": 0.65,
+        "release": 0.15,
+        "filter": 0.35,
+        "modulation": 0
+      },
+      "volume": 0.7,
+      "mute": false,
+      "notes": []
+    },
+    {
+      "name": "Track 3",
+      "preset": "Atmospheric Pad",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.4,
+          0.25,
+          0.14,
+          0.12,
+          0.08,
+          0.06,
+          0.05,
+          0.04,
+          0.03,
+          0.02,
+          0.02,
+          0.01,
+          0.01,
+          0,
+          0
+        ],
+        "attack": 0.7,
+        "decay": 0.8,
+        "sustain": 0.75,
+        "release": 1.8,
+        "filter": 0.65,
+        "modulation": 0.25
+      },
+      "volume": 0.7,
+      "mute": false,
+      "notes": []
+    },
+    {
+      "name": "Track 4",
+      "preset": "Bell",
+      "instrument": {
+        "harmonics": [
+          1,
+          0,
+          0.55,
+          0,
+          0.3,
+          0,
+          0.12,
+          0.08,
+          0,
+          0.04,
+          0,
+          0,
+          0.02,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.002,
+        "decay": 1.6,
+        "sustain": 0.05,
+        "release": 1.3,
+        "filter": 1.0,
+        "modulation": 0.12
+      },
+      "volume": 0.7,
+      "mute": false,
+      "notes": []
+    }
+  ],
+  "performance": {
+    "seq": {
+      "enabled": true,
+      "recording": true,
+      "bank": 1,
+      "slot": 1,
+      "length": 16,
+      "division": "1/16",
+      "gate": 0.9,
+      "swing": 0.7,
+      "overdub": true,
+      "quantize_strength": 1.0,
+      "transpose": 0,
+      "spice": 0.0,
+      "spice_seed": 1,
+      "mutate_seed": 1,
+      "chain": [
+        "1:1",
+        "1:2"
+      ],
+      "chain_enabled": true
+    },
+    "arp": {
+      "enabled": false,
+      "mode": "Up",
+      "length": 16,
+      "division": "1/16",
+      "gate": 0.75,
+      "swing": 0.5,
+      "octaves": 1,
+      "hold": false,
+      "retrigger": true,
+      "spice": 0.0,
+      "seed": 1
+    },
+    "chord": {
+      "enabled": false,
+      "preset": "Major Triad",
+      "user": [
+        0,
+        4,
+        7
+      ],
+      "spread": 0,
+      "strum_ms": 0,
+      "strum_type": "Up",
+      "voicing": false
+    },
+    "scale": {
+      "name": "Chromatic",
+      "root": 0,
+      "octave": 0,
+      "velocity_curve": "Linear",
+      "input_channel": 0
+    },
+    "sync": {
+      "source": "Internal",
+      "receive_transport": true
+    },
+    "patterns": {
+      "1:1": {
+        "length": 7,
+        "division": "1/16",
+        "gate": 0.2,
+        "swing": 0.5,
+        "steps": [
+          [
+            {
+              "note": 60,
+              "velocity": 100,
+              "tie": 1
+            }
+          ],
+          [],
+          [],
+          [],
+          [],
+          [],
+          []
+        ]
+      }
+    }
+  }
+}
