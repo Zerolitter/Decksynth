@@ -8,6 +8,11 @@ import copy
 import math
 import random
 
+
+class StepCapacityError(ValueError):
+    """A rejected note edit exceeds capacity; the MIDI stream can continue."""
+
+
 DIVISIONS = {
     '1/2D': 3., '1/2': 2., '1/2T': 4/3,
     '1/4D': 1.5, '1/4': 1., '1/4T': 2/3,
@@ -176,10 +181,10 @@ def step_change(pattern,index,notes,replace=True):
     out=copy.deepcopy(pattern)
     if not 0<=index<out['length']:raise ValueError('Step outside pattern')
     prepared=[dict(note=int(n['note']),velocity=int(n.get('velocity',100)),tie=int(n.get('tie',1))) for n in notes]
-    if len(prepared)>8:raise ValueError('Maximum eight notes per step')
+    if len(prepared)>8:raise StepCapacityError('Maximum eight notes per step')
     old=[] if replace else out['steps'][index][:]
     combined=old+prepared
-    if len(combined)>8:raise ValueError('Maximum eight notes per step')
+    if len(combined)>8:raise StepCapacityError('Maximum eight notes per step')
     out['steps'][index]=combined
     validate_pattern(out)
     return out

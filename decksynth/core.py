@@ -274,11 +274,12 @@ class Engine:
         return state[section][key]
 
     def perform_step(self,index,notes,replace=True):
-        self.release_performance('perf_seq')
-        self.snapshot()
         state=self.project.performance
         addr=slot_key(state['seq']['bank'],state['seq']['slot'])
-        state['patterns'][addr]=step_change(current_pattern(state),index,notes,replace)
+        updated=step_change(current_pattern(state),index,notes,replace)
+        self.release_performance('perf_seq')
+        self.snapshot()
+        state['patterns'][addr]=updated
         return len(state['patterns'][addr]['steps'][index])
 
     def perform_action(self,action,value=None):

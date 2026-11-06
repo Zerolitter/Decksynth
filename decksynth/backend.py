@@ -8,6 +8,7 @@ import os
 import queue
 import time
 from .core import Engine, MidiParser, Project, instrument
+from .keystep import StepCapacityError
 
 class AudioSpec(C.Structure):
     _fields_=[('freq',C.c_int),('format',C.c_ushort),('channels',C.c_ubyte),('silence',C.c_ubyte),('samples',C.c_ushort),('padding',C.c_ushort),('size',C.c_uint),('callback',C.c_void_p),('userdata',C.c_void_p)]
@@ -61,6 +62,7 @@ class MidiDevice:
         if self.fd is not None:os.close(self.fd)
         self.fd=None; self.connected=None; self.parser=MidiParser()
     def poll(self,engine):
+        rejections=[]
         now=time.monotonic()
         if now>=self.next_scan:
             self.next_scan=now+1; devices=self.devices()
@@ -78,9 +80,14 @@ class MidiDevice:
                 # inside running-status streams or SysEx.
                 for status in data:
                     if status in (0xf8,0xfa,0xfb,0xfc):engine.receive_midi_clock(status,now)
-                for event in self.parser.feed(data):engine.midi(*event)
+                for event in self.parser.feed(data):
+                    try:engine.midi(*event)
+                    except StepCapacityError as exc:
+                        # Reject this step edit only; subsequent note-offs must run.
+                        rejections.append(str(exc))
             except BlockingIOError:pass
             except OSError:engine.panic(); self.close()
+        return rejections
 
 def worker(commands,updates):
     engine=Engine(); midi=MidiDevice(); audio=None; last_status=0; underruns=0; started=False
@@ -173,7 +180,7 @@ def worker(commands,updates):
                         engine.snapshot(); t=engine.project.tracks[engine.selected]; t['instrument']=p.tracks[0]['instrument']; t['preset']='Custom'; engine.configure()
                 except Exception as exc:send(dict(error=str(exc)))
             if not running:break
-            midi.poll(engine)
+            for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
                 if started and audio.queued()==0:underruns+=1
                 while audio.queued()<768:
