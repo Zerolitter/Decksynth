@@ -170,7 +170,7 @@ class Engine:
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.selected=0; self.playing=False; self.recording=False; self.frame=0
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999
-        self.perform_held=HeldNotes(); self.live_note_map={}; self.mutation_original=None
+        self.perform_held=HeldNotes(); self.live_note_map={}; self.mutation_sessions={}
         self.scheduled_live=[]; self.absolute_frame=0
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
         self.configure()
@@ -180,13 +180,44 @@ class Engine:
     def fpb(self): return self.rate*60/self.project.bpm
     @property
     def beat(self): return self.frame/self.fpb
-    def snapshot(self): self.history.append(copy.deepcopy(self.project.data())); self.history=self.history[-20:]
+    def snapshot(self,pattern_address=None,after_pattern=None,seed_after=None,mode_after=None):
+        data=copy.deepcopy(self.project.data())
+        data['_mutation_sessions']=copy.deepcopy(self.mutation_sessions)
+        if pattern_address is not None:
+            data['_pattern_edit']=dict(address=pattern_address,after=copy.deepcopy(after_pattern),
+                                       seed_after=seed_after,mode_after=mode_after)
+        self.history.append(data);self.history=self.history[-20:]
     def undo(self):
         if not self.history:return
+        data=self.history[-1]
+        if '_pattern_edit' in data:
+            edit=data['_pattern_edit'];addr=edit['address']
+            state=copy.deepcopy(self.project.performance)
+            if state['patterns'].get(addr)!=edit['after']:
+                raise ValueError('Pattern changed since this edit; undo rejected')
+            previous=data['performance']
+            if addr in previous['patterns']:state['patterns'][addr]=copy.deepcopy(previous['patterns'][addr])
+            else:state['patterns'].pop(addr,None)
+            if state['seq']['mutate_seed']==edit['seed_after']:
+                state['seq']['mutate_seed']=previous['seq']['mutate_seed']
+            if edit.get('mode_after')==(state['seq']['enabled'],state['arp']['enabled']):
+                for section in ('seq','arp'):state[section]['enabled']=previous[section]['enabled']
+            if slot_key(state['seq']['bank'],state['seq']['slot'])==addr:
+                if addr not in state['patterns']:
+                    for key in ('length','division','gate','swing'):state['seq'][key]=previous['seq'][key]
+                reconcile_pattern_timing(state)
+            state['seq']['recording']=False
+            state=validate_performance(state)
+            self.stop();self.project.performance=state;self.history.pop()
+            session=data.get('_mutation_sessions',{}).get(addr)
+            if session is None:self.mutation_sessions.pop(addr,None)
+            else:self.mutation_sessions[addr]=copy.deepcopy(session)
+            return
         self.stop(); d=self.history.pop(); self.project.tracks=d['tracks']; self.project.bpm=d['bpm']; self.project.bars=d['bars']
         self.project.metronome=d['metronome']
         self.project.performance=copy.deepcopy(d.get('performance',performance_defaults()))
         self.project.performance['seq']['recording']=False
+        self.mutation_sessions=copy.deepcopy(d.get('_mutation_sessions',{}))
         self.configure()
     def record(self,track):
         if self.recording:self.finish_record()
@@ -256,11 +287,11 @@ class Engine:
             state['patterns'][key_at]=pattern
         if section=='seq' and key=='enabled' and value:
             state['arp']['enabled']=False
-            self.perform_held.reset()
         if section=='arp' and key=='enabled' and value:
             state['seq']['enabled']=False
             state['seq']['recording']=False
         state=validate_performance(state)
+        if section=='seq' and key=='enabled' and value:self.perform_held.reset()
         if section=='arp' and key=='hold':self.perform_held.set_hold(value)
         if section=='sync' and key=='source':
             self.clock_times.clear();self.clock_following=False;self.clock_last_ts=0.
@@ -279,15 +310,26 @@ class Engine:
         state=self.project.performance
         addr=slot_key(state['seq']['bank'],state['seq']['slot'])
         updated=step_change(current_pattern(state),index,notes,replace)
+        candidate=copy.deepcopy(state);candidate['patterns'][addr]=updated
+        self._commit_pattern_edit(candidate,addr)
+        return len(updated['steps'][index])
+
+    def _commit_pattern_edit(self,state,addr,update_session=False,session=None):
+        state=validate_performance(state)
+        modes=(state['seq']['enabled'],state['arp']['enabled'])
+        before=self.project.performance
+        mode_after=modes if modes!=(before['seq']['enabled'],before['arp']['enabled']) else None
         self.release_performance('perf_seq')
-        self.snapshot()
-        state['patterns'][addr]=updated
-        return len(state['patterns'][addr]['steps'][index])
+        self.snapshot(addr,state['patterns'].get(addr),state['seq']['mutate_seed'],mode_after)
+        self.project.performance=state
+        if update_session:
+            if session is None:self.mutation_sessions.pop(addr,None)
+            else:self.mutation_sessions[addr]=session
 
     def perform_action(self,action,value=None):
-        converting=action in ('capture_song','arp_to_seq')
-        if not converting:self.release_performance('perf_seq')
-        state=copy.deepcopy(self.project.performance) if converting else self.project.performance
+        pattern_edit=action in ('capture_song','clear','double','nudge','octave','mutate','reset_mutate','arp_to_seq')
+        state=copy.deepcopy(self.project.performance)
+        session=None;song_notes=None
         seq=state['seq']; addr=slot_key(seq['bank'],seq['slot'])
         pattern=current_pattern(state)
         if action=='capture_song':
@@ -297,45 +339,42 @@ class Engine:
             if value not in ('add','replace'):raise ValueError('Choose add or replace')
             notes=song_from_pattern(pattern,self.project.bars,seq['transpose'])
             if len(notes)>100000:raise ValueError('Too many MIDI notes')
-            self.snapshot(); self.stop()
-            if value=='replace':self.project.tracks[self.selected]['notes']=notes
-            else:self.project.tracks[self.selected]['notes'].extend(notes)
+            song_notes=notes;seq['recording']=False
         elif action=='clear':
-            self.snapshot(); state['patterns'][addr]=step_change(pattern,0,[],True)
+            state['patterns'][addr]=step_change(pattern,0,[],True)
             for step in state['patterns'][addr]['steps']:step.clear()
-            self.mutation_original=None
         elif action=='double':
-            self.snapshot()
             if pattern['length']*2>64:raise ValueError('Maximum 64 sequence steps')
             doubled=change_pattern_length(pattern,pattern['length']*2)
             doubled['steps'][pattern['length']:]=copy.deepcopy(pattern['steps'])
             state['patterns'][addr]=doubled; seq['length']=doubled['length']
         elif action=='nudge':
-            direction=int(value)
-            if direction not in (-1,1):raise ValueError('Nudge direction must be -1 or +1')
-            self.snapshot(); out=copy.deepcopy(pattern)
+            if type(value) not in (int,float) or value not in (-1,1):raise ValueError('Nudge direction must be -1 or +1')
+            direction=int(value);out=copy.deepcopy(pattern)
             out['steps']=[copy.deepcopy(pattern['steps'][(i-direction)%pattern['length']])
                           for i in range(pattern['length'])]
             state['patterns'][addr]=out
         elif action=='octave':
-            direction=int(value)
-            if direction not in (-1,1):raise ValueError('Octave direction must be -1 or +1')
-            self.snapshot(); out=copy.deepcopy(pattern)
+            if type(value) not in (int,float) or value not in (-1,1):raise ValueError('Octave direction must be -1 or +1')
+            direction=int(value);out=copy.deepcopy(pattern)
             for step in out['steps']:
                 for note in step:note['note']=max(0,min(127,note['note']+12*direction))
             state['patterns'][addr]=out
         elif action=='mutate':
-            intensity=float(value)
-            if not 0<=intensity<=1:raise ValueError('Mutation strength 0-1')
-            self.snapshot()
-            if self.mutation_original is None:self.mutation_original=(addr,copy.deepcopy(pattern))
+            if (type(value) not in (int,float) or not math.isfinite(value)
+                    or not 0<=value<=1):raise ValueError('Mutation strength 0-1')
+            previous=self.mutation_sessions.get(addr)
+            if previous is not None and pattern==previous['last']:session=copy.deepcopy(previous)
+            else:session=dict(original=copy.deepcopy(pattern),present=addr in state['patterns'])
             seq['mutate_seed']=(seq['mutate_seed']+1)%1000000
-            state['patterns'][addr]=mutate_pattern(pattern,intensity,seq['mutate_seed'])
+            state['patterns'][addr]=mutate_pattern(pattern,value,seq['mutate_seed'])
+            session['last']=copy.deepcopy(state['patterns'][addr])
         elif action=='reset_mutate':
-            if self.mutation_original is not None and self.mutation_original[0]==addr:
-                self.snapshot()
-                state['patterns'][addr]=copy.deepcopy(self.mutation_original[1])
-            self.mutation_original=None
+            previous=self.mutation_sessions.get(addr)
+            if previous is None:raise ValueError('No mutation to reset for this pattern')
+            if pattern!=previous['last']:raise ValueError('Pattern changed after mutation; reset rejected')
+            if previous['present']:state['patterns'][addr]=copy.deepcopy(previous['original'])
+            else:state['patterns'].pop(addr,None)
         elif action=='arp_to_seq':
             notes=self.perform_held.held()
             if not notes:raise ValueError('Play or HOLD notes before Arp to Sequence')
@@ -347,11 +386,11 @@ class Engine:
             state['patterns'][addr]=out; seq['division']=out['division'];seq['length']=out['length']
             seq['enabled']=True;arp['enabled']=False
         elif action=='quantize':
-            self.snapshot()
             strength=seq['quantize_strength']
             # Step data is already on-grid. This action quantizes the selected song track.
             snap=DIVISIONS[seq['division']]
-            for note in self.project.tracks[self.selected]['notes']:
+            song_notes=copy.deepcopy(self.project.tracks[self.selected]['notes'])
+            for note in song_notes:
                 original=note['start']; target=round(original/snap)*snap
                 note['start']=(original+(target-original)*strength)%self.project.beats
         elif action=='learn_chord':
@@ -362,14 +401,20 @@ class Engine:
             if not isinstance(value,list) or not 1<=len(value)<=16:
                 raise ValueError('Chord memory needs 1-16 notes')
             root=int(value[0]); offsets=[max(-48,min(48,int(x)-root)) for x in value]
-            self.snapshot(); state['chord']['user']=offsets; state['chord']['preset']='User'
+            state['chord']['user']=offsets; state['chord']['preset']='User'
         else:raise ValueError('Unknown performance action')
-        if converting:reconcile_pattern_timing(state)
+        if pattern_edit:
+            reconcile_pattern_timing(state)
+            self._commit_pattern_edit(state,addr,action in ('mutate','reset_mutate'),session)
+            return action
         validated=validate_performance(state)
-        if converting:
-            self.release_performance('perf_seq')
-            self.snapshot()
-            self.project.performance=validated
+        self.release_performance('perf_seq');self.snapshot()
+        if action=='commit_song':
+            self.stop()
+            if value=='replace':self.project.tracks[self.selected]['notes']=song_notes
+            else:self.project.tracks[self.selected]['notes'].extend(song_notes)
+        elif action=='quantize':self.project.tracks[self.selected]['notes']=song_notes
+        self.project.performance=validated
         return action
 
     def receive_midi_clock(self,status,timestamp=None):

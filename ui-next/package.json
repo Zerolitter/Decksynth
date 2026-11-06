@@ -10,7 +10,7 @@
     "launch": "electron .",
     "test": "node --test tests/*.mjs",
     "test:ui": "node tests/desktop_acceptance.cjs && node tests/knob_drag_acceptance.cjs && node tests/touch_target_acceptance.cjs && node tests/performance_ui_acceptance.cjs",
-    "test:bridge": "python3 tests/bridge_acceptance.py && node tests/live_ui_bridge_acceptance.cjs && node tests/live_performance_acceptance.cjs"
+    "test:bridge": "python3 tests/bridge_acceptance.py && node tests/live_ui_bridge_acceptance.cjs && node tests/live_performance_acceptance.cjs && node tests/mutation_transactions_acceptance.cjs"
   },
   "dependencies": {
     "lucide-react": "^1.69.0",

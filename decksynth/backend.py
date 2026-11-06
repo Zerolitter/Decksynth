@@ -162,7 +162,8 @@ def worker(commands,updates):
                     elif cmd=='metronome':engine.project.metronome=args
                     elif cmd=='save':engine.finish_record(); engine.project.save(args); send(dict(message='Saved '+args))
                     elif cmd=='load':
-                        p=Project.load(args); engine.stop(); engine.project=p; engine.configure(); engine.history=[]; send(dict(message='Opened '+args))
+                        p=Project.load(args); engine.stop(); engine.project=p; engine.configure()
+                        engine.history=[];engine.mutation_sessions.clear();send(dict(message='Opened '+args))
                     elif cmd=='export':engine.project.export_midi(args); send(dict(message='Exported '+args))
                     elif cmd=='save_preset':
                         from pathlib import Path

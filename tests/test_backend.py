@@ -112,6 +112,37 @@ class MidiCapacityTests(unittest.TestCase):
 
 
 class BackendTests(unittest.TestCase):
+    def test_project_load_discards_mutation_baselines(self):
+        ctx=mp.get_context('spawn');commands=ctx.Queue();updates=ctx.Queue(64)
+        proc=ctx.Process(target=diagnostic_worker,args=(commands,updates));proc.start()
+        def receive(predicate):
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                try:obj=updates.get(timeout=.2)
+                except queue.Empty:continue
+                if predicate(obj):return obj
+            self.fail('Timed out waiting for mutation load boundary')
+        try:
+            receive(lambda o:'state' in o)
+            commands.put(('perform_step',[0,[dict(note=60,velocity=100,tie=1)],True]))
+            commands.put(('perform_action',['mutate',1.]))
+            receive(lambda o:o.get('message')=='Performance: mutate')
+            with tempfile.TemporaryDirectory() as directory:
+                path=str(Path(directory)/'mutated.decksynth')
+                commands.put(('save',path));receive(lambda o:o.get('message')=='Saved '+path)
+                saved=Project.load(path)
+                commands.put(('load',path));receive(lambda o:o.get('message')=='Opened '+path)
+                commands.put(('perform_action',['reset_mutate',None]))
+                rejection=receive(lambda o:'error' in o)
+                self.assertIn('No mutation',rejection['error'])
+                state=receive(lambda o:'state' in o)
+                self.assertEqual(state['state']['performance'],saved.performance)
+                self.assertEqual(state['devices'],[]);self.assertEqual(state['audio'],'dummy')
+        finally:
+            commands.put(('quit',None));proc.join(3)
+            if proc.is_alive():proc.terminate();proc.join()
+            commands.close();updates.close()
+
     def test_sdl_worker_four_bar_layer_save_reopen(self):
         ctx=mp.get_context('spawn'); commands=ctx.Queue(); updates=ctx.Queue(32)
         proc=ctx.Process(target=diagnostic_worker,args=(commands,updates)); proc.start()

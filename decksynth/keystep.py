@@ -277,19 +277,28 @@ def arp_groups(held,mode='Up',octaves=1,seed=1,steps=16):
 
 
 def mutate_pattern(pattern,intensity,seed=1):
-    """Copy-on-write pitch/time mutation, applied to a saved pattern only on explicit confirmation."""
-    out=copy.deepcopy(pattern)
+    """Mutate distinct occurrences without deleting a source on a capacity collision."""
+    validate_pattern(pattern)
+    if (type(intensity) not in (int,float) or not math.isfinite(intensity)
+            or not 0<=intensity<=1):raise ValueError('Mutation strength 0-1')
+    # Stable tokens distinguish equal-valued notes and survive moves into a step.
+    buckets=[[(i,j,dict(item)) for j,item in enumerate(step)]
+             for i,step in enumerate(pattern['steps'])]
     rng=random.Random(seed)
-    intensity=max(0.,min(1.,intensity))
     for i,step in enumerate(pattern['steps']):
-        for item in step:
+        for j,item in enumerate(step):
             if rng.random()<intensity:
                 dest=(i+rng.choice([-2,-1,0,1,2]))%pattern['length']
                 note=dict(item)
                 note['note']=max(0,min(127,note['note']+rng.choice([-7,-5,-2,2,5,7])))
-                if len(out['steps'][dest])<8:out['steps'][dest].append(note)
-                if i==dest:out['steps'][dest].remove(item)
-                else:out['steps'][i].remove(item)
+                index=next(k for k,(source,occurrence,_) in enumerate(buckets[i])
+                           if (source,occurrence)==(i,j))
+                if dest==i:buckets[i][index]=(i,j,note)
+                elif len(buckets[dest])<8:
+                    buckets[i].pop(index)
+                    buckets[dest].append((i,j,note))
+    out=copy.deepcopy(pattern)
+    out['steps']=[[item for _,_,item in step] for step in buckets]
     validate_pattern(out)
     return out
 
