@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import struct
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
-                      current_pattern, slot_key, step_change, change_pattern_length,
+                      current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes,
                       velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS)
 
@@ -242,7 +242,8 @@ class Engine:
         if key not in state[section]:raise ValueError('Unknown performance parameter')
         state[section][key]=value
         if section=='seq' and key in ('bank','slot'):
-            chosen=current_pattern(state)
+            addr=slot_key(state['seq']['bank'],state['seq']['slot'])
+            chosen=state['patterns'].get(addr) or empty_pattern(16,'1/16')
             state['seq']['length']=chosen['length']
             state['seq']['division']=chosen['division']
         if section=='seq' and key in ('length','division','gate','swing'):

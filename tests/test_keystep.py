@@ -164,6 +164,7 @@ class KeystepAudioTests(unittest.TestCase):
         self.assertEqual(current_pattern(e.project.performance),original)
         e.perform_set('seq','slot',2)
         self.assertEqual(current_pattern(e.project.performance)['steps'][0],[])
+        self.assertEqual(current_pattern(e.project.performance)['length'],16)
         e.perform_set('seq','slot',1)
         self.assertEqual(current_pattern(e.project.performance),original)
 

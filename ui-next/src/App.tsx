@@ -129,7 +129,8 @@ function App() {
         if(section==='seq'&&(key==='bank'||key==='slot')){
           const seq=next.state.performance.seq;
           const active=next.state.performance.patterns[seq.bank+':'+seq.slot];
-          if(active){seq.length=active.length;seq.division=active.division;}
+          seq.length=active?.length??16;
+          seq.division=active?.division??'1/16';
         }
         if(section==='seq'&&['length','division','gate','swing'].includes(key)){
           const seq=next.state.performance.seq,keyname=seq.bank+':'+seq.slot;
