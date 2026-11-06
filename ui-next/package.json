@@ -1,0 +1,32 @@
+{
+  "name": "decksynth-next-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev:ui": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "launch": "electron .",
+    "test": "node --test tests/*.mjs",
+    "test:ui": "node tests/desktop_acceptance.cjs && node tests/knob_drag_acceptance.cjs && node tests/touch_target_acceptance.cjs",
+    "test:bridge": "python3 tests/bridge_acceptance.py && node tests/live_ui_bridge_acceptance.cjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.69.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "^39.0.0",
+    "playwright": "^1.65.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.0"
+  },
+  "allowScripts": {
+    "electron@39.8.10": true,
+    "esbuild@0.28.2": true
+  }
+}

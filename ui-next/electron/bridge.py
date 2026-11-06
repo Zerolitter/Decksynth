@@ -1,0 +1,84 @@
+"""Small line-delimited JSON bridge to the existing DeckSynth audio/MIDI worker.
+
+Only Electron's local process can send commands through stdin; no HTTP server,
+web socket or externally reachable endpoint. All worker logic remains unchanged.
+"""
+import json
+import multiprocessing as mp
+import os
+import queue
+import sys
+import threading
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from decksynth.backend import worker
+
+def diagnostic_worker(commands, updates):
+    # Test mode never opens actual Roland MIDI or other /dev/snd/midi endpoints.
+    from decksynth.backend import MidiDevice
+    MidiDevice.devices = staticmethod(lambda: [])
+    worker(commands, updates)
+
+COMMANDS = {
+    'perform_set', 'perform_step', 'perform_action',
+    'midi', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
+    'clear', 'device', 'audio_device', 'preset', 'parameter',
+    'edit_note', 'track', 'tempo', 'bars', 'metronome',
+    'save', 'load', 'export', 'save_preset', 'load_preset',
+}
+
+def encode(value):
+    try:
+        return json.dumps(value, separators=(',', ':'), allow_nan=False)
+    except (ValueError, TypeError):
+        return json.dumps({'error':'Non-finite backend result suppressed'})
+
+def main():
+    mp.set_start_method('spawn', force=True)
+    commands = mp.Queue(512)
+    updates = mp.Queue(64)
+    target = diagnostic_worker if os.environ.get('DECKSYNTH_DIAGNOSTIC') == '1' else worker
+    process = mp.Process(target=target, args=(commands, updates), daemon=True)
+    process.start()
+    alive = threading.Event()
+    alive.set()
+
+    def accept_input():
+        try:
+            for line in sys.stdin:
+                if not alive.is_set():
+                    break
+                try:
+                    item = json.loads(line, parse_constant=lambda name: (_ for _ in ()).throw(ValueError(name)))
+                    if not isinstance(item, dict) or item.get('cmd') not in COMMANDS:
+                        raise ValueError('Unsupported DeckSynth action')
+                    commands.put((item['cmd'],item.get('args')),timeout=2)
+                except (ValueError,TypeError,queue.Full,KeyError) as exc:
+                    print(encode({'error':'Command rejected: '+str(exc)}),flush=True)
+        finally:
+            alive.clear()
+
+    reader = threading.Thread(target=accept_input,daemon=True)
+    reader.start()
+    print(encode({'bridge':'ready','process':process.pid}),flush=True)
+    try:
+        while alive.is_set() and process.is_alive():
+            try: message = updates.get(timeout=.2)
+            except queue.Empty: continue
+            print(encode(message),flush=True)
+    finally:
+        alive.clear()
+        try: commands.put(('quit',None),timeout=.5)
+        except queue.Full: pass
+        process.join(2)
+        if process.is_alive():
+            process.terminate()
+            process.join(1)
+        commands.close()
+        updates.close()
+
+if __name__=='__main__':
+    main()

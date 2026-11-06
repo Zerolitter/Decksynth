@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+*.decksynth.tmp
+*.dspreset.tmp

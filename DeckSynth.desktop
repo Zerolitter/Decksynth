@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DeckSynth
+GenericName=Steam Deck music workstation
+Comment=Spectral synthesizer with MIDI recording and four-track looping
+Exec=/home/deck/Projects/deck-app/launch.sh
+Path=/home/deck/Projects/deck-app
+Icon=audio-x-generic
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupNotify=true

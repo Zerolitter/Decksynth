@@ -1,0 +1,234 @@
+/* DeckSynth hardware-interaction refinement, 2026-11-06.
+   Original Steam Deck design informed by ReplicantTr8s' 30Hz LED sequencer,
+   tactile rotary tick geometry, real PCM scope and short parameter readouts.
+   Do NOT import Roland artwork, firmware, kits or UI assets. */
+
+/* Coherent tactile response, not constant decorative animation. */
+.decksynth-shell .transport-pad,
+.decksynth-shell .transport-utility,
+.decksynth-shell .metronome-button,
+.decksynth-shell .icon-button,
+.decksynth-shell .app-mode-switch button,
+.decksynth-shell .lane-mute,
+.decksynth-shell .foot-right button {
+  transition: transform 90ms ease, filter 130ms ease, border-color 130ms ease,
+              box-shadow 130ms ease, background 130ms ease;
+  box-shadow: inset 0 1px 0 #ffffff0b, 0 2px 1px #00000044;
+}
+.decksynth-shell .transport-pad:active,
+.decksynth-shell .transport-utility:active,
+.decksynth-shell .metronome-button:active,
+.decksynth-shell .icon-button:active,
+.decksynth-shell .app-mode-switch button:active,
+.decksynth-shell .lane-mute:active,
+.decksynth-shell .foot-right button:active {
+  transform: translateY(2px) scale(.991);
+  filter: brightness(1.15);
+  box-shadow: inset 0 2px 8px #0006,0 0 0 1px #ffffff08;
+}
+.decksynth-shell .transport-pad.play.engaged{
+  box-shadow: inset 0 1px 0 #e6fff522,0 0 16px #80dabb25;
+}
+.decksynth-shell .transport-pad.record.engaged {
+  border-color: #f2b3b7;
+  box-shadow: 0 0 0 1px #c17c80aa,inset 0 1px 0 #fff2;
+}
+.decksynth-shell .transport-pad.record.engaged svg {
+  animation: deckRecording 1.25s ease-in-out infinite;
+}
+@keyframes deckRecording {
+  50% { opacity: .45; filter: brightness(.75); }
+}
+
+/* Live 16-step hardware-style synchronizer — 8 × 2 pads to fit real touch targets. */
+.decksynth-shell .song-lower{height:190px;grid-template-columns:minmax(0,1.8fr) minmax(288px,.84fr)}
+.decksynth-shell .hardware-sequencer{
+  border:1px solid #405051;
+  background:linear-gradient(180deg,#1a2528 0%,#161e22 100%);
+  box-shadow:inset 0 1px 0 #ffffff09,0 4px 11px #0004;
+  gap:0;
+}
+.decksynth-shell .hardware-sequencer .pattern-header{
+  background:linear-gradient(#2a3539,#222c30);
+  height:34px;min-height:34px;padding:0 11px;
+}
+.decksynth-shell .hardware-sequencer .pattern-heading strong{
+  font-size:11px;color:#dfebe5;letter-spacing:.08px;
+}
+.decksynth-shell .hardware-sequencer .pattern-head-right b{
+  background:#0e1718;border:1px solid #3b5952;padding:3px 8px;border-radius:5px;
+  font:750 15px ui-monospace,monospace;
+}
+.decksynth-shell .hardware-sequencer .sync-dot.active {
+  box-shadow:0 0 9px #87dcc4aa;
+}
+.decksynth-shell .pattern-focus-chips{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  height:28px;min-height:28px;gap:4px;padding:3px 8px;
+}
+.decksynth-shell .pattern-focus-chip{
+  border:1px solid #334447;border-radius:4px;
+  background:#202b2d;color:#aabbb6;
+  display:flex;align-items:center;gap:5px;
+  min-width:0;min-height:21px;padding:0 7px;
+  transition: background 100ms,border-color 100ms;
+}
+.decksynth-shell .pattern-focus-chip.selected{
+  background:#2a3b3a;border-color:var(--step-accent);color:#eef5ef;
+}
+.decksynth-shell .pattern-focus-dot{
+  width:6px;height:9px;background:var(--step-accent);
+  border-radius:2px;flex:none;opacity:.85;
+}
+.decksynth-shell .pattern-focus-name{font-size:9px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.decksynth-shell .pattern-note-count{margin-left:auto;font:700 10px ui-monospace,monospace;color:var(--step-accent)}
+.decksynth-shell .sequencer-pad-grid{
+  flex:1;min-height:0;
+  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));
+  grid-template-rows:repeat(2,minmax(0,1fr));
+  gap:5px 5px;padding:4px 9px 5px;
+  background:repeating-linear-gradient(0deg,#111a1e,#111a1e 2px,#131c20 2px,#131c20 4px);
+}
+.decksynth-shell .step-hardware-pad{
+  position:relative;min-width:0;min-height:35px;
+  color:#91a3a0;border:1px solid #435056;border-radius:5px;
+  background:linear-gradient(170deg,#313a40 0%,#222b30 45%,#151c21 100%);
+  box-shadow:inset 0 1px 0 #ffffff1c,inset 0 -3px 0 #090f13aa,0 2px 2px #0008;
+  display:flex;align-items:center;justify-content:center;
+  isolation:isolate;user-select:none;touch-action:manipulation;
+  transition:transform 85ms,box-shadow 125ms,background 125ms,border-color 125ms;
+}
+.decksynth-shell .step-hardware-pad:active {
+  transform: translateY(2px);
+  box-shadow:inset 0 2px 9px #0009,0 0 0 1px #ffffff16;
+}
+.decksynth-shell .step-hardware-pad.bar-start {
+  border-left-width:2px;border-left-color:#658078;
+}
+.decksynth-shell .step-pad-surface{position:absolute;z-index:-1;inset:4px 5px 4px;
+  background:linear-gradient(135deg,#ffffff0b,transparent 60%);border-radius:3px;pointer-events:none}
+.decksynth-shell .step-pad-number{font:800 14px ui-monospace,monospace;letter-spacing:.25px;
+  color:#aebfc0;text-shadow:0 1px #050a0a}
+.decksynth-shell .step-pad-led{position:absolute;left:19%;right:19%;top:4px;height:3px;
+  border-radius:3px;background:#475759;box-shadow:inset 0 1px 1px #0005}
+.decksynth-shell .step-hardware-pad.has-onset {
+  background:linear-gradient(180deg,color-mix(in srgb,var(--step-accent) 25%,#303738),
+                                   color-mix(in srgb,var(--step-accent) 10%,#1a2527));
+  border-color:color-mix(in srgb,var(--step-accent) 63%,#3c4b51);
+}
+.decksynth-shell .step-hardware-pad.has-onset .step-pad-number{color:#f1f7f3}
+.decksynth-shell .step-hardware-pad.has-onset .step-pad-led{
+  background:var(--step-accent);
+  box-shadow:0 0 5px color-mix(in srgb,var(--step-accent) 55%,transparent);
+}
+.decksynth-shell .step-pad-indicator{position:absolute;right:8px;bottom:6px;width:5px;height:5px;border-radius:50%;
+  background:var(--step-accent)}
+.decksynth-shell .step-hardware-pad.has-sustain{
+  background:linear-gradient(#2d393c,#1e2b30);
+  border-color:color-mix(in srgb,var(--step-accent) 35%,#36474a);
+}
+.decksynth-shell .step-pad-hold{position:absolute;left:25%;right:25%;bottom:5px;height:2px;background:var(--step-accent);opacity:.58}
+.decksynth-shell .step-hardware-pad.inspected{outline:1px solid #ccdfd8;outline-offset:-3px}
+.decksynth-shell .step-hardware-pad.is-live{
+  border-color:#f2fbf2;
+  box-shadow:inset 0 1px 0 #ffffff2c,0 0 0 1px #c4eee6aa,0 0 12px var(--step-accent);
+  animation: deckStepPulse 380ms ease-out;
+}
+.decksynth-shell .step-hardware-pad.is-live .step-pad-number{color:#fafff9;text-shadow:0 0 7px #ffffffb0}
+.decksynth-shell .step-hardware-pad.is-live .step-pad-led{
+  height:4px;background:#effff7;box-shadow:0 0 8px #e3fff1;
+}
+@keyframes deckStepPulse {
+  0% {filter:brightness(1.45);transform:translateY(-1px)}
+  100% {filter:brightness(1);transform:none}
+}
+.decksynth-shell .hardware-sequencer .pattern-footer{
+  height:21px;min-height:21px;white-space:nowrap;overflow:hidden;
+  padding:0 10px;border-top:1px solid #354649;font-size:9px;
+}
+.decksynth-shell .step-inspect-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.decksynth-shell .pattern-count{white-space:nowrap;color:#9cb3ab}
+
+/* Tactile knob surface: readable at 1280×800 without an over-bright carnival. */
+.decksynth-shell .tactile-knob .knob-target{
+  position:relative;touch-action:none;
+  transition:filter 120ms ease,transform 110ms ease;
+}
+.decksynth-shell .tactile-knob .knob-target:hover .knob-svg{
+  filter: drop-shadow(0 2px 4px #0009) drop-shadow(0 0 4px #8dcdbb4c);
+}
+.decksynth-shell .tactile-knob.is-engaged .knob-target{
+  transform:scale(1.06);
+  filter:drop-shadow(0 0 6px #a0ebda58);
+}
+.decksynth-shell .tactile-knob .knob-face{fill:none}
+.decksynth-shell .tactile-knob .knob-svg{overflow:visible}
+.decksynth-shell .knob-live-value{
+  position:absolute;left:50%;bottom:calc(100% - 3px);
+  z-index:21;pointer-events:none;transform:translateX(-50%);
+  min-width:76px;max-width:130px;
+  border:1px solid #7fc6b6;background:#0c1519ef;
+  box-shadow:0 7px 16px #000a,0 0 0 1px #a8e2d120;
+  color:#b6d7cf;border-radius:6px;padding:5px 9px;
+  display:flex;flex-direction:column;align-items:center;
+  font-size:9px;font-weight:700;white-space:nowrap;
+}
+.decksynth-shell .knob-live-value b{
+  font:750 13px ui-monospace,monospace;color:#f5fff9;margin-top:2px;
+}
+.decksynth-shell .tactile-knob .knob-heading{color:#c2d0cb}
+
+/* Live audio monitor: only show illumination when PCM data exists. */
+.decksynth-shell .audio-scope{
+  border-color:#466360;
+  background:linear-gradient(#212e31,#152126);
+}
+.decksynth-shell .scope-top{
+  background:linear-gradient(#2a3d3e,#223033);
+}
+.decksynth-shell .scope-canvas{
+  background:repeating-linear-gradient(90deg,#0c1518,#0c1518 8px,#101d20 8px,#101d20 16px);
+}
+.decksynth-shell .scope-meter-leds span.lit{
+  box-shadow:0 0 6px #a3e6c266;background:linear-gradient(#c1f8d7,#62cda6);
+}
+.decksynth-shell .scope-footer strong{font-variant-numeric:tabular-nums}
+
+/* No user preference for perpetual animations: obey reduced motion. */
+@media(max-height:730px) {
+  .decksynth-shell .song-lower{height:175px}
+  .decksynth-shell .pattern-focus-chips{height:26px;min-height:26px;padding:2px 8px}
+  .decksynth-shell .hardware-sequencer .pattern-header{height:31px;min-height:31px}
+  .decksynth-shell .sequencer-pad-grid{gap:4px}
+}
+@media(prefers-reduced-motion: reduce){
+  .decksynth-shell .step-hardware-pad.is-live,
+  .decksynth-shell .transport-pad.record.engaged svg{animation:none}
+  .decksynth-shell button{transition:none!important}
+}
+
+/* Steam Deck physical touch-target audit (1280×800 device, 718 px usable window).
+   Keep PLAY, Record, step pads and track mute above roughly 44 px. */
+.decksynth-shell .app-mode-switch button{min-height:44px}
+.decksynth-shell .lane-mute{min-width:44px;width:44px;height:44px}
+.decksynth-shell .tempo-adjust{display:flex;flex-direction:row;gap:3px}
+.decksynth-shell .tempo-adjust button{width:40px;height:44px;min-width:40px}
+.decksynth-shell .song-lower{height:212px}
+.decksynth-shell .pattern-focus-chips{height:32px;min-height:32px}
+.decksynth-shell .pattern-focus-chip{min-height:26px}
+.decksynth-shell .step-hardware-pad{min-height:46px}
+.decksynth-shell .sound-workspace .rack-card:nth-child(2) .knob-target{width:48px;height:48px}
+@media(max-height:730px){
+  .decksynth-shell .song-lower{height:205px}
+  .decksynth-shell .pattern-focus-chips{height:32px;min-height:32px}
+  .decksynth-shell .sequencer-pad-grid{min-height:96px;gap:4px;padding:3px 8px}
+  .decksynth-shell .step-hardware-pad{min-height:45px}
+}
+@media(max-height:675px){
+  .decksynth-shell .song-lower{height:188px}
+  .decksynth-shell .step-hardware-pad{min-height:38px}
+}
+
+/* Numeric rotary fine-tuners and tempo steppers also need comfortable touch areas. */
+.decksynth-shell .tactile-knob .knob-target{min-width:48px;min-height:48px}
+.decksynth-shell .tempo-adjust button{width:44px;min-width:44px;height:44px}

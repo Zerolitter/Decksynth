@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DeckSynth Next (Experimental)
+GenericName=Steam Deck music workstation
+Comment=Experimental advanced UI with original DeckSynth MIDI/audio engine
+Exec=/home/deck/Projects/deck-app/launch-next.sh
+Path=/home/deck/Projects/deck-app/ui-next
+Icon=audio-x-generic
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupNotify=true
