@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 *.decksynth.tmp
 *.dspreset.tmp
+
+# Local recovery history, snapshots and generated validation evidence.
+artifacts/source-history.git/
+artifacts/backups/
+artifacts/recovery/
