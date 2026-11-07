@@ -80,3 +80,4 @@ export function harmonyNotes(events:Note[],ids:number[],mode:'invert'|'spread'|'
  if(out.some((n,i)=>n.note>127||n.note<0||n.start>=b.span||out.some((a,j)=>i!==j&&a.start===n.start&&a.note===n.note)))return null;
  return {events:out,selection:ids};
 }
+export function dragDelta(sourceStart:number,fromCell:number,toCell:number,snap:number){return Math.round((toCell-fromCell+Math.round(sourceStart/snap)*snap-sourceStart)*1e6)/1e6;}

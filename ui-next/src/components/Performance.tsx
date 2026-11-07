@@ -1,7 +1,7 @@
 import {PatternLibrary} from './PatternLibrary';
 import {NoteEditor} from './NoteEditor';
 import {useNoteContext} from './useNoteContext';
-import {useContextTarget} from './ContextWheel';
+import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -331,7 +331,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>
     {rows.map(note=><div key={note} data-pitch={note} className={'pf-row'+(BLACK.has(note%12)?' black':'')+((note-scale.root)%12===0?' root':'')}>
       <button type="button" className="pf-row-note" aria-label={'Play '+noteName(note)}
-        onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(note);}}
+        onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(note,100,e.pointerId);}}
         onPointerUp={edit.stop} onPointerCancel={edit.stop}
         onContextMenu={e=>e.preventDefault()}>{noteName(note)}</button>
       {visible.map(i=>{
@@ -408,7 +408,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         <div className="pf-roll-head"><span/>{shown.map((g,i)=><span key={i} data-names={g.map(noteName).join(' ')} className={(i%4===0?'beat':'')+(i===now?' live':'')}>{i+1}</span>)}</div>
         {pitches.map(n=><div key={n} className={'pf-roll-row'+(BLACK.has(n%12)?' black':'')}>
           <button type="button" className="pf-row-note" aria-label={'Play '+noteName(n)}
-            onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(n);}}
+            onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(n,100,e.pointerId);}}
             onPointerUp={edit.stop} onPointerCancel={edit.stop}
             onContextMenu={e=>e.preventDefault()}>{noteName(n)}</button>
           {shown.map((g,i)=><span key={i} data-step={i} className={'pf-roll-cell'+(i%4===0?' beat':'')+(i===now?' live':'')}>
@@ -494,7 +494,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>;
   }
 
-  return <section className={"pf pf-mode-"+mode} aria-label="Perform">
+  return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode} aria-label="Perform">
     {noteEditorOpen?<NoteEditor key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
@@ -562,7 +562,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <TouchKeys held={held} sounding={sounding} channel={channel} onMidi={onMidi}
       chord={(mode==='chord'||chord.enabled)&&active?active.notes:null}
       scale={scale.name==='Chromatic'?null:new Set((SCALES[scale.name]??[]).map(d=>(d+scale.root)%12))}/>
-  </section>;
+  </section></ContextAreaScope>;
 }
 
 /* ---------- touch keyboard and expression strips ---------- */

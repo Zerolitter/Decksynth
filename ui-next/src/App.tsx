@@ -1,4 +1,4 @@
-import {ContextWheelProvider} from './components/ContextWheel';
+import {ContextWheelProvider,ContextAreaScope} from './components/ContextWheel';
 import {NoteEditor} from './components/NoteEditor';
 import {expectedWithEvents,type NoteTarget} from './note-ops';
 import {PanelScope} from './components/Panel';
@@ -506,7 +506,7 @@ function App() {
         onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>setKitBrowserTrack(open?selected:null)} library={snapshot?.drum_library}
         onLoadFolder={folder=>{if(track.drum_rack)command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
-      :page==='SOUND'||page==='FX'?<PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()}>
+      :page==='SOUND'||page==='FX'?<ContextAreaScope area={page==='FX'?'fx':'sound'}><PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()}>
         <ModBand key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
           live={snapshot?.meter?.fx_live} edit={edit} onEdit={setEdit} armed={armed}
           onLink={setArmed}/>
@@ -524,7 +524,7 @@ function App() {
             live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false}/>
         </>}
-      </div></PanelScope>
+      </div></PanelScope></ContextAreaScope>
       :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}

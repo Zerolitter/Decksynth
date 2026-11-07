@@ -37,7 +37,7 @@ function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,
   return <div className="drum-committed-knob" onPointerDownCapture={()=>{pointer.current=true;}}
     onKeyUpCapture={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End','PageUp','PageDown','Enter'].includes(e.key))setTimeout(finish,0);}}
     onBlur={()=>{if(!pointer.current)setTimeout(finish,0);}}>
-    <Knob id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)"
+    <Knob contextArea="drum" id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)"
       onChange={next=>{latest.current=next;dirty.current=next!==original.current;setDraft(next);}}/>
   </div>;
 }
@@ -73,7 +73,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,
     },120));});
   },[runtime]);
   useEffect(()=>()=>{timers.current.forEach(clearTimeout);timers.current.clear();},[]);
-  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
+  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
   const pad=pads[selected],live=runtime?.pads[selected];
   const status=live?.status??(pad?.source?'LOADING':'EMPTY');
   const sourceReady=!!pad?.source&&!['EMPTY','MISSING','LOADING','ERROR'].includes(status);

@@ -20,6 +20,6 @@ export function useNoteContext({edit,target,bounds,recording,chord,open}:{edit:R
    velocity:()=>apply({kind:'velocity',value:127}),velocitySoft:()=>apply({kind:'velocity',value:64}),velocityUp:()=>velocity(10),velocityDown:()=>velocity(-10),duplicate:()=>apply({kind:'duplicate'}),delete:()=>apply({kind:'delete'}),copy:()=>edit.copy(selection,events),cut:()=>{edit.copy(selection,events);apply({kind:'delete'});},selectAll:()=>edit.setSelection(events.map((_,i)=>i)),samePitch:()=>edit.setSelection(events.flatMap((n,i)=>n.note===pitch?[i]:[])),chordSelection:()=>edit.setSelection(events.flatMap((n,i)=>n.start===events[hit].start?[i]:[]))
   });
   if(selection.length>=2&&selection.every(i=>events[i].start===events[selection[0]].start)){for(const mode of ['invert','spread','major','minor'] as const)if(harmonyNotes(events,selection,mode,bounds))caps[mode]=()=>harmony(mode);}
-  return {kind:hit<0?'seq.empty':target.kind==='pattern'?'seq.note':'song.note',label:(target.kind==='pattern'?'Step '+(time+1):'Beat '+time)+' · MIDI '+pitch,caps,cancel:()=>{edit.cancel();edit.setCursor(time);if(hit>=0)edit.setSelection(selection);}};
+  return {area:target.kind==='pattern'?'perform':'song',kind:hit<0?'seq.empty':target.kind==='pattern'?'seq.note':'song.note',label:(target.kind==='pattern'?'Step '+(time+1):'Beat '+time)+' · MIDI '+pitch,caps,cancel:()=>{edit.cancel();edit.setCursor(time);if(hit>=0)edit.setSelection(selection);}};
  });
 }

@@ -1,4 +1,4 @@
-import {useContextTarget} from './ContextWheel';
+import {useContextTarget,useContextArea} from './ContextWheel';
 import {knobControl} from '../parameter-registry';
 import {FX_MODULES,type FxModuleId} from '../fx';
 /** Steam Deck tactile knob.
@@ -15,7 +15,7 @@ import {useMidiLearn} from './MidiLearn';
 import { createFrameBatch } from '../chordz-primitives/frame-batch';
 
 type Props = {
-  id: string; name: string; value: number; min: number; max: number;
+  contextArea?:import('../context-actions').ContextArea;id: string; name: string; value: number; min: number; max: number;
   step?: number; suffix?: string; accent?: string; precision?: number;
   onChange: (next: number) => void;
   description?: string; compact?: boolean;
@@ -25,16 +25,16 @@ type Props = {
   format?: (n:number)=>string;
 };
 
-export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
+export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
   precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format}:Props) {
-  const midi=useMidiLearn(),cc=midi?.cc(id)??null;
+  const area=useContextArea(),midi=useMidiLearn(),cc=midi?.cc(id)??null;
   const gesture=useRef(false);
   const beginGesture=()=>{if(!gesture.current){midi?.gesture(id,'begin');gesture.current=true;}};
   const endGesture=(cancel=false)=>{if(gesture.current){midi?.gesture(id,cancel?'cancel':'end');gesture.current=false;}};
   const commitChange=(n:number)=>{beginGesture();onChangeRef.current(n);endGesture();};
   const learnHold=useRef<{x:number;y:number;timer:ReturnType<typeof setTimeout>}|null>(null);
   const clearLearnHold=()=>{if(learnHold.current)clearTimeout(learnHold.current.timer);learnHold.current=null;};
-  const context=useContextTarget(()=>{const control=knobControl(id,Number(id.split('-')[0])),factory=control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);return {kind:'parameter',label:name,cancel:()=>{clearLearnHold();drag.current?.cancel();},caps:{value:()=>setEditing(true),...(factory!==undefined?{reset:()=>commitChange(factory)}:{}),...(midi?.canLearn(id)?{automation:()=>midi.automation(id),modulation:()=>midi.modulation(id),midi:()=>midi.learn(id)}:{}),open:()=>document.querySelector<HTMLElement>('[data-param="'+id+'"]')?.scrollIntoView({block:'nearest',inline:'nearest'})}};});
+  const context=useContextTarget(()=>{const control=knobControl(id,Number(id.split('-')[0])),factory=control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);return {area:contextArea??area??(control&&control.module!=='sound'&&control.module!=='macro'?'fx':'sound'),kind:'parameter',label:name,cancel:()=>{clearLearnHold();drag.current?.cancel();},caps:{value:()=>setEditing(true),...(factory!==undefined?{reset:()=>commitChange(factory)}:{}),...(midi?.canLearn(id)?{automation:()=>midi.automation(id),modulation:()=>midi.modulation(id),midi:()=>midi.learn(id)}:{}),open:()=>document.querySelector<HTMLElement>('[data-param="'+id+'"]')?.scrollIntoView({block:'nearest',inline:'nearest'})}};});
   const gradientId = useId().replace(/:/g,'');
   const drag = useRef<RelativeDragHandle|null>(null);
   const dragging = useRef(false);

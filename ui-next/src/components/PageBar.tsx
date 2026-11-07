@@ -35,7 +35,7 @@ export function PageTabs({page,onPage}:{page:Page;onPage:(p:Page)=>void}){
 
 /** The second row on Sound, FX and Perform: the track you are working on, and the page's own tools on the right. */
 export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,onContext}:Props){
-  const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{})}};});
+  const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {area:tracks[i].device==='drum_rack'?'drum':'sound',kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{})}};});
   return <nav {...context} className="page-bar" aria-label="Tracks">
     <div className="page-tracks" role="group" aria-label="Track to edit">
       {tracks.map((t,i)=><button data-track-index={i} key={i} type="button" aria-pressed={i===selected}

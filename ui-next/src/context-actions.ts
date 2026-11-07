@@ -34,3 +34,10 @@ export function wheelHit(x:number,y:number,c:{x:number;y:number},roots:number,ch
  const angle=Math.atan2(y-c.y,x-c.x),step=Math.min(Math.PI/3,2*Math.PI/children),origin=-Math.PI/2+(branch+.5)*2*Math.PI/roots-(children-1)*step/2;
  for(let i=0;i<children;i++){const delta=Math.atan2(Math.sin(angle-origin-i*step),Math.cos(angle-origin-i*step));if(Math.abs(delta)<=step/2)return roots+i;}return -1;
 }
+
+export type ContextArea='arp'|'perform'|'song'|'sound'|'fx'|'chord'|'drum'|'library';
+export function contextPresentation(kind:ContextKind,area?:ContextArea){
+ const resolved=area??(kind.startsWith('song.')?'song':kind.startsWith('seq.')?'perform':kind==='chord.key'?'chord':kind==='drum.pad'?'drum':kind==='library.pattern'?'library':'sound');
+ const values={arp:{label:'ARP',color:'var(--c-arp)',icon:'arp'},perform:{label:'SEQ',color:'var(--c-seq)',icon:'sequence'},song:{label:'SONG',color:'var(--c-song)',icon:'song'},sound:{label:'SOUND',color:'var(--c-sound)',icon:'sound'},fx:{label:'FX',color:'var(--c-fx)',icon:'fx'},chord:{label:'CHORD',color:'var(--c-chord)',icon:'chord'},drum:{label:'DRUM',color:'#ff76a6',icon:'drum'},library:{label:'LIBRARY',color:'var(--t-library)',icon:'library'}};
+ return {...values[resolved],area:resolved};
+}

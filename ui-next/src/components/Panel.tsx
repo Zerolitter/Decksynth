@@ -1,4 +1,4 @@
-import {useContextTarget} from './ContextWheel';
+import {useContextTarget,useContextArea} from './ContextWheel';
 import { createContext,useContext,useEffect, useRef, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { ChevronDown,Pin,Power } from 'lucide-react';
 import type { RackDrag } from './RackOrder';
@@ -71,11 +71,11 @@ type Props = {
  *  linked-mods badge. The fold state is remembered between sessions. */
 export function Panel({id,title,icon,actions,summary,children,className='',defaultFolded=false,grow=false,accent,
   tag,power,mods=0,role,label,style,rail=false,onUse,reorder,modColors=[]}:Props){
-  const scope=usePanelScope(),pinned=useSyncExternalStore(subscribe,()=>isPinned(id,scope));
+  const area=useContextArea(),scope=usePanelScope(),pinned=useSyncExternalStore(subscribe,()=>isPinned(id,scope));
   const [folded,setFolded]=useFold(id,defaultFolded);
   const section=useRef<HTMLElement>(null);
   const reopen=()=>{markUsed(id,scope);setFolded(false);requestAnimationFrame(()=>section.current?.scrollIntoView({block:'nearest',inline:'nearest'}));};
-  const context=useContextTarget(()=>rail?{kind:'rack.card',label:typeof title==='string'?title:id,caps:{open:reopen,fold:()=>setFolded(!folded),pin:()=>setPinned(id,!pinned,scope),...(power?{bypass:power.onToggle}:{}),previous:()=>{const prev=section.current?.previousElementSibling as HTMLElement;prev?.scrollIntoView({block:'nearest',inline:'nearest'});},next:()=>{const next=section.current?.nextElementSibling as HTMLElement;next?.scrollIntoView({block:'nearest',inline:'nearest'});}}}:null);
+  const context=useContextTarget(()=>rail?{area:area??'sound',kind:'rack.card',label:typeof title==='string'?title:id,caps:{open:reopen,fold:()=>setFolded(!folded),pin:()=>setPinned(id,!pinned,scope),...(power?{bypass:power.onToggle}:{}),previous:()=>{const prev=section.current?.previousElementSibling as HTMLElement;prev?.scrollIntoView({block:'nearest',inline:'nearest'});},next:()=>{const next=section.current?.nextElementSibling as HTMLElement;next?.scrollIntoView({block:'nearest',inline:'nearest'});}}}:null);
   const lastTap=useRef(0);
   const onBarPointerUp=(e:React.PointerEvent)=>{
     if(reorder?.moved()){lastTap.current=0;return;}
