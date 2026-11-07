@@ -18,7 +18,10 @@
     "test:rack-direct": "node tests/rack_direct_acceptance.cjs",
     "test:ui-patch": "node tests/ui_patch_acceptance.cjs",
     "test:drums": "node tests/drum_rack_acceptance.cjs",
-    "test:drum-library": "node tests/drum_library_acceptance.cjs"
+    "test:drum-library": "node tests/drum_library_acceptance.cjs",
+    "test:spectral-s5": "node tests/spectral_s5_acceptance.cjs",
+    "test:spectral-s6": "node tests/spectral_s6_acceptance.cjs",
+    "test:spectral-s7": "node ../tools/check-spectral-s7.cjs"
   },
   "dependencies": {
     "lucide-react": "^1.69.0",
