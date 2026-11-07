@@ -95,6 +95,10 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           compact accent={accent} onChange={v=>set('focus',v)} {...m}/>)}
         {cell('focus_center',m=><Knob id={selected+'-focus-center'} name="Focus on" value={spectral('focus_center')} min={1} max={16} step={1} precision={0}
           compact accent={accent} onChange={v=>set('focus_center',Math.round(v))} {...m}/>)}
+        {cell('pitch',m=><Knob id={selected+'-pitch'} name="Pitch" value={vp('pitch')} min={-12} max={12} step={.01} suffix="st"
+          compact accent={TAGS.tone} onChange={v=>set('pitch',v)} {...m}/>)}
+        {cell('velocity_brightness',m=><Knob id={selected+'-velocity-brightness'} name="Vel bright" value={vp('velocity_brightness')} min={-1} max={1} step={.005} suffix="%"
+          compact accent={TAGS.tone} onChange={v=>set('velocity_brightness',v)} {...m}/>)}
       </div>
     </Panel>},
     {id:'rack-envelope',node:<Panel rail reorder={reorder('rack-envelope')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='rack-envelope')} id="rack-envelope" className="rack-card sound-card card-envelope sound-rack" icon={<SlidersHorizontal size={15}/>} title="Envelope" tag={TAGS.envelope} mods={linksInto('rack-envelope')}
@@ -130,6 +134,10 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           onChange={v=>onTrack('volume',v)} {...m}/>)}
         <button type="button" className={'panel-toggle'+(track.mute?' on':'')} aria-pressed={track.mute}
           onClick={()=>onTrack('mute',!track.mute)}>{track.mute?'Muted':'Mute'}</button>
+        <Choice label="Voice mode" name="Voice mode" value={vp('play_mode')} onPick={v=>set('play_mode',v)}
+          options={['Poly','Mono','Legato'].map((label,value)=>({label,value}))}/>
+        {cell('glide',m=><Knob id={selected+'-glide'} name="Glide" value={vp('glide')} min={0} max={2} step={.001} suffix="s"
+          compact accent={TAGS.output} onChange={v=>set('glide',v)} {...m}/>)}
       </div>
     </Panel>},
     {id:'sound-filter',node:<Panel rail reorder={reorder('sound-filter')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-filter')} id="sound-filter" className="rack-card sound-card card-filter" icon={<AudioWaveform size={15}/>} title="Filter" accent={accent} tag={TAGS.filter} mods={linksInto('sound-filter')}
@@ -153,6 +161,10 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           id={selected+'-'+param.replace('_','-')} name={'Filter '+k} value={fenv[k]}
           min={k==='sustain'?0:k==='release'?.01:.001} max={k==='sustain'?1:3} step={k==='sustain'?.005:.001}
           suffix={k==='sustain'?'%':'s'} compact accent={TAGS.filter} onChange={v=>set(param,v)} {...m}/>))}
+        {cell('vcf_keytrack',m=><Knob id={selected+'-vcf-keytrack'} name="Key track" value={vp('vcf_keytrack')} min={0} max={1} step={.005} suffix="%"
+          compact accent={TAGS.filter} onChange={v=>set('vcf_keytrack',v)} {...m}/>)}
+        {cell('velocity_cutoff',m=><Knob id={selected+'-velocity-cutoff'} name="Vel cutoff" value={vp('velocity_cutoff')} min={-1} max={1} step={.005} suffix="%"
+          compact accent={TAGS.filter} onChange={v=>set('velocity_cutoff',v)} {...m}/>)}
       </div>
     </Panel>},
     {id:'sound-unison',node:<Panel rail reorder={reorder('sound-unison')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-unison')} id="sound-unison" className="rack-card sound-card card-unison" icon={<Layers size={15}/>} title="Unison" accent={accent} tag={TAGS.unison} mods={linksInto('sound-unison')}

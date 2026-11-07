@@ -1,3 +1,4 @@
+import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -333,7 +334,7 @@ function App() {
     const directory=await api.chooseFile('open','sample_folder');
     if(directory)command('drum_library_root',directory);
   };
-  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'||key.startsWith('fenv_')||key.startsWith('vcf_')?[key,index,value,selected]:[key,index,value]);
+  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'||key.startsWith('fenv_')||key.startsWith('vcf_')||['play_mode','glide','pitch','velocity_brightness','velocity_cutoff'].includes(key)?[key,index,value,selected]:[key,index,value]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
   useEffect(()=>{
@@ -353,7 +354,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <main className="decksynth-shell harness-shell">
+  return <MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command}><main className="decksynth-shell harness-shell">
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="DeckSynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -530,6 +531,6 @@ function App() {
         <p>Keys: F5 Play, F6 Stop, F7 Record, F8/F9 Track, F10 Undo. Audio monitor uses real synthesized PCM samples when the bridge is connected.</p>
       </section>}
     </div>:null}
-  </main>;
+  </main></MidiLearnProvider>;
 }
 export default App;

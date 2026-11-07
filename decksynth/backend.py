@@ -11,7 +11,7 @@ import time
 from .drum_loader import DrumLoader
 from .drum_memory import data_directory
 from .drum_library_service import DrumLibraryService
-from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, arp_view
+from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, EXPRESSION_DEFAULTS, arp_view
 from .keystep import StepCapacityError
 
 class AudioSpec(C.Structure):
@@ -123,6 +123,9 @@ def worker(commands,updates):
                 try:
                     if cmd=='quit':running=False; break
                     elif cmd=='midi':engine.midi(*args)
+                    elif cmd=='learn_cc':engine.learn_cc(*args)
+                    elif cmd=='unlearn_cc':engine.unlearn_cc(*args)
+                    elif cmd=='cancel_cc_learn':engine.midi_learn=None
                     elif cmd=='set_device':engine.set_device(*args)
                     elif cmd=='drum_note':engine.drum_note(*args)
                     elif cmd=='drum_edit':engine.edit_drum_pad(*args)
@@ -178,7 +181,7 @@ def worker(commands,updates):
                             lo,hi=SPECTRAL_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
                         elif key in ('attack','decay','sustain','release','filter','modulation'):t['instrument'][key]=value
                         elif key in VOICE_RANGES:
-                            if key in FILTER_ENV or key=='vcf_morph':
+                            if key in FILTER_ENV or key=='vcf_morph' or key in EXPRESSION_DEFAULTS:
                                 if type(value) not in (int,float) or not math.isfinite(value):
                                     raise ValueError('Filter parameter must be a finite number')
                             lo,hi=VOICE_RANGES[key];value=max(lo,min(hi,float(value)))
@@ -186,6 +189,7 @@ def worker(commands,updates):
                                 for field,amp in FILTER_ENV.items():t['instrument'].setdefault(field,t['instrument'][amp])
                             t['instrument'][key]=value
                         elif key in VOICE_CHOICES:
+                            if key=='play_mode' and type(value) is not int:raise ValueError('Unknown voice mode')
                             if int(value) not in VOICE_CHOICES[key]:raise ValueError('Unknown choice for '+key)
                             t['instrument'][key]=int(value)
                         else:raise ValueError('Unknown sound parameter: '+str(key))
@@ -271,7 +275,7 @@ def worker(commands,updates):
                 meter=dict(rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
                            fx_live=engine.fx_live(engine.selected))
-                send(dict(state=engine.project.data(),selected=engine.selected,beat=engine.beat%engine.project.beats,
+                send(dict(state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
                           drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',

@@ -8,6 +8,7 @@ export type Instrument = {
   character?:number; spectral_energy?:number; random_seed?:number;
   /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
   vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
+  play_mode?:number;glide?:number;pitch?:number;velocity_brightness?:number;velocity_cutoff?:number;vcf_keytrack?:number;
   vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
@@ -19,6 +20,7 @@ export type DrumPad = {
 export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null};
 export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string}[]};
 export type Track = {
+  midi_cc?:import('./parameter-registry').MidiMapping[];
   device?:'synth'|'drum_rack';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
   name: string; preset: string; instrument: Instrument;
   volume: number; mute: boolean; notes: Note[];
@@ -59,6 +61,7 @@ export type Project = {
   clips?: {open:number[];slots:Note[][][]};
 };
 export type DeckUpdate = {
+  midi_learn?:{track:number;module:string;param:string}|null;
   drum_racks?: (DrumRuntime|null)[];
   drum_library?:DrumLibraryState;
   state: Project; selected: number; beat: number;

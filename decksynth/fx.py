@@ -45,6 +45,7 @@ SOUND_PARAMS = {
     'vcf_cutoff': (0, 1), 'vcf_reso': (0, 1), 'vcf_env': (-1, 1), 'uni_detune': (0, 1),
     'formant': (0, 1), 'vowel': (0, 4), 'inharm': (0, 1), 'sub': (0, 1),
     'character': (-1, 1), 'vcf_morph': (0, 1),
+    'pitch':(-12,12),'glide':(0,2),'velocity_brightness':(-1,1),'velocity_cutoff':(-1,1),'vcf_keytrack':(0,1),
     'fenv_a': (.001, 3), 'fenv_d': (.001, 3), 'fenv_s': (0, 1), 'fenv_r': (.01, 3),
 }
 SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smooth', 'steps', 'curve']

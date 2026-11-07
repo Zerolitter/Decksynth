@@ -8,6 +8,7 @@ import {
   knobArc, knobDragValue, knobToUnit, knobQuantize, knobKeyValue, knobParseNumber,
 } from '../chordz-primitives/knob';
 import { startRelativeDrag, type RelativeDragHandle } from '../chordz-primitives/relative-drag';
+import {useMidiLearn} from './MidiLearn';
 import { createFrameBatch } from '../chordz-primitives/frame-batch';
 
 type Props = {
@@ -23,6 +24,9 @@ type Props = {
 
 export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
   precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format}:Props) {
+  const midi=useMidiLearn(),cc=midi?.cc(id)??null;
+  const learnHold=useRef<{x:number;y:number;timer:ReturnType<typeof setTimeout>}|null>(null);
+  const clearLearnHold=()=>{if(learnHold.current)clearTimeout(learnHold.current.timer);learnHold.current=null;};
   const gradientId = useId().replace(/:/g,'');
   const drag = useRef<RelativeDragHandle|null>(null);
   const dragging = useRef(false);
@@ -41,7 +45,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
     if(!dragging.current){setLocal(value);latest.current=value;}
   },[value]);
   useEffect(()=>()=> {
-    drag.current?.cancel();batch.discard();
+    clearLearnHold();drag.current?.cancel();batch.discard();
     if(readoutTimeout.current!==null)clearTimeout(readoutTimeout.current);
   },[batch,id]);
   useEffect(()=>{if(editing){setDraft(String(local));input.current?.select();}},[editing]);
@@ -63,6 +67,11 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   }
   const onPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{
     if(editing||e.button!==0)return;
+    clearLearnHold();
+    if(midi?.canLearn(id)){
+      const x=e.clientX,y=e.clientY;
+      learnHold.current={x,y,timer:setTimeout(()=>{if(!dragging.current){drag.current?.cancel();midi.open(id,x,y);}learnHold.current=null;},750)};
+    }
     reveal();setEngaged(true);
     drag.current?.cancel();
     latest.current=local;
@@ -113,13 +122,15 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   });
   return <div className={'parameter-knob tactile-knob'+(compact?' compact':'')+
     (engaged?' is-engaged':'')}
-    data-param={id} title={description||name}>
-    <div className="knob-heading">{name}</div>
+    data-param={id} title={description||name}
+    onContextMenu={e=>{if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
+    <div className="knob-heading">{name}</div>{cc!==null?<span className="knob-midi-cc" data-midi-cc={cc}>CC{cc}</span>:null}
     <div role="slider" tabIndex={0} aria-orientation="vertical"
       data-testid={'knob-'+id} className="knob-target" aria-label={name}
       aria-valuemin={min} aria-valuemax={max} aria-valuenow={local} aria-valuetext={show(local)}
-      onPointerDown={onPointerDown} onPointerUp={hideLater}
-      onPointerCancel={hideLater} onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown} onPointerUp={()=>{clearLearnHold();hideLater();}}
+      onPointerMove={e=>{const h=learnHold.current;if(h&&(dragging.current||Math.hypot(e.clientX-h.x,e.clientY-h.y)>3))clearLearnHold();}}
+      onPointerCancel={()=>{clearLearnHold();hideLater();}} onKeyDown={e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){if(midi?.canLearn(id)){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();midi.open(id,r.x+r.width/2,r.y+r.height/2);}}else onKeyDown(e);}}
       onDoubleClick={()=>{drag.current?.cancel();setEditing(true);}}>
       <svg className="knob-svg" viewBox="0 0 56 56" aria-hidden="true">
         <defs>

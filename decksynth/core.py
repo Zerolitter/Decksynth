@@ -15,6 +15,8 @@ from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
 from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
 from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
+from .controllers import ControllerEngine,validate_mappings
+from .expression import ExpressionVoice
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes,
@@ -42,7 +44,10 @@ VOICE_RANGES=dict(vcf_cutoff=(0,1),vcf_reso=(0,1),vcf_env=(-1,1),uni_detune=(0,1
 VOICE_RANGES.update(vcf_morph=(0,1),fenv_a=(.001,3),fenv_d=(.001,3),fenv_s=(0,1),fenv_r=(.01,3))
 FILTER_ENV=dict(fenv_a='attack',fenv_d='decay',fenv_s='sustain',fenv_r='release')
 VOICE_CHOICES=dict(vcf_type=(0,1,2,3),uni_voices=(1,2,3,4,5,7),sub_oct=(1,2))
-PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS}
+EXPRESSION_DEFAULTS=dict(play_mode=0,glide=0.,pitch=0.,velocity_brightness=0.,velocity_cutoff=0.,vcf_keytrack=.5)
+VOICE_RANGES.update(glide=(0,2),pitch=(-12,12),velocity_brightness=(-1,1),velocity_cutoff=(-1,1),vcf_keytrack=(0,1))
+VOICE_CHOICES['play_mode']=(0,1,2)
+PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
     if key in FILTER_ENV:return p[FILTER_ENV[key]]
     if key=='vcf_morph':return max(0,p.get('vcf_type',1)-1)/2
@@ -64,9 +69,9 @@ def formant_gains(p,freq,count):
     top=max(g) if g and max(g)>0 else 1.
     return [(1-amt)+amt*x/top for x in g]
 
-def cutoff_hz(p,note):
+def cutoff_hz(p,note,velocity=None):
     """Filter card cutoff 0-1 as Hz (20 Hz-18 kHz), following the keyboard at half strength."""
-    return 20*900**p.get('vcf_cutoff',.65)*2**((note-60)/24)
+    return 20*900**p.get('vcf_cutoff',.65)*2**((note-60)/12*p.get('vcf_keytrack',.5)+(0 if velocity is None else (velocity-.5)*2*p.get('velocity_cutoff',0.)*6))
 
 def spectral_gain(p,k):
     """Gain for harmonic number k (1-16). Curve tilts by harmonic number, Balance
@@ -119,6 +124,7 @@ class Project:
             for t in d['tracks']:
                 assert isinstance(t['name'],str) and len(t['name'])<=100
                 assert isinstance(t['preset'],str) and 0<=t['volume']<=1 and isinstance(t['mute'],bool)
+                if 'midi_cc' in t:t['midi_cc']=validate_mappings(t['midi_cc'])
                 kind=device_kind(t)
                 if 'drum_rack' in t:t['drum_rack']=validate_kit(t['drum_rack'])
                 if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
@@ -199,17 +205,19 @@ class MidiParser:
         return events
 
 # Knobs that shape the wavetable. When a pad moves one, the table is rebuilt in 1/48 steps of its range.
-TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy')
+TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy','velocity_brightness','pitch')
 TABLE_STEPS=48
 
-class Synth:
+class Synth(ExpressionVoice):
     def __init__(self,rate=48000):
         prepare_spectral_kernel()
         prepare_filter_kernel()
         self.rate=rate; self.params=instrument('Warm Keys'); self.voices={}; self.gated={}; self.sustain=False; self.bend=1.; self.mod_wheel=0.; self.tables={}; self.wave_cache={}; self.clock=0
+        self.mono_held={};self.mono_lead=None;self._mono_internal=False
         self.live=None; self.shape=None; self.shape_key=None; self.shape_clock=-10**9
         self.weights={}; self.weight_cache={}; self.st=(ctypes.c_double*85)(); self.vargs=DsVoice(); self.fargs=DsFilter()
     def configure(self,p):
+        if self.params.get('play_mode',0)!=p.get('play_mode',0):self.panic()
         changed=any(self.params.get(k)!=p.get(k) for k in ('harmonics',)+TABLE_KEYS)
         self.params=copy.deepcopy(p)
         if changed:
@@ -238,18 +246,26 @@ class Synth:
     def swap_tables(self):
         # A new wavetable mid-note crossfades from the old one over ~5 ms; swapping it at once clicks.
         for v in self.voices.values():
-            new=self.table(v['note'])
+            new=self.table(v.get('table_note',v['note']),v['velocity'])
             if new is not v['table']:v['prev']=v['table']; v['xf']=0.; v['table']=new
-    def table(self,note):
-        if note not in self.tables:
+    def table_key(self,note,velocity=None):
+        p={**self.params,**self.shape} if self.shape else self.params
+        return (note,velocity) if velocity is not None and 'velocity_brightness' in p else note
+    def table(self,note,velocity=None):
+        address=self.table_key(note,velocity)
+        if address not in self.tables:
             p={**self.params,**self.shape} if self.shape else self.params
             h=p['harmonics']; frequency=440*2**((note-69)/12)
             # Leave pitch-bend headroom so the upper partials cannot alias at +2 semitones.
-            count=min(16,int(self.rate*.45/(frequency*1.123)))
-            vowel=formant_gains(p,frequency,count)
+            guard=frequency*(2 if 'pitch' in p else 1)
+            count=min(16,int(self.rate*.45/(guard*1.123)))
+            vowel=formant_gains(p,frequency*2**(p.get('pitch',0)/12),count)
+            brightness=p['filter']
+            if velocity is not None and p.get('velocity_brightness',0):brightness=min(1.,max(.02,brightness+(velocity-.5)*2*p['velocity_brightness']))
             key=(count,self.shape_key) if vowel is None else (count,self.shape_key,note)
+            if 'velocity_brightness' in p:key=key+(brightness,)
             if key not in self.wave_cache:
-                weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+p['filter']*15))**4) for k in range(count)]
+                weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+brightness*15))**4) for k in range(count)]
                 if vowel is not None:weights=[w*g for w,g in zip(weights,vowel)]
                 normalized=p.get('spectral_energy',0)==1
                 norm=energy_norm(weights) if normalized else max(1,sum(weights)); size=2048
@@ -267,8 +283,8 @@ class Synth:
                 if len(self.wave_cache)>=160:
                     old=next(iter(self.wave_cache)); self.wave_cache.pop(old); self.weight_cache.pop(old,None)
                 self.wave_cache[key]=table
-            self.tables[note]=self.wave_cache[key]; self.weights[note]=self.weight_cache[key]
-        return self.tables[note]
+            self.tables[address]=self.wave_cache[key]; self.weights[address]=self.weight_cache[key]
+        return self.tables[address]
     def fade(self,key):
         # Retriggered or stolen notes fade out over 6 ms under a key of their own, instead of stopping dead.
         v=self.voices.pop(key,None)
@@ -280,16 +296,18 @@ class Synth:
     def on(self,note,velocity,token=None):
         token=note if token is None else token
         self.gated[token]=True
+        if self.params.get('play_mode',0) and not self._mono_internal:return self.mono_on(note,velocity,token)
         if token in self.voices:self.fade(token)
         playing=[k for k in self.voices if not (isinstance(k,tuple) and k[0]=='fade')]
         if len(playing)>=24:self.fade(playing[0])
-        self.voices[token]=dict(note=note,velocity=velocity/127,phase=0.,age=0,level=0.,release=None,held=True,table=self.table(note))
+        self.voices[token]=dict(note=note,velocity=velocity/127,phase=0.,age=0,level=0.,release=None,held=True,table=self.table(note,velocity/127))
     def off(self,note,token=None):
         key=note if token is None else token
         immediate=isinstance(token,tuple) and token[0] in ('loop','perf_seq','perf_arp')
         if key in self.gated:
             if self.sustain and not immediate:self.gated[key]=False
             else:self.gated.pop(key,None)
+        if self.params.get('play_mode',0) and self.mono_off(key):return
         v=self.voices.get(key)
         if v:
             v['held']=False
@@ -300,12 +318,13 @@ class Synth:
             self.gated={k:v for k,v in self.gated.items() if v}
             for v in self.voices.values():
                 if not v['held'] and v['release'] is None: v['release']=(0,v['level'])
-    def panic(self): self.voices.clear(); self.gated.clear(); self.sustain=False; self.bend=1.; self.mod_wheel=0.
+    def panic(self): self.voices.clear(); self.gated.clear(); self.mono_held.clear();self.mono_lead=None; self.sustain=False; self.bend=1.; self.mod_wheel=0.
     @staticmethod
     def voice_mode(p):
         sub=p.get('sub',0.)>0
         return (int(p.get('uni_voices',1)),int(p.get('vcf_type',0)),p.get('inharm',0.)>0,int(p.get('sub_oct',1)) if sub else 0,filter_extended(p))
     def render(self,frames):
+        if not getattr(self,'_in_glide',False) and any(v.get('glide_samples',0)>v.get('glide_age',0) for v in self.voices.values()):return self.render_glide(frames)
         # Switching a card's buttons (voices, filter type, sub octave, stretched partials) mid-note would jump,
         # so that block is rendered both ways and crossfaded.
         p=self.live or self.params; mode=self.voice_mode(p); last=getattr(self,'last_p',None)
@@ -336,7 +355,7 @@ class Synth:
                     rel=v['release']; prev=v.get('prev')
                     st[0]=v['phase']; st[1]=v['age']; st[2]=rel[0] if rel else 0; st[3]=rel[1] if rel else 0
                     st[4]=v['level']; st[5]=v.get('xf',1.)
-                    step=440*2**((v['note']-69)/12)*2048/sr*self.bend*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
+                    step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
                     res=fast(buf,frames,v['table'],prev,st,rel is not None,step,v['velocity']*.23*trem,
                              a,d,p['sustain'],quick if v.get('fast') else slow)
                     if res&1:self.voices.pop(key,None); continue
@@ -345,7 +364,7 @@ class Synth:
                 self.clock+=frames; return list(buf)
         for key,v in list(self.voices.items()):
             phase=v['phase']; age=v['age']; rel=v['release']; table=v['table']; level=v['level']
-            step=440*2**((v['note']-69)/12)*2048/sr*self.bend*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
+            step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
             gain=v['velocity']*.23*trem
             release=quick if v.get('fast') else slow
             prev=v.get('prev'); xf=v.get('xf',1.)
@@ -368,10 +387,11 @@ class Synth:
 
     def ext_state(self,v):
         """Extra state for a voice the first time a Filter, Unison or Character card is on (st[6:80] in dsfx.c)."""
-        self.table(v['note'])
+        address=self.table_key(v.get('table_note',v['note']),v['velocity'])
+        self.table(v.get('table_note',v['note']),v['velocity'])
         x=[0.]*74
         for u in range(7):x[u]=(v['phase']+u*1265.6)%2048
-        x[10:26]=list(self.weights[v['note']])
+        x[10:26]=list(self.weights[address])
         for u in range(3):
             for k in range(16):x[26+u*16+k]=(u*731.)%2048
         return x
@@ -390,10 +410,11 @@ class Synth:
         for key,v in list(self.voices.items()):
             if 'x' not in v:v['x']=self.ext_state(v)
             rel=v['release']; prev=v.get('prev')
-            if inh>0 and v['note'] not in self.weights:self.table(v['note'])
-            cfg.update(step=440*2**((v['note']-69)/12)*2048/sr*self.bend*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4)),
+            address=self.table_key(v.get('table_note',v['note']),v['velocity'])
+            if inh>0 and address not in self.weights:self.table(v.get('table_note',v['note']),v['velocity'])
+            cfg.update(step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4)),
                        gain=v['velocity']*.23*trem,rel=quick if v.get('fast') else slow,released=int(rel is not None),
-                       cutoff=cutoff_hz(p,v['note']),weights=self.weights[v['note']] if inh>0 else None)
+                       cutoff=cutoff_hz(p,v.get('current_note',v['note']),v['velocity']),weights=self.weights[address] if inh>0 else None)
             st[0:6]=[v['phase'],v['age'],rel[0] if rel else 0,rel[1] if rel else 0,v['level'],v.get('xf',1.)]
             st[6:80]=v['x']
             if extended:
@@ -506,7 +527,7 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
 
 RESONATOR=FX_ORDER.index('resonator')
 
-class Engine(DrumEngine):
+class Engine(ControllerEngine,DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)]
@@ -518,9 +539,11 @@ class Engine(DrumEngine):
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
+        self.midi_learn=None
         self.init_drums()
         self.configure()
     def configure(self):
+        self.midi_learn=None
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
         for t,fx in zip(self.project.tracks,self.fx): fx.configure(t.get('fx'))
         self.configure_drums()
@@ -736,6 +759,7 @@ class Engine(DrumEngine):
         from .devices import track_index
         track_index(track)
         if track!=self.selected:
+            self.midi_learn=None
             if self.recording: self.finish_record()
             self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
             s=self.synths[self.selected]
@@ -1021,6 +1045,8 @@ class Engine(DrumEngine):
     def midi(self,status,note,value,notes=None):
         """A MIDI message. `notes` (chord pads) gives the exact pitches to sound for this key,
         instead of expanding the key through chord mode and the scale."""
+        channel=self.project.performance['scale']['input_channel']
+        if (status&0xf0)==0xb0 and (not channel or (status&15)==channel-1) and self.controller_cc(status&15,note,value):return
         if self.drum_midi(status,note,value):return
         kind=status&0xf0; ch=status&15; s=self.synths[self.selected]; key=(ch,note)
         explicit=notes is not None
@@ -1106,6 +1132,7 @@ class Engine(DrumEngine):
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
     def panic(self):
+        self.midi_learn=None
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
         for s in self.synths:s.panic()

@@ -37,3 +37,13 @@
 .harness-shell .gate-performance .tactile-knob{width:90px}
 .harness-shell .gate-performance .knob-value,.harness-shell .gate-performance .knob-entry{min-width:44px;min-height:44px;height:44px;padding:0 4px}
 .harness-shell .gate-sheet .gate-body{gap:8px}
+
+/* MIDI learning stays on the existing knob and uses a transient menu. */
+.harness-shell .knob-midi-cc{position:absolute;top:14px;right:-2px;font-size:8px;line-height:12px;padding:0 2px;border-radius:3px;background:var(--panel);color:var(--text);pointer-events:none}
+.harness-shell .midi-menu-backdrop{position:fixed;inset:0;z-index:120}
+.harness-shell .midi-control-menu{position:fixed;display:flex;flex-direction:column;width:200px;padding:6px;gap:3px;border:1px solid var(--line);border-radius:9px;background:var(--panel);box-shadow:0 5px 18px #0008}
+.harness-shell .midi-control-menu strong{padding:4px 8px;font-size:12px;color:var(--text)}
+.harness-shell .midi-control-menu button{min-height:44px;text-align:left;padding:0 8px;border:0;border-radius:6px;background:var(--raised);color:var(--text)}
+.harness-shell .midi-learn-status{position:fixed;top:62px;right:12px;z-index:110;display:flex;align-items:center;gap:10px;padding-left:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px}
+.harness-shell .midi-learn-status button{min-width:64px;min-height:44px;border:0;background:var(--raised);color:var(--text);border-radius:7px}
+.harness-shell .frame-rack>.card-output{width:max-content}
