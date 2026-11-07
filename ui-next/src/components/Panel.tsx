@@ -1,3 +1,4 @@
+import {useContextTarget} from './ContextWheel';
 import { createContext,useContext,useEffect, useRef, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { ChevronDown,Pin,Power } from 'lucide-react';
 import type { RackDrag } from './RackOrder';
@@ -74,6 +75,7 @@ export function Panel({id,title,icon,actions,summary,children,className='',defau
   const [folded,setFolded]=useFold(id,defaultFolded);
   const section=useRef<HTMLElement>(null);
   const reopen=()=>{markUsed(id,scope);setFolded(false);requestAnimationFrame(()=>section.current?.scrollIntoView({block:'nearest',inline:'nearest'}));};
+  const context=useContextTarget(()=>rail?{kind:'rack.card',label:typeof title==='string'?title:id,caps:{open:reopen,fold:()=>setFolded(!folded),pin:()=>setPinned(id,!pinned,scope),...(power?{bypass:power.onToggle}:{}),previous:()=>{const prev=section.current?.previousElementSibling as HTMLElement;prev?.scrollIntoView({block:'nearest',inline:'nearest'});},next:()=>{const next=section.current?.nextElementSibling as HTMLElement;next?.scrollIntoView({block:'nearest',inline:'nearest'});}}}:null);
   const lastTap=useRef(0);
   const onBarPointerUp=(e:React.PointerEvent)=>{
     if(reorder?.moved()){lastTap.current=0;return;}
@@ -85,7 +87,7 @@ export function Panel({id,title,icon,actions,summary,children,className='',defau
   const name=typeof title==='string'?title:(label??id);
   const badge=mods>0?<span className="ds-panel-mods" title={mods+' mod link'+(mods>1?'s':'')}>
     {Array.from(new Set(modColors)).map(c=><i key={c} data-source-color={c} style={{background:c}}/>)}<span>{mods}</span></span>:null;
-  return <section ref={section} className={'ds-panel'+(rail?' rack-rail':'')+(folded?' folded':'')+(grow?' grow':'')+(power&&!power.on?' powered-off':'')+(className?' '+className:'')}
+  return <section ref={section} {...context} className={'ds-panel'+(rail?' rack-rail':'')+(folded?' folded':'')+(grow?' grow':'')+(power&&!power.on?' powered-off':'')+(className?' '+className:'')}
     data-panel={id} data-pinned={pinned?'true':undefined} role={role} aria-label={label}
     style={{...(accent?{['--panel-accent' as string]:accent}:{}),...(tag?{['--panel-tag' as string]:tag}:{}),...style}}
     onPointerDownCapture={()=>{markUsed(id,scope);onUse?.();}} onFocusCapture={()=>markUsed(id,scope)}>

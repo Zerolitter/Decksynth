@@ -1,3 +1,5 @@
+import {useContextTarget} from './ContextWheel';
+import {editNotes} from '../note-ops';
 import type {NoteTarget} from '../note-ops';
 import {clipsOf} from '../song';
 import { useEffect, useRef, useState } from 'react';
@@ -40,6 +42,7 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     return()=>watch.disconnect();
   },[]);
   const [drag,setDrag]=useState<{noteIndex:number;original:Note;expected:Note[];target:NoteTarget;startX:number;startY:number;shiftBeat:number;shiftPitch:number;id:number}|null>(null);
+  const context=useContextTarget(el=>{const target:NoteTarget={kind:'clip',track:idx,clip,bars,device:track.device??'synth'},original=track.notes.map(n=>({...n})),head=el.closest<HTMLElement>('[data-song-note]'),index=head?Number(head.dataset.songNote):-1;const caps={focus:onSelect,open:onOpenNotes,...(selected&&!recording&&index>=0?{delete:()=>onEdit(target,original,original.filter((_,i)=>i!==index)),duplicate:()=>onEdit(target,original,editNotes(original,[index],{kind:'duplicate'},{span:bars*4,snap:.25,maxDuration:bars*4}).events),quantize:()=>onEdit(target,original,editNotes(original,[index],{kind:'quantize'},{span:bars*4,snap:.25,maxDuration:bars*4}).events)}:{})};return {kind:index>=0?'song.note':'song.empty',label:'Track '+(idx+1)+' · Clip '+String.fromCharCode(65+clip),caps,cancel:()=>setDrag(null)};});
   const beats=bars*4,{low,high}=pitchSpan(track.notes);
   const pos=clamp(beat/beats,0,1);
   const preview=(n:Note,i:number):Note=>{
@@ -68,7 +71,7 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
       onEdit(drag.target,drag.expected,drag.expected.map((n,i)=>i===drag.noteIndex?{...drag.original,start:(drag.original.start+drag.shiftBeat+beats)%beats,note:clamp(drag.original.note+drag.shiftPitch,0,127)}:n));
     setDrag(null);
   };
-  return <div ref={lane} className={'clip-lane'+(track.notes.length?' has-notes':'')+
+  return <div ref={lane} {...context} tabIndex={0} className={'clip-lane'+(track.notes.length?' has-notes':'')+
      (selected?' is-selected':'')+(recording?' is-recording':'')}
     style={{'--track-accent':TRACK_COLORS[idx]} as React.CSSProperties} onClick={onSelect} onDoubleClick={onOpenNotes}>
     <div className="clip-gridlines" style={{backgroundSize:(100/beats)+'% 100%'}} aria-hidden="true"/>
@@ -81,7 +84,7 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
       const width=Math.max(.7,Math.min(displayed.duration/beats*100,100-left));
       const minTop=24,maxTop=Math.max(minTop,laneHeight-17);
       const top=minTop+(high-displayed.note)/Math.max(1,high-low)*(maxTop-minTop);
-      return <div key={i} role="button" tabIndex={0}
+      return <div data-song-note={i} key={i} role="button" tabIndex={0}
         title={noteName(displayed.note)+' · '+displayed.duration.toFixed(2)+' beats — drag to move'}
         aria-label={noteName(displayed.note)+' note in bar '+(Math.floor(displayed.start/4)+1)}
         className={'clip-note'+(drag?.noteIndex===i?' dragging':'')}

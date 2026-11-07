@@ -1,3 +1,4 @@
+import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, FolderOpen, Grid2X2, Link2, Volume2 } from 'lucide-react';
 import { Knob } from './Knob';
@@ -72,6 +73,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,
     },120));});
   },[runtime]);
   useEffect(()=>()=>{timers.current.forEach(clearTimeout);timers.current.clear();},[]);
+  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
   const pad=pads[selected],live=runtime?.pads[selected];
   const status=live?.status??(pad?.source?'LOADING':'EMPTY');
   const sourceReady=!!pad?.source&&!['EMPTY','MISSING','LOADING','ERROR'].includes(status);
@@ -91,7 +93,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,
     <div className="drum-workspace">
       {browsing?<DrumKitBrowser library={library} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary} onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
         <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span></div>
-        <div className="drum-pads" role="group" aria-label="Sixteen sample pads">
+        <div {...context} className="drum-pads" role="group" aria-label="Sixteen sample pads">
           {pads.map((p,i)=>{
             const state=runtime?.pads[i]?.status??(p.source?'LOADING':'EMPTY'),silenced=p.mute||(anySolo&&!p.solo),hit=flashes.has(i);
             const kind=kinds[i],family=DRUM_KINDS[kind];

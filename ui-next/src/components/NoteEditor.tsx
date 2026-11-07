@@ -1,3 +1,4 @@
+import {useNoteContext} from './useNoteContext';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {ChevronLeft,ChevronRight,Plus,Minus,Trash2,Copy,Undo2} from 'lucide-react';
@@ -10,6 +11,7 @@ export function NoteEditor({target,notes,expected,span,snap=.25,beat,playing,rec
  const grid=useRef<HTMLDivElement>(null),done=useRef<HTMLButtonElement>(null),columns=16,windowSpan=columns*snap,pages=Math.ceil(span/windowSpan),start=page*windowSpan;
  const bounds=useMemo(()=>({span,snap,maxDuration:target.kind==='pattern'?8:span}),[span,snap,target.kind]);
  const edit=useNoteEditing({target,expected,events:notes,bounds,playing,recording,commit:(t,b,a)=>send('note_edit',[t,b,a]),audition:(track,id,n,v)=>send('editor_note',[track,id,n,v]),undo:()=>send('undo')});
+ const context=useNoteContext({edit,target,expected,bounds,recording});
  useEffect(()=>{const previous=document.activeElement as HTMLElement;done.current?.focus();return()=>{if(previous?.isConnected)previous.focus();};},[]);
  const locate=(x:number,y:number)=>{const r=grid.current?.getBoundingClientRect();if(!r)return null;return {time:Math.max(start,Math.min(Math.min(span-snap,start+windowSpan-snap),start+Math.floor((x-r.left-44)/(r.width-44)*16)*snap)),pitch:Math.max(base,Math.min(base+7,base+7-Math.floor((y-r.top-24)/44)))}};
  const modes:[NoteTool,string][]=[['select','Select'],['draw','Draw'],['erase','Erase']];
@@ -22,7 +24,7 @@ export function NoteEditor({target,notes,expected,span,snap=.25,beat,playing,rec
    <button type="button" aria-label="Previous note page" disabled={page===0} onClick={()=>setPage(page-1)}><ChevronLeft size={17}/></button><span>{page+1} / {pages}</span><button type="button" aria-label="Next note page" disabled={page+1>=pages} onClick={()=>setPage(page+1)}><ChevronRight size={17}/></button>
    <button type="button" aria-label="Lower note octave" disabled={base<12} onClick={()=>setBase(Math.max(0,base-12))}><Minus size={16}/></button><span>{noteName(base)}</span><button type="button" aria-label="Higher note octave" disabled={base>=120} onClick={()=>setBase(Math.min(120,base+12))}><Plus size={16}/></button><span className="note-snap">Snap {target.kind==='pattern'?'1 step':'¼ beat'}</span>
   </div>
-  <div ref={grid} className="note-editor-grid" role="group" aria-label="Editable pitch and time grid" onKeyDown={edit.key}>
+  <div ref={grid} {...context} className="note-editor-grid" role="group" aria-label="Editable pitch and time grid" onKeyDown={edit.key}>
    <div className="note-editor-ruler"><span/>{Array.from({length:16},(_,c)=><span key={c}>{(start+c*snap)%1===0?(start+c*snap)+1:'·'}</span>)}</div>
    {Array.from({length:8},(_,r)=>base+7-r).map(pitch=><div className={'note-editor-row'+([1,3,6,8,10].includes(pitch%12)?' black':'')} key={pitch}>
     <button type="button" aria-label={'Play '+noteName(pitch)} onPointerDown={e=>{if(e.button===0){e.currentTarget.setPointerCapture(e.pointerId);edit.play(pitch);}}} onPointerUp={edit.stop} onPointerCancel={edit.stop}>{noteName(pitch)}</button>

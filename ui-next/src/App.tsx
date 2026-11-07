@@ -1,3 +1,4 @@
+import {ContextWheelProvider} from './components/ContextWheel';
 import {NoteEditor} from './components/NoteEditor';
 import {expectedWithEvents,type NoteTarget} from './note-ops';
 import {PanelScope} from './components/Panel';
@@ -356,7 +357,7 @@ function App() {
 
   useEffect(()=>{
     const handler=(event:KeyboardEvent)=>{
-      if(dialog)return;
+      if(dialog||event.defaultPrevented||event.shiftKey&&event.key==='F10')return;
       const target=event.target as HTMLElement;
       if(['INPUT','TEXTAREA','SELECT'].includes(target?.tagName)||target?.isContentEditable)return;
       const k=event.key;
@@ -371,7 +372,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell">
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,noteEditorTrack,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell">
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="DeckSynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -412,8 +413,8 @@ function App() {
         title="Metronome click" onClick={()=>command('metronome',!project?.metronome)}>
         <span className="button-led"/><span>CLICK</span></button>
       <button className="transport-utility" title="Undo" aria-label="Undo" onClick={()=>command('undo')}><RotateCcw size={18}/></button>
-      <button className="transport-utility" title="Quantize selected track" aria-label="Quantize"
-        onClick={()=>command('quantize')}><Redo2 size={18}/></button>
+      {page==='SONG'&&!!track?.notes.length?<button className="transport-utility" title="Quantize selected track" aria-label="Quantize"
+        onClick={()=>command('quantize')}><Redo2 size={18}/></button>:null}
       <PageTabs page={page} onPage={setPage}/>
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
@@ -441,7 +442,7 @@ function App() {
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      <PageBar tracks={project.tracks} selected={selected}
+      <PageBar onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           {track.device!=='drum_rack'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
@@ -556,6 +557,6 @@ function App() {
         <p>Keys: F5 Play, F6 Stop, F7 Record, F8/F9 Track, F10 Undo. Audio monitor uses real synthesized PCM samples when the bridge is connected.</p>
       </section>}
     </div>:null}
-  </main></MidiLearnProvider>;
+  </main></MidiLearnProvider></ContextWheelProvider>;
 }
 export default App;

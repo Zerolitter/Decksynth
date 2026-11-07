@@ -1,3 +1,6 @@
+import {useContextTarget} from './ContextWheel';
+import {knobControl} from '../parameter-registry';
+import {FX_MODULES,type FxModuleId} from '../fx';
 /** Steam Deck tactile knob.
  * Gesture math and pointer-lock safety: Chordz Studio's original utilities.
  * Procedural tick ring, cap shading and short-lived value bubble: originally
@@ -31,6 +34,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   const commitChange=(n:number)=>{beginGesture();onChangeRef.current(n);endGesture();};
   const learnHold=useRef<{x:number;y:number;timer:ReturnType<typeof setTimeout>}|null>(null);
   const clearLearnHold=()=>{if(learnHold.current)clearTimeout(learnHold.current.timer);learnHold.current=null;};
+  const context=useContextTarget(()=>{const control=knobControl(id,Number(id.split('-')[0])),factory=control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);return {kind:'parameter',label:name,cancel:()=>{clearLearnHold();drag.current?.cancel();},caps:{value:()=>setEditing(true),...(factory!==undefined?{reset:()=>commitChange(factory)}:{}),...(midi?.canLearn(id)?{automation:()=>midi.automation(id),modulation:()=>midi.modulation(id),midi:()=>midi.learn(id)}:{}),open:()=>document.querySelector<HTMLElement>('[data-param="'+id+'"]')?.scrollIntoView({block:'nearest',inline:'nearest'})}};});
   const gradientId = useId().replace(/:/g,'');
   const drag = useRef<RelativeDragHandle|null>(null);
   const dragging = useRef(false);
@@ -126,7 +130,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   });
   return <div className={'parameter-knob tactile-knob'+(compact?' compact':'')+
     (engaged?' is-engaged':'')}
-    data-param={id} title={description||name}
+    data-param={id} {...context} title={description||name}
     onContextMenu={e=>{if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
     <div className="knob-heading">{name}</div>{cc!==null?<span className="knob-midi-cc" data-midi-cc={cc}>CC{cc}</span>:null}
     <div role="slider" tabIndex={0} aria-orientation="vertical"

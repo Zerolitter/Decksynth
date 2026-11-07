@@ -1,3 +1,4 @@
+import {useContextTarget,useContextNavigation} from './ContextWheel';
 import type { ReactNode } from 'react';
 import { CircleDot, Disc3, Sparkles, Waves } from 'lucide-react';
 import { TRACK_COLORS, type Track } from '../types';
@@ -11,7 +12,7 @@ const PAGES:{id:Page,label:string,icon:ReactNode}[]=[
 ];
 
 type Props = { tracks:Track[]; selected:number; onSelect:(i:number)=>void;
-  beat:number; beats:number; playing:boolean; tools?:ReactNode };
+  beat:number; beats:number; playing:boolean; tools?:ReactNode;onContext?:(track:number)=>import('../context-actions').Capabilities };
 
 /** The track's recorded notes as a thin line, with the playhead, so the song stays in view. */
 function NoteLine({track,beats,beat,playing}:{track:Track;beats:number;beat:number;playing:boolean}){
@@ -33,10 +34,11 @@ export function PageTabs({page,onPage}:{page:Page;onPage:(p:Page)=>void}){
 }
 
 /** The second row on Sound, FX and Perform: the track you are working on, and the page's own tools on the right. */
-export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools}:Props){
-  return <nav className="page-bar" aria-label="Tracks">
+export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,onContext}:Props){
+  const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{})}};});
+  return <nav {...context} className="page-bar" aria-label="Tracks">
     <div className="page-tracks" role="group" aria-label="Track to edit">
-      {tracks.map((t,i)=><button key={i} type="button" aria-pressed={i===selected}
+      {tracks.map((t,i)=><button data-track-index={i} key={i} type="button" aria-pressed={i===selected}
         aria-label={'Edit track '+(i+1)+' '+(t.device==='drum_rack'?'Drum Rack':t.preset)}
         className={'page-track'+(i===selected?' active':'')+(t.mute?' muted':'')}
         style={{['--track-accent' as string]:TRACK_COLORS[i]}} onClick={()=>onSelect(i)}>

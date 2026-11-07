@@ -3,10 +3,10 @@ import {createPortal} from 'react-dom';
 import {ccForControl,controlName,knobControl,type ControlTarget,type MidiMapping} from '../parameter-registry';
 type Learn=ControlTarget&{track:number};
 type Menu={target:ControlTarget;x:number;y:number};
-type Context={gesture:(id:string,action:'begin'|'end'|'cancel')=>void;canLearn:(id:string)=>boolean;cc:(id:string)=>number|null;open:(id:string,x:number,y:number)=>void};
+type Context={gesture:(id:string,action:'begin'|'end'|'cancel')=>void;canLearn:(id:string)=>boolean;cc:(id:string)=>number|null;defaultValue:(id:string)=>number|undefined;modulation:(id:string)=>void;automation:(id:string)=>void;learn:(id:string)=>void;open:(id:string,x:number,y:number)=>void};
 const MidiContext=createContext<Context|null>(null);
 export const useMidiLearn=()=>useContext(MidiContext);
-export function MidiLearnProvider({selected,mappings,active,send,onAutomation,children}:{onAutomation?:(target:ControlTarget)=>void;selected:number;mappings:MidiMapping[];active:Learn|null|undefined;send:(cmd:string,args?:unknown)=>void;children:ReactNode}){
+export function MidiLearnProvider({selected,mappings,active,send,onAutomation,onModulation,defaultValue,children}:{defaultValue?:(target:ControlTarget)=>number|undefined;onModulation?:(target:ControlTarget)=>void;onAutomation?:(target:ControlTarget)=>void;selected:number;mappings:MidiMapping[];active:Learn|null|undefined;send:(cmd:string,args?:unknown)=>void;children:ReactNode}){
  const [menu,setMenu]=useState<Menu|null>(null);
  const menuRef=useRef<HTMLDivElement>(null),invoker=useRef<HTMLElement|null>(null);
  useEffect(()=>{if(!menu)return;menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
@@ -17,6 +17,7 @@ export function MidiLearnProvider({selected,mappings,active,send,onAutomation,ch
   window.addEventListener('keydown',key);window.addEventListener('pointerdown',pointer,true);
   return()=>{window.removeEventListener('keydown',key);window.removeEventListener('pointerdown',pointer,true);};},[menu,active,send]);
  const context:Context={gesture:(id,action)=>{const t=knobControl(id,selected);if(t)send('sound_gesture',[selected,t.module,t.param,action]);},canLearn:id=>knobControl(id,selected)!==null,cc:id=>{const t=knobControl(id,selected);return t?ccForControl(t,mappings):null;},
+  defaultValue:id=>{const t=knobControl(id,selected);return t?defaultValue?.(t):undefined;},modulation:id=>{const t=knobControl(id,selected);if(t)onModulation?.(t);},automation:id=>{const t=knobControl(id,selected);if(t)onAutomation?.(t);},learn:id=>{const t=knobControl(id,selected);if(t)send('learn_cc',[selected,t.module,t.param]);},
   open:(id,x,y)=>{const target=knobControl(id,selected);if(target){invoker.current=document.querySelector<HTMLElement>('[data-param="'+id+'"] [role="slider"]');setMenu({target,x:Math.min(innerWidth-208,Math.max(8,x)),y:Math.min(innerHeight-216,Math.max(8,y))});}}};
  const host=document.querySelector('.harness-shell')??document.body;
  return <MidiContext.Provider value={context}>{children}

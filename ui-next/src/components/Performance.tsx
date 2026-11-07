@@ -1,3 +1,6 @@
+import {NoteEditor} from './NoteEditor';
+import {useNoteContext} from './useNoteContext';
+import {useContextTarget} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -87,6 +90,7 @@ export function PerformTools({hold,onHold,onPanic,arp=false,paused=false,onArp}:
 }
 
 export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo}:Props){
+  const [noteEditorOpen,setNoteEditorOpen]=useState(false);
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
 
@@ -114,6 +118,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   const ref=seq.bank+':'+seq.slot;
   const pat=state.patterns[ref]??defaultPattern(seq.length,seq.division);
   const edit=useNoteEditing({target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,events:patternEvents(pat),bounds:{span:pat.length,snap:1,maxDuration:8},playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
+  const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,chord:pitch=>{const intervals=SCALES[scale.name==='Chromatic'?'Major':scale.name]??SCALES.Major;const degree=intervals.findIndex(v=>(pitch-scale.root+120)%12===v),d=degree<0?0:degree;return [0,2,4].map(i=>Math.min(127,pitch+intervals[(d+i)%intervals.length]-intervals[d]+12*Math.floor((d+i)/intervals.length)));},open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
   const locate=(x:number,y:number)=>{const el=gridRef.current;if(!el)return null;const r=el.getBoundingClientRect(),lines=Array.from(el.querySelectorAll<HTMLElement>('.pf-row'));const row=lines.find(n=>{const b=n.getBoundingClientRect();return y>=b.top&&y<b.bottom;})??(y<r.top?lines[0]:lines.at(-1));return {time:clamp(page*16+Math.floor((x-r.left-40)/(r.width-40)*16),page*16,Math.min(pat.length-1,page*16+15)),pitch:Number(row?.dataset.pitch??60)};};
   const factoryName=LIBRARY.patterns[seq.bank-1]?.[seq.slot-1];
@@ -315,7 +320,8 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
       onClick={()=>set('chord','strum_type',o)}>{o}</button>)}
   </div>;
 
-  const grid=<div ref={gridRef} className="pf-grid" onKeyDown={edit.key} style={{['--rows' as string]:rows.length}}>
+  const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[];return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion((inversion+1)%3),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(notes)}};});
+  const grid=<div ref={gridRef} {...noteContext} className="pf-grid" onKeyDown={edit.key} style={{['--rows' as string]:rows.length}}>
     <div className="pf-grid-head"><span/>
       {visible.map(i=><span key={i} className={(i%4===0?'beat ':'')+(i===currentStep?'live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')}
 >
@@ -426,7 +432,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   else{
     const pads=diatonicChords(scale.root,scale.name,ext,{octave:scale.octave,inversion,voices:chord.spread,bass:chord.bass??0});
     const hold=(id:string,notes:number[],onLong?:()=>void)=>({
-      onPointerDown:(e:React.PointerEvent<HTMLButtonElement>)=>{e.currentTarget.setPointerCapture(e.pointerId);longPressed.current=false;
+      onPointerDown:(e:React.PointerEvent<HTMLButtonElement>)=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);longPressed.current=false;
         padOn(id,notes);if(press.current)clearTimeout(press.current);
         if(onLong)press.current=setTimeout(()=>{longPressed.current=true;onLong();},600);},
       onPointerUp:()=>{if(press.current)clearTimeout(press.current);padOff();},
@@ -434,10 +440,10 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
       onContextMenu:(e:React.MouseEvent)=>e.preventDefault(),
     });
     laneView=<div className="cb">
-      <div className="cb-pads" role="group" aria-label={'Chords in '+ROOTS[scale.root]+' '+(scale.name==='Chromatic'?'major':scale.name)}
+      <div {...chordContext} className="cb-pads" role="group" aria-label={'Chords in '+ROOTS[scale.root]+' '+(scale.name==='Chromatic'?'major':scale.name)}
         style={{['--pads' as string]:pads.length}}>
         {pads.map(c=>{const id='pad-'+c.degree;
-          return <button key={id} type="button" data-testid={'cb-pad-'+c.roman} aria-label={'Play '+c.roman+' '+c.name}
+          return <button key={id} type="button" data-chord={JSON.stringify(c.notes)} data-testid={'cb-pad-'+c.roman} aria-label={'Play '+c.roman+' '+c.name}
             className={'cb-pad'+(active?.id===id?' on':'')+(pressed===id?' sounding':'')}
             {...hold(id,c.notes,()=>saveSlot(active?.id===id?active.notes:c.notes))}>
             <b>{c.roman}</b><strong>{c.name}</strong><span>{chordText(c.notes)}</span></button>;})}
@@ -468,13 +474,13 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
             aria-label={v?'Bass −'+v+' octave':'Bass off'} onClick={()=>set('chord','bass',v)}>{v?'−'+v:'Off'}</button>)}
         </div>
       </div>
-      <div className="cb-slots" role="group" aria-label="My chords">
+      <div {...chordContext} className="cb-slots" role="group" aria-label="My chords">
         <span className="pf-group-label">My chords</span>
         {slots.map((c,i)=>{const id='slot-'+i;
-          return c.length?<button key={id} type="button" data-testid={'cb-slot-'+(i+1)} aria-label={'Play my chord '+(i+1)+' '+chordName(c[0],c.map(n=>n-c[0]))}
+          return c.length?<button key={id} type="button" data-chord={JSON.stringify(c)} data-testid={'cb-slot-'+(i+1)} aria-label={'Play my chord '+(i+1)+' '+chordName(c[0],c.map(n=>n-c[0]))}
             className={'cb-slot full'+(pressed===id?' sounding':'')+(active?.id===id?' on':'')}
             {...hold(id,c,()=>setSlotMenu(i))}><strong>{chordName(c[0],c.map(n=>n-c[0]))}</strong><span>{chordText(c)}</span></button>
-          :<button key={id} type="button" data-testid={'cb-slot-'+(i+1)} className="cb-slot" disabled={!active}
+          :<button key={id} type="button" data-chord={JSON.stringify(c)} data-testid={'cb-slot-'+(i+1)} className="cb-slot" disabled={!active}
             aria-label={'Save to my chord '+(i+1)} title={active?'Keep the last chord here':'Tap a chord first'}
             onClick={()=>{if(active){action('save_slot',[i,active.notes]);setMessage('Saved to My chords '+(i+1)+'.');}}}><Plus size={14}/>{i+1}</button>;})}
         {slotMenu!==null?<div className="pf-pad-menu cb-slot-menu" role="menu" aria-label={'My chord '+(slotMenu+1)}>
@@ -487,6 +493,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   }
 
   return <section className={"pf pf-mode-"+mode} aria-label="Perform">
+    {noteEditorOpen?<NoteEditor key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],
@@ -617,7 +624,7 @@ function TouchKeys({held,sounding,channel,onMidi,chord,scale}:{held:number[];sou
       <button type="button" aria-label="Octave down" onClick={()=>shiftOctave(-1)}><Minus size={18}/></button>
     </div>
     <div className="pf-piano" role="group" aria-label="Touch keyboard"
-      onPointerDown={e=>{const n=noteAt(e.clientX,e.clientY);if(n===null)return;
+      onPointerDown={e=>{if(e.button!==0)return;const n=noteAt(e.clientX,e.clientY);if(n===null)return;
         e.currentTarget.setPointerCapture(e.pointerId);
         press(e.pointerId,n,velocityAt(e.clientY,(e.target as HTMLElement).closest('[data-note]')));}}
       onPointerMove={e=>{if(!pointers.current.has(e.pointerId))return;const n=noteAt(e.clientX,e.clientY);
