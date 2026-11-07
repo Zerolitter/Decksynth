@@ -3,6 +3,7 @@ import { AudioWaveform, FolderOpen, Grid2X2, Link2, Volume2 } from 'lucide-react
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, type Track, type DrumRuntime, type DrumLibraryState } from '../types';
+import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import '../drum-rack.css';
 
 export type { DrumPad, DrumRuntime } from '../types';
@@ -35,7 +36,7 @@ function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,
   return <div className="drum-committed-knob" onPointerDownCapture={()=>{pointer.current=true;}}
     onKeyUpCapture={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End','PageUp','PageDown','Enter'].includes(e.key))setTimeout(finish,0);}}
     onBlur={()=>{if(!pointer.current)setTimeout(finish,0);}}>
-    <Knob id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--drum-accent)"
+    <Knob id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)"
       onChange={next=>{latest.current=next;dirty.current=next!==original.current;setDraft(next);}}/>
   </div>;
 }
@@ -78,29 +79,34 @@ function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport,lib
   const edit=(key:string,value:unknown)=>onEdit(selected,key,value);
   if(!kit||!pad)return <section className="drum-rack drum-rack-loading" aria-label="Drum Rack"><AudioWaveform size={24}/><p>Preparing Drum Rack…</p></section>;
   const audition=(index:number,pressure=0)=>{setSelected(index);onNote(index,pressure>0?Math.max(1,Math.min(127,Math.round(pressure*127))):100);};
-  return <section className="drum-rack" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length]}}>
+  const kinds=pads.map(p=>drumKind(p.name,p.source?.path));
+  const selectedKind=DRUM_KINDS[kinds[selected]];
+  const families=[...new Set(kinds.filter((_,i)=>!!pads[i].source))];
+  return <section className="drum-rack" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length],['--pad-accent' as string]:pad.source?selectedKind.color:DRUM_KINDS.other.color}}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><Grid2X2 size={23}/><h1>Drum Rack</h1><span>Track {trackIndex+1}</span></div>
       <div className="drum-device-meta"><span className="drum-kit-name" title={kit.name||'Custom kit'}>{kit.name||'Custom kit'}</span><strong>{loaded}/16 sources ready</strong><button type="button" aria-expanded={browsing} onClick={()=>setBrowsing(open=>!open)}><FolderOpen size={17}/>Kits</button></div>
     </header>
     <div className="drum-workspace">
       {browsing?<DrumKitBrowser library={library} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary} onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
-        <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to audition · MIDI velocity supported</span></div>
+        <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span></div>
         <div className="drum-pads" role="group" aria-label="Sixteen sample pads">
           {pads.map((p,i)=>{
             const state=runtime?.pads[i]?.status??(p.source?'LOADING':'EMPTY'),silenced=p.mute||(anySolo&&!p.solo),hit=flashes.has(i);
-            return <button type="button" key={p.note} className={'drum-pad'+(selected===i?' is-selected':'')+(hit?' is-triggered':'')+(silenced?' is-muted':'')+(state==='MISSING'?' is-missing':'')+(!p.source?' is-empty':'')}
+            const kind=kinds[i],family=DRUM_KINDS[kind];
+            return <button type="button" key={p.note} style={{['--pad' as string]:p.source?family.color:DRUM_KINDS.other.color}} data-kind={p.source?kind:'empty'} className={'drum-pad'+(selected===i?' is-selected':'')+(hit?' is-triggered':'')+(silenced?' is-muted':'')+(state==='MISSING'?' is-missing':'')+(!p.source?' is-empty':'')}
               data-pad={i} data-note={p.note} data-triggered={hit?'true':'false'} data-status={state}
               aria-label={'Pad '+(i+1)+', '+p.name+', MIDI '+p.note+', '+(silenced?'MUTED':state)} aria-pressed={selected===i}
               onPointerDown={e=>{if(e.button===0)audition(i,e.pointerType==='touch'||e.pointerType==='pen'?e.pressure:0);}}
               onClick={e=>{if(e.detail===0)audition(i);}}>
               <span className="drum-pad-top"><b>{String(i+1).padStart(2,'0')}</b><span>{p.solo?'SOLO':p.mute?'MUTE':noteName(p.note)}</span></span>
-              <strong className="drum-pad-name">{p.name||'Empty'}</strong>
+              <strong className="drum-pad-name" title={p.name}>{padLabel(p.name,kit.name)||'Empty'}</strong>
               <span className="drum-pad-bottom"><span>{silenced?'MUTED':state}</span><span>{p.note}</span></span>
             </button>;
           })}
         </div>
-        <div className="drum-pad-legend"><span><i className="selected"/>Selected pad</span><span><i className="trigger"/>Native note event</span><span>4-pad groups · no step sequencer</span></div>
+        <div className="drum-family-legend" aria-label="Drum families">{families.map(kind=><span key={kind} style={{['--family' as string]:DRUM_KINDS[kind].color}}><i/>{DRUM_KINDS[kind].label}</span>)}</div>
+        <div className="drum-pad-legend"><span><i className="selected"/>Selected</span><span><i className="trigger"/>Note event</span><span>One-shot playback</span></div>
         <div className="drum-unavailable">
           <div className="drum-pending-buttons" role="group" aria-label="Unavailable Drum Rack pages">{['SEQ','MIX','FX'].map(label=><button key={label} type="button" disabled aria-describedby="drum-pending-note">{label}</button>)}</div>
           <p id="drum-pending-note">SEQ, MIX and FX are not available in this version. Record pads with the existing SONG transport.</p>
@@ -112,13 +118,13 @@ function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport,lib
           <button type="button" aria-label={pad.source?'Replace WAV':'Import WAV'} onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>{pad.source?null:'Import WAV'}</button>
           {pad.source&&status==='MISSING'?<button type="button" className="drum-relink" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Relink WAV</button>:null}
         </div></div>
-        <div className="drum-source-heading"><strong>{pad.name||'Empty pad'}</strong><span className={'drum-status status-'+status.toLowerCase()}>{status}</span></div>
+        <div className="drum-source-heading"><strong title={pad.name}>{padLabel(pad.name,kit.name)||'Empty pad'}</strong><span className={'drum-status status-'+status.toLowerCase()}>{status}</span></div>
         <div className="drum-source-file" title={pad.source?.path}>{fileName??'No sample assigned'}</div>
         <div className="drum-wave-shell">
           {sourceReady&&live?.peaks.length?<SourceWave peaks={live.peaks}/>:<div className="drum-wave-empty"><AudioWaveform size={22}/><span>{status==='MISSING'?'Sample missing · relink the original WAV':status==='LOADING'?'Loading sample…':status==='ERROR'?'Sample could not load':'Import a WAV to see its waveform'}</span></div>}
           <span className="drum-wave-caption">{sourceReady?'SOURCE PCM · CACHED MIN / MAX':'SOURCE WAVEFORM'}</span>
         </div>
-        {live?.error?<p className="drum-source-error" role="status">{live.error}</p>:null}
+        {live?.error?<p className="drum-source-error" title={live.error} role="status">{live.error}</p>:null}
         <div className="drum-pad-controls" key={selected}>
           <CommittedKnob id={`drum-${trackIndex}-${selected}-gain`} name="Gain" value={pad.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Pad gain; applied to the next note" onCommit={n=>edit('gain',n)}/>
           <CommittedKnob id={`drum-${trackIndex}-${selected}-velocity`} name="Velocity" value={pad.velocity} min={0} max={2} step={.01} suffix="×" precision={2} description="Velocity response curve: 0 is fixed level, 1 is linear, 2 makes soft notes quieter" onCommit={n=>edit('velocity',n)}/>
