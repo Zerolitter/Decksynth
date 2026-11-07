@@ -1,3 +1,4 @@
+import {InstrumentSwitcher} from './components/InstrumentSwitcher';
 import {AutomationEditor} from './components/AutomationEditor';
 import type {ControlTarget} from './parameter-registry';
 import {MidiLearnProvider} from './components/MidiLearn';
@@ -79,6 +80,8 @@ function App() {
   const anchor=useRef({beat:0,when:performance.now(),bpm:120,bars:4,playing:false,preview:false});
   const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
+  const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
+  useEffect(()=>setKitBrowserTrack(null),[selected]);
   const isPreview=!api||!!snapshot?.preview;
   const project=snapshot?.state;
   const track=project?.tracks[selected];
@@ -436,11 +439,9 @@ function App() {
             <button type="button" aria-label="Sound undo" title="Undo one knob gesture" disabled={!(snapshot?.sound_undo?.[selected])} onClick={()=>command('sound_undo',selected)}><RotateCcw size={16}/></button>
             <button type="button" aria-label="Edit automation" aria-pressed={snapshot?.automation_arm??false} onClick={()=>setAutomationEdit(null)}>Auto</button>
           </div>:null}
-          <select className="track-device-picker" aria-label="Track device" value={track.device??'synth'} style={{minHeight:44,minWidth:116,width:116,padding:'0 10px'}}
-            onChange={e=>{if(isPreview){setToast('Select devices in the native audio app');return;}command('set_device',[selected,e.target.value]);}}>
-            <option value="synth">Synth</option><option value="drum_rack">Drum Rack</option>
-          </select>
-          {track.device!=='drum_rack'?<><PresetBrowser current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
+          <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
+          {track.device==='drum_rack'?<button type="button" className="instrument-kit-browser" aria-label="Browse drum kits" aria-expanded={kitBrowserTrack===selected} title={track.drum_rack?.name??'Choose a kit folder'} onClick={()=>setKitBrowserTrack(kitBrowserTrack===selected?null:selected)}><FolderOpen size={17}/><span><small>Kits</small><strong>{track.drum_rack?.name??'Choose kit folder'}</strong></span></button>:null}
+          {track.device!=='drum_rack'?<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
           <button type="button" className="page-tool-icon" aria-label="Save patch" title="Save patch"
             onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
         </>:page==='PERFORM'?<PerformTools hold={project.performance.arp.hold}
@@ -490,7 +491,7 @@ function App() {
         output={{peak:snapshot?.meter?.peak??0,rms:snapshot?.meter?.rms??0,voices:snapshot?.voices??0,underruns:snapshot?.underruns??0,driver:snapshot?.audio??'Unavailable'}}
         onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
         onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
-        onImport={importDrum} library={snapshot?.drum_library}
+        onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>setKitBrowserTrack(open?selected:null)} library={snapshot?.drum_library}
         onLoadFolder={folder=>{if(track.drum_rack)command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
       :page==='SOUND'||page==='FX'?<div className={'frame frame-'+page.toLowerCase()}>

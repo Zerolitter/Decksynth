@@ -37,7 +37,7 @@ export function PresetBrowser({current,accent,onPreset}:Props) {
     <div className="preset-bar">
       <button type="button" className="preset-step" aria-label="Previous preset" onClick={()=>step(-1)}><ChevronLeft size={20}/></button>
       <button type="button" className="preset-current" aria-label="Browse presets" aria-expanded={open} onClick={()=>setOpen(!open)}>
-        <span className="preset-cat">{active?.category??'Custom'}</span>
+        <span className="preset-cat">Presets</span>
         <strong>{current}</strong>
         {active?<FxDots fx={active.fx}/>:null}
         <LayoutGrid size={16}/>

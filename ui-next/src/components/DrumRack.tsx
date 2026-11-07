@@ -7,7 +7,7 @@ import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import '../drum-rack.css';
 
 export type { DrumPad, DrumRuntime } from '../types';
-type Props = {track:Track;trackIndex:number;runtime?:DrumRuntime;output?:{peak:number;rms:number;voices:number;underruns:number;driver:string};onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void;library?:DrumLibraryState;onLoadFolder?:(folderId:string)=>void;onChooseLibrary?:()=>void;onRefreshLibrary?:()=>void};
+type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Track;trackIndex:number;runtime?:DrumRuntime;output?:{peak:number;rms:number;voices:number;underruns:number;driver:string};onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void;library?:DrumLibraryState;onLoadFolder?:(folderId:string)=>void;onChooseLibrary?:()=>void;onRefreshLibrary?:()=>void};
 
 /** The shared knob previews locally; only the end of its gesture reaches the worker. */
 function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,onCommit}:{
@@ -51,10 +51,11 @@ function SourceWave({peaks}:{peaks:number[][]}) {
   </svg>;
 }
 
-function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary}:Props) {
+function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary}:Props) {
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
-  const [browsing,setBrowsing]=useState(false);
+  const [localBrowsing,setLocalBrowsing]=useState(false);
+  const browsing=browserOpen??localBrowsing,setBrowsing=onBrowserOpen??setLocalBrowsing;
   const [flashes,setFlashes]=useState<Set<number>>(()=>new Set());
   const serials=useRef<number[]|null>(null);
   const timers=useRef(new Map<number,ReturnType<typeof setTimeout>>());
@@ -85,7 +86,7 @@ function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport,lib
   return <section className="drum-rack" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length],['--pad-accent' as string]:pad.source?selectedKind.color:DRUM_KINDS.other.color}}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><Grid2X2 size={23}/><h1>Drum Rack</h1><span>Track {trackIndex+1}</span></div>
-      <div className="drum-device-meta"><span className="drum-kit-name" title={kit.name||'Custom kit'}>{kit.name||'Custom kit'}</span><strong>{loaded}/16 sources ready</strong><button type="button" aria-expanded={browsing} onClick={()=>setBrowsing(open=>!open)}><FolderOpen size={17}/>Kits</button></div>
+      <div className="drum-device-meta"><span className="drum-kit-name" title={kit.name||'Custom kit'}>{kit.name||'Custom kit'}</span><strong>{loaded}/16 sources ready</strong>{onBrowserOpen?null:<button type="button" aria-expanded={browsing} onClick={()=>setBrowsing(!browsing)}><FolderOpen size={17}/>Kits</button>}</div>
     </header>
     <div className="drum-workspace">
       {browsing?<DrumKitBrowser library={library} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary} onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">

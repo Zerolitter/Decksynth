@@ -241,3 +241,18 @@
 .automation-lane-editor{flex:1;min-width:0}
 .automation-lane-editor svg{box-sizing:border-box;width:100%;height:180px;touch-action:none;background:#121417;border:1px solid #373c41;border-radius:8px;color:#7ed4ba;fill:currentColor}
 .automation-lane-editor footer{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font-size:11px}
+
+/* Existing track tools: explicit device choice and one visible library entry. */
+.instrument-switcher{display:flex;gap:2px;flex:none;padding:2px;border:1px solid #3c464c;border-radius:8px;background:#171a1d}
+.instrument-switcher button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:76px;min-height:44px;padding:0 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:#c4cdd1;font:inherit}
+.instrument-switcher button[aria-checked=true]{border-color:#7ebfac;background:#293c36;color:#e4efeb}
+.instrument-kit-browser{display:flex;align-items:center;gap:10px;min-height:44px;min-width:176px;max-width:260px;padding:0 12px;border:1px solid #465159;border-radius:8px;background:#252b2f;color:#dfe6e5;font:inherit;text-align:left}
+.instrument-kit-browser span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.instrument-kit-browser small{font-size:10px;color:#9eb7ad}
+.instrument-kit-browser strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.harness-shell .page-tools:has(.instrument-switcher) .preset-current{width:132px;flex-basis:132px;flex-wrap:wrap;justify-content:flex-start;gap:1px 6px;padding:4px 8px}
+.harness-shell .page-tools:has(.instrument-switcher) .preset-current .preset-cat{font-size:9px;flex:1}
+.harness-shell .page-tools:has(.instrument-switcher) .preset-current strong{display:block;order:3;flex-basis:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:12px}
+.harness-shell .page-tools:has(.instrument-switcher) .preset-current .preset-fx{display:none}
+.harness-shell .page-tools:has(.instrument-switcher) .preset-current>svg{width:14px;height:14px}
+.harness-shell .page-tools:has(.instrument-switcher) .sound-workflow{margin-right:0}
