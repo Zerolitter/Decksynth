@@ -437,7 +437,8 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
         elif age<A+D:level=1-(1-sus)*(age-A)/D
         else:level=sus
         if f:
-            if not f['independent']:fl=level
+            if not f['independent']:
+                fl=level;fb=base if c['released'] else level
             elif c['released']:
                 if r==1:fb=fl
                 fl=fb*max(0,1-(r-1)/f['rel'])

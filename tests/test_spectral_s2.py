@@ -1,5 +1,6 @@
 """S2 audible envelope independence, morph continuity, lifecycle, parity and legacy recall."""
 import copy
+from contextlib import nullcontext
 import hashlib
 import json
 import math
@@ -88,6 +89,19 @@ class SpectralS2Tests(unittest.TestCase):
             for key,bad in ((k,v) for k in values for v in (float('nan'),float('inf'),True,-1,4)):
                 data=copy.deepcopy(e.project.data());data['tracks'][0]['instrument'][key]=bad;p.write_text(json.dumps(data))
                 with self.subTest(key=key,bad=bad),self.assertRaises(ValueError):Project.load(p)
+
+    def test_first_independent_filter_edit_during_release_preserves_sounding_level(self):
+        for fallback in (False,True):
+            for modulation in (False,True):
+                with self.subTest(fallback=fallback,modulation=modulation), (patch('decksynth.core.native_filter_voice',return_value=None) if fallback else nullcontext()):
+                    params=dict(attack=.001,decay=.001,sustain=1.,release=1.,vcf_morph=0.,vcf_env=1.,vcf_cutoff=.2)
+                    control=synth(**params);edited=synth(**params)
+                    for s in (control,edited):s.render(4800);s.off(60);s.render(2400)
+                    if modulation:edited.modulate({'fenv_s':0.})
+                    else:edited.configure({**edited.params,'fenv_a':.001,'fenv_d':.001,'fenv_s':1.,'fenv_r':1.})
+                    want=control.render(256);got=edited.render(256)
+                    self.assertAlmostEqual(edited.voices[60]['fstate'][0],edited.voices[60]['level'],places=12)
+                    self.assertLess(max(abs(x-y) for x,y in zip(want,got)),1e-12)
 
     def test_legacy_filtered_pcm_is_sample_identical(self):
         for fixture in json.loads((FIXTURES/'spectral_s2_legacy_filter_pcm.json').read_text()):

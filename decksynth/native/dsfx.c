@@ -564,7 +564,7 @@ static int voice_ext(double *out, int n, const double *tab, const double *prev, 
         else if (age < v->a + v->d) level = 1 - (1 - v->sus) * (age - v->a) / v->d;
         else level = v->sus;
         if (f) {
-            if (!f->independent) fl=level;
+            if (!f->independent) { fl=level; fb=v->released ? base : level; }
             else if (v->released) { if (r==1) fb=fl; fl=fb*fmax(0,1-(r-1)/f->rel); }
             else if (age<f->a) fl=age/f->a;
             else if (age<f->a+f->d) fl=1-(1-f->sus)*(age-f->a)/f->d;
