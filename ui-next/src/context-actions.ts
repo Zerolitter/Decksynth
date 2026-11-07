@@ -21,5 +21,10 @@ export function contextActions(kind:ContextKind,caps:Capabilities):ContextAction
  const leaf=(id:Capability):ContextAction|null=>caps[id]?{id,title:titles[id],run:caps[id]}:null;
  return kinds[kind].flatMap(e=>{if(typeof e==='string'){const a=leaf(e);return a?[a]:[];}const children=e.items.flatMap(id=>{const a=leaf(id);return a?[a]:[];});return children.length?[{id:e.id,title:e.title,children}]:[];});
 }
-export function wheelPosition(x:number,y:number,w:number,h:number){return {x:Math.max(144,Math.min(w-144,x)),y:Math.max(184,Math.min(h-188,y))};}
-export function sectorAt(x:number,y:number,c:{x:number;y:number},count:number){const dx=x-c.x,dy=y-c.y,r=Math.hypot(dx,dy);if(r<48||r>136||!count)return -1;return Math.floor(((Math.atan2(dy,dx)*180/Math.PI+450)%360)/360*count);}
+export function wheelPosition(x:number,y:number,w:number,h:number){return {x:Math.max(164,Math.min(w-164,x)),y:Math.max(198,Math.min(h-208,y))};}
+export function sectorAt(x:number,y:number,c:{x:number;y:number},count:number){const dx=x-c.x,dy=y-c.y,r=Math.hypot(dx,dy);if(r<32||r>100.01||!count)return -1;return Math.floor(((Math.atan2(dy,dx)*180/Math.PI+450)%360)/360*count);}
+export function wheelHit(x:number,y:number,c:{x:number;y:number},roots:number,children:number,branch:number){
+ const r=Math.hypot(x-c.x,y-c.y);if(r<=100)return sectorAt(x,y,c,roots);if(r<104||r>152||!children)return -1;
+ const angle=Math.atan2(y-c.y,x-c.x),step=Math.min(Math.PI/3,2*Math.PI/children),origin=-Math.PI/2+(branch+.5)*2*Math.PI/roots-(children-1)*step/2;
+ for(let i=0;i<children;i++){const delta=Math.atan2(Math.sin(angle-origin-i*step),Math.cos(angle-origin-i*step));if(Math.abs(delta)<=step/2)return roots+i;}return -1;
+}

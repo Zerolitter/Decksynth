@@ -1,4 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {contextActions,wheelPosition,sectorAt} from '../src/context-actions.ts';
+import {contextActions,wheelPosition,sectorAt,wheelHit} from '../src/context-actions.ts';
 test('typed capability registry excludes musical actions from cards, empty grids and drums',()=>{const caps={add:()=>{},quantize:()=>{},delete:()=>{},chord:()=>{},open:()=>{},play:()=>{}};const ids=kind=>JSON.stringify(contextActions(kind,caps));assert.match(ids('seq.empty'),/Add note/);assert.doesNotMatch(ids('seq.empty'),/Quantize|Delete/);assert.doesNotMatch(ids('rack.card'),/Quantize|Add note|Add chord/);assert.doesNotMatch(ids('drum.pad'),/Quantize|Add chord/);assert.match(ids('seq.note'),/Quantize/);});
 test('wheel geometry clamps all corners and hit testing preserves center cancel',()=>{for(const [x,y] of [[0,0],[1280,0],[0,718],[1280,718]]){const p=wheelPosition(x,y,1280,718);assert.ok(p.x>=144&&p.x<=1136&&p.y>=184&&p.y<=534);assert.equal(sectorAt(p.x,p.y,p,6),-1);for(let i=0;i<6;i++){const a=(-90+(i+.5)*60)*Math.PI/180;assert.equal(sectorAt(p.x+100*Math.cos(a),p.y+100*Math.sin(a),p,6),i);}}});
+
+test('nested outer hit areas follow the active primary branch without stealing center or gap',()=>{const c={x:500,y:350};for(let branch=0;branch<5;branch++)for(let i=0;i<5;i++){const a=(-90+(branch+.5)*72-120+i*60)*Math.PI/180;assert.equal(wheelHit(c.x+126*Math.cos(a),c.y+126*Math.sin(a),c,5,5,branch),5+i);}assert.equal(wheelHit(500,350,c,5,5,1),-1);assert.equal(wheelHit(602,350,c,5,5,1),-1);});
