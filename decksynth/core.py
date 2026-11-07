@@ -1217,11 +1217,12 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                                 if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
-                if self.playing and not getattr(self,'_pattern_preview',None) and not self.project.tracks[self.selected]['mute']:
+                if self.playing and not self.project.tracks[self.selected]['mute']:
                     generated=schedule_notes(self.project.performance,[] if self.arp_paused else self.perform_held.held(),
                                              start,end,self.fpb,velocities=self.perform_held.velocities(),
                                              arp_anchor=self.arp_anchor_beat*self.fpb)
                     for offset,action,pitch,velocity,token in generated:
+                        if getattr(self,'_pattern_preview',None) and token[0]=='perf_seq':continue
                         events.setdefault(offset,[]).append((3,action,self.selected,pitch,velocity,token))
                 if self.playing and self.project.metronome:
                     b=math.ceil(start/self.fpb); tick=round(b*self.fpb)

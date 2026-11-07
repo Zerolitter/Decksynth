@@ -31,7 +31,7 @@ class PatternCatalogEngine:
   p=getattr(self,'_pattern_preview',None)
   if not p:return []
   target=p['target'];track=self.project.tracks[p['track']];seq=self.project.performance['seq']
-  if self.recording or p['track']!=self.selected or device_kind(track)!=target.get('device','synth') or track.get('drum_rack')!=target.get('kit') or (seq['bank'],seq['slot'])!=(target['bank'],target['slot']):
+  if self.recording or track['mute'] or p['track']!=self.selected or device_kind(track)!=target.get('device','synth') or track.get('drum_rack')!=target.get('kit') or (seq['bank'],seq['slot'])!=(target['bank'],target['slot']):
    self.stop_pattern_preview();return []
   return [(offset,action,p['track'],pitch,velocity,('preview',p['origin'],*token[1:])) for offset,action,pitch,velocity,token in schedule_notes(p['state'],[],start-p['origin'],end-p['origin'],self.fpb)]
  def preview_status(self):

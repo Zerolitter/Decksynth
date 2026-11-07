@@ -124,7 +124,7 @@ function App() {
   useEffect(()=>{
     if(!api){setSnapshot(demoInitial);return;}
     return api.onMessage((obj:BridgeMessage)=>{
-      if(obj.error){setToast(obj.error);setBridgeStatus('ERROR');return;}
+      if(obj.error){window.dispatchEvent(new CustomEvent('decksynth-command-rejected'));setToast(obj.error);setBridgeStatus('ERROR');return;}
       if(obj.message){setToast(obj.message);return;}
       if(obj.bridge==='ready'){setBridgeStatus('CONNECTED');return;}
       if(obj.state&&typeof obj.beat==='number'){

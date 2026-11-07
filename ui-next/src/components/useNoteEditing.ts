@@ -3,7 +3,7 @@ import {editNotes,expectedWithEvents,paintNotes,sameNotes,noteIndexAt,type NoteA
 import type {Note,StepPattern} from '../types';
 export type NoteTool='select'|'draw'|'erase'|'length'|'accent';
 type Props={target:NoteTarget;expected:Note[]|StepPattern;events:Note[];bounds:NoteBounds;playing:boolean;recording:boolean;commit:(target:NoteTarget,expected:Note[]|StepPattern,events:Note[])=>void;audition:(track:number,id:string,note:number,velocity:number)=>void;undo:()=>void};
-type Gesture={hit:number;moved:boolean;id:number;kind:NoteTool|'move'|'resize'|'box';base:Note[];expected:Note[]|StepPattern;target:NoteTarget;selection:number[];time:number;pitch:number;note:number;locate:(x:number,y:number)=>{time:number;pitch:number}|null};
+type Gesture={preview:Note[];hit:number;moved:boolean;id:number;kind:NoteTool|'move'|'resize'|'box';base:Note[];expected:Note[]|StepPattern;target:NoteTarget;selection:number[];time:number;pitch:number;note:number;locate:(x:number,y:number)=>{time:number;pitch:number}|null};
 type Pending={before:string;after:string;events:Note[];expected:Note[]|StepPattern};
 export function useNoteEditing(props:Props){
  const latest=useRef(props);latest.current=props;const id=useId(),counter=useRef(0),gesture=useRef<Gesture|null>(null),pending=useRef<Pending[]>([]),audition=useRef<{track:number;id:string;note:number}|null>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -18,6 +18,7 @@ export function useNoteEditing(props:Props){
   else if(q.length&&q[0].before!==source){pending.current=[];cancel();setDraft(null);setSelection([]);}
   else if(gesture.current&&JSON.stringify(gesture.current.expected)!==source&&!q.some(x=>x.after===JSON.stringify(gesture.current?.expected))){cancel();setSelection([]);}
  },[source]);
+ useEffect(()=>{const rejected=()=>{pending.current=[];gesture.current=null;stop();setDraft(null);setSelection([]);};window.addEventListener('decksynth-command-rejected',rejected);return()=>window.removeEventListener('decksynth-command-rejected',rejected);},[]);
  useEffect(()=>{const blur=()=>cancel();window.addEventListener('blur',blur);return()=>{window.removeEventListener('blur',blur);stop();};},[]);
  const current=()=>draft??pending.current.at(-1)?.events??latest.current.events;
  function commit(events:Note[],selected:number[],expected?:Note[]|StepPattern,target?:NoteTarget){
@@ -42,20 +43,20 @@ export function useNoteEditing(props:Props){
   let kind:Gesture['kind']=tool;
   if(hit>=0&&(tool==='select'||tool==='draw')){const edge=r.left+(base[hit].start+base[hit].duration-time)/latest.current.bounds.snap*r.width;kind=Math.abs(e.clientX-edge)<=9?'resize':'move';}
   if(hit<0&&tool==='select')kind='box';
-  const g:Gesture={hit,moved:false,id:e.pointerId,kind,base,expected:pending.current.at(-1)?.expected??latest.current.expected,target:{...latest.current.target},selection:picked,time,pitch,note:pitch,locate};gesture.current=g;
-  if(kind==='draw'||kind==='erase'){const next=paintNotes(base,time,time,pitch,latest.current.bounds,kind==='erase');setDraft(next);g.selection=next.flatMap((n,i)=>n.note===pitch&&n.start===time?[i]:[]);setSelection(g.selection);}
-  if(kind==='length'&&hit>=0){const next=base.map((n,i)=>i===hit?{...n,duration:n.duration>=latest.current.bounds.maxDuration?latest.current.bounds.snap:n.duration+latest.current.bounds.snap}:n);setDraft(next);}
-  if(kind==='accent'){const next=hit>=0?base.map((n,i)=>i===hit?{...n,velocity:n.velocity>=120?100:127}:n):paintNotes(base,time,time,pitch,latest.current.bounds).map(n=>n.note===pitch&&n.start===time?{...n,velocity:127}:n);setDraft(next);}
+  const g:Gesture={preview:base,hit,moved:false,id:e.pointerId,kind,base,expected:pending.current.at(-1)?.expected??latest.current.expected,target:{...latest.current.target},selection:picked,time,pitch,note:pitch,locate};gesture.current=g;
+  if(kind==='draw'||kind==='erase'){const next=paintNotes(base,time,time,pitch,latest.current.bounds,kind==='erase');g.preview=next;setDraft(next);g.selection=next.flatMap((n,i)=>n.note===pitch&&n.start===time?[i]:[]);setSelection(g.selection);}
+  if(kind==='length'&&hit>=0){const next=base.map((n,i)=>i===hit?{...n,duration:n.duration>=latest.current.bounds.maxDuration?latest.current.bounds.snap:n.duration+latest.current.bounds.snap}:n);g.preview=next;setDraft(next);}
+  if(kind==='accent'){const next=hit>=0?base.map((n,i)=>i===hit?{...n,velocity:n.velocity>=120?100:127}:n):paintNotes(base,time,time,pitch,latest.current.bounds).map(n=>n.note===pitch&&n.start===time?{...n,velocity:127}:n);g.preview=next;setDraft(next);}
   if(e.pointerType!=='touch'&&kind!=='box'&&kind!=='erase')play(pitch);
  }
  function move(e:React.PointerEvent<HTMLElement>){const g=gesture.current;if(!g||g.id!==e.pointerId)return;const point=g.locate(e.clientX,e.clientY);if(!point)return;
   if(point.time!==g.time||point.pitch!==g.pitch)g.moved=true;
-  if(g.kind==='draw'||g.kind==='erase'){const next=paintNotes(g.base,g.time,point.time,g.pitch,latest.current.bounds,g.kind==='erase');setDraft(next);g.selection=next.flatMap((n,i)=>n.note===g.pitch&&n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)?[i]:[]);setSelection(g.selection);}
-  if(g.kind==='move'||g.kind==='resize'){const a:NoteAction=g.kind==='move'?{kind:'move',time:point.time-g.time,pitch:point.pitch-g.pitch}:{kind:'length',delta:point.time-g.time};setDraft(g.kind==='resize'&&point.time===g.time?g.base:editNotes(g.base,g.selection,a,latest.current.bounds).events);}
+  if(g.kind==='draw'||g.kind==='erase'){const next=paintNotes(g.base,g.time,point.time,g.pitch,latest.current.bounds,g.kind==='erase');g.preview=next;setDraft(next);g.selection=next.flatMap((n,i)=>n.note===g.pitch&&n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)?[i]:[]);setSelection(g.selection);}
+  if(g.kind==='move'||g.kind==='resize'){const a:NoteAction=g.kind==='move'?{kind:'move',time:point.time-g.time,pitch:point.pitch-g.pitch}:{kind:'length',delta:point.time-g.time};g.preview=g.kind==='resize'&&point.time===g.time?g.base:editNotes(g.base,g.selection,a,latest.current.bounds).events;setDraft(g.preview);}
   if(g.kind==='box'){g.selection=g.base.flatMap((n,i)=>n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)&&n.note>=Math.min(g.pitch,point.pitch)&&n.note<=Math.max(g.pitch,point.pitch)?[i]:[]);setSelection(g.selection);}
  }
  function end(e:React.PointerEvent<HTMLElement>){const g=gesture.current;if(!g||g.id!==e.pointerId){stop();return;}gesture.current=null;
-  if(g.kind!=='box')commit(draft??g.base,g.selection,g.expected,g.target);
+  if(g.kind!=='box')commit(g.preview,g.selection,g.expected,g.target);
   if(g.kind==='move'&&!g.moved&&g.hit>=0)setSelection([g.hit]);
   if(e.pointerType==='touch'&&g.kind!=='erase'&&g.kind!=='box'){play(g.note);timer.current=setTimeout(stop,100);}else stop();
   try{e.currentTarget.releasePointerCapture(e.pointerId);}catch{}

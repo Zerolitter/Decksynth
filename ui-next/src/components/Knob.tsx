@@ -131,7 +131,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   return <div className={'parameter-knob tactile-knob'+(compact?' compact':'')+
     (engaged?' is-engaged':'')}
     data-param={id} {...context} title={description||name}
-    onContextMenu={e=>{if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
+    onContextMenu={e=>{if((e.target as Element).closest('input,textarea,select,[contenteditable=true]'))return;if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
     <div className="knob-heading">{name}</div>{cc!==null?<span className="knob-midi-cc" data-midi-cc={cc}>CC{cc}</span>:null}
     <div role="slider" tabIndex={0} aria-orientation="vertical"
       data-testid={'knob-'+id} className="knob-target" aria-label={name}

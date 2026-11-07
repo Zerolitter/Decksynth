@@ -129,7 +129,7 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
         const active=selected===i;
         const loop=loops?.[i];
         return <div key={i} className={'track-row'+(active?' active':'')}
-          style={{'--track-accent':TRACK_COLORS[i]} as React.CSSProperties}>
+          style={{'--track-accent':TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
             onClick={()=>onSelect(i)}>
             <span className="track-index">{String(i+1).padStart(2,'0')}</span>
