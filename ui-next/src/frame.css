@@ -29,7 +29,7 @@
 .harness-shell .pe-link{border-color:color-mix(in srgb,var(--src) 60%,#3a4b51);color:var(--src)}
 .harness-shell .pe-linking{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#e8f2ee}
 .harness-shell .pe-linking button{min-height:34px;padding:0 14px;border-radius:8px;background:var(--src);border:0;color:#10171a;font-weight:800}
-.harness-shell .pe-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 216px 230px;gap:8px;padding:6px 8px 8px}
+.harness-shell .pe-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 150px 210px;grid-template-rows:minmax(0,1fr) 44px;gap:8px;padding:6px 8px 8px}
 .harness-shell .pe-graph{min-width:0;min-height:0;display:flex;border-radius:8px;background:#0f1618}
 .harness-shell .pe-graph .mod-shape{width:100%;height:100%;background:transparent}
 .harness-shell .pe-graph .step-lane{flex:1;height:auto}
@@ -252,3 +252,10 @@
 @container (max-height:150px){.harness-shell .window-wave .partial-fine p{display:none}}
 /* Add effect sits in the gap at the end of the card row instead of wrapping onto a row of its own. */
 .harness-shell .fx-cards .fx-add-card:not(.empty){flex:1 1 88px;min-width:88px;max-width:140px}
+
+/* Direct rate choices stay beside the selected source. */
+.harness-shell .pe-rates{grid-column:1 / 3;grid-row:2;display:flex;gap:3px;flex-wrap:nowrap}
+.harness-shell .pe-rates button{flex:1;min-width:44px;min-height:44px;padding:0 4px;font-size:11px}
+.harness-shell .pe-body>.pe-links{grid-column:3;grid-row:1 / 3}
+.harness-shell .pe-no{display:grid;place-items:center;width:21px;height:21px;flex:none;border-radius:50%;background:var(--src);color:#101316;font-weight:800}
+.harness-shell .pe-bar>.pe-dot{display:none}

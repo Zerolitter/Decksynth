@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Eraser, Maximize2 } from 'lucide-react';
 import { Knob } from './Knob';
-import { FEEL_FACTOR, normalizeChain, rateLabel, type FxChain } from '../fx';
+import { FEEL_FACTOR, MOD_RATES, normalizeChain, rateLabel, type FxChain } from '../fx';
 import {
   LinkSummary, MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview,
   sourceColor, type Live, type Source,
@@ -66,6 +66,7 @@ export function ModBand({selected,chain:raw,onChange,beat,live,edit,onEdit,armed
     <div className={'pad-editor'+(linking?' linking':'')} style={{['--src' as string]:color}} aria-label={label+' editor'} role="group">
       <header className="pe-bar">
         <i className="pe-dot"/>
+        <span className="pe-no" aria-hidden="true">{edit.index+1}</span>
         {macro?<input className="pe-title-input" aria-label={'Macro '+(edit.index+1)+' name'} title="Tap to rename" value={macro.name} maxLength={24}
             onChange={e=>setMacro({name:e.target.value})}/>:<strong>{label}</strong>}
         {mod?<span className="pe-sub">{SHAPE_LABEL[mod.shape]} · {rateLabel(mod)}</span>
@@ -85,8 +86,10 @@ export function ModBand({selected,chain:raw,onChange,beat,live,edit,onEdit,armed
         <div className="pe-controls">
           <button type="button" className="pe-pick" aria-label={'Shape of '+label+': '+SHAPE_LABEL[mod.shape]} onClick={()=>setSheet('shape')}>
             <span>Shape</span><strong>{SHAPE_LABEL[mod.shape]}</strong><ChevronDown size={15}/></button>
-          <button type="button" className="pe-pick" aria-label={'Rate of '+label+': '+rateLabel(mod)} onClick={()=>setSheet('shape')}>
-            <span>Rate</span><strong>{rateLabel(mod)}</strong><ChevronDown size={15}/></button>
+        </div>
+        <div className="pe-rates fx-segment" role="radiogroup" aria-label={'Rate of '+label}>
+          {MOD_RATES.map((r,i)=><button key={r} type="button" role="radio" aria-checked={mod.rate===i} className={mod.rate===i?'active':''}
+            onClick={()=>setMod({rate:i})}>{r}</button>)}
         </div>
         <div className="pe-links"><LinkSummary targets={mod.targets} onOpen={()=>setSheet('links')}/></div>
         {sheet?<ModSheet chain={chain} index={edit.index} tab={sheet} onTab={setSheet} onChange={onChange} onClose={()=>setSheet(null)}

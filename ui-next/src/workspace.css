@@ -1,6 +1,6 @@
 /* Workspace layout (replaces the bottom drawer): page tabs + track picker, then one full page.
    Every panel folds to its title bar (double-tap the bar or tap the arrow). No horizontal scrolling. */
-.harness-shell .workspace-stage{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;padding:8px 10px;overflow:hidden}
+.harness-shell .workspace-stage{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;padding:6px 8px;overflow:hidden}
 .harness-shell .page-bar{display:flex;align-items:center;gap:10px;min-width:0}
 .harness-shell .page-tabs{display:flex;gap:4px;padding:3px;border:1px solid #38494a;background:#121b1d;border-radius:10px;flex:0 0 auto}
 .harness-shell .page-tabs button{min-width:80px;min-height:44px;padding:0 10px;display:flex;align-items:center;justify-content:center;gap:6px;
@@ -27,7 +27,7 @@
 .harness-shell .page-track.active{border-color:var(--track-accent);background:color-mix(in srgb,var(--track-accent) 14%,#172023);color:#eef4f1}
 .harness-shell .page-track.active .page-track-no{background:var(--track-accent);color:#10171a}
 .harness-shell .page-track.muted .page-track-name{opacity:.5;text-decoration:line-through}
-.harness-shell .page-song .page-tracks{display:none}
+.harness-shell .page-song .page-tracks{display:flex}
 
 .harness-shell .page-body{min-height:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;overflow-x:hidden;
   overscroll-behavior:contain;padding-right:2px;scrollbar-width:thin;scrollbar-color:#3d4f55 transparent}

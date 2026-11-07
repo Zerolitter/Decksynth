@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
-import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, previewClip, songOf, type Song } from './song';
+import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf, type Song } from './song';
 import { PatternSync } from './components/PatternSync';
 import { AudioScope } from './components/AudioScope';
 import { SoundWindow } from './components/SoundLab';
@@ -18,7 +18,7 @@ import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup }
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import { Panel } from './components/Panel';
-import { PageBar, type Page } from './components/PageBar';
+import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
 import { interpolateBeat, totalNotes } from './pattern';
@@ -354,6 +354,7 @@ function App() {
           <CircleDot size={20}/><span>{snapshot?.recording?'FINISH':'REC'}</span>
         </button>
       </div>
+      <div className="transport-lcd" role="group" aria-label="Tempo, loop and position">
       <div className="tempo-display" aria-label="Tempo">
         <span>BPM</span><strong>{Math.round(project?.bpm??120)}</strong>
         <div className="tempo-adjust">
@@ -367,19 +368,23 @@ function App() {
           {[1,2,4,8].map(n=><option value={n} key={n}>{n} BARS</option>)}
         </select>
       </div>
-      <button type="button" className={'metronome-button'+(project?.metronome?' active':'')}
-        onClick={()=>command('metronome',!project?.metronome)}>
+      {(()=>{const b=song.on?songBeat:playhead,m=song.on?markerAt(song,Math.floor(songBeat/4)):-1;
+        return <div className="transport-beat" aria-label="Position"><strong>
+          {String(Math.floor(b/4)+1).padStart(2,'0')}<i>:</i>
+          {String(Math.floor(b%4)+1).padStart(2,'0')}</strong>
+          <span>{song.on?(m>=0?song.markers[m].name:'song')+' · '+song.length+' bars':'loop · '+(project?.bars??4)+(project?.bars===1?' bar':' bars')}</span></div>;})()}
+      </div>
+      <button type="button" className={'metronome-button'+(project?.metronome?' active':'')} aria-pressed={!!project?.metronome}
+        title="Metronome click" onClick={()=>command('metronome',!project?.metronome)}>
         <span className="button-led"/><span>CLICK</span></button>
-      <div className="transport-beat" aria-label="Position"><strong>
-        {String(Math.floor(playhead/4)+1).padStart(2,'0')}<i>:</i>
-        {String(Math.floor(playhead%4)+1).padStart(2,'0')}</strong></div>
       <button className="transport-utility" title="Undo" aria-label="Undo" onClick={()=>command('undo')}><RotateCcw size={18}/></button>
       <button className="transport-utility" title="Quantize selected track" aria-label="Quantize"
         onClick={()=>command('quantize')}><Redo2 size={18}/></button>
+      <PageTabs page={page} onPage={setPage}/>
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
         :<div className={'device-pill'+(snapshot?.connected?' connected':'')} title={renderMIDI(snapshot?.connected||null)}>
-          <span className="pill-led"/><span className="pill-name">{renderMIDI(snapshot?.connected||null)}</span>
+          <span className="pill-led"/><span className="pill-name">{snapshot?.connected?renderMIDI(snapshot.connected):'No MIDI'}</span>
           <span className={'footer-status'+(bridgeStatus==='ERROR'?' error':'')}>{bridgeStatus}</span>
         </div>}
       <div className="file-menu">
@@ -399,7 +404,7 @@ function App() {
 
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      <PageBar page={page} onPage={setPage} tracks={project.tracks} selected={selected}
+      <PageBar tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           <select className="track-device-picker" aria-label="Track device" value={track.device??'synth'} style={{minHeight:44,minWidth:116,width:116,padding:'0 10px'}}
