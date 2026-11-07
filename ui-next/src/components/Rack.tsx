@@ -1,3 +1,4 @@
+import {RackScrollControls,useRackNavigation} from './RackNavigation';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { AudioWaveform, Layers, Mic2, RotateCcw, SlidersHorizontal, Sparkles, Volume2, Waves } from 'lucide-react';
 import { Panel, useAutoFold } from './Panel';
@@ -35,6 +36,7 @@ const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
  *  Double-tap a card's title to fold it. ↺ resets just that card. */
 export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,armed=null,source,live}:Props) {
   const rack=useRef<HTMLDivElement>(null);
+  const navigation=useRackNavigation(rack,'decksynth.rack-scroll.sound.'+selected);
   const layoutKey='decksynth.sound-order.'+selected;
   const [order,setOrder]=useState(()=>readRackOrder(layoutKey,CARD_IDS));
   const reorder=useRackOrder(rack,order,next=>{setOrder(next);try{localStorage.setItem(layoutKey,JSON.stringify(next));}catch{/* optional layout */}},selected);
@@ -79,8 +81,8 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
   const spectral=(key:'curve'|'balance'|'focus'|'focus_center')=>p[key]??SPECTRAL_NEUTRAL[key];
   const reset=(label:string,fn:()=>void)=><button type="button" className="panel-icon-action" aria-label={'Reset '+label}
     title={'Reset '+label} onClick={fn}><RotateCcw size={15}/></button>;
-  return <div ref={rack} className={'frame-rack sound-cards'+(armed?' is-assigning':'')}
-    style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}}>{[
+  return <div ref={rack} tabIndex={0} aria-label="Sound card rack" className={'frame-rack sound-cards'+(armed?' is-assigning':'')}
+    style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}}><RackScrollControls label="Sound" nav={navigation}/>{[
     {id:'sound-tone',node:<Panel rail reorder={reorder('sound-tone')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-tone')} id="sound-tone" className="rack-card sound-card card-tone" title="Tone" tag={TAGS.tone} mods={linksInto('sound-tone')} icon={<Sparkles size={15}/>} accent={accent}
       summary={'Bright '+pct(p.filter)+' · Curve '+spectral('curve').toFixed(2)}
       actions={reset('tone',()=>{(['curve','balance','focus','focus_center'] as const).forEach(k=>onParam(k,null,SPECTRAL_NEUTRAL[k]));})}>

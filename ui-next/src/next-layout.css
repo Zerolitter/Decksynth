@@ -256,3 +256,13 @@
 .harness-shell .page-tools:has(.instrument-switcher) .preset-current .preset-fx{display:none}
 .harness-shell .page-tools:has(.instrument-switcher) .preset-current>svg{width:14px;height:14px}
 .harness-shell .page-tools:has(.instrument-switcher) .sound-workflow{margin-right:0}
+/* Rack-level navigation, separate from each card's title/knobs. */
+.harness-shell .rack-scroll-controls{position:sticky;left:0;z-index:4;flex:0 0 48px;align-self:stretch;display:flex;flex-direction:column;justify-content:space-between;padding:4px 2px;background:#181b1e;border:1px solid #3d474d;border-radius:8px;box-sizing:border-box}
+.harness-shell .rack-scroll-controls button{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:1px solid #465159;border-radius:6px;display:grid;place-items:center;background:#282d31;color:#dce5e3}
+.harness-shell .rack-scroll-controls button:disabled{opacity:.35}
+.harness-shell .rack-rail .panel-pin{width:44px;height:44px;min-width:44px;min-height:44px}
+.harness-shell .rack-rail .panel-pin[aria-pressed=true]{color:var(--panel-tag,var(--accent));background:#303a36}
+.harness-shell .rack-rail>.ds-panel-bar{min-width:max-content}
+.harness-shell .frame-rack[data-rack-panning]{cursor:grabbing;user-select:none}
+
+.harness-shell .frame-rack{overflow-anchor:none}

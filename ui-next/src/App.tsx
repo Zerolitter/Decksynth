@@ -1,3 +1,4 @@
+import {PanelScope} from './components/Panel';
 import {InstrumentSwitcher} from './components/InstrumentSwitcher';
 import {AutomationEditor} from './components/AutomationEditor';
 import type {ControlTarget} from './parameter-registry';
@@ -494,7 +495,7 @@ function App() {
         onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>setKitBrowserTrack(open?selected:null)} library={snapshot?.drum_library}
         onLoadFolder={folder=>{if(track.drum_rack)command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
-      :page==='SOUND'||page==='FX'?<div className={'frame frame-'+page.toLowerCase()}>
+      :page==='SOUND'||page==='FX'?<PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()}>
         <ModBand key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
           live={snapshot?.meter?.fx_live} edit={edit} onEdit={setEdit} armed={armed}
           onLink={setArmed}/>
@@ -512,7 +513,7 @@ function App() {
             live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false}/>
         </>}
-      </div>
+      </div></PanelScope>
       :<div className="perform-page"><Performance state={project.performance} beat={playhead}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
           selectedTrack={selected}

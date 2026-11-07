@@ -1,9 +1,10 @@
+import {RackScrollControls,useRackNavigation} from './RackNavigation';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
 import { Minus, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
-import { Panel, markUsed, setFold, useAutoFold } from './Panel';
+import { Panel, markUsed, setFold, useAutoFold,usePanelScope } from './Panel';
 import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxTarget } from '../fx';
 import { MorphPad } from './MorphPad';
@@ -45,9 +46,9 @@ type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?
 /** Morph is always in the middle; its existing header also names the cards in the bottom chain. */
 export function FxWindow({chain:raw,onChange,live,bpm}:WindowProps) {
   const chain=normalizeChain(raw);
-  const windowRef=useRef<HTMLElement>(null);
+  const windowRef=useRef<HTMLElement>(null),scope=usePanelScope();
   const reveal=(id:FxModuleId)=>{
-    const panel='fx-'+id,frame=windowRef.current?.closest('.frame');markUsed(panel);setFold(panel,false);
+    const panel='fx-'+id,frame=windowRef.current?.closest('.frame');markUsed(panel,scope);setFold(panel,false,scope);
     requestAnimationFrame(()=>{if(!frame?.isConnected)return;const card=frame.querySelector<HTMLElement>('[data-panel="'+panel+'"]');
       card?.scrollIntoView({block:'nearest',inline:'nearest'});card?.querySelector<HTMLElement>('.ds-panel-title')?.focus({preventScroll:true});});
   };
@@ -75,6 +76,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
   const rack=useRef<HTMLDivElement>(null);
+  const navigation=useRackNavigation(rack,'decksynth.rack-scroll.fx.'+selected);
   useEffect(()=>{setPicking(false);setGateOpen(false);},[selected]);
   const active=chain.modules.filter(m=>m.on), inactive=chain.modules.filter(m=>!m.on);
   const reorder=useRackOrder(rack,active.map(m=>'fx-'+m.id),ids=>{
@@ -111,9 +113,9 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const ring=useRingDepth(chain,onChange,armed,(m,p)=>toggleRoute(m as FxModuleId,p));
   const capture=(module:FxModuleId,param:string)=>ring.capture(module,param);
 
-  return <div ref={rack} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
+  return <div ref={rack} tabIndex={0} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
     style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}} data-track={selected}>
-    {active.map((state,pos)=>{
+    <RackScrollControls label="FX" nav={navigation}/>{active.map((state,pos)=>{
       const def=FX_MODULES[state.id], idx=FX_ORDER.indexOf(state.id);
       return {id:'fx-'+state.id,node:<Panel rail reorder={reorder('fx-'+state.id)} role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
         className={'rack-card fx-card-module on'+(state.bypass?' bypassed':'')} tag={def.color} mods={linksInto(state.id)}
