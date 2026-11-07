@@ -1,3 +1,5 @@
+import {useNoteEditing,type NoteTool} from './useNoteEditing';
+import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square } from 'lucide-react';
 import { Knob } from './Knob';
@@ -47,13 +49,13 @@ export function arpOrder(held:number[],mode:string,octaves:number,octaveMode='Up
 
 type Mode='seq'|'arp'|'chord';
 type Section='seq'|'arp'|'chord'|'scale'|'sync';
-type TapMode='note'|'tie'|'accent';
+
 export type ArpView={groups:number[][];step:number;phase?:number;paused?:boolean};
 type Props={
   state:PerformanceState; beat:number; playing:boolean; held:number[]; arpView?:ArpView|null;
   /** Step record cursor from the engine: the step the next recorded key goes to. */
   recStep?:number;
-  selectedTrack:number; onSet:(section:Section,key:string,value:unknown)=>void;
+  selectedTrack:number;recording?:boolean;device?:string;onNoteEdit:(target:NoteTarget,expected:StepPattern,events:import('../types').Note[])=>void;onEditorNote:(track:number,id:string,note:number,velocity:number)=>void;onUndo:()=>void;onSet:(section:Section,key:string,value:unknown)=>void;
   onStep:(index:number,notes:StepNote[],replace:boolean)=>void;
   onAction:(action:string,value?:unknown)=>void;
   onPlay:()=>void;
@@ -84,10 +86,10 @@ export function PerformTools({hold,onHold,onPanic,arp=false,paused=false,onArp}:
   </>;
 }
 
-export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi}:Props){
+export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo}:Props){
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
-  const [tap,setTap]=useState<TapMode>('note');
+
   const [gridBase,setGridBase]=useState(60);
   const [strength,setStrength]=useState(.35);
   const [sheet,setSheet]=useState<null|'midi'|'library'|'scale'|'mutate'>(null);
@@ -95,7 +97,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   const [clip,setClip]=useState<string|null>(null);
   const press=useRef<ReturnType<typeof setTimeout>|null>(null);
   const longPressed=useRef(false);
-  const rowNote=useRef<number|null>(null);
+  const gridRef=useRef<HTMLDivElement>(null);
   const [chainText,setChainText]=useState(state.seq.chain.join(','));
   const [message,setMessage]=useState('');
   const [tapTimes,setTapTimes]=useState<number[]>([]);
@@ -111,6 +113,9 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   const seq=state.seq,arp=state.arp,chord=state.chord,scale=state.scale,sync=state.sync;
   const ref=seq.bank+':'+seq.slot;
   const pat=state.patterns[ref]??defaultPattern(seq.length,seq.division);
+  const edit=useNoteEditing({target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,events:patternEvents(pat),bounds:{span:pat.length,snap:1,maxDuration:8},playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
+  const tap=edit.tool,setTap=edit.setTool;
+  const locate=(x:number,y:number)=>{const el=gridRef.current;if(!el)return null;const r=el.getBoundingClientRect(),lines=Array.from(el.querySelectorAll<HTMLElement>('.pf-row'));const row=lines.find(n=>{const b=n.getBoundingClientRect();return y>=b.top&&y<b.bottom;})??(y<r.top?lines[0]:lines.at(-1));return {time:clamp(page*16+Math.floor((x-r.left-40)/(r.width-40)*16),page*16,Math.min(pat.length-1,page*16+15)),pitch:Number(row?.dataset.pitch??60)};};
   const factoryName=LIBRARY.patterns[seq.bank-1]?.[seq.slot-1];
   const pages=Math.max(1,Math.ceil(pat.length/16));
   const currentStep=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
@@ -277,25 +282,6 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
     for(let n=gridBase;out.length<span&&n<=127;n++)if(degrees.includes(((n-scale.root)%12+12)%12))out.push(n);
     return out.reverse();
   },[gridBase,scale.name,scale.root]);
-  const tapCell=(index:number,note:number)=>{
-    if(index>=pat.length)return;
-    const step=pat.steps[index]??[];
-    const hit=step.findIndex(n=>n.note===note);
-    if(tap==='note'){
-      if(hit>=0){onStep(index,step.filter((_,i)=>i!==hit),true);return;}
-      if(step.length>=8){setMessage('A step holds up to 8 notes.');return;}
-      onStep(index,[{note,velocity:100,tie:1}],false);
-      // While step recording, a note drawn by hand moves the record cursor to the step after it.
-      if(seq.recording)action('rec_cursor',(index+1)%pat.length);
-    }else if(tap==='tie'){
-      if(hit<0){setMessage('Tap a note to make it longer.');return;}
-      onStep(index,step.map((n,i)=>i===hit?{...n,tie:n.tie>=8?1:n.tie+1}:n),true);
-    }else{
-      if(hit<0){if(step.length>=8){setMessage('A step holds up to 8 notes.');return;}
-        onStep(index,[{note,velocity:127,tie:1}],false);return;}
-      onStep(index,step.map((n,i)=>i===hit?{...n,velocity:n.velocity>=120?100:127}:n),true);
-    }
-  };
   const visible=Array.from({length:16},(_,i)=>page*16+i);
   const outside=(index:number,dir:1|-1)=>(pat.steps[index]??[]).filter(n=>dir>0?n.note>rows[0]:n.note<rows[rows.length-1]).length;
 
@@ -305,8 +291,8 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
         className={page===i?'on':''} onClick={()=>setPage(i)}>{i*16+1}–{i*16+16}</button>)}
     </div>
     <div className="pf-seg" role="group" aria-label="What a tap does">
-      {(['note','tie','accent'] as TapMode[]).map(t=><button key={t} type="button" aria-pressed={tap===t}
-        className={tap===t?'on':''} onClick={()=>setTap(t)}>{t==='note'?'Note':t==='tie'?'Longer':'Accent'}</button>)}
+      {(['select','draw','erase','length','accent'] as NoteTool[]).map(t=><button key={t} type="button" aria-label={t==='select'?'Select notes':t==='draw'?'Draw notes':t==='erase'?'Erase notes':t==='length'?'Longer':'Accent'} aria-pressed={tap===t}
+        className={tap===t?'on':''} onClick={()=>setTap(t)}>{t==='select'?'Select':t==='draw'?'Draw':t==='erase'?'Erase':t==='length'?'Longer':'Accent'}</button>)}
     </div>
     <div className="pf-oct">
       <button type="button" aria-label="Show lower notes" onClick={()=>setGridBase(Math.max(0,gridBase-12))}><ChevronDown size={16}/></button>
@@ -329,25 +315,24 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
       onClick={()=>set('chord','strum_type',o)}>{o}</button>)}
   </div>;
 
-  const grid=<div className="pf-grid" style={{['--rows' as string]:rows.length}}>
+  const grid=<div ref={gridRef} className="pf-grid" onKeyDown={edit.key} style={{['--rows' as string]:rows.length}}>
     <div className="pf-grid-head"><span/>
       {visible.map(i=><span key={i} className={(i%4===0?'beat ':'')+(i===currentStep?'live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')}
 >
         {outside(i,1)?<em title="Notes above">▲</em>:null}{i+1}{outside(i,-1)?<em title="Notes below">▼</em>:null}</span>)}
     </div>
-    {rows.map(note=><div key={note} className={'pf-row'+(BLACK.has(note%12)?' black':'')+((note-scale.root)%12===0?' root':'')}>
+    {rows.map(note=><div key={note} data-pitch={note} className={'pf-row'+(BLACK.has(note%12)?' black':'')+((note-scale.root)%12===0?' root':'')}>
       <button type="button" className="pf-row-note" aria-label={'Play '+noteName(note)}
-        onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);
-          rowNote.current=note;onMidi(0x90|channel,note,100);}}
-        onPointerUp={()=>{if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);rowNote.current=null;}}
-        onPointerCancel={()=>{if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);rowNote.current=null;}}
+        onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(note);}}
+        onPointerUp={edit.stop} onPointerCancel={edit.stop}
         onContextMenu={e=>e.preventDefault()}>{noteName(note)}</button>
       {visible.map(i=>{
-        const item=(pat.steps[i]??[]).find(n=>n.note===note);
+        const eventIndex=edit.events.findIndex(n=>n.start===i&&n.note===note),shown=edit.events[eventIndex],item=shown?{note:shown.note,velocity:shown.velocity,tie:shown.duration}:null;
         return <button key={i} type="button" data-testid={'pf-cell-'+(i+1)+'-'+note}
           aria-label={'Step '+(i+1)+' '+noteName(note)+(item?' on':'')}
-          className={'pf-cell'+(i%4===0?' beat':'')+(i===currentStep?' live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')}
-          onClick={()=>tapCell(i,note)}>
+          className={'pf-cell'+(i%4===0?' beat':'')+(i===currentStep?' live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')+(edit.selection.includes(eventIndex)?' selected':'')}
+          data-note-time={i} data-note-pitch={note} onPointerDown={e=>edit.begin(e,i,note,locate)} onPointerMove={edit.move} onPointerUp={edit.end} onPointerCancel={edit.cancel}
+          onClick={e=>{if(e.detail===0)edit.tap(i,note);}}>
           {item?<i className={'pf-note'+(item.velocity>=120?' accent':'')+(i===currentStep?' hit':'')}
             style={{width:'calc('+Math.min(item.tie,16-(i%16))*100+'% - 4px)'}}/>:null}
         </button>;
@@ -415,10 +400,8 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
         <div className="pf-roll-head"><span/>{shown.map((g,i)=><span key={i} data-names={g.map(noteName).join(' ')} className={(i%4===0?'beat':'')+(i===now?' live':'')}>{i+1}</span>)}</div>
         {pitches.map(n=><div key={n} className={'pf-roll-row'+(BLACK.has(n%12)?' black':'')}>
           <button type="button" className="pf-row-note" aria-label={'Play '+noteName(n)}
-            onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);
-              rowNote.current=n;onMidi(0x90|channel,n,100);}}
-            onPointerUp={()=>{if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);rowNote.current=null;}}
-            onPointerCancel={()=>{if(rowNote.current!==null)onMidi(0x80|channel,rowNote.current,0);rowNote.current=null;}}
+            onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(n);}}
+            onPointerUp={edit.stop} onPointerCancel={edit.stop}
             onContextMenu={e=>e.preventDefault()}>{noteName(n)}</button>
           {shown.map((g,i)=><span key={i} data-step={i} className={'pf-roll-cell'+(i%4===0?' beat':'')+(i===now?' live':'')}>
             {g.includes(n)?<i className={'pf-arp-note'+(i===now?' active':'')} style={{width:'calc('+Math.round(arp.gate*100)+'% - 2px)'}}/>:null}</span>)}

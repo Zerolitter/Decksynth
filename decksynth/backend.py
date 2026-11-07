@@ -224,6 +224,8 @@ def worker(commands,updates):
                         tr,name=args
                         try:engine.seed_spectral(tr,name)
                         except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='editor_note':engine.editor_note(*args)
+                    elif cmd=='note_edit':engine.note_edit(*args)
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']

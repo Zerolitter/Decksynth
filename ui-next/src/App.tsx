@@ -1,3 +1,5 @@
+import {NoteEditor} from './components/NoteEditor';
+import {expectedWithEvents,type NoteTarget} from './note-ops';
 import {PanelScope} from './components/Panel';
 import {InstrumentSwitcher} from './components/InstrumentSwitcher';
 import {AutomationEditor} from './components/AutomationEditor';
@@ -74,6 +76,8 @@ function App() {
   const [songZoom,setSongZoom]=useState(16);
   const [songStart,setSongStart]=useState(0);
   const [songSel,setSongSel]=useState<SongSel>(null);
+  const [noteEditorTrack,setNoteEditorTrack]=useState<number|null>(null);
+  const closeNoteEditor=useCallback(()=>setNoteEditorTrack(null),[]);
   const [clipSheet,setClipSheet]=useState<number|null>(null);
   const [toast,setToast]=useState('');
   const [bridgeStatus,setBridgeStatus]=useState(api?'CONNECTING':'PREVIEW');
@@ -82,7 +86,7 @@ function App() {
   const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
-  useEffect(()=>setKitBrowserTrack(null),[selected]);
+  useEffect(()=>{setKitBrowserTrack(null);setNoteEditorTrack(t=>t!==null&&t!==selected?null:t);},[selected]);
   const isPreview=!api||!!snapshot?.preview;
   const project=snapshot?.state;
   const track=project?.tracks[selected];
@@ -188,6 +192,11 @@ function App() {
           owner.instrument[name]=value;
         }
       }
+      else if(cmd==='note_edit'){
+        const [target,expected,events]=args as [NoteTarget,Note[]|import('./types').StepPattern,Note[]];if(target.track!==next.selected)return next;
+        if(target.kind==='clip')next.state.tracks[target.track].notes=events;else next.state.performance.patterns[target.bank+':'+target.slot]=expectedWithEvents(expected,events) as import('./types').StepPattern;
+      }
+      else if(cmd==='editor_note'){const [,,note,value]=args as [number,string,number,number];next.held_notes=value?[note]:[];}
       else if(cmd==='edit_note'){
         const [index,noteIndex,note]=args as [number,number,Note];
         next.state.tracks[index].notes[noteIndex]=note;next.playing=false;
@@ -428,6 +437,7 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
 
+    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={playhead} playing={snapshot?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
@@ -470,7 +480,7 @@ function App() {
             onLoops={t=>setClipSheet(t)}
             onSelect={index=>command('select',index)}
             onMute={(idx,next)=>command('track',[idx,'mute',next])}
-            onEdit={(idx,noteIndex,note)=>command('edit_note',[idx,noteIndex,note])}
+            onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])} onOpenNotes={index=>{command('select',index);setNoteEditorTrack(index);}}
             onOpenSound={index=>{command('select',index);setPage('SOUND');}}/>;
         })()}
         {clipSheet!==null?<ClipSheet project={project} song={song} track={clipSheet}
@@ -516,7 +526,8 @@ function App() {
       </div></PanelScope>
       :<div className="perform-page"><Performance state={project.performance} beat={playhead}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
-          selectedTrack={selected}
+          selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
+          onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
           onSet={(section,key,value)=>command('perform_set',[section,key,value])}
           onStep={(index,notes,replace)=>command('perform_step',[index,notes,replace])}
           onAction={(action,value)=>command('perform_action',[action,value??null])}

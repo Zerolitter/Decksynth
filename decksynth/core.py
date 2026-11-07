@@ -541,8 +541,9 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
 RESONATOR=FX_ORDER.index('resonator')
 
 from .workflow import WorkflowEngine
+from .note_edit import NoteEditEngine
 
-class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
+class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
@@ -663,6 +664,7 @@ class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
     def undo(self):
         if not self.history:return
         data=self.history[-1]
+        if '_note_edit' in data:return self.undo_note_edit(data['_note_edit'])
         if '_pattern_edit' in data:
             edit=data['_pattern_edit'];addr=edit['address']
             state=copy.deepcopy(self.project.performance)
@@ -781,8 +783,8 @@ class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
             if self.recording: self.finish_record()
             self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
             s=self.synths[self.selected]
-            self.drum_gate_keys[self.selected]={k for k in self.drum_gate_keys[self.selected] if not (isinstance(k,tuple) and k[0]=='live')}
-            s.cancel_sources(('live','perf_seq','perf_arp'),cut=('live',))
+            self.drum_gate_keys[self.selected]={k for k in self.drum_gate_keys[self.selected] if not (isinstance(k,tuple) and k[0] in ('live','editor'))}
+            s.cancel_sources(('live','perf_seq','perf_arp','editor'),cut=('live',))
             s.pedal(False); s.bend=1.; self.down.clear(); self.capture_sustain.clear()
             self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear(); self.selected=track
     def close_note(self,key,at=None):

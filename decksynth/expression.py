@@ -6,6 +6,9 @@ class ExpressionVoice:
   """Cancel a source's logical stack, including notes suppressed by Mono/Legato."""
   source=lambda k:k[0] if isinstance(k,tuple) and k else None
   cancelled={k for k in set(self.gated)|set(self.mono_held)|set(self.voices) if source(k) in prefixes}
+  self.cancel_tokens(cancelled,cut)
+ def cancel_tokens(self,cancelled,cut=()):
+  source=lambda k:k[0] if isinstance(k,tuple) and k else None
   for k in cancelled:self.gated.pop(k,None);self.mono_held.pop(k,None)
   if self.mono_lead in cancelled:
    if self.mono_held:
