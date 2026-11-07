@@ -8,6 +8,9 @@ import os
 from pathlib import Path
 import struct
 from . import song as songs
+from .devices import device_kind
+from .drum_rack import validate_kit
+from .drum_engine import DrumEngine
 from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
@@ -102,6 +105,9 @@ class Project:
             for t in d['tracks']:
                 assert isinstance(t['name'],str) and len(t['name'])<=100
                 assert isinstance(t['preset'],str) and 0<=t['volume']<=1 and isinstance(t['mute'],bool)
+                kind=device_kind(t)
+                if 'drum_rack' in t:t['drum_rack']=validate_kit(t['drum_rack'])
+                if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
                 ins=t['instrument']; assert len(ins['harmonics'])==16
                 assert all(isinstance(x,(int,float)) and math.isfinite(x) and 0<=x<=1 for x in ins['harmonics'])
                 for k,lo,hi in [('attack',.001,3),('decay',.001,3),('sustain',0,1),('release',.01,3),('filter',.02,1),('modulation',0,1)]:
@@ -436,7 +442,7 @@ def voice2_py(out,n,tab,prev,st,c):
 
 RESONATOR=FX_ORDER.index('resonator')
 
-class Engine:
+class Engine(DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)]
@@ -448,10 +454,12 @@ class Engine:
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
+        self.init_drums()
         self.configure()
     def configure(self):
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
         for t,fx in zip(self.project.tracks,self.fx): fx.configure(t.get('fx'))
+        self.configure_drums()
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
         clean=validate_fx(chain); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
@@ -616,6 +624,10 @@ class Engine:
                 for n in clip:
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
+        if device_kind(self.project.tracks[track])=='drum_rack':
+            hit=False if self.project.tracks[track]['mute'] else self.drums[track].on(note,velocity,token)
+            if hit:self.drum_frames[track][note-36]=self.absolute_frame if self._event_frame is None else self._event_frame
+            return hit
         fading=lambda k:isinstance(k,tuple) and k[0]=='fade'
         candidates=[(s,k,v) for s in self.synths for k,v in s.voices.items() if not fading(k)]
         if len(candidates)>=24:
@@ -624,8 +636,11 @@ class Engine:
             s.fade(k)
         self.synths[track].on(note,velocity,token); self.fx[track].retrigger()
     def select(self,track):
+        from .devices import track_index
+        track_index(track)
         if track!=self.selected:
             if self.recording: self.finish_record()
+            self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
             s=self.synths[self.selected]
             for key in list(s.voices):
                 if isinstance(key,tuple) and key[0]=='live':s.voices.pop(key)
@@ -646,6 +661,8 @@ class Engine:
         self.finish_record(); self.down.clear(); self.capture_sustain.clear(); self.playing=False; self.frame=0
         self.project.performance['seq']['recording']=False
         for s in self.synths:s.panic()
+        for rack in self.drums:rack.panic()
+        self.drum_keys.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
         for synth in self.synths:
@@ -901,6 +918,7 @@ class Engine:
     def midi(self,status,note,value,notes=None):
         """A MIDI message. `notes` (chord pads) gives the exact pitches to sound for this key,
         instead of expanding the key through chord mode and the scale."""
+        if self.drum_midi(status,note,value):return
         kind=status&0xf0; ch=status&15; s=self.synths[self.selected]; key=(ch,note)
         explicit=notes is not None
         if explicit:
@@ -988,6 +1006,8 @@ class Engine:
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
         for s in self.synths:s.panic()
+        for rack in self.drums:rack.panic()
+        self.drum_keys.clear()
     def render(self,frames):
         result=[]; remaining=frames
         while remaining:
@@ -1047,6 +1067,7 @@ class Engine:
             offsets=sorted(set(events)|{n})
             track_audio=[[] for _ in self.synths]; click=[]
             for pos,nextpos in zip(offsets,offsets[1:]):
+                self._event_frame=abs_start+pos
                 for event in sorted(events[pos],key=lambda x:x[0]):
                     if event[0]==2:self.click_age=0; self.click_freq=1500 if event[1]%4==0 else 1000; continue
                     if event[0]==3:
@@ -1059,7 +1080,7 @@ class Engine:
                                 if rec_key in self.pending:self.close_note(rec_key)
                                 self.pending[rec_key]=(self.frame+pos,velocity,tr)
                         else:
-                            self.synths[tr].off(pitch,token)
+                            self.voice_off(tr,pitch,token)
                             if rec_key in self.pending:self.close_note(rec_key,self.frame+pos)
                         continue
                     if event[0]==4:
@@ -1069,9 +1090,12 @@ class Engine:
                         continue
                     action,tr,idx,cycle,note=event; token=('loop',idx,cycle)
                     if action:self.voice_on(tr,note['note'],note['velocity'],token)
-                    else:self.synths[tr].off(note['note'],token)
+                    else:self.voice_off(tr,note['note'],token)
                 count=nextpos-pos
-                for buf,s in zip(track_audio,self.synths):buf.extend(s.render(count))
+                for tr,(buf,s) in enumerate(zip(track_audio,self.synths)):
+                    part=s.render(count)
+                    if device_kind(self.project.tracks[tr])=='drum_rack':self.drums[tr].render_into(part,count)
+                    buf.extend(part)
                 for j in range(count):
                     if self.click_age<self.rate*.025:
                         click.append(.15*math.sin(self.click_age/self.rate*2*math.pi*self.click_freq)*(1-self.click_age/(self.rate*.025)))
@@ -1099,6 +1123,7 @@ class Engine:
             result.extend(mix)
             if self.playing:self.frame+=n
             self.absolute_frame+=n
+            self._event_frame=None
             if self.recording and self.frame>=self.record_end:self.finish_record()
             remaining-=n
         return result

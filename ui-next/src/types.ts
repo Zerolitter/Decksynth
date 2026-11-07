@@ -10,7 +10,13 @@ export type Instrument = {
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
 };
+export type DrumPad = {
+  note:number;name:string;source:null|{path:string;sha256:string;[key:string]:unknown};
+  gain:number;velocity:number;mute:boolean;solo:boolean;tune:number;choke:number;
+};
+export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string}[]};
 export type Track = {
+  device?:'synth'|'drum_rack';drum_rack?:{version:1;id:string;pads:DrumPad[]};
   name: string; preset: string; instrument: Instrument;
   volume: number; mute: boolean; notes: Note[];
   fx?: import('./fx').FxChain;
@@ -50,6 +56,7 @@ export type Project = {
   clips?: {open:number[];slots:Note[][][]};
 };
 export type DeckUpdate = {
+  drum_racks?: (DrumRuntime|null)[];
   state: Project; selected: number; beat: number;
   playing: boolean; recording: boolean; connected: string | null;
   devices: string[]; audio: string; audio_output: string;
@@ -67,7 +74,7 @@ export type DeckApi = {
   available: true;
   send(command: string, args?: unknown): void;
   onMessage(callback: (message: BridgeMessage) => void): () => void;
-  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'): Promise<string|null>;
+  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'sample'): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }
 export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf'] as const;

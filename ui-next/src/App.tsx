@@ -11,6 +11,7 @@ import { PatternSync } from './components/PatternSync';
 import { AudioScope } from './components/AudioScope';
 import { SoundWindow } from './components/SoundLab';
 import { SoundCards } from './components/Rack';
+import { DrumRack } from './components/DrumRack';
 import { ModBand } from './components/ModBand';
 import type { Source } from './components/ModParts';
 import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
@@ -304,6 +305,14 @@ function App() {
     const filepath=await api.chooseFile(op,extension);
     if(filepath)command(cmd,filepath);
   };
+  const importDrum=async(pad:number,relink:boolean)=>{
+    if(isPreview||!api){setToast('Open the native audio app to import a WAV');return;}
+    const tr=selected,kit=track?.drum_rack;
+    if(!kit)return;
+    const sha=relink?kit.pads[pad].source?.sha256??null:null;
+    const filepath=await api.chooseFile('open','sample');
+    if(filepath)command('drum_import',[tr,kit.id,pad,filepath,sha]);
+  };
   const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
@@ -388,9 +397,13 @@ function App() {
       <PageBar page={page} onPage={setPage} tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
-          <PresetBrowser current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
+          <select className="track-device-picker" aria-label="Track device" value={track.device??'synth'} style={{minHeight:44,minWidth:116,width:116,padding:'0 10px'}}
+            onChange={e=>{if(isPreview){setToast('Select devices in the native audio app');return;}command('set_device',[selected,e.target.value]);}}>
+            <option value="synth">Synth</option><option value="drum_rack">Drum Rack</option>
+          </select>
+          {track.device!=='drum_rack'?<><PresetBrowser current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
           <button type="button" className="page-tool-icon" aria-label="Save patch" title="Save patch"
-            onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button>
+            onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
         </>:page==='PERFORM'?<PerformTools hold={project.performance.arp.hold}
           onHold={()=>command('perform_set',['arp','hold',!project.performance.arp.hold])}
           onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!snapshot?.arp_view?.paused}
@@ -433,6 +446,12 @@ function App() {
           </div>
         </Panel>
       </div>
+      :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
+        runtime={snapshot?.drum_racks?.[selected]??undefined}
+        output={{peak:snapshot?.meter?.peak??0,rms:snapshot?.meter?.rms??0,voices:snapshot?.voices??0,underruns:snapshot?.underruns??0,driver:snapshot?.audio??'Unavailable'}}
+        onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
+        onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
+        onImport={importDrum}/>
       :page==='SOUND'||page==='FX'?<div className={'frame frame-'+page.toLowerCase()}>
         <ModBand selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
           live={snapshot?.meter?.fx_live} edit={edit} onEdit={setEdit} armed={armed}

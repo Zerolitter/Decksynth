@@ -14,7 +14,7 @@ let window = null;
 let backend = null;
 let lastMessage = { bridge: 'starting' };
 
-const COMMANDS = new Set(['perform_set','perform_step','perform_action',
+const COMMANDS = new Set(['set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
  'midi','select','play','stop','panic','record','undo','quantize',
  'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars','fx','cleanup',
  'metronome','save','load','export','save_preset','load_preset']);
@@ -132,14 +132,16 @@ else {
   ipcMain.on('deck-snapshot-request', (event) => {
     if (!event.sender.isDestroyed()) event.sender.send('deck-message', lastMessage);
   });
-  ipcMain.on('deck-command', (_, command, args) => {
+  ipcMain.on('deck-command', (event, command, args) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return;
     if (PREVIEW || !backend || !COMMANDS.has(command)) return;
     try { backend.stdin.write(JSON.stringify({ cmd: command, args })+'\n'); }
     catch (error) { publish({ error: 'Command bridge unavailable' }); }
   });
-  ipcMain.handle('deck-file-dialog', async (_, operation, extension) => {
+  ipcMain.handle('deck-file-dialog', async (event, operation, extension) => {
+    if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return null;
     if (PREVIEW) return null;
-    const extensions = { project: 'decksynth', midi: 'mid', instrument: 'dspreset' };
+    const extensions = { project: 'decksynth', midi: 'mid', instrument: 'dspreset', sample: 'wav' };
     if (!['save','open'].includes(operation) || !(extension in extensions)) return null;
     const ext = extensions[extension];
     const options = {

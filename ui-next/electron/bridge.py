@@ -23,6 +23,7 @@ def diagnostic_worker(commands, updates):
     worker(commands, updates)
 
 COMMANDS = {
+    'set_device', 'drum_note', 'drum_edit', 'drum_import',
     'perform_set', 'perform_step', 'perform_action',
     'midi', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
     'clear', 'device', 'audio_device', 'preset', 'parameter',

@@ -1,0 +1,107 @@
+/* Native Drum Rack inherits DeckSynth's materials and shared tactile knobs. */
+.harness-shell .drum-rack{--drum-accent:#78d8bf;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;color:#e3eeea;font-size:12px}
+.drum-rack *{box-sizing:border-box}
+.drum-rack h1,.drum-rack h2,.drum-rack p{margin:0}
+.drum-rack button,.drum-rack select{min-width:44px;min-height:44px;font:inherit;touch-action:manipulation}
+.drum-rack button{border:1px solid #43565b;border-radius:8px;background:#243237;color:#e3eeea;font-weight:750;cursor:pointer}
+.drum-rack button:hover:not(:disabled){background:#2e4145;border-color:#7aaca0}
+.drum-rack button:active:not(:disabled){background:#36544c}
+.drum-rack button:disabled{color:#a7b8b4;background:#182326;border-color:#34454a;cursor:not-allowed}
+.drum-rack button:focus-visible,.drum-rack select:focus-visible,.drum-rack input:focus-visible,.drum-rack [role=slider]:focus-visible{outline:2px solid #aaf2dc;outline-offset:2px}
+.drum-rack ::selection{background:#467c6e;color:#fff}
+.drum-device-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:58px;padding:8px 14px;background:#1b272b;border:1px solid #3c5055;border-radius:11px}
+.drum-device-title{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.drum-device-title svg{color:var(--drum-accent)}
+.drum-device-title h1{font-size:20px;font-weight:780;letter-spacing:-.3px}
+.drum-device-title>span{color:#b4c8c1;border-left:1px solid #4a5c60;padding-left:12px;margin-left:4px}
+.drum-device-meta{display:flex;align-items:center;gap:18px;color:#b2c4be;font-size:11.5px}
+.drum-device-meta strong{color:var(--drum-accent);font-weight:750;font-variant-numeric:tabular-nums}
+.drum-workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 376px;gap:10px}
+.drum-pads-panel,.drum-pad-sound{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid #34464b;border-radius:11px;background:#182124;overflow:hidden}
+.drum-section-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 12px;border-bottom:1px solid #2f4044}
+.drum-section-bar h2{font-size:12.5px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
+.drum-section-bar>span{color:#b4c6c0;font-size:11px}
+.drum-pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,minmax(88px,1fr));gap:8px;padding:12px;flex:1;min-height:208px;max-height:340px}
+.drum-rack .drum-pad{position:relative;min-width:56px;min-height:88px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;gap:7px;text-align:left;border-color:#4a5e63;background:linear-gradient(#29373c,#202c30);box-shadow:inset 0 1px 0 #ffffff0b,0 3px 6px #0003;border-radius:9px;user-select:none;touch-action:manipulation}
+.drum-rack .drum-pad:nth-child(8n+4){margin-right:3px}
+.drum-rack .drum-pad:nth-child(8n+5){margin-left:3px}
+.drum-pad-top,.drum-pad-bottom{display:flex;align-items:center;justify-content:space-between;gap:3px;font-variant-numeric:tabular-nums}
+.drum-pad-top b{font-size:16px;font-weight:800;color:#d2e5de}
+.drum-pad-top>span{font-size:10px;color:#b1c8be}
+.drum-pad-name{font-size:12px;font-weight:760;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.drum-pad-bottom{font-size:9px;color:#afc5ba;font-weight:650}
+.drum-rack .drum-pad.is-empty{background:#1b272b;border-color:#394c52}
+.drum-rack .drum-pad.is-empty .drum-pad-name{color:#bacbc6}
+.drum-rack .drum-pad.is-selected{border-color:var(--drum-accent);box-shadow:inset 0 0 0 1px var(--drum-accent),0 3px 6px #0003}
+.drum-rack .drum-pad.is-muted{background:#20292b;color:#aebeba}
+.drum-pad.is-muted .drum-pad-name{text-decoration:line-through}
+.drum-rack .drum-pad.is-missing{border-color:#b68472;background:#312a26}
+.drum-pad.is-missing .drum-pad-bottom{color:#f2bc9f}
+.drum-rack .drum-pad.is-triggered{background:#78d8bf;color:#102923;border-color:#c4ffeb}
+.drum-rack .drum-pad.is-triggered .drum-pad-top b,.drum-rack .drum-pad.is-triggered .drum-pad-top>span,.drum-rack .drum-pad.is-triggered .drum-pad-bottom{color:#15382d}
+.drum-pad-legend{display:flex;align-items:center;gap:16px;min-height:34px;padding:0 12px;color:#b4c8be;font-size:10.5px}
+.drum-pad-legend>span{display:flex;align-items:center;gap:6px}
+.drum-pad-legend>span:last-child{margin-left:auto;color:#a8bfb5}
+.drum-pad-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid var(--drum-accent)}
+.drum-pad-legend i.trigger{background:var(--drum-accent)}
+.drum-unavailable{display:flex;align-items:center;gap:14px;padding:12px;border-top:1px solid #304145;background:#151f22}
+.drum-pending-buttons{display:flex;gap:6px;flex:none}
+.drum-pending-buttons button{min-width:56px;padding:0 9px}
+.drum-unavailable p{max-width:47ch;font-size:11.5px;line-height:1.55;color:#b3c7be}
+.drum-playback-note{display:flex;align-items:center;gap:9px;padding:10px 12px;color:#afc5bb;line-height:1.55;font-size:11px}
+.drum-playback-note svg{flex:none;color:var(--drum-accent)}
+.drum-playback-note p{max-width:86ch}
+.drum-source-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px 3px}
+.drum-source-heading>strong{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drum-status{font-size:10px;font-weight:750;color:var(--drum-accent);flex:none}
+.drum-status.status-missing,.drum-status.status-error{color:#f2bc9f}
+.drum-status.status-empty,.drum-status.status-loading{color:#b1c3bc}
+.drum-source-file{padding:0 12px 8px;font-size:11px;color:#b7cbc2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:23px}
+.drum-wave-shell{position:relative;min-height:78px;height:92px;margin:0 12px;border:1px solid #304249;border-radius:8px;background:#0f181b;flex:1;max-height:124px;overflow:hidden}
+.drum-waveform{position:absolute;top:6px;left:5px;width:calc(100% - 10px);height:calc(100% - 24px);color:var(--drum-accent)}
+.drum-waveform line{stroke:currentColor}
+.drum-wave-zero{stroke:#35484b;stroke-width:.7;fill:none}
+.drum-wave-empty{height:calc(100% - 16px);padding:7px 12px;display:flex;align-items:center;justify-content:center;gap:10px;color:#b2c6bd;font-size:11px;line-height:1.5}
+.drum-wave-empty svg{flex:none;color:#83a69a}
+.drum-wave-caption{position:absolute;bottom:5px;left:9px;color:#a2bcb0;font-size:8px;font-weight:650;letter-spacing:.5px}
+.drum-source-error{font-size:11px;color:#f2bc9f;padding:6px 12px 0;line-height:1.4;max-height:38px;overflow:auto;scrollbar-width:thin;scrollbar-color:#796255 transparent;overflow-wrap:anywhere}
+.drum-import-actions{display:flex;gap:6px;padding:0;margin-left:auto}
+.drum-import-actions button{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;padding:0 8px;font-size:11.5px}
+.drum-rack .drum-import-actions .drum-relink{background:#3a3025;border-color:#a18760;color:#f0d8b7}
+.drum-pad-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:3px 12px 8px}
+.drum-rack .tactile-knob{display:grid;width:100%;min-width:0;grid-template-columns:48px minmax(44px,1fr);grid-template-rows:16px 48px;gap:2px;align-items:center}
+.drum-rack .tactile-knob .knob-heading{grid-column:1/-1;text-align:center;font-size:11px;color:#c6dacf}
+.drum-rack .tactile-knob .knob-target{width:48px;height:48px;min-width:48px;min-height:48px}
+.drum-rack .tactile-knob .knob-value{height:44px;min-height:44px;min-width:44px;padding:0 4px;font-size:12px;display:flex;align-items:center;justify-content:center;background:#1c2b2f;border-color:#3b5055;font-variant-numeric:tabular-nums}
+.drum-rack .knob-entry{min-height:44px;width:100%;min-width:44px;background:#0f191c;color:#edf5f1;border:1px solid var(--drum-accent);border-radius:6px;caret-color:var(--drum-accent);text-align:center}
+.drum-rack .knob-live-value{z-index:5}
+.drum-pad-switches{display:flex;align-items:flex-end;gap:7px;padding:0 12px 10px}
+.drum-pad-switches>button{flex:1;min-width:56px}
+.drum-rack .drum-pad-switches>button[aria-pressed=true]{background:#3f6659;border-color:var(--drum-accent);color:#e9fff6}
+.drum-pad-switches label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:#bfd3c8;flex:1;min-width:94px}
+.drum-pad-switches select{background:#142125;border:1px solid #435a60;color:#e3eee8;border-radius:7px;padding:0 8px;width:100%;font-variant-numeric:tabular-nums}
+.drum-pan{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid #304145;background:#151f22}
+.drum-pan button{min-width:56px}
+.drum-pan p{font-size:11px;line-height:1.5;color:#b0c6bb}
+.drum-rack-loading{align-items:center;justify-content:center;color:#bacdc3}
+@media(max-width:1100px){.drum-workspace{grid-template-columns:minmax(0,1fr) 340px;gap:8px}.drum-pads{gap:5px;padding:8px}.drum-rack .drum-pad{padding:6px}.drum-pad-legend{gap:9px}.drum-pad-legend>span:last-child{display:none}.drum-device-meta{gap:10px}.drum-device-meta>span:last-child{display:none}.drum-unavailable{gap:10px}.drum-pending-buttons button{min-width:44px}.drum-section-bar>span{font-size:10px}.drum-pad-name{font-size:11px}}
+
+@media(max-width:1100px){.drum-pad-sound .drum-section-bar>span{display:none}}
+/* Shared device selector beside the track buttons; matches the native header controls. */
+.harness-shell .track-device-picker{min-width:130px;min-height:44px;padding:0 12px;border:1px solid #43585e;border-radius:8px;background:#19282d;color:#e1eee8;font:inherit;font-size:12px;font-weight:700;color-scheme:dark;cursor:pointer}
+.harness-shell .track-device-picker:focus-visible{outline:2px solid #aaf2dc;outline-offset:2px}
+.harness-shell .track-device-picker option{background:#19282d;color:#e1eee8}
+/* Read-only native postmix telemetry; no timer, smoothing or synthesized activity. */
+.drum-output{display:flex;align-items:center;gap:20px;flex:0 0 30px;min-height:30px;padding:0 12px;border:1px solid #34464b;border-radius:7px;background:#162125;color:#b4c9bf;font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.drum-output b{font-weight:700;color:#dcece4}
+.drum-output-source{display:flex;gap:9px;align-items:center}
+.drum-output-source b{color:var(--drum-accent)}
+.drum-output-level{margin-left:auto;display:flex;align-items:center;gap:15px}
+.drum-output meter{width:144px;height:10px;appearance:none;border:0;background:transparent}
+.drum-output meter::-webkit-meter-bar{border:1px solid #3f5659;background:#0d171a;border-radius:3px}
+.drum-output meter::-webkit-meter-optimum-value{background:#78d8bf}
+.drum-output meter::-webkit-meter-suboptimum-value{background:#d7b67c}
+.drum-output meter::-webkit-meter-even-less-good-value{background:#e69d9e}
+@media(max-width:1100px){.drum-output{gap:12px}.drum-output-level{gap:10px}.drum-output meter{width:90px}}
+/* Keep the additive device selector and the existing preset controls on one row. */
+.harness-shell .page-tools:has(.track-device-picker) .preset-current{width:120px;flex-basis:120px}

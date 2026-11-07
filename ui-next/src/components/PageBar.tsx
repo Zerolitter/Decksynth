@@ -33,11 +33,11 @@ export function PageBar({page,onPage,tracks,selected,onSelect,beat,beats,playing
     </div>
     <div className="page-tracks" role="group" aria-label="Track to edit">
       {tracks.map((t,i)=><button key={i} type="button" aria-pressed={i===selected}
-        aria-label={'Edit track '+(i+1)+' '+t.preset}
+        aria-label={'Edit track '+(i+1)+' '+(t.device==='drum_rack'?'Drum Rack':t.preset)}
         className={'page-track'+(i===selected?' active':'')+(t.mute?' muted':'')}
         style={{['--track-accent' as string]:TRACK_COLORS[i]}} onClick={()=>onSelect(i)}>
         <span className="page-track-no">{i+1}</span>
-        <span className="page-track-text"><span className="page-track-name">{t.preset}</span>
+        <span className="page-track-text"><span className="page-track-name">{t.device==='drum_rack'?'Drum Rack':t.preset}</span>
           <NoteLine track={t} beats={beats} beat={beat} playing={playing}/></span>
       </button>)}
     </div>

@@ -8,6 +8,7 @@ import os
 import gc
 import queue
 import time
+from .drum_loader import DrumLoader
 from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, arp_view
 from .keystep import StepCapacityError
 
@@ -91,7 +92,7 @@ class MidiDevice:
         return rejections
 
 def worker(commands,updates):
-    engine=Engine(); midi=MidiDevice(); audio=None; last_status=0; underruns=0; started=False
+    engine=Engine(); midi=MidiDevice(); audio=None; loader=None; last_status=0; underruns=0; started=False
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
     monitor_samples=deque(maxlen=768)
@@ -109,6 +110,7 @@ def worker(commands,updates):
     try:
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
+        loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
         while running:
@@ -118,6 +120,10 @@ def worker(commands,updates):
                 try:
                     if cmd=='quit':running=False; break
                     elif cmd=='midi':engine.midi(*args)
+                    elif cmd=='set_device':engine.set_device(*args)
+                    elif cmd=='drum_note':engine.drum_note(*args)
+                    elif cmd=='drum_edit':engine.edit_drum_pad(*args)
+                    elif cmd=='drum_import':loader.request(*args)
                     elif cmd=='select':engine.select(args)
                     elif cmd=='play':
                         if engine.playing:engine.stop()
@@ -185,7 +191,7 @@ def worker(commands,updates):
                         else:notes[idx]=note
                     elif cmd=='track':
                         tr,key,value=args; engine.project.tracks[tr][key]=value
-                        if key=='mute':engine.synths[tr].panic()
+                        if key=='mute':engine.synths[tr].panic();engine.drums[tr].panic()
                     elif cmd=='tempo':
                         # Stop before changing the beat-to-sample conversion.
                         engine.stop(); engine.project.bpm=max(30,min(240,float(args)))
@@ -212,6 +218,7 @@ def worker(commands,updates):
                         engine.snapshot(); t=engine.project.tracks[engine.selected]; t['instrument']=p.tracks[0]['instrument']; t['preset']='Custom'; engine.configure()
                 except Exception as exc:send(dict(error=str(exc)))
             if not running:break
+            for rejection in loader.poll():send(dict(error=rejection))
             for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
                 if started and audio.queued()==0:
@@ -239,7 +246,8 @@ def worker(commands,updates):
                            fx_live=engine.fx_live(engine.selected))
                 send(dict(state=engine.project.data(),selected=engine.selected,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
-                          voices=sum(len(s.voices) for s in engine.synths),audio=audio.driver if audio else 'UNAVAILABLE',
+                          voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
+                          drum_racks=engine.drum_state(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
@@ -250,5 +258,6 @@ def worker(commands,updates):
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:
+        if loader:loader.close()
         midi.close()
         if audio:audio.close()
