@@ -29,7 +29,7 @@ COMMANDS = {
     'midi', 'learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
     'edit_note', 'track', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
-    'save', 'load', 'export', 'save_preset', 'load_preset',
+    'save', 'load', 'export','export_wav', 'save_preset', 'load_preset',
 }
 
 def encode(value):

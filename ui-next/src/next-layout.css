@@ -220,3 +220,8 @@
  .decksynth-shell .step-hardware-pad{min-height:32px}
  .decksynth-shell .step-pad-surface{height:16px}
 }
+
+/* Two actual PCM channels share the existing compact output meter column. */
+.decksynth-shell .scope-stereo-meters{display:flex;gap:4px;min-height:0}
+.decksynth-shell .scope-stereo-meters .scope-meter{width:9px;min-height:0}
+.decksynth-shell .scope-stereo-meters .meter-label{font-size:8px}

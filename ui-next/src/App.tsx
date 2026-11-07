@@ -316,7 +316,7 @@ function App() {
     });
   },[isPreview]);
 
-  const showFileDialog=async(op:'open'|'save',extension:'project'|'midi'|'instrument',cmd:string)=>{
+  const showFileDialog=async(op:'open'|'save',extension:'project'|'midi'|'instrument'|'wav',cmd:string)=>{
     if(isPreview||!api){setToast('Preview mode — projects are not changed');return;}
     const filepath=await api.chooseFile(op,extension);
     if(filepath)command(cmd,filepath);
@@ -411,6 +411,7 @@ function App() {
           <button role="menuitem" type="button" onClick={()=>showFileDialog('open','project','load')}><FolderOpen size={16}/> Open project</button>
           <button role="menuitem" type="button" onClick={()=>showFileDialog('save','project','save')}><Disc3 size={16}/> Save project</button>
           <button role="menuitem" type="button" onClick={()=>showFileDialog('save','midi','export')}><FileDown size={16}/> Export MIDI</button>
+          <button role="menuitem" type="button" onClick={()=>showFileDialog('save','wav','export_wav')}><FileDown size={16}/> Export stereo WAV</button>
           <span className="file-menu-meta">{project?totalNotes(project)+' notes · '+(instruments[selected]??''):''}</span>
         </div>:null}
       </div>

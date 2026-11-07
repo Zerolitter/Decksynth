@@ -44,8 +44,8 @@ VOICE_RANGES=dict(vcf_cutoff=(0,1),vcf_reso=(0,1),vcf_env=(-1,1),uni_detune=(0,1
 VOICE_RANGES.update(vcf_morph=(0,1),fenv_a=(.001,3),fenv_d=(.001,3),fenv_s=(0,1),fenv_r=(.01,3))
 FILTER_ENV=dict(fenv_a='attack',fenv_d='decay',fenv_s='sustain',fenv_r='release')
 VOICE_CHOICES=dict(vcf_type=(0,1,2,3),uni_voices=(1,2,3,4,5,7),sub_oct=(1,2))
-EXPRESSION_DEFAULTS=dict(play_mode=0,glide=0.,pitch=0.,velocity_brightness=0.,velocity_cutoff=0.,vcf_keytrack=.5)
-VOICE_RANGES.update(glide=(0,2),pitch=(-12,12),velocity_brightness=(-1,1),velocity_cutoff=(-1,1),vcf_keytrack=(0,1))
+EXPRESSION_DEFAULTS=dict(pan=0.,play_mode=0,glide=0.,pitch=0.,velocity_brightness=0.,velocity_cutoff=0.,vcf_keytrack=.5)
+VOICE_RANGES.update(pan=(-1,1),glide=(0,2),pitch=(-12,12),velocity_brightness=(-1,1),velocity_cutoff=(-1,1),vcf_keytrack=(0,1))
 VOICE_CHOICES['play_mode']=(0,1,2)
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
@@ -1139,7 +1139,12 @@ class Engine(ControllerEngine,DrumEngine):
         self.drum_keys.clear()
         for fx in self.fx:fx.clear_gate_events(reset_origin=False)
         for keys in self.drum_gate_keys:keys.clear()
-    def render(self,frames):
+    def render(self,frames):return self._render_bus(frames,False)
+    def render_stereo(self,frames):return self._render_bus(frames,True)
+    def export_wav(self,path,seconds=None):
+        from .render_export import export_wav
+        return export_wav(self,path,seconds)
+    def _render_bus(self,frames,stereo):
         result=[]; remaining=frames
         while remaining:
             n=min(remaining,128)
@@ -1233,25 +1238,38 @@ class Engine(ControllerEngine,DrumEngine):
                         self.click_age+=1
                     else:click.append(None)
             # Per-track FX run once per block, then the mix is summed in the original order.
-            mix=[0.]*n
+            mix=[0.]*n;right=[0.]*n if stereo else None
             for t,fx,audio in zip(self.project.tracks,self.fx,track_audio):
                 if not t['mute']:
-                    audio=fx.process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
-                                     clock=start/self.fpb if self.playing else None,frame=abs_start)
+                    process=fx.process_stereo if stereo else fx.process
+                    audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
+                                  clock=start/self.fpb if self.playing else None,frame=abs_start)
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
-                    for j,v in enumerate(audio):mix[j]+=v*vol
+                    if stereo:
+                        pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
+                        left_audio,right_audio=audio;lg=vol*(1-pan)*.5;rg=vol*(1+pan)*.5
+                        for j,(l,r) in enumerate(zip(left_audio,right_audio)):mix[j]+=l*lg;right[j]+=r*rg
+                    else:
+                        for j,v in enumerate(audio):mix[j]+=v*vol
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,
             # instead of flattening the peaks (hard clipping sounds like crackle).
             g=self.limit
             for j,c in enumerate(click):
                 x=mix[j]+(c if c is not None else 0.)
+                if stereo:
+                    l=mix[j]+(c*.5 if c is not None else 0.);r=right[j]+(c*.5 if c is not None else 0.)
+                    peak=max(abs(l),abs(r),abs(l+r))
+                    if peak*g>.9:g=.9/peak
+                    else:g+=(1.-g)*.0005
+                    mix[j]=l*g;right[j]=r*g
+                    continue
                 ax=abs(x)*g
                 if ax>.9:g=.9/abs(x)
                 else:g+=(1.-g)*.0005
                 x*=g
                 mix[j]=x if -.95<x<.95 else math.tanh(x)
             self.limit=g
-            result.extend(mix)
+            result.extend([v for pair in zip(mix,right) for v in pair] if stereo else mix)
             if self.playing:self.frame+=n
             self.absolute_frame+=n
             self._event_frame=None

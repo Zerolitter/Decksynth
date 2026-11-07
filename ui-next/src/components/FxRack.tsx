@@ -13,7 +13,7 @@ import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTarget
 export { MACRO_COLORS, MOD_COLORS };
 const NPAR=6;
 const BLURB:Record<FxModuleId,string>={
-  stutter:'Repeats short slices in time', filter:'Low, band or high pass', overdrive:'Warm to heavy distortion',
+  cloud:'Diffused, pitch-scattered stereo texture',stutter:'Repeats short slices in time', filter:'Low, band or high pass', overdrive:'Warm to heavy distortion',
   bitcrusher:'Lo-fi grit and aliasing', volume:'Level, for gating and tremolo', phaser:'Sweeping notches',
   flanger:'Jet-like comb sweep', ringmod:'Metallic, bell-like tones', delay:'Tempo-synced echoes',
   reverb:'Room to huge space', time:'Tape-style speed changes', chorus:'Wide, thick doubled voices',

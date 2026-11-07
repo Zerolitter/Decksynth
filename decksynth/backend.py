@@ -1,5 +1,7 @@
 """SDL audio and Linux raw MIDI adapter, isolated from the desktop UI."""
 import array
+import copy
+from concurrent.futures import ThreadPoolExecutor
 from collections import deque
 import math
 import ctypes as C
@@ -42,13 +44,13 @@ class Audio:
             s.SDL_QuitSubSystem(0x10)
             raise ValueError('Audio output not available: '+preferred)
         self.output=selected or 'System default'
-        desired=AudioSpec(freq=48000,format=0x8120,channels=1,samples=256)
+        desired=AudioSpec(freq=48000,format=0x8120,channels=2,samples=256)
         actual=AudioSpec(); self.device=s.SDL_OpenAudioDevice(selected.encode() if selected else None,0,C.byref(desired),C.byref(actual),0)
         if not self.device:
             error=self.error(); s.SDL_QuitSubSystem(0x10); raise RuntimeError(error)
-        self.rate=actual.freq; self.driver=s.SDL_GetCurrentAudioDriver().decode()
+        self.channels=actual.channels; self.rate=actual.freq; self.driver=s.SDL_GetCurrentAudioDriver().decode()
     def error(self):return self.lib.SDL_GetError().decode(errors='replace')
-    def queued(self):return self.lib.SDL_GetQueuedAudioSize(self.device)//4
+    def queued(self):return self.lib.SDL_GetQueuedAudioSize(self.device)//(4*self.channels)
     def write(self,samples):
         data=array.array('f',samples).tobytes()
         if self.lib.SDL_QueueAudio(self.device,data,len(data))!=0:raise RuntimeError(self.error())
@@ -94,10 +96,12 @@ class MidiDevice:
         return rejections
 
 def worker(commands,updates):
+    exporter=ThreadPoolExecutor(max_workers=1,thread_name_prefix="decksynth-export")
     engine=Engine(); midi=MidiDevice(); audio=None; loader=None; library=None; last_status=0; underruns=0; started=False
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
-    monitor_samples=deque(maxlen=768)
+    monitor_samples=deque(maxlen=6144)
+    monitor_left=deque(maxlen=6144);monitor_right=deque(maxlen=6144)
     # Full-rate tail of the mix for the UI spectrum; the FFT itself runs in the renderer.
     spectrum_samples=deque(maxlen=512)
     def send(obj):
@@ -230,6 +234,10 @@ def worker(commands,updates):
                     elif cmd=='load':
                         p=Project.load(args); engine.stop(); engine.project=p; engine.configure()
                         engine.history=[];engine.mutation_sessions.clear();send(dict(message='Opened '+args))
+                    elif cmd=='export_wav':
+                        from .render_export import export_project_wav
+                        job=exporter.submit(export_project_wav,copy.deepcopy(engine.project),engine.rate,args)
+                        job.add_done_callback(lambda f:send(dict(error='WAV export failed: '+str(f.exception())) if f.exception() else dict(message='Stereo WAV exported')))
                     elif cmd=='export':engine.project.export_midi(args); send(dict(message='Exported '+args))
                     elif cmd=='save_preset':
                         from pathlib import Path
@@ -254,10 +262,11 @@ def worker(commands,updates):
                 if started and audio.queued()==0:
                     underruns+=1; target=min(2048,target+256)
                 while audio.queued()<target:
-                    t0=time.perf_counter(); block=engine.render(256)
+                    t0=time.perf_counter(); block=engine.render_stereo(256)
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
-                    monitor_samples.extend(block[::8]); spectrum_samples.extend(block)
+                    left=block[::2];right=block[1::2];mono=[l+r for l,r in zip(left,right)]
+                    monitor_left.extend(left);monitor_right.extend(right);monitor_samples.extend(mono);spectrum_samples.extend(mono)
                 if not started:audio.start(); started=True
             now=time.monotonic()
             if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
@@ -272,14 +281,18 @@ def worker(commands,updates):
                     peak=max(abs(v) for v in samples)
                 else:
                     display=[]; rms=0.; peak=0.
-                meter=dict(rms=round(rms,5),peak=round(peak,5),wave=display,
+                def channel(values):
+                    a=list(values);n=len(a)
+                    return dict(rms=round(math.sqrt(sum(x*x for x in a)/n),5) if n else 0.,peak=round(max(map(abs,a),default=0.),5),wave=[round(a[min(n-1,i*n//96)],4) for i in range(96)] if n else [])
+                stereo=[channel(monitor_left),channel(monitor_right)]
+                meter=dict(channels=stereo,rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
                            fx_live=engine.fx_live(engine.selected))
                 send(dict(state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
                           drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
-                          audio_output=audio.output if audio else 'Unavailable',
+                          audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
                           meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,
@@ -289,6 +302,7 @@ def worker(commands,updates):
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:
+        exporter.shutdown(wait=False,cancel_futures=True)
         if library:library.close()
         if loader:loader.close()
         midi.close()

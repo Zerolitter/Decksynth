@@ -2,7 +2,7 @@
 // Module set follows the user's PrismFX reference recordings; all DSP is DeckSynth's own.
 
 export type FxModuleId = 'stutter'|'filter'|'overdrive'|'bitcrusher'|'volume'|'phaser'
-  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate';
+  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate'|'cloud';
 
 export type FxParamDef = { key:string; label:string; min:number; max:number; init:number; suffix?:string; precision?:number;
   /** labels for each whole value from min to max: shown as tap buttons instead of a knob */ options?:string[];
@@ -100,6 +100,7 @@ export function padMix(x:number,y:number,pads:number[]){
   return (1-x)*y*v[0]+x*y*v[1]+(1-x)*(1-y)*v[2]+x*(1-y)*v[3];
 }
 
+const width:FxParamDef={key:'width',label:'Width',min:0,max:1,init:0,suffix:'%'};
 const mix:FxParamDef={key:'mix',label:'Mix',min:0,max:1,init:.5};
 
 export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
@@ -127,15 +128,15 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
   ringmod:{name:'Ring Mod',color:'#d4b44a',params:[
     {key:'freq',label:'Freq',min:0,max:1,init:.4},{key:'drive',label:'Drive',min:0,max:1,init:.3},mix]},
   delay:{name:'Delay',color:'#6ccf7f',params:[
-    {key:'time',label:'Time',min:0,max:5,init:2,precision:0,options:['1/32','1/16','1/8','1/8 dot','1/4','1/2']},{key:'feedback',label:'Feedback',min:0,max:.95,init:.4},mix]},
+    {key:'time',label:'Time',min:0,max:5,init:2,precision:0,options:['1/32','1/16','1/8','1/8 dot','1/4','1/2']},{key:'feedback',label:'Feedback',min:0,max:.95,init:.4},mix,width]},
   reverb:{name:'Reverb',color:'#4fc1c9',params:[
     {key:'predelay',label:'Pre-delay',min:0,max:1,init:.1},{key:'decay',label:'Decay',min:0,max:1,init:.6},
-    {key:'locut',label:'Lo cut',min:0,max:1,init:.1},{key:'hicut',label:'Hi cut',min:0,max:1,init:.8},mix]},
+    {key:'locut',label:'Lo cut',min:0,max:1,init:.1},{key:'hicut',label:'Hi cut',min:0,max:1,init:.8},mix,width]},
   time:{name:'Time',color:'#8fa3b8',params:[
     {key:'speed',label:'Speed',min:.25,max:2,init:1},{...mix,init:1}]},
   chorus:{name:'Chorus',color:'#7ec8ff',params:[
     {key:'rate',label:'Rate',min:0,max:1,init:.3},{key:'depth',label:'Depth',min:0,max:1,init:.5},
-    {key:'voices',label:'Voices',min:1,max:3,init:2,precision:0,options:['1','2','3']},mix]},
+    {key:'voices',label:'Voices',min:1,max:3,init:2,precision:0,options:['1','2','3']},mix,width,{key:'haas',label:'Haas',min:0,max:.03,init:0,suffix:'s',precision:3}]},
   compressor:{name:'Compressor',color:'#f2d16b',params:[
     {key:'amount',label:'Amount',min:0,max:1,init:.4},
     {key:'ratio',label:'Ratio',min:0,max:3,init:1,precision:0,options:['2:1','4:1','8:1','20:1']},
@@ -150,6 +151,7 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
   resonator:{name:'Resonator',color:'#c38bff',params:[
     {key:'decay',label:'Ring',min:0,max:1,init:.5},{key:'tone',label:'Tone',min:0,max:1,init:.5},{...mix,init:.4},
     {key:'strings',label:'Strings',min:0,max:2,init:1,precision:0,options:['Notes','+ Octave','+ Fifth']}]},
+  cloud:{name:'Cloud',color:'#a1a5f4',params:[{key:'time',label:'Time',min:0,max:1,init:.35},{key:'density',label:'Density',min:0,max:1,init:.7},{key:'scatter',label:'Scatter',min:0,max:1,init:.5},{key:'feedback',label:'Feedback',min:0,max:.88,init:.4},{key:'tone',label:'Tone',min:0,max:1,init:.6},{...mix,init:.4}]},
   gate:{name:'Audio gate',color:'#ff7eb6',params:[
     {key:'length',label:'Cells',min:0,max:5,init:2,precision:0,hidden:true},
     {key:'division',label:'Cell size',min:0,max:4,init:2,precision:0,hidden:true},
@@ -176,6 +178,7 @@ export const gateCell=(beat:number,length:number,division:number)=>{
 
 /** Sound knobs a macro or mod pad can move. Same ranges as SOUND_PARAMS in decksynth/fx.py. */
 export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;max:number}>={
+  pan:{label:'Pan',card:'rack-output',min:-1,max:1},
   filter:{label:'Brightness',card:'sound-tone',min:.02,max:1},curve:{label:'Curve',card:'sound-tone',min:-1,max:1},
   balance:{label:'Balance',card:'sound-tone',min:0,max:1},focus:{label:'Focus',card:'sound-tone',min:0,max:1},
   focus_center:{label:'Focus on',card:'sound-tone',min:1,max:16},
@@ -203,7 +206,7 @@ export function targetInfo(t:{module:FxTarget['module'];param:string}){
 }
 
 export const FX_ORDER:FxModuleId[]=['stutter','filter','overdrive','bitcrusher','volume','phaser',
-  'flanger','ringmod','delay','reverb','time','chorus','compressor','eq','autowah','resonator','gate'];
+  'flanger','ringmod','delay','reverb','time','chorus','compressor','eq','autowah','resonator','gate','cloud'];
 export const defaultModule=(id:FxModuleId):FxModuleState=>({id,on:false,params:Object.fromEntries(FX_MODULES[id].params.map(p=>[p.key,p.init]))});
 /** Switch an effect on at the end of the chain. */
 export function addModule(chain:FxChain,id:FxModuleId):FxChain{

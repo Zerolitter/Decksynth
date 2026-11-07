@@ -9,7 +9,7 @@ from pathlib import Path
 
 ORDER = ['stutter', 'filter', 'overdrive', 'bitcrusher', 'volume', 'phaser',
          'flanger', 'ringmod', 'delay', 'reverb', 'time',
-         'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate']
+         'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate', 'cloud']
 # (key, min, max, init) per module, in the same order the native code reads them.
 PARAMS = {
     'stutter': [('length', 1, 6, 3), ('speed', 0, 1, .6), ('repeats', 1, 8, 4), ('mix', 0, 1, .5)],
@@ -33,12 +33,16 @@ PARAMS = {
     'gate': [('length', 0, 5, 2), ('division', 0, 4, 2), ('steps', 0, 65535, 44461), ('smooth', 0, 1, .3),
              ('depth', 0, 1, 1), ('pump', 0, 1, 0)],
 }
+PARAMS['chorus'] += [('width',0,1,0.),('haas',0,.03,0.)]
+PARAMS['delay'] += [('width',0,1,0.)]
+PARAMS['reverb'] += [('width',0,1,0.)]
+PARAMS['cloud']=[('time',0,1,.35),('density',0,1,.7),('scatter',0,1,.5),('feedback',0,.88,.4),('tone',0,1,.6),('mix',0,1,.4)]
 GATE_PERFORMANCE={'retrig':(0,2,2),'phase':(0,1,0.),'notelen':(0,1,1.),'hold':(0,1,0)}
 GATE_LENGTHS = (4, 6, 8, 9, 12, 16)
 NPAR = 6
 # Sound knobs a macro or mod pad can move too: (min, max) in the knob's own units.
 SOUND_PARAMS = {
-    'filter': (.02, 1), 'curve': (-1, 1), 'balance': (0, 1), 'focus': (0, 1), 'focus_center': (1, 16),
+    'pan':(-1,1),'filter': (.02, 1), 'curve': (-1, 1), 'balance': (0, 1), 'focus': (0, 1), 'focus_center': (1, 16),
     'attack': (.001, 3), 'decay': (.001, 3), 'sustain': (0, 1), 'release': (.01, 3),
     'modulation': (0, 1), 'volume': (0, 1),
     # Filter, Unison and Character cards (patch 24)
@@ -203,6 +207,8 @@ def _load(legacy=False):
                 lib.dsfx_gate_beat.argtypes=[ctypes.c_void_p];lib.dsfx_gate_beat.restype=ctypes.c_double
                 lib.dsfx_gate_reset.argtypes=[ctypes.c_void_p]
                 lib.dsfx_gate_events.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_int),ctypes.c_int]
+            if hasattr(lib,'dsfx_process_stereo'):
+                lib.dsfx_process_stereo.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_double),ctypes.POINTER(ctypes.c_double),ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_double),ctypes.c_double]
             loaded=lib
         except OSError:loaded=False
         if legacy:_legacy_lib=loaded
@@ -329,6 +335,7 @@ def available():
 class TrackFx:
     def __init__(self, rate):
         self.lib = _load(); self.handle = self.lib.dsfx_create(rate) if self.lib else None
+        self.right=self.lib.dsfx_create(rate) if self.handle and hasattr(self.lib,'dsfx_process_stereo') else None
         self.active = False
         self.order = (ctypes.c_int * len(ORDER))(*range(len(ORDER)))
         self.on = (ctypes.c_int * len(ORDER))()
@@ -398,6 +405,7 @@ class TrackFx:
         self.tuned = strings
         freqs = (ctypes.c_double * len(strings))(*[440 * 2 ** ((n - 69) / 12) for n in strings])
         self.lib.dsfx_tune(self.handle, freqs, len(strings))
+        if self.right:self.lib.dsfx_tune(self.right,freqs,len(strings))
     def configure(self, chain):
         self.chain = chain
         gate=next((m for m in (chain or {}).get('modules',[]) if m['id']=='gate'),None)
@@ -415,7 +423,7 @@ class TrackFx:
                 self.params[idx * NPAR + j] = m['params'].get(key, init)
         was = self.active
         self.active = bool(self.handle) and any(m['on'] and not m.get('bypass') for m in chain['modules'])
-        if self.active and not was and self.handle and not self._tail: self.lib.dsfx_reset(self.handle); self.tuned = []
+        if self.active and not was and self.handle and not self._tail: self.lib.dsfx_reset(self.handle); self.right and self.lib.dsfx_reset(self.right); self.tuned = []
         # The last effect switched off: keep running a few blocks so it fades out instead of cutting.
         if was and not self.active: self._tail = 8
     def modulate(self, beat):
@@ -447,7 +455,7 @@ class TrackFx:
             for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
                 v = m['params'].get(key, init) + offsets.get((m['id'], key), 0.) * (hi - lo)
                 self.params[idx * NPAR + j] = min(hi, max(lo, v))
-    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None):
+    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False):
         """samples: list of floats; returns a list (same object when bypassed).
         modulated: the engine already called modulate() for this block.
         clock: song position in beats while the transport plays (the audio gate locks to it)."""
@@ -455,7 +463,7 @@ class TrackFx:
             if self.active: self.modulate(beat)
             else: self.move_puck(beat, [0.] * NMACRO)  # keep the puck moving for the screen
         if not self.active:
-            if not self._tail: return samples
+            if not self._tail: return (samples,list(samples)) if _stereo else samples
             self._tail -= 1
         n = len(samples); buf = (ctypes.c_double * n)(*samples)
         start=self._gate_frame if frame is None else int(frame);end=start+n;self._gate_frame=end
@@ -466,13 +474,23 @@ class TrackFx:
             self.lib.dsfx_gate_controls(self.handle,int(self._gate_extended),self.gate_values['phase'],self.gate_values['notelen'],int(self.gate_values['hold']))
             array=(ctypes.c_int*len(events))(*events)
             self.lib.dsfx_gate_events(self.handle,array,len(events))
+            if _stereo and self.right:
+                self.lib.dsfx_gate_controls(self.right,int(self._gate_extended),self.gate_values['phase'],self.gate_values['notelen'],int(self.gate_values['hold']))
+                self.lib.dsfx_gate_events(self.right,array,len(events))
         # Once retriggered, the native gate integrates each block's current BPM.
         # Do not reinterpret all elapsed frames at the latest tempo or split other FX.
         local=self._gate_extended and self.gate_values['retrig']<2 and self._gate_origin is not None
         if clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(clock))
+        if _stereo and self.right and clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.right,float(clock))
         if events:self._gate_origin=start+events[-1]
+        if _stereo and self.right:
+            right=(ctypes.c_double*n)(*samples)
+            self.lib.dsfx_process_stereo(self.handle,self.right,buf,right,n,self.order,self.on,self.params,float(bpm))
+            return list(buf),list(right)
         self.lib.dsfx_process(self.handle,buf,n,self.order,self.on,self.params,float(bpm))
-        return list(buf)
+        return (list(buf),list(buf)) if _stereo else list(buf)
+    def process_stereo(self,samples,bpm,beat=0.,**kwargs):
+        return self.process(samples,bpm,beat,_stereo=True,**kwargs)
     def levels(self):
         if not self.handle: return [0.] * len(ORDER)
         self.lib.dsfx_levels(self.handle, self._levels)
@@ -483,6 +501,7 @@ class TrackFx:
         return round(self.lib.dsfx_comp_gr(self.handle), 2)
     def __del__(self):
         try:
+            if getattr(self,'right',None):self.lib.dsfx_destroy(self.right)
             if self.handle: self.lib.dsfx_destroy(self.handle)
         except Exception:
             pass

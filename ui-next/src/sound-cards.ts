@@ -2,7 +2,7 @@ import type { Instrument } from './types';
 
 /** Same neutral values as decksynth/core.py VOICE_DEFAULTS: a missing key plays like before. */
 export const VOICE_DEFAULTS = {vcf_type:0, vcf_cutoff:.65, vcf_reso:.2, vcf_env:.3, uni_voices:1, uni_detune:.3,
-  formant:0, vowel:0, inharm:0, sub:0, sub_oct:1,play_mode:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5};
+  formant:0, vowel:0, inharm:0, sub:0, sub_oct:1,pan:0,play_mode:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5};
 export type VoiceKey = keyof typeof VOICE_DEFAULTS;
 export const voiceParam = (p:Instrument, k:VoiceKey):number => (p[k] as number|undefined) ?? VOICE_DEFAULTS[k];
 

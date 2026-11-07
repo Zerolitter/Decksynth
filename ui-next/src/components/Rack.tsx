@@ -134,6 +134,8 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           onChange={v=>onTrack('volume',v)} {...m}/>)}
         <button type="button" className={'panel-toggle'+(track.mute?' on':'')} aria-pressed={track.mute}
           onClick={()=>onTrack('mute',!track.mute)}>{track.mute?'Muted':'Mute'}</button>
+        {cell('pan',m=><Knob id={selected+'-pan'} name="Pan" value={vp('pan')} min={-1} max={1} step={.01}
+          compact accent={TAGS.output} onChange={v=>set('pan',v)} {...m}/>)}
         <Choice label="Voice mode" name="Voice mode" value={vp('play_mode')} onPick={v=>set('play_mode',v)}
           options={['Poly','Mono','Legato'].map((label,value)=>({label,value}))}/>
         {cell('glide',m=><Knob id={selected+'-glide'} name="Glide" value={vp('glide')} min={0} max={2} step={.001} suffix="s"

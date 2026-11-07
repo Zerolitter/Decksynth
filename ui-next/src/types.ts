@@ -8,7 +8,7 @@ export type Instrument = {
   character?:number; spectral_energy?:number; random_seed?:number;
   /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
   vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
-  play_mode?:number;glide?:number;pitch?:number;velocity_brightness?:number;velocity_cutoff?:number;vcf_keytrack?:number;
+  pan?:number;play_mode?:number;glide?:number;pitch?:number;velocity_brightness?:number;velocity_cutoff?:number;vcf_keytrack?:number;
   vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
@@ -68,7 +68,8 @@ export type DeckUpdate = {
   playing: boolean; recording: boolean; connected: string | null;
   devices: string[]; audio: string; audio_output: string;
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; preview?: boolean;
-  meter?: { rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;partials?:number[]|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
+  audio_channels?:number;
+  meter?: { channels?:{rms:number;peak:number;wave:number[]}[];rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;partials?:number[]|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
   held_notes?: number[];
   /** Step record cursor: the step the next recorded key goes to. */
   rec_step?: number;
@@ -81,7 +82,7 @@ export type DeckApi = {
   available: true;
   send(command: string, args?: unknown): void;
   onMessage(callback: (message: BridgeMessage) => void): () => void;
-  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'sample'|'sample_folder'): Promise<string|null>;
+  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder'): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }
 export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf'] as const;

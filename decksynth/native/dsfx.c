@@ -7,12 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define NMOD 17
+#define NMOD 18
 #define NPAR 6
 #define PI 3.14159265358979323846
 
 enum { STUTTER, FILTER, OVERDRIVE, BITCRUSH, VOLUME, PHASER, FLANGER, RINGMOD, DELAY, REVERB, TIMEFX,
-       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE };
+       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE, CLOUD };
 
 #define DLY_LEN (48000*3)
 #define FLG_LEN 2048
@@ -27,6 +27,8 @@ static const int AP_LEN[2] = {556, 441};
 
 typedef struct {
     double rate;
+    double stereo_phase,stereo_width,haas_delay; float haas[2048]; int haas_w;
+    float cloud[96000]; int cloud_w; double cloud_phase,cloud_lp,cloud_diff;
     /* stutter */
     float stu[STU_LEN]; int stu_w, stu_pos_in_cycle, stu_slice; double stu_r;
     /* filter (TPT SVF) */
@@ -206,18 +208,18 @@ static void m_reverb(FxTrack *t, double *b, int n, const double *p) {
         double in = t->pre[r] * 0.25; t->pre_w = (t->pre_w + 1) % PRE_LEN;
         double acc = 0;
         for (int c = 0; c < 4; c++) {
-            float *buf = t->comb[c]; int w = t->comb_w[c];
+            float *buf = t->comb[c]; int length=COMB_LEN[c]+(int)(t->stereo_width*9*(c+1)); int w = t->comb_w[c]%length;
             double o = buf[w];
             t->comb_lp[c] = o * (1 - damp) + t->comb_lp[c] * damp;
             buf[w] = (float)(in + t->comb_lp[c] * room);
-            t->comb_w[c] = (w + 1) % COMB_LEN[c];
+            t->comb_w[c] = (w + 1) % length;
             acc += o;
         }
         for (int a = 0; a < 2; a++) {
-            float *buf = t->ap[a]; int w = t->ap_w[a];
+            float *buf = t->ap[a]; int length=AP_LEN[a]+(int)(t->stereo_width*7*(a+1)); int w = t->ap_w[a]%length;
             double bo = buf[w], o = -acc + bo;
             buf[w] = (float)(acc + bo * 0.5);
-            t->ap_w[a] = (w + 1) % AP_LEN[a];
+            t->ap_w[a] = (w + 1) % length;
             acc = o;
         }
         double y = hp * (t->rv_hp_y + acc - t->rv_hp_x); t->rv_hp_x = acc; t->rv_hp_y = y;
@@ -258,7 +260,7 @@ static void m_chorus(FxTrack *t, double *b, int n, const double *p) {
         t->cho[t->cho_w] = (float)b[i];
         double wet = 0;
         for (int v = 0; v < voices; v++) {
-            double d = base + v * 0.004 * t->rate + sweep * (0.5 + 0.5 * sin(t->cho_lfo + v * 2.0944));
+            double d = base + v * 0.004 * t->rate + sweep * (0.5 + 0.5 * sin(t->cho_lfo + t->stereo_phase + v * 2.0944));
             double rp = t->cho_w - d; while (rp < 0) rp += CHO_LEN;
             int j = (int)rp; double fr = rp - j; int j2 = (j + 1) % CHO_LEN;
             wet += t->cho[j] * (1 - fr) + t->cho[j2] * fr;
@@ -417,6 +419,51 @@ void dsfx_gate_events(FxTrack *t,const int *events,int count) {
     if (t->g_event_count) memcpy(t->g_events,events,t->g_event_count*sizeof(int));
 }
 
+/* DeckSynth Cloud: four fractional diffused taps, pitch-scattered by the sample clock.
+ * Feedback is bounded, tone filtered, deterministic and independent of any imported engine. */
+static void m_cloud(FxTrack *t,double *b,int n,const double *p) {
+    double base=(.04+p[0]*.7)*t->rate,density=clampd(p[1],0,1),scatter=clampd(p[2],0,1);
+    double fb=clampd(p[3],0,.88),tone=.015+.7*clampd(p[4],0,1),mix=clampd(p[5],0,1);
+    for(int i=0;i<n;i++) {
+        double wet=0,total=0;
+        for(int k=0;k<4;k++) {
+            double gain=k==0?1:density;
+            double delay=base*(.52+.16*k)+scatter*t->rate*.003*sin(t->cloud_phase*(1+.17*k)+k*1.97+t->stereo_phase);
+            double rp=t->cloud_w-clampd(delay,2,95998);while(rp<0)rp+=96000;
+            int j=(int)rp;double f=rp-j;
+            wet+=gain*(t->cloud[j]*(1-f)+t->cloud[(j+1)%96000]*f);total+=gain;
+        }
+        wet/=total;t->cloud_lp+=tone*(wet-t->cloud_lp);
+        double diff=-.35*t->cloud_lp+t->cloud_diff;t->cloud_diff=t->cloud_lp+.35*diff;
+        t->cloud[t->cloud_w]=(float)(b[i]+fb*t->cloud_lp);t->cloud_w=(t->cloud_w+1)%96000;
+        b[i]=b[i]*(1-mix)+diff*mix;t->cloud_phase+=2*PI*.37/t->rate;if(t->cloud_phase>2*PI)t->cloud_phase-=2*PI;
+    }
+}
+static void m_pingpong(FxTrack *l,FxTrack *r,double *a,double *b,int n,const double *p,double bpm) {
+    static const double beats[6]={.125,.25,.5,.75,1,2};
+    int d=(int)clampd(beats[(int)clampd(round(p[0]),0,5)]*l->rate*60/bpm,1,DLY_LEN-1);
+    double w=clampd(p[3],0,1),fb=clampd(p[1],0,.95);
+    for(int i=0;i<n;i++) {
+        int il=(l->dly_w-d+DLY_LEN)%DLY_LEN,ir=(r->dly_w-d+DLY_LEN)%DLY_LEN;
+        double x=l->dly[il],y=r->dly[ir];
+        l->dly[l->dly_w]=(float)((1+w)*a[i]+fb*((1-w)*x+w*y));
+        r->dly[r->dly_w]=(float)((1-w)*b[i]+fb*((1-w)*y+w*x));
+        l->dly_w=(l->dly_w+1)%DLY_LEN;r->dly_w=(r->dly_w+1)%DLY_LEN;
+        a[i]+=x*p[2];b[i]+=y*p[2];
+    }
+}
+static void m_haas(FxTrack *t,double *b,int n,double delay) {
+    double target=clampd(delay,0,.03)*t->rate;
+    for(int i=0;i<n;i++) {
+        t->haas_delay+=(target-t->haas_delay)*.002;t->haas[t->haas_w]=(float)b[i];
+        if(target>0 || t->haas_delay>.001) {
+            double rp=t->haas_w-t->haas_delay;while(rp<0)rp+=2048;int j=(int)rp;double f=rp-j;
+            b[i]=t->haas[j]*(1-f)+t->haas[(j+1)%2048]*f;
+        }
+        t->haas_w=(t->haas_w+1)%2048;
+    }
+}
+
 static void run_module(FxTrack *t, int m, double *b, int n, const double *p, double bpm) {
     switch (m) {
         case STUTTER: m_stutter(t, b, n, p, bpm); break;
@@ -427,6 +474,7 @@ static void run_module(FxTrack *t, int m, double *b, int n, const double *p, dou
         case PHASER: m_phaser(t, b, n, p); break;
         case FLANGER: m_flanger(t, b, n, p); break;
         case RINGMOD: m_ringmod(t, b, n, p); break;
+        case CLOUD: m_cloud(t,b,n,p); break;
         case DELAY: m_delay(t, b, n, p, bpm); break;
         case REVERB: m_reverb(t, b, n, p); break;
         case TIMEFX: m_time(t, b, n, p); break;
@@ -477,6 +525,39 @@ void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on,
         if (t->onamt[m] <= 0 && !on[m]) t->level[m] *= 0.9;
         else t->level[m] = 0.7 * t->level[m] + 0.3 * sqrt(sum[m] / (n > 0 ? n : 1));
     }
+}
+
+/* One stereo chain loop: order, parameter smoothing and gate offsets are shared.
+ * Each channel owns its histories; ping-pong couples only delay feedback. */
+void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,const int *order,const int *on,const double *params,double bpm) {
+    if(bpm<20)bpm=120;
+    if(!l->pinit){memcpy(l->pcur,params,sizeof(l->pcur));l->pinit=1;}
+    if(!r->pinit){memcpy(r->pcur,params,sizeof(r->pcur));r->pinit=1;}
+    double start[NMOD*NPAR];memcpy(start,l->pcur,sizeof(start));
+    double sum[NMOD]={0},fade=CHUNK/(l->rate*.010);int chunks=(n+CHUNK-1)/CHUNK;
+    for(int c=0;c<chunks;c++) {
+        int off=c*CHUNK,len=n-off<CHUNK?n-off:CHUNK;double w=(double)(c+1)/chunks;
+        for(int i=0;i<NMOD*NPAR;i++)l->pcur[i]=start[i]+(params[i]-start[i])*w;
+        for(int i=0;i<3;i++)l->pcur[AUDIOGATE*NPAR+i]=params[AUDIOGATE*NPAR+i];
+        l->g_offset=r->g_offset=off;double *a=left+off,*b=right+off;
+        for(int k=0;k<NMOD;k++) {
+            int m=order[k];if(m<0||m>=NMOD)continue;
+            double a0=l->onamt[m],a1=on[m]?fmin(1,a0+fade):fmax(0,a0-fade);l->onamt[m]=r->onamt[m]=a1;
+            if(a0<=0&&a1<=0)continue;const double *p=l->pcur+m*NPAR;
+            double da[CHUNK],db[CHUNK];if(a0<1||a1<1){memcpy(da,a,len*sizeof(double));memcpy(db,b,len*sizeof(double));}
+            l->stereo_phase=l->stereo_width=0;r->stereo_phase=r->stereo_width=0;
+            if(m==CHORUS)r->stereo_phase=PI*clampd(p[4],0,1);
+            if(m==REVERB)r->stereo_width=clampd(p[5],0,1);
+            if(m==CLOUD)r->stereo_phase=1.73;
+            if(m==DELAY && p[3]>0)m_pingpong(l,r,a,b,len,p,bpm);
+            else {run_module(l,m,a,len,p,bpm);run_module(r,m,b,len,p,bpm);}
+            if(m==CHORUS)m_haas(r,b,len,p[5]);
+            if(a0<1||a1<1)for(int i=0;i<len;i++){double g=a0+(a1-a0)*(i+1)/len;a[i]=da[i]*(1-g)+a[i]*g;b[i]=db[i]*(1-g)+b[i]*g;}
+            for(int i=0;i<len;i++){if(!isfinite(a[i]))a[i]=0;if(!isfinite(b[i]))b[i]=0;sum[m]+=(a[i]*a[i]+b[i]*b[i])*.5;}
+        }
+    }
+    memcpy(r->pcur,l->pcur,sizeof(l->pcur));
+    for(int m=0;m<NMOD;m++){if(l->onamt[m]<=0&&!on[m])l->level[m]*=.9;else l->level[m]=.7*l->level[m]+.3*sqrt(sum[m]/(n>0?n:1));r->level[m]=l->level[m];}
 }
 
 /* One additive wavetable: out[i] = sum_k w[k] * sin(2*pi*(k+1)*i/size) / norm.

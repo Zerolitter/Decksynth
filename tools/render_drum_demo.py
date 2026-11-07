@@ -53,12 +53,12 @@ def main():
         engine.playing=True;pcm=array.array('f');timings=[];events=[];prior=[0]*16
         frames=round(8*engine.fpb)
         for start in range(0,frames,256):
-            count=min(256,frames-start);before=time.perf_counter();pcm.extend(engine.render(count));timings.append(time.perf_counter()-before)
+            count=min(256,frames-start);before=time.perf_counter();pcm.extend(engine.render_stereo(count));timings.append(time.perf_counter()-before)
             state=engine.drum_state()[0]
             for i,pad in enumerate(state['pads']):
                 if pad['event']!=prior[i]:events.append(dict(pad=i,midi=36+i,frame=pad['frame']));prior[i]=pad['event']
         engine.playing=False
-        pcm.extend(engine.render(24000))  # Half-second natural tails, separate from the two-bar body.
+        pcm.extend(engine.render_stereo(24000))  # Half-second natural tails, separate from the two-bar body.
         expected=sorted((round(b*engine.fpb),p) for b,p,v in hits)
         actual=sorted((e['frame'],e['pad']) for e in events)
         if actual!=expected:raise AssertionError((actual,expected))
@@ -67,7 +67,7 @@ def main():
         audio=array.array('h',(round(max(-1.,min(1.,v))*32767) for v in pcm))
         if sys.byteorder!='little':audio.byteswap()
         with wave.open(str(output),'wb') as f:
-            f.setparams((1,2,48000,0,'NONE','PCM'));f.writeframes(audio.tobytes())
+            f.setparams((2,2,48000,0,'NONE','PCM'));f.writeframes(audio.tobytes())
         # Compare formats and levels only. The reference pattern/engine are different;
         # differences diagnose behavior, never proprietary sonic equivalence.
         reference={}
