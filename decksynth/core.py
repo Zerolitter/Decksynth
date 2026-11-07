@@ -319,6 +319,13 @@ class Synth(ExpressionVoice):
             for v in self.voices.values():
                 if not v['held'] and v['release'] is None: v['release']=(0,v['level'])
     def panic(self): self.voices.clear(); self.gated.clear(); self.mono_held.clear();self.mono_lead=None; self.sustain=False; self.bend=1.; self.mod_wheel=0.
+    def heard_partials(self):
+        voices=[v for v in self.voices.values() if not v.get('fast')]
+        if not voices:return None
+        v=voices[-1];weights=self.weights.get(self.table_key(v.get('table_note',v['note']),v['velocity']))
+        if weights is None:return None
+        norm=max(1e-9,max(abs(w) for w in weights))
+        return [round(abs(w)/norm,6) for w in weights]
     @staticmethod
     def voice_mode(p):
         sub=p.get('sub',0.)>0
@@ -624,7 +631,7 @@ class Engine(ControllerEngine,DrumEngine):
         """Effective (modulated) FX params and mod-pad values of one track, for the UI."""
         fx=self.fx[track]; return dict(params=[round(v,4) for v in fx.params],mods=[round(v,3) for v in fx.mod_values],
                     phases=[round(v,3) for v in fx.mod_phases],puck=[round(v,3) for v in fx.puck],
-                    sound=self.sound_live(track),comp=fx.comp_reduction(),strings=list(fx.tuned),gate=fx.gate_runtime())
+                    sound=self.sound_live(track),partials=self.synths[track].heard_partials(),comp=fx.comp_reduction(),strings=list(fx.tuned),gate=fx.gate_runtime())
     def sound_live(self,track):
         """Where each linked Sound knob is right now, for the rings on the Sound cards."""
         fx=self.fx[track]; s=self.synths[track]; t=self.project.tracks[track]; out={}
@@ -693,9 +700,9 @@ class Engine(ControllerEngine,DrumEngine):
         self.project.song=clean
     def release_loops(self):
         """Let go of the loop and song notes still sounding (their note-offs won't come any more)."""
-        for s in self.synths:
-            for k,v in s.voices.items():
-                if isinstance(k,tuple) and k[0]=='loop' and v['release'] is None:v['release']=(0,v['level'])
+        for i,s in enumerate(self.synths):
+            s.cancel_sources(('loop',))
+            self.drum_gate_keys[i]={k for k in self.drum_gate_keys[i] if not (isinstance(k,tuple) and k[0]=='loop')}
     def clip_action(self,track,action,clip=None,source=None):
         """Loops per track: open one for editing, copy one into another slot, or clear one."""
         if type(track) is not int or not 0<=track<4:raise ValueError('Choose track 1-4')
@@ -709,8 +716,8 @@ class Engine(ControllerEngine,DrumEngine):
             if clip!=opened and not (self.playing and p.song['on']):
                 # Loop mode: the old loop's notes won't get their note-offs any more, so release them now.
                 # (A playing song picks clips from the timeline, so opening one changes nothing you hear.)
-                for k,v in self.synths[track].voices.items():
-                    if isinstance(k,tuple) and k[0]=='loop' and v['release'] is None:v['release']=(0,v['level'])
+                self.synths[track].cancel_sources(('loop',))
+                self.drum_gate_keys[track]={k for k in self.drum_gate_keys[track] if not (isinstance(k,tuple) and k[0]=='loop')}
             if clip!=opened:
                 slots[opened]=t['notes']; t['notes']=slots[clip]; slots[clip]=[]; p.clips['open'][track]=clip
         elif action=='copy':
@@ -764,12 +771,7 @@ class Engine(ControllerEngine,DrumEngine):
             self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
             s=self.synths[self.selected]
             self.drum_gate_keys[self.selected]={k for k in self.drum_gate_keys[self.selected] if not (isinstance(k,tuple) and k[0]=='live')}
-            for key in list(s.gated):
-                if isinstance(key,tuple) and key[0]=='live':s.gated.pop(key,None)
-                elif isinstance(key,tuple) and key[0] in ('perf_seq','perf_arp'):s.off(0,key)
-            for key in list(s.voices):
-                if isinstance(key,tuple) and key[0]=='live':s.voices.pop(key)
-                elif isinstance(key,tuple) and key[0] in ('perf_seq','perf_arp'):s.off(0,key)
+            s.cancel_sources(('live','perf_seq','perf_arp'),cut=('live',))
             s.pedal(False); s.bend=1.; self.down.clear(); self.capture_sustain.clear()
             self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear(); self.selected=track
     def close_note(self,key,at=None):
@@ -792,10 +794,7 @@ class Engine(ControllerEngine,DrumEngine):
         self.drum_keys.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
-        for synth in self.synths:
-            for token in set(synth.voices)|set(synth.gated):
-                if isinstance(token,tuple) and token and token[0]==prefix:
-                    synth.off(0,token)
+        for synth in self.synths:synth.cancel_sources((prefix,))
 
     def perform_set(self,section,key,value):
         """Validated UI parameter changes; does not erase recorded song notes."""

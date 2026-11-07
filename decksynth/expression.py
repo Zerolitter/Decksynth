@@ -2,6 +2,21 @@
 import math
 
 class ExpressionVoice:
+ def cancel_sources(self,prefixes,cut=()):
+  """Cancel a source's logical stack, including notes suppressed by Mono/Legato."""
+  source=lambda k:k[0] if isinstance(k,tuple) and k else None
+  cancelled={k for k in set(self.gated)|set(self.mono_held)|set(self.voices) if source(k) in prefixes}
+  for k in cancelled:self.gated.pop(k,None);self.mono_held.pop(k,None)
+  if self.mono_lead in cancelled:
+   if self.mono_held:
+    token=next(reversed(self.mono_held));note,velocity=self.mono_held[token]
+    self.mono_on(note,velocity,token)
+   else:self.mono_lead=None
+  for k in cancelled:
+   v=self.voices.get(k)
+   if v:
+    if source(k) in cut:self.voices.pop(k,None)
+    elif v['release'] is None:v.update(held=False,release=(0,v['level']))
  def mono_on(self,note,velocity,token):
   self.mono_held.pop(token,None);self.mono_held[token]=(note,velocity)
   old=self.voices.get(self.mono_lead);current=old.get('current_note',old['note']) if old else note

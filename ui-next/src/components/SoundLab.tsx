@@ -64,7 +64,7 @@ export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,b
     batch.flush();
     onShape(name);
   };
-  const result=useMemo(()=>evaluatedPartials(p,live?.sound),[p,live?.sound]);
+  const result=useMemo(()=>live?.partials??evaluatedPartials(p,live?.sound),[p,live?.sound,live?.partials]);
   const wave=useMemo(()=>waveform(result),[result]);
   const accent=TRACK_COLORS[selected];
 
@@ -74,7 +74,7 @@ export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,b
           <line x1="0" x2="476" y1="49" y2="49" stroke="#37414a" strokeDasharray="4 5" vectorEffect="non-scaling-stroke"/>
           <path d={wave} fill="none" stroke={accent} strokeWidth="2" vectorEffect="non-scaling-stroke"/></svg>
         <div className="spectral-legend" aria-hidden="true"><span><i className="legend-bar"/> saved</span>
-          <span><i className="legend-line"/> heard</span></div>
+          <span title="Partial gains before filter and effects; latest active voice, or idle preview"><i className="legend-line"/> {live?.partials?'heard':'preview'}</span></div>
         <div className="shape-chips" role="group" aria-label="Starting shape">{SHAPES.map(name=>
         <button key={name} type="button" className={shapeUsed===name?'selected':''} aria-pressed={shapeUsed===name}
           title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}

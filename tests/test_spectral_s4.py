@@ -89,6 +89,37 @@ class SpectralS4(unittest.TestCase):
   s=synth(harmonics=[1.]*16,filter=1.,pitch=12.);s.on(96,100);a=s.render(24000);freq=440*2**((108-69)/12)
   self.assertLess(power(a,48000-7*freq),power(a,freq)*.001)
 
+ def test_track_change_cancels_hidden_mono_owners_without_phantom_notes(self):
+  for mode in (1,2):
+   e=Engine();e.project.tracks[0]['instrument']['play_mode']=mode;e.configure()
+   e.midi(0x90,60,100);e.render(256);e.select(1);e.select(0);e.midi(0x80,60,0)
+   e.midi(0x90,67,100);e.midi(0x80,67,0);e.render(48000)
+   self.assertFalse(e.synths[0].voices,mode);self.assertFalse(e.synths[0].mono_held,mode)
+
+ def test_loop_and_clip_cleanup_remove_suppressed_mono_notes(self):
+  for mode in (1,2):
+   for cancel in ('release','clip'):
+    e=Engine();e.project.tracks[0]['instrument']['play_mode']=mode;e.configure()
+    e.voice_on(0,60,100,('loop',0,0));e.voice_on(0,64,100,('loop',1,0));e.render(256)
+    if cancel=='release':e.release_loops()
+    else:e.clip_action(0,'open',1)
+    e.midi(0x90,67,100);e.midi(0x80,67,0);e.render(48000)
+    self.assertFalse(e.synths[0].voices,(mode,cancel));self.assertFalse(e.synths[0].mono_held,(mode,cancel))
+
+ def test_cancelling_live_mono_sources_returns_to_a_valid_song_note(self):
+  e=Engine();e.project.tracks[0]['instrument']['play_mode']=2;e.configure()
+  e.voice_on(0,60,100,('loop',0,0));e.render(256);e.midi(0x90,67,100);e.select(1)
+  self.assertEqual([v['note'] for v in lead(e.synths[0])],[60])
+  e.voice_off(0,60,('loop',0,0));e.render(48000);self.assertFalse(e.synths[0].voices)
+
+ def test_heard_partials_follow_the_actual_latest_voice_velocity(self):
+  e=Engine();e.project.tracks[0]['instrument'].update(harmonics=[1.]*16,filter=.5,velocity_brightness=1.,modulation=0.)
+  e.configure();e.voice_on(0,57,30,('quiet',0));e.render(256)
+  quiet=e.fx_live(0).get('partials');self.assertIsNotNone(quiet)
+  self.assertAlmostEqual(quiet[7],.001188,places=6)
+  e.voice_on(0,57,110,('loud',0));e.render(256);loud=e.fx_live(0)['partials']
+  self.assertAlmostEqual(loud[7],.964658,places=6);self.assertEqual(e.project.tracks[0]['instrument']['harmonics'],[1.]*16)
+
  def test_new_optional_fields_reject_invalid_values_without_legacy_migration(self):
   fields={'play_mode':1,'glide':.3,'pitch':3.,'velocity_brightness':.2,'velocity_cutoff':.3,'vcf_keytrack':.7}
   p=Project();p.tracks[0]['instrument'].update(fields)

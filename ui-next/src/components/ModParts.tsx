@@ -3,7 +3,7 @@ import { shapeValue, targetInfo, type FxChain, type FxTarget, type ModShape } fr
 
 /** Shared modulation pieces used by the mod band, the FX page and the Sound page. */
 export type Source = {kind:'macro'|'mod',index:number};
-export type Live = {gate?:import('../fx').GateRuntime|null;params:number[],mods:number[],phases?:number[],/** Morph pad puck x, y and pad mix */puck?:number[],/** linked Sound knobs, where they are now */sound?:Record<string,number>,
+export type Live = {partials?:number[]|null;gate?:import('../fx').GateRuntime|null;params:number[],mods:number[],phases?:number[],/** Morph pad puck x, y and pad mix */puck?:number[],/** linked Sound knobs, where they are now */sound?:Record<string,number>,
   /** compressor gain reduction (dB) and resonator string notes */comp?:number,strings?:number[]};
 export const MACRO_COLORS=['#f2c46d','#f08a5d','#e06c9f','#b38cf0','#7aa7f5','#5fd3c8','#8fd36a','#d9d36a'];
 export const MOD_COLORS=['#5fd3a8','#6cb6f0','#f08ab0','#f2a65a','#c79df5','#e5d75a','#7ee0e8','#f27c7c'];
