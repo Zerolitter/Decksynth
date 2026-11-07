@@ -38,6 +38,27 @@ class SpectralS6(unittest.TestCase):
   e=Engine();e.set_automation(0,[dict(module='sound',param='pan',points=[[0.,0.],[1.,1.]])]);base=copy.deepcopy(e.project.tracks[0]['instrument']);e.playing=True;e.frame=12000;e.render_stereo(128)
   self.assertAlmostEqual(e.fx_live(0)['sound']['pan'],0.,places=3);self.assertEqual(e.project.tracks[0]['instrument'],base);self.assertEqual(e.absolute_frame,128)
   e.frame=24000;e.render_stereo(128);self.assertGreater(e.fx_live(0)['sound']['pan'],.99);e.stop();e.render_stereo(128);self.assertNotIn('pan',e.fx_live(0)['sound'])
+ def test_project_replacement_and_ab_slots_have_separate_sound_histories(self):
+  e=Engine();e.sound_gesture(0,'sound','filter','begin');e.apply_control(0,'sound','filter',.3);e.sound_gesture(0,'sound','filter','end')
+  p=Project();p.tracks[0]['instrument']['filter']=e.project.tracks[0]['instrument']['filter'];e.replace_project(p);e.sound_undo(0);self.assertEqual(e.project.tracks[0]['instrument']['filter'],p.tracks[0]['instrument']['filter']);self.assertEqual(e.sound_undo_counts()[0],0)
+  e.ab_action(0,'B');e.sound_gesture(0,'sound','filter','begin');e.apply_control(0,'sound','filter',.6);e.sound_gesture(0,'sound','filter','end');e.ab_action(0,'A');e.apply_control(0,'sound','filter',.6);before=e.project.tracks[0]['instrument']['filter'];e.sound_undo(0);self.assertEqual(e.project.tracks[0]['instrument']['filter'],before)
+  e.ab_action(0,'B');self.assertEqual(e.sound_undo_counts()[0],1)
+ def test_recording_keeps_untouched_automation_lanes_playing(self):
+  e=Engine();e.select(1);e.set_automation(1,[dict(module='sound',param='pan',points=[[0.,1.]])]);e.select(0);e.record(0);e.automation_arm=True;e.apply_control(0,'sound','filter',.3);e.render_stereo(128)
+  self.assertEqual(e.fx_live(1)['sound']['pan'],1.);self.assertNotIn('filter',e.fx_live(0)['sound'])
+ def test_automated_legacy_gate_phase_reaches_native_pcm(self):
+  from decksynth.fx import default_chain
+  outputs=[]
+  for phase in (0.,.75):
+   e=Engine();c=default_chain();m=next(m for m in c['modules'] if m['id']=='gate');m['on']=True;m['params'].update(steps=1,smooth=0.,depth=1.)
+   e.set_fx(0,c);e.set_automation(0,[dict(module='gate',param='phase',points=[[0.,phase]])]);e.voice_on(0,60,100,('t',0));e.playing=True;outputs.append(e.render(4096));self.assertTrue(e.fx[0]._gate_extended)
+  self.assertGreater(sum(abs(a-b) for a,b in zip(*outputs)),1.)
+ def test_filter_gesture_cancel_preserves_independently_changed_stage(self):
+  e=Engine();e.sound_gesture(0,'sound','fenv_a','begin');e.apply_control(0,'sound','fenv_a',.5);e.apply_control(0,'sound','fenv_r',.8);release=e.project.tracks[0]['instrument']['fenv_r'];e.sound_gesture(0,'sound','fenv_a','cancel')
+  self.assertEqual(e.project.tracks[0]['instrument']['fenv_r'],release);self.assertEqual(e.project.tracks[0]['instrument'].get('fenv_a',e.project.tracks[0]['instrument']['attack']),e.project.tracks[0]['instrument']['attack'])
+ def test_negative_lane_beats_are_rejected(self):
+  e=Engine()
+  with self.assertRaises(ValueError):e.set_automation(0,[dict(module='sound',param='pan',points=[[-.5,.5]])])
  def test_automation_recall_disarms_and_rejects_unknown_unsorted_nonfinite(self):
   e=Engine();e.set_automation(0,[dict(module='sound',param='filter',points=[[0.,.2],[1.,.8]])])
   with tempfile.TemporaryDirectory() as d:

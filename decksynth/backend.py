@@ -241,8 +241,8 @@ def worker(commands,updates):
                     elif cmd=='metronome':engine.project.metronome=args
                     elif cmd=='save':engine.finish_record(); engine.project.save(args); send(dict(message='Saved '+args))
                     elif cmd=='load':
-                        p=Project.load(args); engine.stop(); engine.project=p; engine.configure()
-                        engine.history=[];engine.mutation_sessions.clear();send(dict(message='Opened '+args))
+                        p=Project.load(args);engine.replace_project(p)
+                        send(dict(message='Opened '+args))
                     elif cmd=='export_wav':
                         from .render_export import export_project_wav
                         job=exporter.submit(export_project_wav,copy.deepcopy(engine.project),engine.rate,args)

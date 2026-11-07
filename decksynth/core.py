@@ -615,7 +615,7 @@ class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
             for src in chain['macros']+chain['mods']:src['targets']=[]
             return chain
         if action=='all':
-            self.stop(); self.project=Project(); self.mutation_sessions.clear(); self.configure(); return
+            self.stop(); self.project=Project();self.init_workflow(); self.mutation_sessions.clear(); self.configure(); return
         if action=='links':
             for i,t in enumerate(self.project.tracks):
                 if 'fx' in t:t['fx']=validate_fx(unlinked(copy.deepcopy(t['fx']))); self.fx[i].configure(t['fx'])
@@ -695,6 +695,7 @@ class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
         self.mutation_sessions=copy.deepcopy(d.get('_mutation_sessions',{}))
         self.configure()
     def record(self,track):
+        self.automation_touched.clear()
         if self.recording:self.finish_record()
         self.snapshot(); self.select(track)
         if not self.playing: self.frame=0

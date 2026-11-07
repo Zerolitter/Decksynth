@@ -453,7 +453,9 @@ class TrackFx:
         if gate:
             for k,(lo,hi,init) in GATE_PERFORMANCE.items():
                 self.gate_values[k]=min(hi,max(lo,automation.get(('gate',k),gate['params'].get(k,init))+offsets.get(('gate',k),0.)*(hi-lo)))
-            if any(('gate',k) in offsets for k in ('phase','notelen')):self._gate_extended=True
+            if any(('gate',k) in offsets or ('gate',k) in automation for k in ('phase','notelen')):
+                self._gate_extended=True
+                if self.handle and not hasattr(self.lib,'dsfx_gate_controls'):raise ValueError('Gate automation requires the cached native kernel')
         if not offsets and not automation and not getattr(self, '_dirty', False): return
         self._dirty = bool(offsets or automation)
         for m in c['modules']:

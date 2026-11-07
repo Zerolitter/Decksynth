@@ -18,7 +18,7 @@ def validate_automation(raw):
   for p in points:
    if not isinstance(p,list) or len(p)!=2 or any(type(v) not in (int,float) or not math.isfinite(v) for v in p):raise ValueError('Invalid automation point')
    beat,value=p
-   if not last<beat<=4096 or not 0<=value<=1:raise ValueError('Automation points must be sorted and normalized')
+   if not 0<=beat<=4096 or not last<beat or not 0<=value<=1:raise ValueError('Automation points must be sorted and normalized')
    clean.append([float(beat),float(value)]);last=beat
   out.append(dict(module=module,param=param,points=clean))
  return out
@@ -51,7 +51,10 @@ def _put(root,path,entry):
 
 class WorkflowEngine:
  def init_workflow(self):
-  self.sound_history=[[] for _ in range(4)];self._sound_gesture=None;self.automation_arm=False;self.automation_values=[{} for _ in range(4)]
+  self.sound_history=[{'A':[],'B':[]} for _ in range(4)];self._sound_gesture=None;self.automation_arm=False;self.automation_values=[{} for _ in range(4)];self.automation_touched=set();self.control_revisions={}
+ def patch_history(self,track):return self.sound_history[track][self.project.tracks[track].get('sound_ab',{}).get('active','A')]
+ def replace_project(self,project):
+  self.stop();self.project=project;self.init_workflow();self.configure();self.history=[];self.mutation_sessions.clear()
  def owned(self,track):
   if type(track) is not int or track!=self.selected:raise ValueError('Track changed; sound edit cancelled')
  def ab_action(self,track,action):
@@ -59,7 +62,8 @@ class WorkflowEngine:
   if action not in ('A','B','copy'):raise ValueError('Unknown comparison action')
   ab=t.setdefault('sound_ab',dict(active='A',A=sound_patch(t),B=sound_patch(t)))
   active=ab['active'];ab[active]=sound_patch(t)
-  if action=='copy':ab['B' if active=='A' else 'A']=sound_patch(t);return
+  if action=='copy':
+   other='B' if active=='A' else 'A';ab[other]=sound_patch(t);self.sound_history[track][other]=[];return
   if action==active:return
   patch=ab[action]
   for k in ('instrument','preset','fx'):
@@ -77,15 +81,21 @@ class WorkflowEngine:
    if module=='macro':paths=[('fx','macros',int(param),'value')]
    else:paths=[('fx','modules',next(i for i,m in enumerate(source['fx']['modules']) if m['id']==module),'params',param)]
    return dict(module=module,paths=paths,values=[_get(source,p) for p in paths],absent=absent)
-  return dict(module=module,paths=paths,values=[_get(t,p) for p in paths],absent=False)
+  return dict(module=module,param=param,revisions={k:self.control_revisions.get((track,module,k),0) for k in fields},paths=paths,values=[_get(t,p) for p in paths],absent=False)
  def restore_scope(self,track,scope):
   t=self.project.tracks[track]
   if scope['paths'][0][0]=='fx':t.setdefault('fx',default_chain())
   for path,value in zip(scope['paths'],scope['values']):
+   if scope.get('param','').startswith('fenv_') and path[-1]!=scope['param']:
+    if value['present'] or self.control_revisions.get((track,'sound',path[-1]),0)!=scope['revisions'][path[-1]]:continue
    if path[:2]==('fx','modules'):path=('fx','modules',next(i for i,m in enumerate(t['fx']['modules']) if m['id']==scope['module']),*path[3:])
    _put(t,path,value)
   if scope['absent'] and t.get('fx')==default_chain():t.pop('fx',None)
   self.synths[track].configure(t['instrument']);self.fx[track].configure(t.get('fx'))
+ @staticmethod
+ def scope_value(scope):
+  if scope.get('param','').startswith('fenv_'):return scope['values'][next(i for i,p in enumerate(scope['paths']) if p[-1]==scope['param'])]
+  return scope['values']
  def sound_gesture(self,track,module,param,action):
   if action=='cancel' and self._sound_gesture is None:return
   self.owned(track)
@@ -97,8 +107,8 @@ class WorkflowEngine:
   if action=='cancel':self.cancel_sound_gesture();return
   if action!='end':raise ValueError('Invalid gesture action')
   after=self.control_scope(track,module,param);self._sound_gesture=None
-  if after['values']!=g['before']['values']:
-   self.sound_history[track].append(dict(module=module,param=param,before=g['before'],after=after));self.sound_history[track]=self.sound_history[track][-40:]
+  if self.scope_value(after)!=self.scope_value(g['before']):
+   history=self.patch_history(track);history.append(dict(module=module,param=param,before=g['before'],after=after));del history[:-40]
  def cancel_sound_gesture(self):
   g=self._sound_gesture
   if g is None:return
@@ -109,18 +119,21 @@ class WorkflowEngine:
   if others or previous:t['automation']=others+previous
   elif g['automation'] is None:t.pop('automation',None)
   else:t['automation']=[]
- def sound_undo_counts(self):return [len(h) for h in self.sound_history]
+ def sound_undo_counts(self):return [len(self.patch_history(tr)) for tr in range(4)]
  def sound_undo(self,track):
   self.owned(track);self.cancel_sound_gesture()
-  if not self.sound_history[track]:return
-  entry=self.sound_history[track][-1];now=self.control_scope(track,entry['module'],entry['param'])
-  if now['values']!=entry['after']['values']:raise ValueError('Sound changed since this edit; undo cancelled')
-  self.restore_scope(track,entry['before']);self.sound_history[track].pop()
+  history=self.patch_history(track)
+  if not history:return
+  entry=history[-1];now=self.control_scope(track,entry['module'],entry['param'])
+  if self.scope_value(now)!=self.scope_value(entry['after']):raise ValueError('Sound changed since this edit; undo cancelled')
+  self.restore_scope(track,entry['before']);history.pop()
  def set_automation(self,track,lanes):
   self.owned(track);clean=validate_automation(lanes);self.project.tracks[track]['automation']=clean
  def record_control(self,track,module,param,value):
+  self.control_revisions[(track,module,param)]=self.control_revisions.get((track,module,param),0)+1
   spec=registry().get(module+'.'+param)
   if spec is None or not self.recording or not self.automation_arm:return
+  self.automation_touched.add((track,module,param))
   unit=min(1.,max(0.,(value-spec['min'])/(spec['max']-spec['min'])));t=self.project.tracks[track];lanes=copy.deepcopy(t.get('automation',[]))
   lane=next((l for l in lanes if (l['module'],l['param'])==(module,param)),None)
   if lane is None:
@@ -146,7 +159,7 @@ class WorkflowEngine:
   for tr,t in enumerate(self.project.tracks):
    for lane in t.get('automation',[]):
     # During a write, the user's active control wins over previously recorded playback.
-    if self.recording and self.automation_arm:continue
+    if self.recording and self.automation_arm and (tr,lane['module'],lane['param']) in self.automation_touched:continue
     points=lane['points'];index=bisect_right(points,[beat,2.]);left=points[max(0,index-1)];right=points[min(index,len(points)-1)]
     if beat<=points[0][0]:unit=points[0][1]
     elif beat>=points[-1][0]:unit=points[-1][1]
