@@ -70,7 +70,7 @@ export function copyDragNotes(events:Note[],ids:number[],time:number,pitch:numbe
  if(!time&&!pitch)return null;return inserted(events,ids.filter(i=>events[i]).map(i=>({...events[i],start:Math.round((events[i].start+time)*1e6)/1e6,note:events[i].note+pitch})),b);
 }
 export function pasteNotes(events:Note[],payload:NoteClipboard,cursor:number,b:NoteBounds&{integer?:boolean},unitBeat:number){
- const ratio=payload.unitBeat/unitBeat;return inserted(events,payload.notes.map(n=>({...n,start:Math.round((cursor+n.start*ratio)*1e6)/1e6,duration:Math.round(n.duration*ratio*1e6)/1e6})),b);
+ const ratio=payload.unitBeat/unitBeat,normalize=(v:number)=>b.integer&&Math.abs(v-Math.round(v))<1e-8?Math.round(v):v;return inserted(events,payload.notes.map(n=>({...n,start:normalize(cursor+n.start*ratio),duration:normalize(n.duration*ratio)})),b);
 }
 export function harmonyNotes(events:Note[],ids:number[],mode:'invert'|'spread'|'major'|'minor',b:NoteBounds){
  const sorted=ids.filter(i=>events[i]).sort((a,z)=>events[a].note-events[z].note);if(sorted.length<2||sorted.some(i=>events[i].start!==events[sorted[0]].start))return null;

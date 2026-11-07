@@ -11,15 +11,16 @@ export function useNoteEditing(props:Props){
  const latest=useRef(props);latest.current=props;const id=useId(),counter=useRef(0),gesture=useRef<Gesture|null>(null),pending=useRef<Pending[]>([]),audition=useRef<{track:number;id:string;note:number;pointer?:number}|null>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const [cursor,setCursor]=useState(0),[status,setStatus]=useState(''),[copyGhosts,setCopyGhosts]=useState<number[]>([]);
  const [tool,setTool]=useState<NoteTool>('draw'),[selection,setSelection]=useState<number[]>([]),[draft,setDraft]=useState<Note[]|null>(null);
- const identity=JSON.stringify(props.target),source=JSON.stringify(props.expected);
+ const identity=JSON.stringify(props.target),source=JSON.stringify(props.expected),observedSource=useRef(source);
  const stop=()=>{if(timer.current)clearTimeout(timer.current);timer.current=null;const a=audition.current;if(a)latest.current.audition(a.track,a.id,a.note,0);audition.current=null;};
  const play=(note:number,velocity=100,pointer?:number)=>{stop();const a={track:latest.current.target.track,id:'edit-'+id+'-'+(++counter.current),note,pointer};audition.current=a;latest.current.audition(a.track,a.id,note,velocity);};
  const cancel=()=>{gesture.current=null;setCopyGhosts([]);stop();setDraft(pending.current.at(-1)?.events??null);};
  useEffect(()=>{cancel();pending.current=[];setDraft(null);setSelection([]);setCursor(0);return stop;},[identity,props.playing,props.recording]); // source changes are reconciled below
- useEffect(()=>{const q=pending.current,i=q.findIndex(x=>x.after===source);
+ useEffect(()=>{const changed=observedSource.current!==source;observedSource.current=source;const q=pending.current,i=q.findIndex(x=>x.after===source);
   if(i>=0){q.splice(0,i+1);if(!gesture.current)setDraft(q.at(-1)?.events??null);}
   else if(q.length&&q[0].before!==source){pending.current=[];cancel();setDraft(null);setSelection([]);}
   else if(gesture.current&&JSON.stringify(gesture.current.expected)!==source&&!q.some(x=>x.after===JSON.stringify(gesture.current?.expected))){cancel();setSelection([]);}
+  else if(changed&&!q.length)setSelection([]);
  },[source]);
  useEffect(()=>{const rejected=()=>{pending.current=[];gesture.current=null;stop();setDraft(null);setSelection([]);};window.addEventListener('decksynth-command-rejected',rejected);return()=>window.removeEventListener('decksynth-command-rejected',rejected);},[]);
  useEffect(()=>{const blur=()=>cancel(),up=(e:PointerEvent)=>{if(audition.current?.pointer===e.pointerId&&(e.type==='pointercancel'||e.pointerType!=='mouse'||e.button===0))stop();};window.addEventListener('blur',blur);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);stop();};},[]);
