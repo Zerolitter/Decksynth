@@ -21,6 +21,7 @@ import { Panel } from './components/Panel';
 import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
+import { harmonicShape, nextSeed, type Shape } from './spectral-seeds';
 import { interpolateBeat, totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
 import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type StepNote } from './types';
@@ -178,6 +179,11 @@ function App() {
         next.state.tracks[index].notes[noteIndex]=note;next.playing=false;
       }
       else if(cmd==='fx'){const [index,chain]=args as [number,FxChain];next.state.tracks[index].fx=chain;}
+      else if(cmd==='spectral_seed'){
+        const [index,name]=args as [number,Shape];if(index!==next.selected)return next;
+        const ins=next.state.tracks[index].instrument,seed=name==='RANDOM'?nextSeed(ins.random_seed??0):ins.random_seed??0;
+        ins.harmonics=harmonicShape(name,seed);ins.spectral_energy=1;if(name==='RANDOM')ins.random_seed=seed;
+      }
       else if(cmd==='fx_reorder'){
         const [index,ids]=args as [number,string[]],chain=normalizeChain(next.state.tracks[index].fx);
         next.state.tracks[index].fx={...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};
@@ -322,7 +328,7 @@ function App() {
     const directory=await api.chooseFile('open','sample_folder');
     if(directory)command('drum_library_root',directory);
   };
-  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value]);
+  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'?[key,index,value,selected]:[key,index,value]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
   useEffect(()=>{
@@ -475,6 +481,7 @@ function App() {
           onLink={setArmed}/>
         {page==='SOUND'?<>
           <SoundWindow track={track} selected={selected} onParam={(name,index,val)=>onParam(name,index,val)}
+            onShape={name=>command('spectral_seed',[selected,name])}
             chain={track.fx} onChain={chain=>command('fx',[selected,chain])}
             live={snapshot?.meter?.fx_live} bpm={project.bpm}/>
           <SoundCards key={selected} track={track} selected={selected} onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} autoFold={!settings.noAutoFold}

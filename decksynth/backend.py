@@ -167,9 +167,14 @@ def worker(commands,updates):
                     elif cmd=='preset':
                         engine.apply_preset(str(args))
                     elif cmd=='parameter':
-                        key,index,value=args; t=engine.project.tracks[engine.selected]
+                        key,index,value=args[:3]
+                        if len(args)>3 and (type(args[3]) is not int or args[3]!=engine.selected):
+                            raise ValueError('Track changed; parameter edit cancelled')
+                        t=engine.project.tracks[engine.selected]
                         if key=='harmonics':t['instrument'][key][index]=max(0.,min(1.,float(value)))
                         elif key in SPECTRAL_RANGES:
+                            if key=='character' and (type(value) not in (int,float) or not math.isfinite(value)):
+                                raise ValueError('Character must be a finite number')
                             lo,hi=SPECTRAL_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
                         elif key in ('attack','decay','sustain','release','filter','modulation'):t['instrument'][key]=value
                         elif key in VOICE_RANGES:
@@ -192,6 +197,10 @@ def worker(commands,updates):
                     elif cmd=='fx_reorder':
                         tr,order=args
                         try:engine.reorder_fx(tr,order)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='spectral_seed':
+                        tr,name=args
+                        try:engine.seed_spectral(tr,name)
                         except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()

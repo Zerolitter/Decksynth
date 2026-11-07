@@ -5,6 +5,7 @@ export type Instrument = {
   filter: number; modulation: number;
   /** Optional spectral macros; missing = neutral (curve 0, balance .5, focus 0, centre 4). */
   curve?: number; balance?: number; focus?: number; focus_center?: number;
+  character?:number; spectral_energy?:number; random_seed?:number;
   /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
   vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
   uni_voices?: number; uni_detune?: number;

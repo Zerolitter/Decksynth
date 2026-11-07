@@ -181,6 +181,7 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
   vcf_env:{label:'Env amount',card:'sound-filter',min:-1,max:1},uni_detune:{label:'Detune',card:'sound-unison',min:0,max:1},
   formant:{label:'Formant',card:'sound-character',min:0,max:1},vowel:{label:'Vowel',card:'sound-character',min:0,max:4},
   inharm:{label:'Stretch',card:'sound-character',min:0,max:1},sub:{label:'Sub',card:'sound-character',min:0,max:1},
+  character:{label:'Character',card:'sound-character',min:-1,max:1},
 };
 export const SOUND_COLOR='#7fd6bb';
 /** Name, knob label and colour of a link target, for lists and badges. */

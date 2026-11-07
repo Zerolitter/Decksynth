@@ -277,3 +277,6 @@
 .harness-shell .frame-rack .ds-panel-bar{background:transparent}
 .harness-shell .frame-rack .rack-card button,.harness-shell .frame-rack .rack-card .fx-segment button{min-width:44px;min-height:44px}
 .harness-shell .frame-rack .rack-card .fx-stepper button{width:44px;height:44px}
+
+/* Shape seeds are one committed action with a finger-sized target. */
+.harness-shell .shape-chips button{min-height:44px;min-width:44px}

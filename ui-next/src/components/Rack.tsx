@@ -157,8 +157,11 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
     </Panel>},
     {id:'sound-character',node:<Panel rail reorder={reorder('sound-character')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-character')} id="sound-character" className="rack-card sound-card card-character" icon={<Mic2 size={15}/>} title="Character" accent={accent} tag={TAGS.character} mods={linksInto('sound-character')}
       summary={'Vowel '+fmtVowel(vp('vowel'))+' '+pct(vp('formant'))+' · Stretch '+pct(vp('inharm'))+' · Sub '+pct(vp('sub'))}
-      actions={reset('character',()=>resetVoice(['formant','vowel','inharm','sub','sub_oct']))}>
+      actions={reset('character',()=>{set('character',0);resetVoice(['formant','vowel','inharm','sub','sub_oct']);})}>
       <div className="rack-knobs">
+        {cell('character',m=><Knob id={selected+'-character'} name="Character" value={p.character??0} min={-1} max={1} step={.005}
+          format={v=>(v>0?'+':'')+Math.round(v*100)+'%'} description="Odd/even balance: +100% odd only, −100% even only."
+          compact accent={TAGS.character} onChange={v=>set('character',v)} {...m}/>)}
         <Choice label="Vowel" name="Vowel" value={Math.round(vp('vowel'))} onPick={v=>{set('vowel',v);if(!vp('formant'))set('formant',.7);}}
           options={VOWELS.map((l,i)=>({label:l,value:i,aria:'Vowel '+l}))}/>
         {cell('formant',m=><Knob id={selected+'-formant'} name="Formant" value={vp('formant')} min={0} max={1} step={.005} suffix="%"

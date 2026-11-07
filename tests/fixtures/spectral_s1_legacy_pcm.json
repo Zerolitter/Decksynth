@@ -1,0 +1,42 @@
+{
+  "rate": 48000,
+  "instrument": "Warm Keys",
+  "native_float64_fixtures": [
+    {
+      "note": 36,
+      "velocity": 40,
+      "float64_sha256": "bca5cc683bcd71cc4bfd542353063759e01a22e6e35d6801a213e65e118685db",
+      "frames": 57600
+    },
+    {
+      "note": 36,
+      "velocity": 100,
+      "float64_sha256": "4cebc993ab31bf126829ece6786e249cc512d04ecd4cdcd9465e1316f984a643",
+      "frames": 57600
+    },
+    {
+      "note": 60,
+      "velocity": 40,
+      "float64_sha256": "624dfba3eca62fb83deeb1a8d2f4f7761f6d68e1934969f348d4a63a9dcf03ed",
+      "frames": 57600
+    },
+    {
+      "note": 60,
+      "velocity": 100,
+      "float64_sha256": "bb23785d4c9a614827bcaf9ad6e4910826b2796074ddf3413dd00fbc0faef34d",
+      "frames": 57600
+    },
+    {
+      "note": 84,
+      "velocity": 40,
+      "float64_sha256": "09e0a821d1b2444f51df6165ee868aad088dbfd550a8dc82ba1a16e934a37de0",
+      "frames": 57600
+    },
+    {
+      "note": 84,
+      "velocity": 100,
+      "float64_sha256": "bb173d80e906a2e4c821486281e3091a8e8aa931d4e779bd7d62f760d56f33d2",
+      "frames": 57600
+    }
+  ]
+}

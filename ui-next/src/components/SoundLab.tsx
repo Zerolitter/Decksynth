@@ -8,32 +8,17 @@ import { MorphPad } from './MorphPad';
 import type { Live } from './ModParts';
 import type { FxChain } from '../fx';
 import { normalizeChain } from '../fx';
+import { SHAPES, harmonicShape, type Shape } from '../spectral-seeds';
 
 type Props = {
   track:Track; selected:number;
   onParam:(key:'harmonics'|'filter'|'modulation'|'curve'|'balance'|'focus'|'focus_center'|'attack'|'decay'|'sustain'|'release',index:number|null,value:number)=>void;
   chain?:FxChain; onChain:(c:FxChain)=>void;
+  onShape:(shape:Shape)=>void;
   live?:Live; bpm?:number;
 };
 
-type Shape = 'SAW'|'SQUARE'|'TRIANGLE'|'PULSE'|'GAUSSIAN'|'SPREAD';
-const SHAPES:Shape[]=['SAW','SQUARE','TRIANGLE','PULSE','GAUSSIAN','SPREAD'];
-function shape(name:Shape):number[] {
-  const out:number[]=[];
-  for(let i=0;i<16;i++){
-    const n=i+1;
-    let v=0;
-    if(name==='SAW')v=1/n;
-    else if(name==='SQUARE')v=n%2?1/n:0;
-    else if(name==='TRIANGLE')v=n%2?1/(n*n):0;
-    else if(name==='PULSE')v=.7*(1/n)*(1+Math.cos((n-1)*Math.PI/3));
-    else if(name==='GAUSSIAN')v=Math.exp(-Math.pow((i-5)/3,2));
-    else v=i%3===0?.85:i%3===1?.28:.09;
-    out.push(clamp(Number(v.toFixed(5)),0,1));
-  }
-  return out;
-}
-export function createHarmonicShape(name:Shape) { return shape(name); }
+export function createHarmonicShape(name:Shape,seed=0) { return harmonicShape(name,seed); }
 
 function waveform(harmonics:number[]) {
   const points:number[]=[];
@@ -46,16 +31,17 @@ function waveform(harmonics:number[]) {
   return points.map((y,i)=>(i===0?'M':'L')+' '+(i*2.9+6).toFixed(2)+' '+(49-y*38).toFixed(2)).join(' ');
 }
 
-export function SoundWindow({track,selected,onParam,chain,onChain,live,bpm}:Props) {
+export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,bpm}:Props) {
   const p=track.instrument;
   const [activePartial,setActivePartial]=useState(0);
-  const [shapeUsed,setShapeUsed]=useState<string>('CUSTOM');
+  const shapeUsed=useMemo(()=>SHAPES.find(name=>
+    (name!=='RANDOM'||p.random_seed!==undefined)&&harmonicShape(name,p.random_seed??0).every((v,i)=>Math.abs(v-p.harmonics[i])<1e-7))??'CUSTOM',[p.harmonics,p.random_seed]);
   const [dragging,setDragging]=useState(false);
   const spectrum=useRef<HTMLDivElement>(null);
   const args=useRef(onParam);args.current=onParam;
   const batch=useMemo(()=>createFrameBatch<{index:number;value:number}>(item=>
     args.current('harmonics',item.index,item.value)),[]);
-  useEffect(()=>{setActivePartial(0);setShapeUsed('CUSTOM');setDragging(false);},[selected]);
+  useEffect(()=>{setActivePartial(0);setDragging(false);},[selected]);
   useEffect(()=>()=>batch.discard(),[batch]);
 
   function editPartial(e:React.PointerEvent){
@@ -64,7 +50,7 @@ export function SoundWindow({track,selected,onParam,chain,onChain,live,bpm}:Prop
     const line=spectrum.current.querySelector('.bar-line')?.getBoundingClientRect()??b;
     const idx=clamp(Math.floor((e.clientX-b.left)/b.width*16),0,15);
     const value=clamp((line.bottom-e.clientY)/Math.max(1,line.height),0,1);
-    setActivePartial(idx);setShapeUsed('CUSTOM');
+    setActivePartial(idx);
     batch.push({index:idx,value:Number(value.toFixed(4))});
   }
   const begin=(e:React.PointerEvent)=>{
@@ -76,10 +62,9 @@ export function SoundWindow({track,selected,onParam,chain,onChain,live,bpm}:Prop
   const end=()=>{setDragging(false);batch.flush();};
   const applyShape=(name:Shape)=>{
     batch.flush();
-    shape(name).forEach((value,index)=>onParam('harmonics',index,value));
-    setShapeUsed(name);
+    onShape(name);
   };
-  const result=useMemo(()=>evaluatedPartials(p),[p]);
+  const result=useMemo(()=>evaluatedPartials(p,live?.sound),[p,live?.sound]);
   const wave=useMemo(()=>waveform(result),[result]);
   const accent=TRACK_COLORS[selected];
 
@@ -92,6 +77,7 @@ export function SoundWindow({track,selected,onParam,chain,onChain,live,bpm}:Prop
           <span><i className="legend-line"/> heard</span></div>
         <div className="shape-chips" role="group" aria-label="Starting shape">{SHAPES.map(name=>
         <button key={name} type="button" className={shapeUsed===name?'selected':''} aria-pressed={shapeUsed===name}
+          title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
           onClick={()=>applyShape(name)}>{name}</button>)}</div></>,
       render:()=><div ref={spectrum} className="harmonic-spectrum" role="group" style={{['--panel-accent' as string]:accent}}
         aria-label="Touch or drag to adjust the 16 harmonic partial levels"

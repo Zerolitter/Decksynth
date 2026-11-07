@@ -11,6 +11,8 @@ from . import song as songs
 from .devices import device_kind
 from .drum_rack import validate_kit
 from .drum_engine import DrumEngine
+from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
+from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
 from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
@@ -28,9 +30,9 @@ PRESETS = {
 
 # Non-destructive spectral macros (research guide slice S1). The saved 16 partials stay as
 # edited; these reshape the evaluated spectrum. At the neutral values every gain is exactly 1.
-SPECTRAL_KEYS=('curve','balance','focus','focus_center')
-SPECTRAL_DEFAULTS=dict(curve=0.,balance=.5,focus=0.,focus_center=4.)
-SPECTRAL_RANGES=dict(curve=(-1,1),balance=(0,1),focus=(0,1),focus_center=(1,16))
+SPECTRAL_KEYS=('curve','balance','focus','focus_center','character')
+SPECTRAL_DEFAULTS=dict(curve=0.,balance=.5,focus=0.,focus_center=4.,character=0.)
+SPECTRAL_RANGES=dict(curve=(-1,1),balance=(0,1),focus=(0,1),focus_center=(1,16),character=(-1,1))
 
 # Filter, Unison and Character cards (patch 24). Missing keys mean the neutral sound, so old projects play as before.
 VOICE_DEFAULTS=dict(vcf_type=0,vcf_cutoff=.65,vcf_reso=.2,vcf_env=.3,uni_voices=1,uni_detune=.3,
@@ -63,6 +65,8 @@ def spectral_gain(p,k):
     g=k**(c*1.5) if c else 1.
     if b!=.5:g*=max(0.,1+(b-.5)*2*(2*(k-1)/15-1))
     if f:g*=(1-f)+f*math.exp(-((k-m)/2.2)**2)
+    character=p.get('character',0.)
+    if character:g*=1-abs(character) if (character>0 and k%2==0) or (character<0 and k%2==1) else 1.
     return g
 
 def instrument(name):
@@ -109,6 +113,7 @@ class Project:
                 if 'drum_rack' in t:t['drum_rack']=validate_kit(t['drum_rack'])
                 if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
                 ins=t['instrument']; assert len(ins['harmonics'])==16
+                validate_metadata(ins)
                 assert all(isinstance(x,(int,float)) and math.isfinite(x) and 0<=x<=1 for x in ins['harmonics'])
                 for k,lo,hi in [('attack',.001,3),('decay',.001,3),('sustain',0,1),('release',.01,3),('filter',.02,1),('modulation',0,1)]:
                     assert math.isfinite(ins[k]) and lo<=ins[k]<=hi
@@ -184,11 +189,12 @@ class MidiParser:
         return events
 
 # Knobs that shape the wavetable. When a pad moves one, the table is rebuilt in 1/48 steps of its range.
-TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel')
+TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy')
 TABLE_STEPS=48
 
 class Synth:
     def __init__(self,rate=48000):
+        prepare_spectral_kernel()
         self.rate=rate; self.params=instrument('Warm Keys'); self.voices={}; self.sustain=False; self.bend=1.; self.mod_wheel=0.; self.tables={}; self.wave_cache={}; self.clock=0
         self.live=None; self.shape=None; self.shape_key=None; self.shape_clock=-10**9
         self.weights={}; self.weight_cache={}; self.st=(ctypes.c_double*80)(); self.vargs=DsVoice()
@@ -234,11 +240,19 @@ class Synth:
             if key not in self.wave_cache:
                 weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+p['filter']*15))**4) for k in range(count)]
                 if vowel is not None:weights=[w*g for w,g in zip(weights,vowel)]
-                norm=max(1,sum(weights)); size=2048
-                self.weight_cache[key]=(ctypes.c_double*16)(*[w/norm for w in weights])
+                normalized=p.get('spectral_energy',0)==1
+                norm=energy_norm(weights) if normalized else max(1,sum(weights)); size=2048
                 table=build_table(weights,norm,size)
                 if table is None:
                     table=[sum(w*math.sin(2*math.pi*(k+1)*i/size) for k,w in enumerate(weights))/norm for i in range(size)]
+                if normalized:
+                    peak=bound_table(table)
+                    if peak is None:
+                        peak=max(1.,max(abs(x) for x in table))
+                        if peak>1:
+                            for i in range(size):table[i]/=peak
+                    norm*=peak
+                self.weight_cache[key]=(ctypes.c_double*16)(*[w/norm for w in weights])
                 if len(self.wave_cache)>=160:
                     old=next(iter(self.wave_cache)); self.wave_cache.pop(old); self.weight_cache.pop(old,None)
                 self.wave_cache[key]=table
@@ -463,6 +477,19 @@ class Engine(DrumEngine):
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
         clean=validate_fx(chain); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
+    def seed_spectral(self,track,name):
+        """One owned/validated shape gesture; base partials and seed metadata commit together."""
+        from .devices import track_index
+        track_index(track)
+        if track!=self.selected:raise ValueError('Track changed; choose the shape again')
+        t=self.project.tracks[track]
+        if device_kind(t)!='synth':raise ValueError('Choose a synth track for spectral shapes')
+        previous=t['instrument'].get('random_seed',0)
+        seed=next_seed(previous) if name=='RANDOM' else previous
+        harmonics=seed_shape(name,seed)
+        params={**t['instrument'],'harmonics':harmonics,'spectral_energy':1}
+        if name=='RANDOM':params['random_seed']=seed
+        self.snapshot();t['instrument']=params;self.synths[track].configure(params)
     def reorder_fx(self,track,order):
         """Commit one validated drag/keyboard reorder with one existing project Undo entry."""
         if type(track) is not int or not 0<=track<len(self.project.tracks):

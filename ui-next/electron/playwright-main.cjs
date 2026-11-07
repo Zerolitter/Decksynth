@@ -16,7 +16,7 @@ let lastMessage = { bridge: 'starting' };
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder','set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
  'midi','select','play','stop','panic','record','undo','quantize',
- 'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars','fx','fx_reorder','cleanup',
+ 'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
  'metronome','save','load','export','save_preset','load_preset']);
 
 function publish(message) {
