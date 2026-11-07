@@ -36,7 +36,7 @@ let app;
   assert.ok(result.spec>=256,'spectrum samples: '+result.spec);
   console.log('PASS: UI enabled Reverb on track 1; native FX processed live audio (level',result.lv+')');
   await page.evaluate(()=>window.deckApi.send('midi',[0x80,60,0]));
-  await page.getByRole('tab',{name:/Morph pad/i}).click();
+  assert.ok(await page.locator('.morph-pad').isVisible(),'Morph pad is always visible above the FX cards');
   await page.locator('.morph-pad').click({position:{x:40,y:12}});
   await page.waitForTimeout(400);
   const macro=await page.evaluate(()=>new Promise(r=>{const rm=window.deckApi.onMessage(m=>{if(m.state){rm();r(m.state.tracks[0].fx.macros[1].value);}});}));
@@ -60,7 +60,7 @@ let app;
   await page.getByRole('radio',{name:'Hand'}).click();
   console.log('PASS: Morph pad path symbols move the puck in the engine; Freeze holds it',Math.min(...ride.xs).toFixed(2),Math.max(...ride.xs).toFixed(2));
   // Rack: arm mod pad 1, tap Filter cutoff, and confirm the engine sweeps the live cutoff value.
-  await page.getByRole('tab',{name:/^Effects$/}).click();
+  assert.equal(await page.locator('.frame-fx [role=tablist]').count(),0,'no Effects/Morph switching');
   await page.getByRole('button',{name:'Add effect'}).click();
   await page.getByRole('button',{name:'Add Filter'}).click();
   await page.locator('[data-param="0-fx-filter-cutoff"]').waitFor({timeout:5000});
@@ -95,7 +95,7 @@ let app;
   await page.waitForTimeout(250);
   assert.equal((await engineFx()).modules.find(m=>m.id==='filter').bypass,undefined,'Filter should run again');
   // Folding an effect keeps a slim title bar with its power button and a badge for its links.
-  await page.getByRole('button',{name:'Fold Filter',exact:true}).click();
+  await page.getByRole('button',{name:'Fold Filter',exact:true}).dblclick();
   assert.ok(await page.locator('[data-panel="fx-filter"].folded .ds-panel-mods').isVisible(),'folded Filter shows its mod badge');
   await page.getByRole('button',{name:'Turn off Filter'}).waitFor({timeout:3000});
   await page.getByRole('button',{name:'Unfold Filter',exact:true}).click();
@@ -113,7 +113,7 @@ let app;
   // Presets: the browser loads a library sound and its FX chain into the engine.
   await page.getByRole('tab',{name:/^Sound$/}).first().click();
   // Layout: Sound cards fold with a double-tap on the title bar; no sideways scrolling on the page.
-  await page.getByRole('button',{name:'Fold Tone',exact:true}).click();
+  await page.getByRole('button',{name:'Fold Tone',exact:true}).dblclick();
   assert.equal(await page.locator('[data-param="0-brightness"]').count(),0,'Tone card should fold');
   await page.getByRole('button',{name:'Unfold Tone',exact:true}).click();
   assert.equal(await page.locator('[data-param="0-brightness"]').count(),1,'Tone card should unfold');

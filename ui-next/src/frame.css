@@ -75,12 +75,6 @@
 .harness-shell .window-wave .partial-fine{flex-direction:column;justify-content:center;margin:0}
 .harness-shell .frame-window .morph-wrap{min-height:0}
 .harness-shell .frame-window .morph-pad{min-height:0}
-.harness-shell .fx-graph-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
-.harness-shell .fx-graph-tile{display:flex;flex-direction:column;gap:4px;min-width:0;border-radius:9px;padding:6px;background:var(--inset);
-  border:1px solid color-mix(in srgb,var(--fx-color) 45%,#2c3a3f)}
-.harness-shell .fx-graph-tile span{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--fx-color)}
-.harness-shell .fx-graph-tile .fx-graph-canvas{flex:1;height:auto;min-height:0}
-
 /* ---------- rack: two rows of cards, each as tall as the mod pad row ---------- */
 .harness-shell .frame-rack{position:relative;min-height:0;display:flex;flex-wrap:nowrap;align-items:stretch;gap:8px;overflow-y:hidden;overflow-x:auto;
   scrollbar-width:thin;scrollbar-color:#3d4f55 transparent}
@@ -95,8 +89,8 @@
 .harness-shell .rack-card .tactile-knob .knob-value{min-height:0;padding:0;font-size:10.5px}
 .harness-shell .rack-card .knob-target{width:44px;height:44px;min-width:44px;min-height:44px}
 .harness-shell .rack-card .panel-toggle{min-height:36px}
-.harness-shell .rack-mini-env{width:120px;height:56px;border-radius:7px;background:var(--inset);padding:2px;flex:none}
-.harness-shell .rack-mini-env .env-graph{width:100%;height:100%}
+.harness-shell .rack-inline-env{width:208px;height:110px;border-radius:7px;background:var(--inset);flex:none}
+.harness-shell .rack-inline-env .env-editor{height:100%;width:100%;min-height:0}
 
 /* FX cards in the rack */
 .harness-shell .fx-cards .fx-card-module{width:auto;min-width:0;flex:0 0 auto;padding:0 8px 4px;gap:0;display:flex;flex-direction:column;opacity:1}
@@ -146,7 +140,8 @@
 .ds-panel-power{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--inset);border:1.5px solid #4a5a60;color:#7c8b88}
 .ds-panel-power.on{background:var(--panel-tag,#5fd3a8);border-color:var(--panel-tag,#5fd3a8);color:#0e1517;box-shadow:0 0 10px color-mix(in srgb,var(--panel-tag,#5fd3a8) 60%,transparent)}
 .ds-panel-tag{width:9px;height:9px;flex:none;border-radius:3px;background:var(--panel-tag)}
-.ds-panel-mods{flex:none;padding:2px 7px;border-radius:7px;font-size:11px;font-weight:800;color:#e4dafc;background:#3a3156;border:1px solid #7d6bb8}
+.ds-panel-mods{flex:none;display:flex;align-items:center;gap:3px;padding:2px 5px;border-radius:5px;font-size:10px;font-weight:800;color:var(--text);background:var(--inset);border:1px solid var(--line)}
+.ds-panel-mods i{width:6px;height:6px;flex:none;border-radius:50%}
 .ds-panel.powered-off .ds-panel-body{opacity:.45}
 .ds-panel.powered-off .ds-panel-title{color:var(--soft)}
 .harness-shell .rack-card.folded{height:44px;align-self:flex-start}
@@ -218,7 +213,7 @@
 /* Mod pads: the graph edits the pad, the label on the bottom lip links it */
 .harness-shell .mod-band .fx-pad-main{flex:1;min-height:0;display:flex;padding:0;border:0;background:none;width:100%;cursor:pointer}
 .harness-shell .mod-band .fx-pad-main .mod-shape{height:100%;width:100%}
-.harness-shell .mod-band .fx-pad-label{min-height:22px;border:1px solid transparent;border-radius:6px;background:var(--raised);color:inherit;cursor:copy;padding:0}
+.harness-shell .mod-band .fx-pad-label{min-height:22px;border:1px solid color-mix(in srgb,var(--src) 35%,var(--line));border-radius:6px;background:var(--raised);color:var(--src);cursor:copy;padding:0}
 .harness-shell .mod-band .fx-pad.armed .fx-pad-label,.harness-shell .mod-band .fx-macro.armed .fx-src-arm{background:var(--src);color:#10181a;border-color:var(--src)}
 .harness-shell .pe-hint{font-size:11px;color:#7f918d;white-space:nowrap}
 
@@ -226,14 +221,13 @@
    The rack only takes the rows it uses (one card row, two at most), so the focus window above it
    gets the rest of the height on every page and nothing in the window can spill over the rack. */
 .harness-shell .frame{grid-template-rows:172px minmax(0,1fr) 176px}
+.harness-shell .fx-chain-tags{display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none}
+.harness-shell .fx-chain-tags button{flex:none;min-height:44px;min-width:44px;padding:0 10px;border:1px solid color-mix(in srgb,var(--fx-color) 55%,var(--line));border-radius:7px;background:var(--inset);color:var(--fx-color);font-size:12px;font-weight:750}
+.harness-shell .frame-fx .morph-source select,.harness-shell .frame-fx .morph-modes button,.harness-shell .frame-fx .morph-rate button,.harness-shell .frame-fx .morph-knobs .knob-value{min-height:44px}
+.harness-shell .frame-fx .morph-rate button{min-width:44px}
 .harness-shell .frame-rack{height:176px;min-height:176px;max-height:176px;padding-bottom:4px;scroll-padding:4px}
 .harness-shell .frame-window{overflow:hidden}
 .harness-shell .frame-window-body{overflow:hidden}
-/* Effects view: one row of tiles that always fits the window; live output closes the chain. */
-.harness-shell .fx-graph-strip{grid-auto-flow:row;grid-template-rows:minmax(0,1fr);min-height:0}
-.harness-shell .fx-graph-tile{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:hidden}
-.harness-shell .fx-graph-tile .fx-graph-canvas,.harness-shell .fx-output-tile .fx-spectrum{width:100%;height:100%;min-height:0;box-sizing:border-box}
-.harness-shell .fx-output-tile .fx-spectrum{border-radius:8px;border:1px solid var(--line);background:linear-gradient(var(--inset),var(--app))}
 /* Wave view: the fine-tune knob is a tile inside the window, like the effect tiles. */
 .harness-shell .window-wave{grid-template-columns:minmax(0,1fr) 196px;gap:8px;min-height:0}
 .harness-shell .window-wave .wave-card-svg{min-height:0;border-radius:8px;background:var(--inset);border:1px solid var(--line);box-sizing:border-box;width:100%}
@@ -262,6 +256,13 @@
 .harness-shell .frame-rack .tactile-knob .knob-target{width:52px;height:52px;min-width:52px;min-height:52px}
 .harness-shell .frame-rack .tactile-knob .knob-value,.harness-shell .frame-rack .knob-entry{height:44px;min-height:44px;min-width:44px;padding:0 4px;font-size:11px}
 .harness-shell .frame-rack .rack-card .ds-panel-title{font-size:12px}
+.harness-shell .rack-rail .ds-panel-title[role=button]{display:flex;align-items:center;min-height:44px;min-width:44px;cursor:grab;touch-action:none}
+.harness-shell .rack-rail>.ds-panel-bar{touch-action:none;cursor:grab}
+.harness-shell .rack-rail{position:relative}
+.harness-shell .rack-rail[data-rack-dragging]{opacity:.55;cursor:grabbing}
+.harness-shell .rack-rail[data-drop-side]::after{content:'';position:absolute;top:0;bottom:0;width:2px;background:var(--panel-tag);pointer-events:none}
+.harness-shell .rack-rail[data-drop-side=before]::after{left:0}
+.harness-shell .rack-rail[data-drop-side=after]::after{right:0}
 .harness-shell .frame-rack .rack-card.folded{width:48px;min-width:48px;flex:0 0 48px}
 .harness-shell .frame-rack .rack-card.folded .rail-bar{height:100%;min-height:0;display:flex;flex-direction:column;padding:1px;gap:0;border:0}
 .harness-shell .rail-open{flex:1;min-height:44px;width:44px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:5px 0;border:0;border-radius:6px;background:transparent;color:var(--panel-tag,var(--text));cursor:pointer}
@@ -272,12 +273,6 @@
 .harness-shell .frame-rack .powered-off .ds-panel-body{opacity:1}
 .harness-shell .frame-rack .fx-add-card{height:170px;min-height:170px}
 
-/* Inspect one effect at a useful size; touching a card selects its preview. */
-.harness-shell .fx-focus{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
-.harness-shell .fx-focus-pick{display:flex;flex-wrap:wrap;gap:4px;flex:none;max-height:96px;overflow-y:auto;scrollbar-width:thin}
-.harness-shell .fx-focus-pick button{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--inset);color:var(--text);font-weight:700}
-.harness-shell .fx-focus-pick button[aria-pressed=true]{border-color:var(--fx-color);color:var(--fx-color)}
-.harness-shell .fx-focus>.fx-graph-strip{flex:1;min-height:0}
 .harness-shell .frame-rack>.rack-card{border-color:color-mix(in srgb,var(--panel-tag,var(--line)) 48%,var(--line));background:linear-gradient(180deg,#ffffff03,transparent 22px),var(--panel);box-shadow:0 3px 7px #0004}
 .harness-shell .frame-rack .ds-panel-bar{background:transparent}
 .harness-shell .frame-rack .rack-card button,.harness-shell .frame-rack .rack-card .fx-segment button{min-width:44px;min-height:44px}

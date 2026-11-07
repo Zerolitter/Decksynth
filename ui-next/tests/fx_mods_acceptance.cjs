@@ -22,12 +22,12 @@ const ROOT=path.resolve(__dirname,'..');
 
   // An empty rack shows the picker in the window itself; the Add effect sheet sits over the window, not under the rack.
   const win=p.getByRole('region',{name:'FX window'});
-  for(const n of ['Chorus','Compressor','EQ','Auto-wah','Resonator'])assert.ok(await win.getByRole('button',{name:'Add '+n}).isVisible(),n+' in the window picker');
+  assert.ok(await p.locator('.fx-cards').getByRole('button',{name:'Add effect',exact:true}).isVisible(),'empty bottom rack has one Add action');
   await p.getByRole('button',{name:'Add effect'}).click();
   const sheet=p.getByRole('dialog',{name:'Add effect'});
   await sheet.waitFor();
   const sb=await sheet.boundingBox(),wb=await p.locator('.frame-window').boundingBox();
-  assert.ok(sb.y<=wb.y+4&&sb.y+sb.height>wb.y+wb.height,'sheet covers the window');
+  assert.ok(sb.y<=wb.y+4&&sb.y+sb.height<=722,'picker stays inside the Deck viewport');
   assert.deepEqual(await covered(),[],'nothing in the sheet is covered');
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('.fx-picker-sheet').count(),0,'Esc closes the sheet');
@@ -40,7 +40,7 @@ const ROOT=path.resolve(__dirname,'..');
   const ratio=p.getByRole('radiogroup',{name:'Compressor Ratio'}).getByRole('radio',{name:'8:1'});
   await ratio.click();
   assert.equal(await ratio.getAttribute('aria-checked'),'true');
-  await p.getByRole('button',{name:'Focus Resonator',exact:true}).click();assert.ok(await p.locator('.fx-graph-tile').filter({hasText:'Resonator'}).isVisible(),'selected Resonator preview in the window');
+  assert.equal(await p.locator('.fx-graph-tile').count(),0,'FX cards have no wide duplicate graph');
 
   // Compact mod editor: Shape, Rate and the link summary, no scroll list.
   await p.getByRole('button',{name:/^Mod pad 1 /}).click();

@@ -15,6 +15,10 @@ export const withTargets=(c:FxChain,s:Source,t:FxTarget[]):FxChain=>s.kind==='ma
   ?{...c,macros:c.macros.map((m,i)=>i===s.index?{...m,targets:t}:m)}
   :{...c,mods:c.mods.map((m,i)=>i===s.index?{...m,targets:t}:m)};
 export const sourceColor=(s:Source)=>(s.kind==='macro'?MACRO_COLORS:MOD_COLORS)[s.index];
+export function linkedSourceColors(chain:FxChain,accept:(target:FxTarget)=>boolean):string[]{
+  return [...chain.macros.flatMap((s,i)=>s.targets.some(accept)?[MACRO_COLORS[i]]:[]),
+    ...chain.mods.flatMap((s,i)=>s.targets.some(accept)?[MOD_COLORS[i]]:[])];
+}
 
 /** What a source is linked to, as a short list that never scrolls, with the button that opens the full list. */
 export function LinkSummary({targets,onOpen}:{targets:FxTarget[];onOpen:()=>void}){

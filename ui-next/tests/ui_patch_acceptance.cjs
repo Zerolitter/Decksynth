@@ -1,13 +1,13 @@
 // Native UI patch acceptance. Generated data/settings are isolated; no hardware MIDI/audio.
 'use strict';
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/ui-top-rack');
+const ROOT=path.resolve(__dirname,'..'),OUT=process.env.DECKSYNTH_PATCH_OUT||path.resolve(ROOT,'../artifacts/recovery/ui-top-rack');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-ui-patch-'));
 const phase=process.env.DECKSYNTH_PATCH_PHASE||'all';let app,p;const errors=[];
 async function send(c,a){await p.evaluate(([cmd,args])=>window.deckApi.send(cmd,args),[c,a]);}
 async function read(){return p.evaluate(()=>window.__patchLatest.state);}
 async function frame(label){await p.mouse.move(2,2);await p.screenshot({path:path.join(OUT,label+'-1280x718.png')});}
-async function openCard(id){const c=p.locator('[data-panel="'+id+'"]');if(await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Unfold /}).click();return c;}
+async function openCard(id){const c=p.locator('[data-panel="'+id+'"]');if(await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Unfold /}).click();await c.locator(':scope > .ds-panel-body').waitFor();return c;}
 async function assertInView(nodes){for(const n of await nodes.all()){if(!await n.isVisible())continue;const r=await n.boundingBox();assert.ok(r&&r.x>=0&&r.y>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'inside Deck viewport: '+JSON.stringify(r));}}
 (async()=>{
  fs.mkdirSync(OUT,{recursive:true});
@@ -34,15 +34,15 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
  if(phase==='rack'||phase==='all'){
   await p.getByRole('tab',{name:'Sound',exact:true}).click();const before=await read();
   const order=await p.locator('.sound-cards [data-panel]').evaluateAll(ns=>ns.map(n=>n.dataset.panel));
-  for(const id of ['sound-tone','rack-envelope','motion-synth']){const c=await openCard(id);await c.getByRole('button',{name:/^Fold /}).click();const r=await c.boundingBox();assert.equal(Math.round(r.width),48,'individual upright rail '+id);assert.ok(r.height>=160);}
+  for(const id of ['sound-tone','rack-envelope','motion-synth']){const c=await openCard(id);await c.getByRole('button',{name:/^Fold /}).dblclick();const r=await c.boundingBox();assert.equal(Math.round(r.width),48,'individual upright rail '+id);assert.ok(r.height>=160);}
   assert.deepEqual(await p.locator('.sound-cards [data-panel]').evaluateAll(ns=>ns.map(n=>n.dataset.panel)),order,'folding preserves order');
   for(const id of ['rack-envelope','sound-tone','motion-synth']){const c=p.locator('[data-panel="'+id+'"]');await c.getByRole('button',{name:/^Unfold /}).focus();await p.keyboard.press('Enter');assert.equal(await c.evaluate(n=>n.classList.contains('folded')),false);}
-  const movement=p.locator('[data-panel="motion-synth"]');await movement.getByRole('button',{name:'Fold Movement',exact:true}).click();await movement.getByRole('button',{name:'Unfold Movement',exact:true}).focus();const wasPlaying=await p.evaluate(()=>window.__patchLatest.playing);await p.keyboard.press('Space');await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>window.__patchLatest.playing),wasPlaying,'Space opens a rail without starting transport');
+  const movement=p.locator('[data-panel="motion-synth"]');await movement.getByRole('button',{name:'Fold Movement',exact:true}).dblclick();await movement.getByRole('button',{name:'Unfold Movement',exact:true}).focus();const wasPlaying=await p.evaluate(()=>window.__patchLatest.playing);await p.keyboard.press('Space');await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>window.__patchLatest.playing),wasPlaying,'Space opens a rail without starting transport');
   assert.deepEqual((await read()).tracks[0].instrument,before.tracks[0].instrument,'folds do not change sound');
   await p.getByRole('tab',{name:'FX',exact:true}).click();
-  for(const name of ['Filter','EQ']){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:'Add '+name,exact:true}).click();}
+  for(const name of ['Filter','EQ']){const count=(await read()).tracks[0].fx?.modules.filter(m=>m.on).length||0;await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:'Add '+name,exact:true}).click();await p.waitForFunction(n=>window.__patchLatest.state.tracks[0].fx?.modules.filter(m=>m.on).length===n,count+1);}
   await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx?.modules.filter(m=>m.on).length===2);const fx=(await read()).tracks[0].fx;
-  const c=await openCard('fx-filter');await c.getByRole('button',{name:'Fold Filter',exact:true}).click();
+  const c=await openCard('fx-filter');await c.getByRole('button',{name:'Fold Filter',exact:true}).dblclick();
   await c.getByRole('button',{name:'Turn off Filter',exact:true}).click();await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx.modules.find(m=>m.id==='filter').bypass);
   assert.equal(await c.evaluate(n=>n.classList.contains('folded')),true,'power never unfolds rail');
   const changed=structuredClone(fx);changed.modules.find(m=>m.id==='filter').bypass=true;assert.deepEqual((await read()).tracks[0].fx,changed,'folded power changes bypass only');
@@ -73,21 +73,18 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   console.log('PASS inspector: anchored cap, real route/depth/unlink, focus return, advanced shape/steps, 16 routes and stale owner cancellation');
  }
  if(phase==='envelope'||phase==='all'){
-  await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();const card=await openCard('rack-envelope');await card.getByRole('button',{name:'Open the envelope editor',exact:true}).click();
-  const sheet=p.getByRole('dialog',{name:'Envelope',exact:true});const b=await sheet.boundingBox();assert.ok(b.width>1000&&b.height>360,'envelope keeps its useful focused surface');await assertInView(sheet.locator('button,[role=slider]'));
-  for(const n of await sheet.locator('button,[role=slider]').all()){const r=await n.boundingBox();assert.ok(r.width>=43.9&&r.height>=43.9,'ADSR control target >=44px '+await n.getAttribute('aria-label')+' '+JSON.stringify(r));}
-  const before=(await read()).tracks[0].instrument.attack;const h=await sheet.locator('[data-handle="a"]').boundingBox();await p.mouse.move(h.x+h.width/2,h.y+h.height/2);await p.mouse.down();await p.mouse.move(h.x+h.width/2+45,h.y+h.height/2,{steps:6});await p.mouse.up();await p.waitForFunction(v=>window.__patchLatest.state.tracks[0].instrument.attack!==v,before);
-  const release=sheet.getByRole('slider',{name:'Release',exact:true});await release.focus();await p.keyboard.press('Enter');await sheet.getByLabel('Release numeric value').fill('1.25');await p.keyboard.press('Enter');await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].instrument.release===1.25);await frame('focused-envelope');await p.keyboard.press('Escape');assert.equal(await sheet.count(),0);
-  console.log('PASS envelope: separate useful graph/ADSR surface, native handle/readout agreement, exact release value and close');
+  await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();const card=await openCard('rack-envelope');await card.scrollIntoViewIfNeeded();
+  assert.equal(await card.locator('.env-editor').count(),1,'direct inline envelope');
+  const before=(await read()).tracks[0].instrument.attack,h=await card.locator('[data-handle="a"] circle').last().boundingBox();await p.mouse.move(h.x+h.width/2,h.y+h.height/2);await p.mouse.down();await p.mouse.move(h.x+h.width/2+15,h.y+h.height/2,{steps:6});await p.mouse.up();await p.waitForFunction(v=>window.__patchLatest.state.tracks[0].instrument.attack!==v,before);
+  const release=card.getByRole('slider',{name:'Release',exact:true});await release.focus();await p.keyboard.press('Enter');await card.getByLabel('Release numeric value').fill('1.25');await p.keyboard.press('Enter');await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].instrument.release===1.25);await frame('inline-envelope');assert.equal(await p.getByRole('dialog',{name:'Envelope',exact:true}).count(),0);
+  console.log('PASS envelope: inline direct graph, native handle/readout agreement and exact release');
  }
  if(phase==='graphs'||phase==='all'){
   await send('select',0);await p.getByRole('tab',{name:'FX',exact:true}).click();
-  for(const name of ['Overdrive','Filter']){if(!await p.locator('[data-panel="fx-'+name.toLowerCase()+'"]').count()){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:'Add '+name,exact:true}).click();}}
-  await p.getByRole('button',{name:'Focus Overdrive',exact:true}).click();const canvas=p.locator('.fx-graph-tile[data-module="overdrive"] canvas');await canvas.waitFor();
-  assert.equal(await p.locator('.fx-graph-tile').count(),2,'focused module plus real output');assert.match(await canvas.getAttribute('aria-label'),/parameter preview/i);
-  await p.waitForTimeout(180);const still=await canvas.evaluate(n=>n.toDataURL());await p.waitForTimeout(160);assert.ok(await canvas.evaluate(n=>n.toDataURL())===still,'silence has no invented moving signal');
-  const c=await openCard('fx-overdrive');await c.getByRole('button',{name:'Turn off Overdrive',exact:true}).click();await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx.modules.find(m=>m.id==='overdrive').bypass);await p.waitForFunction(()=>document.querySelector('.fx-graph-tile[data-module=overdrive] canvas')?.dataset.bypassed==='true');
-  await frame('fx-focused-preview');console.log('PASS graphs: focused controls/preview, real bypass state, stationary silence, separate output');
+  for(const name of ['Overdrive','Filter']){if(!await p.locator('[data-panel="fx-'+name.toLowerCase()+'"]').count()){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:'Add '+name,exact:true}).click();await p.locator('[data-panel="fx-'+name.toLowerCase()+'"]').waitFor();}}
+  assert.equal(await p.locator('.fx-graph-tile,.fx-output-tile').count(),0,'no duplicate FX graph or output');
+  const c=await openCard('fx-overdrive');await c.getByRole('button',{name:'Turn off Overdrive',exact:true}).click();await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx.modules.find(m=>m.id==='overdrive').bypass);
+  await frame('fx-direct-rack');console.log('PASS graphs removed: actual controls, native bypass, no duplicate output');
  }
  if(phase==='keyboard'||phase==='all'){
   await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).uncheck();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
@@ -105,9 +102,9 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   let count=(await read()).tracks[0].fx?.modules.filter(m=>m.on).length||0;
   while(count<17){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:/^Add /}).first().click();count++;await p.waitForFunction(n=>window.__patchLatest.state.tracks[0].fx?.modules.filter(m=>m.on).length===n,count);}
   const before=(await read()).tracks[0].fx,ids=await p.locator('.fx-cards [data-panel]').evaluateAll(ns=>ns.map(n=>n.dataset.panel));assert.equal(ids.length,17);
-  for(const id of ids){const c=p.locator('[data-panel="'+id+'"]');if(!await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Fold /}).click();}
+  for(const id of ids){const c=p.locator('[data-panel="'+id+'"]');if(!await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Fold /}).dblclick();}
   await frame('fx-seventeen-rails');await assertInView(p.locator('.fx-cards .rail-open,.fx-cards .ds-panel-power'));
-  for(const id of ids){const c=await openCard(id);for(const n of await c.locator('button,[role=slider]').all()){if(!await n.isVisible())continue;await n.scrollIntoViewIfNeeded();const r=await n.boundingBox();assert.ok(r.width>=43.9&&r.height>=43.9,'reachable 44px FX control '+id+' '+JSON.stringify(r));assert.ok(r.x>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'FX control inside viewport');}await c.getByRole('button',{name:/^Fold /}).click();}
+  for(const id of ids){const c=await openCard(id);for(const n of await c.locator('button,[role=slider]').all()){if(!await n.isVisible())continue;await n.scrollIntoViewIfNeeded();const r=await n.boundingBox();assert.ok(r.width>=43.9&&r.height>=43.9,'reachable 44px FX control '+id+' '+JSON.stringify(r));assert.ok(r.x>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'FX control inside viewport');}await c.getByRole('button',{name:/^Fold /}).dblclick();}
   assert.deepEqual((await read()).tracks[0].fx,before,'all17 FX order/params/bypass survive visual open/fold');console.log('PASS maximum FX: all17 rails and every open control reachable, values/order/bypass preserved');
  }
  assert.deepEqual(errors,[]);console.log('PASS ui patch '+phase);

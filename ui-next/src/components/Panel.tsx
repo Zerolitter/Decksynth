@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { ChevronDown, Power } from 'lucide-react';
+import type { RackDrag } from './RackOrder';
 
 /* Fold state lives in one small store so a rack can fold its own cards (auto-fold),
    and is remembered between sessions. */
@@ -62,46 +63,53 @@ type Props = {
   /** Rack cards fold individually into an upright, keyboard-operable rail. */
   rail?:boolean;
   onUse?:()=>void;
+  reorder?:RackDrag;
+  modColors?:string[];
 };
 
 /** A panel with a title bar. Double-tap (or double-click) the title bar, or tap the arrow,
  *  to fold it down to its title. A folded panel keeps its on/off button, colour tag and
  *  linked-mods badge. The fold state is remembered between sessions. */
 export function Panel({id,title,icon,actions,summary,children,className='',defaultFolded=false,grow=false,accent,
-  tag,power,mods=0,role,label,style,rail=false,onUse}:Props){
+  tag,power,mods=0,role,label,style,rail=false,onUse,reorder,modColors=[]}:Props){
   const [folded,setFolded]=useFold(id,defaultFolded);
   const section=useRef<HTMLElement>(null);
   const reopen=()=>{markUsed(id);setFolded(false);requestAnimationFrame(()=>section.current?.scrollIntoView({block:'nearest',inline:'nearest'}));};
   const lastTap=useRef(0);
   const onBarPointerUp=(e:React.PointerEvent)=>{
+    if(reorder?.moved()){lastTap.current=0;return;}
     if((e.target as HTMLElement).closest('button,select,input,a,[role="tab"]'))return;
     const now=e.timeStamp;
     if(now-lastTap.current<350){setFolded(!folded);lastTap.current=0;}
     else lastTap.current=now;
   };
   const name=typeof title==='string'?title:(label??id);
+  const badge=mods>0?<span className="ds-panel-mods" title={mods+' mod link'+(mods>1?'s':'')}>
+    {Array.from(new Set(modColors)).map(c=><i key={c} data-source-color={c} style={{background:c}}/>)}<span>{mods}</span></span>:null;
   return <section ref={section} className={'ds-panel'+(rail?' rack-rail':'')+(folded?' folded':'')+(grow?' grow':'')+(power&&!power.on?' powered-off':'')+(className?' '+className:'')}
     data-panel={id} role={role} aria-label={label}
     style={{...(accent?{['--panel-accent' as string]:accent}:{}),...(tag?{['--panel-tag' as string]:tag}:{}),...style}}
     onPointerDownCapture={()=>{markUsed(id);onUse?.();}} onFocusCapture={()=>markUsed(id)}>
-    {rail&&folded?<header className="ds-panel-bar rail-bar">
-      <button type="button" className="rail-open" aria-label={'Unfold '+name} aria-expanded={false} title={'Open '+name} onClick={reopen}>
-        <ChevronDown size={16}/><span className="rail-title">{title}</span>{mods>0?<span className="ds-panel-mods" title={mods+' mod links'}>{mods}</span>:null}
+    {rail&&folded?<header className="ds-panel-bar rail-bar" onPointerDown={reorder?.start}>
+      <button type="button" className="rail-open" aria-label={'Unfold '+name} aria-expanded={false} title={'Open '+name+' · Drag to move'} onKeyDown={e=>reorder?.key(e)} onClick={e=>{if(e.detail===0||!reorder?.moved())reopen();}}>
+        <span className="rail-title">{title}</span>{badge}
       </button>
       {power?<button type="button" className={'ds-panel-power'+(power.on?' on':'')} aria-pressed={power.on} aria-label={(power.on?'Turn off ':'Turn on ')+power.label} onClick={power.onToggle}><Power size={16}/></button>:null}
-    </header>:<header className="ds-panel-bar" onPointerUp={onBarPointerUp} title="Double-tap to fold or unfold">
+    </header>:<header className="ds-panel-bar" onPointerDown={reorder?.start} onPointerUp={onBarPointerUp} title={rail?'Drag to move · Double-tap title to fold':'Double-tap to fold or unfold'}>
       {power?<button type="button" className={'ds-panel-power'+(power.on?' on':'')} aria-pressed={power.on}
         aria-label={(power.on?'Turn off ':'Turn on ')+power.label} title={power.on?'On':'Off'} onClick={power.onToggle}><Power size={14}/></button>:null}
       {tag?<i className="ds-panel-tag" aria-hidden="true"/>:null}
       {icon?<span className="ds-panel-icon">{icon}</span>:null}
-      <h3 className="ds-panel-title">{title}</h3>
+      <h3 className="ds-panel-title" role={rail?'button':undefined} tabIndex={rail?0:undefined}
+        aria-label={rail?'Fold '+name:undefined} aria-expanded={rail?!folded:undefined}
+        onKeyDown={rail?e=>{if(reorder?.key(e))return;if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();setFolded(!folded);}}:undefined}>{title}</h3>
       {power&&!power.on?<span className="panel-bypass">Bypassed</span>:null}
-      {mods>0?<span className="ds-panel-mods" title={mods+' mod link'+(mods>1?'s':'')}>◆ {mods}</span>:null}
+      {badge}
       {folded&&summary?<span className="ds-panel-summary">{summary}</span>:null}
       <span className="ds-panel-actions">{folded?null:actions}</span>
-      <button type="button" className="ds-panel-fold" aria-expanded={!folded}
+      {rail?null:<button type="button" className="ds-panel-fold" aria-expanded={!folded}
         aria-label={(folded?'Unfold ':'Fold ')+name} onClick={()=>setFolded(!folded)}>
-        <ChevronDown size={18}/></button>
+        <ChevronDown size={18}/></button>}
     </header>}
     {folded?null:<div className="ds-panel-body">{children}</div>}
   </section>;

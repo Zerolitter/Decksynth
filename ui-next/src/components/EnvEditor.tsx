@@ -1,6 +1,6 @@
 /* Envelope editor (PLAN E1): real proportions, three handles, the ADSR knobs under it.
    Time runs on a square-root scale so short attacks stay visible; level is linear, as the engine plays it. */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSize } from './ModSheet';
 
 export type Env={attack:number;decay:number;sustain:number;release:number};
@@ -41,15 +41,22 @@ type Drag={key:'a'|'d'|'r';x0:number;y0:number;start:Env;fine:boolean;held:Retur
 
 /** The big editor: drag Attack sideways, Decay sideways and Sustain up and down, Release sideways.
  *  Drags are relative (no jump on touch); hold still for 0.4 s before moving for fine steps. */
-export function EnvEditor({env,color,onChange,live}:{env:Env;color:string;onChange:(k:Key,v:number)=>void;live?:Partial<Env>}){
+export function EnvEditor({env,color,onChange,live,compact=false}:{env:Env;color:string;onChange:(k:Key,v:number)=>void;live?:Partial<Env>;compact?:boolean}){
   const [ref,{w,h}]=useSize<HTMLDivElement>();
   const [drag,setDrag]=useState<Drag|null>(null);
   const d=useRef<Drag|null>(null);
-  const g=envGeometry(env,w,h,16,18);
+  const pad=compact?22:16,bottom=compact?0:18;
+  const g=envGeometry(env,w,h,pad,bottom);
   const lv={...env,...Object.fromEntries(Object.entries(live??{}).filter(([,v])=>typeof v==='number'))} as Env;
-  const moved=JSON.stringify(lv)!==JSON.stringify(env)?envGeometry(lv,w,h,16,18):null;
+  const moved=JSON.stringify(lv)!==JSON.stringify(env)?envGeometry(lv,w,h,pad,bottom):null;
+  useEffect(()=>()=>{if(d.current?.held)clearTimeout(d.current.held);d.current=null;},[]);
   const begin=(key:Drag['key'])=>(e:React.PointerEvent)=>{
     e.stopPropagation();(e.currentTarget as Element).setPointerCapture(e.pointerId);
+    if(compact&&ref.current){
+      const r=ref.current.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+      // Large touch targets may overlap on a short envelope. The nearest visible dot owns the drag.
+      key=(['a','d','r'] as const).reduce((a,b)=>Math.hypot(x-g[a][0],y-g[a][1])<=Math.hypot(x-g[b][0],y-g[b][1])?a:b);
+    }
     const s:Drag={key,x0:e.clientX,y0:e.clientY,start:{...env},fine:false,held:null};
     s.held=setTimeout(()=>{if(d.current===s){s.fine=true;setDrag({...s});}},400);
     d.current=s;setDrag(s);};
@@ -69,6 +76,7 @@ export function EnvEditor({env,color,onChange,live}:{env:Env;color:string;onChan
       aria-valuetext={keys.map(k=>k+' '+fmt(k,env[k])).join(', ')} data-handle={key}
       onPointerDown={begin(key)}
       onKeyDown={e=>{const step=e.shiftKey?.01:.05;const k=keys[0],min=ENV_MIN[k as 'attack'];
+        if(e.key.startsWith('Arrow')){e.preventDefault();e.stopPropagation();}
         if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const s=e.key==='ArrowRight'?step:-step;onChange(k,+fromU(toU(env[k],min)+s,min).toFixed(3));}
         if(key==='d'&&(e.key==='ArrowUp'||e.key==='ArrowDown'))onChange('sustain',clamp(env.sustain+(e.key==='ArrowUp'?step:-step),0,1));}}>
       <circle cx={at[0]} cy={at[1]} r={22} fill="transparent"/>
@@ -78,13 +86,13 @@ export function EnvEditor({env,color,onChange,live}:{env:Env;color:string;onChan
         <text textAnchor="middle" y={3}>{keys.map(k=>fmt(k,env[k])).join(' · ')}{drag?.fine?' fine':''}</text></g>:null}
     </g>;};
   const line=`M${g.start} L${g.a} L${g.d}`;
-  return <div ref={ref} className="env-editor" style={{['--env' as string]:color}}
+  return <div ref={ref} className={'env-editor'+(compact?' compact':'')} style={{['--env' as string]:color}}
     onPointerMove={move} onPointerUp={end} onPointerCancel={cancel}>
     <svg width={w} height={h} role="group" aria-label="Envelope editor">
       <line x1={g.pad} x2={w-g.pad} y1={g.base} y2={g.base} className="env-axis"/>
       <line x1={g.n[0]} x2={g.n[0]} y1={g.top} y2={g.base} className="env-noteoff"/>
-      <text x={g.n[0]+4} y={g.top+10} className="env-tag">note off</text>
-      {(['Attack','Decay','Sustain','Release'] as const).map((t,i)=>{const xs=[g.start[0],g.a[0],g.d[0],g.n[0],g.r[0]];
+      {compact?null:<text x={g.n[0]+4} y={g.top+10} className="env-tag">note off</text>}
+      {compact?null:(['Attack','Decay','Sustain','Release'] as const).map((t,i)=>{const xs=[g.start[0],g.a[0],g.d[0],g.n[0],g.r[0]];
         const x=i===2?(g.d[0]+g.n[0])/2:(xs[i>2?3:i]+xs[i>2?4:i+1])/2;
         return <text key={t} x={x} y={h-4} textAnchor="middle" className="env-tag">{t}</text>;})}
       <path d={line+` L${g.n} L${g.r} Z`} fill={color} opacity={.12}/>

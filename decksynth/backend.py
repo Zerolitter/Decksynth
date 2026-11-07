@@ -189,6 +189,10 @@ def worker(commands,updates):
                         tr,chain=args
                         try:engine.set_fx(int(tr),chain)
                         except (ValueError,IndexError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='fx_reorder':
+                        tr,order=args
+                        try:engine.reorder_fx(tr,order)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']

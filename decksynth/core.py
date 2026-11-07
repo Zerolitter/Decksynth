@@ -463,6 +463,20 @@ class Engine(DrumEngine):
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
         clean=validate_fx(chain); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
+    def reorder_fx(self,track,order):
+        """Commit one validated drag/keyboard reorder with one existing project Undo entry."""
+        if type(track) is not int or not 0<=track<len(self.project.tracks):
+            raise ValueError('Invalid FX track')
+        if not isinstance(order,list) or any(not isinstance(x,str) for x in order):
+            raise ValueError('Invalid FX order')
+        chain=validate_fx(self.project.tracks[track].get('fx',default_fx()))
+        active=[m['id'] for m in chain['modules'] if m['on']]
+        if len(order)!=len(active) or len(set(order))!=len(order) or set(order)!=set(active):
+            raise ValueError('FX chain changed; reorder rejected')
+        if order==active:return
+        modules={m['id']:m for m in chain['modules']}
+        chain['modules']=[modules[x] for x in order]+[m for m in chain['modules'] if not m['on']]
+        self.snapshot();self.set_fx(track,chain)
     def apply_preset(self,name):
         """Load a library preset (sound and its FX chain) on the selected track, with undo."""
         from .library import preset

@@ -56,6 +56,7 @@ const ROOT=path.resolve(__dirname,'..');
   const expectedTiming=(length,division,gate,swing)=>({length,division,gate,swing});
   const matches=(v,t)=>['length','division','gate','swing'].every(k=>v.performance.seq[k]===t[k]);
   const checkControls=async(expected)=>{
+    await p.waitForFunction(t=>{const bar=document.querySelector('[data-testid=pf-seq-timing]'),knob=id=>document.querySelector('[data-testid="knob-'+id+'"]');return bar&&Number(bar.dataset.length)===t.length&&bar.dataset.division===t.division&&Number(knob('pf-seq-gate')?.getAttribute('aria-valuenow'))/100===t.gate&&Number(knob('pf-seq-swing')?.getAttribute('aria-valuenow'))/100===t.swing;},expected);
     const actual=await p.evaluate(()=>{
       const knob=id=>document.querySelector('[data-testid="knob-'+id+'"]');
       const bar=document.querySelector('[data-testid="pf-seq-timing"]');

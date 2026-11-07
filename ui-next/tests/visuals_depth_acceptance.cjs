@@ -18,32 +18,15 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('tab',{name:'Partials'}).click();
   const val=id=>p.locator(`[data-param="${id}"] .knob-value`).innerText();
 
-  // Envelope: the card's picture opens the editor; the graph is not shown twice.
-  // Envelope: the card's picture opens the envelope sheet (no Envelope or Wave tab in the Sound window any more).
+  // Envelope handles and exact values live directly inside the card.
   assert.equal(await p.getByRole('tab',{name:'Envelope'}).count(),0,'no Envelope tab');
-  assert.equal(await p.getByRole('tab',{name:'Wave'}).count(),0,'no Wave tab');
-  await p.getByRole('button',{name:'Open the envelope editor'}).click();
-  const envSheet=p.getByRole('dialog',{name:'Envelope'});
-  assert.ok(await envSheet.isVisible(),'envelope sheet opens');
-  const val3=id=>p.locator(`[data-param="${id.replace(/^0-/,'envsheet-0-')}"] .knob-value`).innerText();
-  const before=await val3('0-attack');
-  const a=await p.locator('[data-handle="a"] circle').last().boundingBox();
-  await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();
-  await p.mouse.move(a.x+a.width/2+80,a.y+a.height/2,{steps:6});
-  assert.ok(await p.locator('.env-bubble').isVisible(),'value bubble while dragging');
-  await p.mouse.up();
-  const after=await val3('0-attack');
-  assert.notEqual(after,before,'attack knob follows the handle: '+before+' → '+after);
-  const s0=await val3('0-sustain');
-  const d=await p.locator('[data-handle="d"] circle').last().boundingBox();
-  await p.mouse.move(d.x+d.width/2,d.y+d.height/2);await p.mouse.down();
-  await p.mouse.move(d.x+d.width/2,d.y+d.height/2-40,{steps:6});await p.mouse.up();
-  assert.ok(parseInt(await val3('0-sustain'))>parseInt(s0),'dragging up raises sustain');
-  const eb=await envSheet.boundingBox();assert.ok(eb.y+eb.height<=722,'envelope sheet fits');
+  const env=p.locator('[data-panel="rack-envelope"]');if(await env.evaluate(n=>n.classList.contains('folded')))await env.getByRole('button',{name:/Unfold/}).click();await env.scrollIntoViewIfNeeded();
+  const before=await val('0-attack'),a=await env.locator('[data-handle="a"] circle').last().boundingBox();
+  await p.mouse.move(a.x+a.width/2,a.y+a.height/2);await p.mouse.down();await p.mouse.move(a.x+a.width/2+15,a.y+a.height/2,{steps:6});assert.ok(await p.locator('.env-bubble').isVisible());await p.mouse.up();
+  const after=await val('0-attack');assert.notEqual(after,before,'attack follows the inline handle');
+  const s0=await val('0-sustain'),d=await env.locator('[data-handle="d"] circle').last().boundingBox();await p.mouse.move(d.x+d.width/2,d.y+d.height/2);await p.mouse.down();await p.mouse.move(d.x+d.width/2,d.y+d.height/2-15,{steps:6});await p.mouse.up();assert.ok(parseInt(await val('0-sustain'))>parseInt(s0));
+  assert.equal(await p.getByRole('dialog',{name:'Envelope'}).count(),0,'no envelope overlay');
   await p.screenshot({path:path.join(ROOT,'..','artifacts','envelope-722.png')});
-  await p.keyboard.press('Escape');
-  assert.equal(await envSheet.count(),0,'Esc closes the envelope sheet');
-  assert.equal(await val('0-attack'),after,'the card knob shows the same attack');
   // No stretched graphs with dots anywhere in the frame.
   assert.equal(await p.locator('.frame svg[preserveAspectRatio="none"] circle').count(),0,'no stretched dots');
   // Header hint moved to Help.

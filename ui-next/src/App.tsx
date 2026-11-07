@@ -20,7 +20,7 @@ import { Performance, PerformTools } from './components/Performance';
 import { Panel } from './components/Panel';
 import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
-import type { FxChain, FxModuleId } from './fx';
+import type { FxChain } from './fx';
 import { interpolateBeat, totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
 import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type StepNote } from './types';
@@ -55,7 +55,6 @@ function App() {
   const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.page') as Page)||'SONG';}catch{return 'SONG';}});
   const [edit,setEdit]=useState<Source>({kind:'mod',index:0});
   const [armed,setArmed]=useState<Source|null>(null);
-  const [fxFocus,setFxFocus]=useState<FxModuleId|null>(null);
   const [settings,setSettingsState]=useState<AppSettings>(readSettings);
   const setSettings=(s:AppSettings)=>{setSettingsState(s);writeSettings(s);};
   const setPage=(next:Page)=>{setPageState(next);if(next!=='FX'&&next!=='SOUND')setArmed(null);try{localStorage.setItem('decksynth.page',next);}catch{/* optional */}};
@@ -179,6 +178,10 @@ function App() {
         next.state.tracks[index].notes[noteIndex]=note;next.playing=false;
       }
       else if(cmd==='fx'){const [index,chain]=args as [number,FxChain];next.state.tracks[index].fx=chain;}
+      else if(cmd==='fx_reorder'){
+        const [index,ids]=args as [number,string[]],chain=normalizeChain(next.state.tracks[index].fx);
+        next.state.tracks[index].fx={...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};
+      }
       else if(cmd==='cleanup'){
         const unlink=(c:FxChain):FxChain=>({...c,macros:c.macros.map(m=>({...m,targets:[]})),mods:c.mods.map(m=>({...m,targets:[]}))});
         if(arg==='all')return {...structuredClone(demoInitial),state:{...structuredClone(demoInitial.state),
@@ -475,13 +478,12 @@ function App() {
             chain={track.fx} onChain={chain=>command('fx',[selected,chain])}
             live={snapshot?.meter?.fx_live} bpm={project.bpm}/>
           <SoundCards key={selected} track={track} selected={selected} onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} autoFold={!settings.noAutoFold}
-            onChain={chain=>command('fx',[selected,chain])} armed={armed} live={snapshot?.meter?.fx_live}/>
+            onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={snapshot?.meter?.fx_live}/>
         </>:<>
-          <FxWindow chain={track.fx} focus={fxFocus} onFocus={setFxFocus} onChange={chain=>command('fx',[selected,chain])}
-            levels={snapshot?.meter?.fx?.[selected]} live={snapshot?.meter?.fx_live} spectrum={snapshot?.meter?.spectrum}
-            bpm={project.bpm}/>
-          <FxCards key={selected} selected={selected} chain={track.fx} onFocus={setFxFocus} onChange={chain=>command('fx',[selected,chain])}
-            live={snapshot?.meter?.fx_live} armed={armed} autoFold={!settings.noAutoFold}
+          <FxWindow chain={track.fx} onChange={chain=>command('fx',[selected,chain])} live={snapshot?.meter?.fx_live} bpm={project.bpm}/>
+          <FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
+            onReorder={ids=>command('fx_reorder',[selected,ids])}
+            live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false}/>
         </>}
       </div>

@@ -1,16 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
-import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from 'lucide-react';
+import { Minus, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
-import { FxGraph } from './FxGraph';
-import { Spectrum } from './Spectrum';
-import { FrameWindow } from './FrameWindow';
-import { Panel, useAutoFold } from './Panel';
+import { Panel, markUsed, setFold, useAutoFold } from './Panel';
+import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxTarget } from '../fx';
 import { MorphPad } from './MorphPad';
 import { GateSheet, GateStrip } from './GateSheet';
-import { MACRO_COLORS, MOD_COLORS, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
+import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 export { MACRO_COLORS, MOD_COLORS };
 const NPAR=6;
@@ -42,52 +40,52 @@ function Stepper({label,name,value,min,max,color,onChange}:{label:string,name:st
   </div>;
 }
 
-type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; levels?:number[]; live?:Live; spectrum?:number[]; bpm?:number; focus?:FxModuleId|null; onFocus?:(id:FxModuleId)=>void};
+type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?:number};
 
-/** FX focus window: the animated graph of each effect in use, or the Morph pad. */
-export function FxWindow({chain:raw,onChange,levels,live,spectrum,bpm,focus,onFocus}:WindowProps) {
+/** Morph is always in the middle; its existing header also names the cards in the bottom chain. */
+export function FxWindow({chain:raw,onChange,live,bpm}:WindowProps) {
   const chain=normalizeChain(raw);
-  const active=chain.modules.filter(m=>m.on);
-  return <FrameWindow id="fx" label="FX" tabs={[
-    {id:'GRAPHS',label:'Effects',render:()=>active.length?<div className="fx-focus">
-      <div className="fx-focus-pick" role="group" aria-label="Effect to inspect">{active.map(m=><button type="button" key={m.id} aria-label={'Focus '+FX_MODULES[m.id].name}
-        aria-pressed={m.id===(active.find(m=>m.id===focus)??active[0]).id} style={{['--fx-color' as string]:FX_MODULES[m.id].color}} onClick={()=>onFocus?.(m.id)}>{FX_MODULES[m.id].name}</button>)}</div>
-      <div className="fx-graph-strip" style={{gridTemplateColumns:'minmax(0,1fr) 196px'}}>
-      {(()=>{const state=active.find(m=>m.id===focus)??active[0],def=FX_MODULES[state.id],idx=FX_ORDER.indexOf(state.id);
-        return <div className="fx-graph-tile" data-module={state.id} style={{['--fx-color' as string]:def.color}}>
-          <span>{def.name} · {state.bypass?'Bypassed · ':''}Parameter preview</span>
-          <FxGraph id={state.id} level={levels?.[idx]??0} color={def.color} on={!state.bypass} reduction={live?.comp} strings={live?.strings}
-            params={live?.params?Object.fromEntries(def.params.map((p,j)=>[p.key,live.params[idx*NPAR+j]??state.params[p.key]])):state.params}/>
-        </div>;})()}
-      <div className="fx-graph-tile fx-output-tile" style={{['--fx-color' as string]:'#adb3bd'}}><span>Native output</span><Spectrum samples={spectrum}/></div>
-      </div></div>:<div className="fx-window-pick"><p>Pick an effect to edit its controls and inspect its parameters.</p><FxPickerGrid chain={chain} onAdd={id=>onChange(addModule(chain,id))}/></div>},
-    {id:'MORPH',label:'Morph pad',render:()=><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/>},
-  ]}/>;
+  const windowRef=useRef<HTMLElement>(null);
+  const reveal=(id:FxModuleId)=>{
+    const panel='fx-'+id,frame=windowRef.current?.closest('.frame');markUsed(panel);setFold(panel,false);
+    requestAnimationFrame(()=>{if(!frame?.isConnected)return;const card=frame.querySelector<HTMLElement>('[data-panel="'+panel+'"]');
+      card?.scrollIntoView({block:'nearest',inline:'nearest'});card?.querySelector<HTMLElement>('.ds-panel-title')?.focus({preventScroll:true});});
+  };
+  return <section ref={windowRef} className="frame-window" data-window="fx" data-view="MORPH" aria-label="FX window">
+    <header className="frame-window-bar">
+      <span className="frame-window-label">Morph pad</span>
+      <div className="fx-chain-tags" role="group" aria-label="FX card tags">
+        {chain.modules.filter(m=>m.on).map(m=><button key={m.id} type="button" aria-label={'Show '+FX_MODULES[m.id].name+' card'}
+          style={{['--fx-color' as string]:FX_MODULES[m.id].color}} onClick={()=>reveal(m.id)}>
+          {FX_MODULES[m.id].name}{m.bypass?<small> · Off</small>:null}</button>)}
+      </div>
+    </header>
+    <div className="frame-window-body"><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/></div>
+  </section>;
 }
 
 type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live;
-  armed:Source|null; autoFold:boolean; beat?:number; playing?:boolean; onFocus?:(id:FxModuleId)=>void};
+  onReorder:(ids:FxModuleId[])=>void;
+  armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean};
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,playing=false,onFocus}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
   const rack=useRef<HTMLDivElement>(null);
   useEffect(()=>{setPicking(false);setGateOpen(false);},[selected]);
   const active=chain.modules.filter(m=>m.on), inactive=chain.modules.filter(m=>!m.on);
+  const reorder=useRackOrder(rack,active.map(m=>'fx-'+m.id),ids=>{
+    onReorder(ids.map(id=>id.slice(3) as FxModuleId));
+  },selected);
   useAutoFold(rack,active.map(m=>'fx-'+m.id),autoFold);
   const linksInto=(id:FxModuleId)=>[...chain.macros,...chain.mods].reduce((n,src)=>n+src.targets.filter(t=>t.module===id).length,0);
   const setModule=(id:FxModuleId,patch:(m:FxChain['modules'][number])=>FxChain['modules'][number])=>
     onChange({...chain,modules:chain.modules.map(m=>m.id===id?patch(m):m)});
   const setParam=(id:FxModuleId,key:string,v:number)=>setModule(id,m=>({...m,params:{...m.params,[key]:v}}));
   const reset=(id:FxModuleId)=>setModule(id,m=>({...m,params:Object.fromEntries(FX_MODULES[id].params.map(p=>[p.key,p.init]))}));
-  const move=(id:FxModuleId,dir:-1|1)=>{
-    const order=[...active], i=order.findIndex(m=>m.id===id), j=i+dir;
-    if(j<0||j>=order.length)return;
-    [order[i],order[j]]=[order[j],order[i]];onChange({...chain,modules:[...order,...inactive]});
-  };
   const add=(id:FxModuleId)=>{onChange(addModule(chain,id));setPicking(false);};
   useEffect(()=>{if(!picking)return;const k=(e:KeyboardEvent)=>{if(e.key==='Escape')setPicking(false);};
     window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[picking]);
@@ -117,18 +115,15 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
     style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}} data-track={selected}>
     {active.map((state,pos)=>{
       const def=FX_MODULES[state.id], idx=FX_ORDER.indexOf(state.id);
-      return {id:'fx-'+state.id,node:<Panel rail onUse={()=>{onFocus?.(state.id);window.dispatchEvent(new CustomEvent('decksynth-window',{detail:{id:'fx',tab:'GRAPHS'}}));}} role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
+      return {id:'fx-'+state.id,node:<Panel rail reorder={reorder('fx-'+state.id)} role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
         className={'rack-card fx-card-module on'+(state.bypass?' bypassed':'')} tag={def.color} mods={linksInto(state.id)}
+        modColors={linkedSourceColors(chain,t=>t.module===state.id)}
         style={{['--fx-color' as string]:def.color}}
         icon={<span className="fx-slot-no">{pos+1}</span>}
         power={{on:!state.bypass,label:def.name,onToggle:()=>setModule(state.id,m=>({...m,bypass:!m.bypass}))}}
         summary={state.bypass?'Off':undefined}
         actions={<span className="fx-order">
             <button type="button" aria-label={'Reset '+def.name} title="Reset this effect" onClick={()=>reset(state.id)}><RotateCcw size={14}/></button>
-            <button type="button" aria-label={'Move '+def.name+' earlier'} disabled={pos===0}
-              onClick={()=>move(state.id,-1)}><ChevronLeft size={15}/></button>
-            <button type="button" aria-label={'Move '+def.name+' later'} disabled={pos===active.length-1}
-              onClick={()=>move(state.id,1)}><ChevronRight size={15}/></button>
             <button type="button" className="fx-remove" aria-label={'Remove '+def.name}
               onClick={()=>remove(state.id)}><X size={15}/></button>
           </span>}>
@@ -138,6 +133,8 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
             if(p.editor==='gate')return <GateStrip key={p.key} params={state.params} beat={beat} playing={playing} onOpen={()=>setGateOpen(true)}/>;
             const routes=routesFor(state.id,p.key);
             const routed=!!armed&&sourceTargets(chain,armed).some(t=>t.module===state.id&&t.param===p.key);
+            const preferred=armed??source;
+            const color=preferred&&sourceTargets(chain,preferred).some(t=>t.module===state.id&&t.param===p.key)?sourceColor(preferred):routes[0]?.color;
             const cls=(routes.length?' has-mod':'')+(routed?' routed-here':'');
             if(p.options)return <div key={p.key} className={'fx-choice'+cls} onPointerDownCapture={capture(state.id,p.key)}>
               <span className="fx-choice-label">{p.label}</span>
@@ -154,7 +151,7 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
                 value={state.params[p.key]} min={p.min} max={p.max} suffix={p.suffix??''}
                 step={.001} precision={p.precision??2} accent={def.color} compact
                 modValue={routes.length&&liveValue!==undefined?liveValue:null}
-                modColor={routes[0]?.color}
+                modColor={color}
                 onChange={v=>setParam(state.id,p.key,v)}/>}
               {routes.length?<span className="fx-route-dots">{routes.map((r,k)=><i key={k} style={{background:r.color}}/>)}</span>:null}
             </div>;
