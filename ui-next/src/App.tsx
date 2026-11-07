@@ -1,3 +1,5 @@
+import {AutomationEditor} from './components/AutomationEditor';
+import type {ControlTarget} from './parameter-registry';
 import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -61,6 +63,8 @@ function App() {
   const [settings,setSettingsState]=useState<AppSettings>(readSettings);
   const setSettings=(s:AppSettings)=>{setSettingsState(s);writeSettings(s);};
   const setPage=(next:Page)=>{setPageState(next);if(next!=='FX'&&next!=='SOUND')setArmed(null);try{localStorage.setItem('decksynth.page',next);}catch{/* optional */}};
+  const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
+  const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
   const [fileMenu,setFileMenu]=useState(false);
   const [dialog,setDialog]=useState<Dialog>(null);
   // Song page view: Clip notes in Loop mode and the Timeline in Song mode, until you pick one yourself.
@@ -334,7 +338,7 @@ function App() {
     const directory=await api.chooseFile('open','sample_folder');
     if(directory)command('drum_library_root',directory);
   };
-  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'||key.startsWith('fenv_')||key.startsWith('vcf_')||['play_mode','glide','pitch','velocity_brightness','velocity_cutoff'].includes(key)?[key,index,value,selected]:[key,index,value]);
+  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value,selected]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
   useEffect(()=>{
@@ -354,7 +358,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command}><main className="decksynth-shell harness-shell">
+  return <MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell">
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="DeckSynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -420,11 +424,18 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
 
+    {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
       <PageBar tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
+          {track.device!=='drum_rack'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
+            {(['A','B'] as const).map(slot=><button key={slot} type="button" aria-label={'Compare sound '+slot} aria-pressed={(track.sound_ab?.active??'A')===slot} onClick={()=>command('sound_ab',[selected,slot])}>{slot}</button>)}
+            <button type="button" aria-label="Copy sound to other slot" title="Copy to other slot" onClick={()=>command('sound_ab',[selected,'copy'])}>{track.sound_ab?.active==='B'?'B → A':'A → B'}</button>
+            <button type="button" aria-label="Sound undo" title="Undo one knob gesture" disabled={!(snapshot?.sound_undo?.[selected])} onClick={()=>command('sound_undo',selected)}><RotateCcw size={16}/></button>
+            <button type="button" aria-label="Edit automation" aria-pressed={snapshot?.automation_arm??false} onClick={()=>setAutomationEdit(null)}>Auto</button>
+          </div>:null}
           <select className="track-device-picker" aria-label="Track device" value={track.device??'synth'} style={{minHeight:44,minWidth:116,width:116,padding:'0 10px'}}
             onChange={e=>{if(isPreview){setToast('Select devices in the native audio app');return;}command('set_device',[selected,e.target.value]);}}>
             <option value="synth">Synth</option><option value="drum_rack">Drum Rack</option>

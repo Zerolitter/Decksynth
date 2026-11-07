@@ -19,7 +19,9 @@ export type DrumPad = {
 };
 export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null};
 export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string}[]};
+export type AutomationLane={module:string;param:string;points:[number,number][]};
 export type Track = {
+  sound_ab?:{active:'A'|'B';A:unknown;B:unknown};automation?:AutomationLane[];
   midi_cc?:import('./parameter-registry').MidiMapping[];
   device?:'synth'|'drum_rack';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
   name: string; preset: string; instrument: Instrument;
@@ -68,7 +70,7 @@ export type DeckUpdate = {
   playing: boolean; recording: boolean; connected: string | null;
   devices: string[]; audio: string; audio_output: string;
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; preview?: boolean;
-  audio_channels?:number;
+  sound_undo?:number[];automation_arm?:boolean;audio_channels?:number;
   meter?: { channels?:{rms:number;peak:number;wave:number[]}[];rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;partials?:number[]|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
   held_notes?: number[];
   /** Step record cursor: the step the next recorded key goes to. */

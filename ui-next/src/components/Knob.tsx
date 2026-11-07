@@ -25,6 +25,10 @@ type Props = {
 export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
   precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format}:Props) {
   const midi=useMidiLearn(),cc=midi?.cc(id)??null;
+  const gesture=useRef(false);
+  const beginGesture=()=>{if(!gesture.current){midi?.gesture(id,'begin');gesture.current=true;}};
+  const endGesture=(cancel=false)=>{if(gesture.current){midi?.gesture(id,cancel?'cancel':'end');gesture.current=false;}};
+  const commitChange=(n:number)=>{beginGesture();onChangeRef.current(n);endGesture();};
   const learnHold=useRef<{x:number;y:number;timer:ReturnType<typeof setTimeout>}|null>(null);
   const clearLearnHold=()=>{if(learnHold.current)clearTimeout(learnHold.current.timer);learnHold.current=null;};
   const gradientId = useId().replace(/:/g,'');
@@ -45,7 +49,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
     if(!dragging.current){setLocal(value);latest.current=value;}
   },[value]);
   useEffect(()=>()=> {
-    clearLearnHold();drag.current?.cancel();batch.discard();
+    clearLearnHold();drag.current?.cancel();batch.discard();endGesture(true);
     if(readoutTimeout.current!==null)clearTimeout(readoutTimeout.current);
   },[batch,id]);
   useEffect(()=>{if(editing){setDraft(String(local));input.current?.select();}},[editing]);
@@ -77,7 +81,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
     latest.current=local;
     drag.current=startRelativeDrag(e.currentTarget,e.nativeEvent,{
       threshold:3,pointerLock:e.pointerType==='mouse',
-      onStart:()=>{dragging.current=true;return true;},
+      onStart:()=>{dragging.current=true;beginGesture();return true;},
       onMove:({dy,fine})=>{
         const n=knobQuantize(knobDragValue(latest.current,dy,{min,max},fine),min,max,step);
         latest.current=n;setLocal(n);batch.push(n);reveal();
@@ -86,7 +90,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
         dragging.current=false;
         if(canceled){batch.discard();setLocal(value);latest.current=value;onChangeRef.current(value);}
         else batch.flush();
-        hideLater();
+        endGesture(canceled);hideLater();
       },
     });
   };
@@ -95,7 +99,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
     const next=knobKeyValue(e.key,local,{min,max,step},e.shiftKey);
     if(next!==null){
       e.preventDefault();setLocal(next);latest.current=next;
-      onChangeRef.current(next);reveal();hideLater();
+      beginGesture();onChangeRef.current(next);reveal();hideLater();
     }
     if(e.key==='Enter'){e.preventDefault();setEditing(true);reveal();}
   };
@@ -103,7 +107,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
     const parsed=knobParseNumber(draft,min,max);
     if(parsed!==null){
       const next=knobQuantize(parsed,min,max,step);
-      latest.current=next;setLocal(next);onChangeRef.current(next);
+      latest.current=next;setLocal(next);commitChange(next);
       reveal();hideLater();
     }
     setEditing(false);
@@ -130,7 +134,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
       aria-valuemin={min} aria-valuemax={max} aria-valuenow={local} aria-valuetext={show(local)}
       onPointerDown={onPointerDown} onPointerUp={()=>{clearLearnHold();hideLater();}}
       onPointerMove={e=>{const h=learnHold.current;if(h&&(dragging.current||Math.hypot(e.clientX-h.x,e.clientY-h.y)>3))clearLearnHold();}}
-      onPointerCancel={()=>{clearLearnHold();hideLater();}} onKeyDown={e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){if(midi?.canLearn(id)){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();midi.open(id,r.x+r.width/2,r.y+r.height/2);}}else onKeyDown(e);}}
+      onPointerCancel={()=>{clearLearnHold();hideLater();}} onKeyUp={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','PageUp','PageDown','Home','End'].includes(e.key))endGesture();}} onBlur={()=>endGesture()} onKeyDown={e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){if(midi?.canLearn(id)){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();midi.open(id,r.x+r.width/2,r.y+r.height/2);}}else onKeyDown(e);}}
       onDoubleClick={()=>{drag.current?.cancel();setEditing(true);}}>
       <svg className="knob-svg" viewBox="0 0 56 56" aria-hidden="true">
         <defs>

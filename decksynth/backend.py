@@ -127,6 +127,13 @@ def worker(commands,updates):
                 try:
                     if cmd=='quit':running=False; break
                     elif cmd=='midi':engine.midi(*args)
+                    elif cmd=='sound_gesture':engine.sound_gesture(*args)
+                    elif cmd=='sound_undo':engine.sound_undo(args)
+                    elif cmd=='sound_ab':engine.ab_action(*args)
+                    elif cmd=='automation_arm':
+                        if type(args) is not bool:raise ValueError('Invalid automation arm')
+                        engine.automation_arm=args
+                    elif cmd=='automation':engine.set_automation(*args)
                     elif cmd=='learn_cc':engine.learn_cc(*args)
                     elif cmd=='unlearn_cc':engine.unlearn_cc(*args)
                     elif cmd=='cancel_cc_learn':engine.midi_learn=None
@@ -198,6 +205,7 @@ def worker(commands,updates):
                             t['instrument'][key]=int(value)
                         else:raise ValueError('Unknown sound parameter: '+str(key))
                         engine.synths[engine.selected].configure(t['instrument'])
+                        engine.record_control(engine.selected,'sound',key,t['instrument'][key])
                     elif cmd=='song':
                         try:engine.set_song(args)
                         except ValueError as exc:send(dict(error=str(exc)))
@@ -224,6 +232,7 @@ def worker(commands,updates):
                         else:notes[idx]=note
                     elif cmd=='track':
                         tr,key,value=args; engine.project.tracks[tr][key]=value
+                        if key=='volume':engine.record_control(tr,'sound','volume',value)
                         if key=='mute':engine.synths[tr].panic();engine.drums[tr].panic()
                     elif cmd=='tempo':
                         # Stop before changing the beat-to-sample conversion.
@@ -288,7 +297,7 @@ def worker(commands,updates):
                 meter=dict(channels=stereo,rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
                            fx_live=engine.fx_live(engine.selected))
-                send(dict(state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,beat=engine.beat%engine.project.beats,
+                send(dict(state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
                           drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',

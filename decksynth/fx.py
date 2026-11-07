@@ -431,13 +431,14 @@ class TrackFx:
         if self.active and not was and self.handle and not self._tail: self.lib.dsfx_reset(self.handle); self.right and self.lib.dsfx_reset(self.right); self.tuned = []
         # The last effect switched off: keep running a few blocks so it fades out instead of cutting.
         if was and not self.active: self._tail = 8
-    def modulate(self, beat):
+    def modulate(self, beat, automation=None):
         """Write base params plus macro and mod-pad offsets for this block."""
         c = self.chain
-        if not c: return
+        if not c:self.sound={};return
+        automation=automation or {}
         offsets = {}
         macros = c.get('macros') or []
-        values = [m['value'] for m in macros]  # the Morph Pad writes its two macros' values directly
+        values = [automation.get(('macro',str(i)),m['value']) for i,m in enumerate(macros)]  # the Morph Pad writes its two macros' values directly
         self.move_puck(beat, values)  # ...and while its puck travels a path, the engine moves them in audio time
         for m, v in zip(macros, values):
             for t in m['targets']:
@@ -451,14 +452,14 @@ class TrackFx:
         gate=next((m for m in c['modules'] if m['id']=='gate'),None)
         if gate:
             for k,(lo,hi,init) in GATE_PERFORMANCE.items():
-                self.gate_values[k]=min(hi,max(lo,gate['params'].get(k,init)+offsets.get(('gate',k),0.)*(hi-lo)))
+                self.gate_values[k]=min(hi,max(lo,automation.get(('gate',k),gate['params'].get(k,init))+offsets.get(('gate',k),0.)*(hi-lo)))
             if any(('gate',k) in offsets for k in ('phase','notelen')):self._gate_extended=True
-        if not offsets and not getattr(self, '_dirty', False): return
-        self._dirty = bool(offsets)
+        if not offsets and not automation and not getattr(self, '_dirty', False): return
+        self._dirty = bool(offsets or automation)
         for m in c['modules']:
             idx = ORDER.index(m['id'])
             for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
-                v = m['params'].get(key, init) + offsets.get((m['id'], key), 0.) * (hi - lo)
+                v = automation.get((m['id'],key),m['params'].get(key, init)) + offsets.get((m['id'], key), 0.) * (hi - lo)
                 self.params[idx * NPAR + j] = min(hi, max(lo, v))
     def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False):
         """samples: list of floats; returns a list (same object when bypassed).

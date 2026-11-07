@@ -40,10 +40,10 @@ class ControllerEngine:
   if spec is None or type(unit) not in (int,float) or not math.isfinite(unit):raise ValueError('Invalid parameter control')
   value=spec['min']+min(1.,max(0.,unit))*(spec['max']-spec['min']);t=self.project.tracks[track]
   if module=='sound':
-   if param=='volume':t['volume']=value;return
+   if param=='volume':t['volume']=value;self.record_control(track,module,param,value);return
    if param.startswith('fenv_'):
     for key,amp in (('fenv_a','attack'),('fenv_d','decay'),('fenv_s','sustain'),('fenv_r','release')):t['instrument'].setdefault(key,t['instrument'][amp])
-   t['instrument'][param]=value;self.synths[track].configure(t['instrument'])
+   t['instrument'][param]=value;self.synths[track].configure(t['instrument']);self.record_control(track,module,param,value)
   else:
    chain=copy.deepcopy(t.get('fx') or default_chain())
    if module=='macro':chain['macros'][int(param)]['value']=value

@@ -93,6 +93,19 @@ def instrument(name):
     h,a,d,s,r,f,m=PRESETS[name]
     return dict(harmonics=h[:],attack=a,decay=d,sustain=s,release=r,filter=f,modulation=m)
 
+def validate_instrument(ins):
+    assert isinstance(ins,dict) and len(ins['harmonics'])==16
+    validate_metadata(ins)
+    assert all(isinstance(x,(int,float)) and math.isfinite(x) and 0<=x<=1 for x in ins['harmonics'])
+    for k,lo,hi in [('attack',.001,3),('decay',.001,3),('sustain',0,1),('release',.01,3),('filter',.02,1),('modulation',0,1)]:
+        assert math.isfinite(ins[k]) and lo<=ins[k]<=hi
+    for k,(lo,hi) in SPECTRAL_RANGES.items():
+        if k in ins:assert isinstance(ins[k],(int,float)) and math.isfinite(ins[k]) and lo<=ins[k]<=hi
+    for k,(lo,hi) in VOICE_RANGES.items():
+        if k in ins:assert type(ins[k]) in (int,float) and math.isfinite(ins[k]) and lo<=ins[k]<=hi
+    for k,choices in VOICE_CHOICES.items():
+        if k in ins:assert type(ins[k]) is int and ins[k] in choices
+
 class Project:
     def __init__(self):
         self.bpm=120; self.bars=4; self.metronome=False
@@ -128,17 +141,10 @@ class Project:
                 kind=device_kind(t)
                 if 'drum_rack' in t:t['drum_rack']=validate_kit(t['drum_rack'])
                 if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
-                ins=t['instrument']; assert len(ins['harmonics'])==16
-                validate_metadata(ins)
-                assert all(isinstance(x,(int,float)) and math.isfinite(x) and 0<=x<=1 for x in ins['harmonics'])
-                for k,lo,hi in [('attack',.001,3),('decay',.001,3),('sustain',0,1),('release',.01,3),('filter',.02,1),('modulation',0,1)]:
-                    assert math.isfinite(ins[k]) and lo<=ins[k]<=hi
-                for k,(lo,hi) in SPECTRAL_RANGES.items():
-                    if k in ins:assert isinstance(ins[k],(int,float)) and math.isfinite(ins[k]) and lo<=ins[k]<=hi
-                for k,(lo,hi) in VOICE_RANGES.items():
-                    if k in ins:assert type(ins[k]) in (int,float) and math.isfinite(ins[k]) and lo<=ins[k]<=hi
-                for k,choices in VOICE_CHOICES.items():
-                    if k in ins:assert type(ins[k]) is int and ins[k] in choices
+                validate_instrument(t['instrument'])
+                from .workflow import validate_ab,validate_automation
+                if 'sound_ab' in t:t['sound_ab']=validate_ab(t['sound_ab'])
+                if 'automation' in t:t['automation']=validate_automation(t['automation'])
                 if 'fx' in t:t['fx']=validate_fx(t['fx'])
                 assert len(t['notes'])<=100000
                 for n in t['notes']:
@@ -534,7 +540,9 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
 
 RESONATOR=FX_ORDER.index('resonator')
 
-class Engine(ControllerEngine,DrumEngine):
+from .workflow import WorkflowEngine
+
+class Engine(WorkflowEngine,ControllerEngine,DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
@@ -547,6 +555,7 @@ class Engine(ControllerEngine,DrumEngine):
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
         self.midi_learn=None
+        self.init_workflow()
         self.init_drums()
         self.configure()
     def configure(self):
@@ -556,7 +565,7 @@ class Engine(ControllerEngine,DrumEngine):
         self.configure_drums()
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
-        clean=validate_fx(chain); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
+        clean=validate_fx(chain);self.record_fx_changes(track,self.project.tracks[track].get('fx') or default_fx(),clean); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
     def seed_spectral(self,track,name):
         """One owned/validated shape gesture; base partials and seed metadata commit together."""
         from .devices import track_index
@@ -766,6 +775,7 @@ class Engine(ControllerEngine,DrumEngine):
         from .devices import track_index
         track_index(track)
         if track!=self.selected:
+            self.cancel_sound_gesture();self.automation_arm=False
             self.midi_learn=None
             if self.recording: self.finish_record()
             self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
@@ -785,6 +795,7 @@ class Engine(ControllerEngine,DrumEngine):
         for key in list(self.pending): self.close_note(key)
         self.recording=False
     def stop(self):
+        self.cancel_sound_gesture();self.automation_arm=False
         self.finish_record(); self.down.clear(); self.capture_sustain.clear(); self.playing=False; self.frame=0
         self.project.performance['seq']['recording']=False
         for s in self.synths:s.panic()
@@ -1147,13 +1158,18 @@ class Engine(ControllerEngine,DrumEngine):
     def _render_bus(self,frames,stereo):
         result=[]; remaining=frames
         while remaining:
-            n=min(remaining,128)
+            n=self.automation_block(min(remaining,128))
             if self.recording:n=min(n,max(1,self.record_end-self.frame))
             events={0:[]}; start=self.frame; end=start+n
             abs_start=self.absolute_frame; abs_end=abs_start+n
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
-            for fx,synth in zip(self.fx,self.synths):
-                fx.modulate(abs_start/self.fpb); synth.modulate(fx.sound)
+            for tr,(fx,synth) in enumerate(zip(self.fx,self.synths)):
+                auto=self.automation_values[tr];fx.modulate(abs_start/self.fpb,auto)
+                for (module,param),value in auto.items():
+                    if module=='sound':
+                        base=self.project.tracks[tr]['volume'] if param=='volume' else synth.params.get(param,sound_default(synth.params,param))
+                        fx.sound[param]=fx.sound.get(param,0.)+value-base
+                synth.modulate(fx.sound)
                 # The resonator's strings follow the notes this track is playing.
                 if fx.active and fx.on[RESONATOR]:
                     fx.tune([v['note'] for v in synth.voices.values() if v.get('release') is None],
