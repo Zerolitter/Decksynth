@@ -56,6 +56,47 @@ class SpectralS5(unittest.TestCase):
    e=Engine();e.set_device(0,'drum_rack');e.import_drum_sample(0,e.project.tracks[0]['drum_rack']['id'],0,str(p))
    e.project.tracks[0]['instrument']['pan']=1.;e.midi(0x90,36,100);a=e.render_stereo(512)
    self.assertEqual(max(map(abs,a[::2])),0.);self.assertGreater(max(map(abs,a[1::2])),.01)
+ def test_stereo_export_rehydrates_drums_and_rejects_missing_assets(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'generated.wav'
+   with wave.open(str(p),'wb') as w:w.setparams((1,2,48000,0,'NONE','PCM'));w.writeframes(struct.pack('<1024h',*[5000]*1024))
+   e=Engine();e.set_device(0,'drum_rack');e.import_drum_sample(0,e.project.tracks[0]['drum_rack']['id'],0,str(p))
+   e.project.tracks[0]['notes']=[dict(start=0.,duration=.25,note=36,velocity=100)];out=Path(d)/'out.wav';e.export_wav(out,.1)
+   with wave.open(str(out)) as w:a=struct.unpack('<'+str(w.getnframes()*2)+'h',w.readframes(w.getnframes()))
+   self.assertGreater(max(map(abs,a)),100)
+   p.unlink()
+   with self.assertRaisesRegex(ValueError,'missing|Missing|unavailable'):e.export_wav(out,.1)
+ def test_cloud_clock_never_jumps_when_individual_tap_phases_wrap(self):
+  c=default_chain();m=next(m for m in c['modules'] if m['id']=='cloud');m['on']=True;m['params'].update(time=.1,density=1.,scatter=1.,feedback=0.,tone=1.,mix=1.)
+  f=TrackFx(48000);f.configure(c);out=[]
+  for start in range(0,131072,128):out+=f.process_stereo([.2*math.sin(2*math.pi*440*(start+i)/48000) for i in range(128)],120)[0]
+  self.assertLess(max(abs(a-b) for a,b in zip(out[10000:],out[10001:])),.02)
+ def test_pan_changes_slew_without_channel_steps(self):
+  from unittest.mock import patch
+  e=Engine();e.project.tracks[0]['volume']=1.;e.project.tracks[0]['instrument']['pan']=-1.
+  with patch.object(e.synths[0],'render',side_effect=lambda n:[.2]*n):
+   e.render_stereo(128);e.project.tracks[0]['instrument']['pan']=1.;a=e.render_stereo(128)
+   self.assertGreater(a[0],.19);self.assertLess(a[1],.01);self.assertLess(max(abs(x-y) for x,y in zip(a[::2],a[2::2])),.002)
+   b=e.render_stereo(512);self.assertAlmostEqual(b[-2],0.);self.assertAlmostEqual(b[-1],.2)
+ def test_unsupported_stereo_kernel_rejects_enabled_new_controls(self):
+  from unittest.mock import patch
+  from decksynth import fx
+  legacy=fx._load(legacy=True)
+  for module,key in [('cloud','mix'),('chorus','width'),('chorus','haas'),('delay','width'),('reverb','width')]:
+   c=default_chain();m=next(m for m in c['modules'] if m['id']==module);m['on']=True;m['params'][key]=.01
+   with patch.object(fx,'_load',return_value=legacy):
+    f=TrackFx(48000)
+    with self.assertRaisesRegex(ValueError,'cached native|kernel'):f.configure(c)
+ def test_compressor_telemetry_reports_strongest_stereo_reduction(self):
+  c=default_chain()
+  for m in c['modules']:
+   if m['id'] in ('chorus','compressor'):m['on']=True
+  next(m for m in c['modules'] if m['id']=='chorus')['params'].update(mix=0.,haas=.03)
+  f=TrackFx(48000);f.configure(c)
+  for i in range(50):f.process_stereo([.3]*128,120)
+  f.process_stereo([0.]*512,120)
+  self.assertGreater(f.lib.dsfx_comp_gr(f.right),f.lib.dsfx_comp_gr(f.handle))
+  self.assertEqual(f.comp_reduction(),round(max(f.lib.dsfx_comp_gr(f.handle),f.lib.dsfx_comp_gr(f.right)),2))
  def test_sdl_queue_counts_stereo_frames(self):
   from decksynth.backend import Audio
   previous=os.environ.get('SDL_AUDIODRIVER');os.environ['SDL_AUDIODRIVER']='dummy'

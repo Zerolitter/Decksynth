@@ -537,7 +537,7 @@ RESONATOR=FX_ORDER.index('resonator')
 class Engine(ControllerEngine,DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
-        self.fx=[TrackFx(rate) for _ in range(4)]
+        self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
         self.selected=0; self.playing=False; self.recording=False; self.frame=0
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.perform_held=HeldNotes(); self.live_note_map={}; self.mutation_sessions={}; self.arp_anchor_beat=0.
@@ -1239,7 +1239,7 @@ class Engine(ControllerEngine,DrumEngine):
                     else:click.append(None)
             # Per-track FX run once per block, then the mix is summed in the original order.
             mix=[0.]*n;right=[0.]*n if stereo else None
-            for t,fx,audio in zip(self.project.tracks,self.fx,track_audio):
+            for tr,(t,fx,audio) in enumerate(zip(self.project.tracks,self.fx,track_audio)):
                 if not t['mute']:
                     process=fx.process_stereo if stereo else fx.process
                     audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
@@ -1247,8 +1247,12 @@ class Engine(ControllerEngine,DrumEngine):
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
                     if stereo:
                         pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
-                        left_audio,right_audio=audio;lg=vol*(1-pan)*.5;rg=vol*(1+pan)*.5
-                        for j,(l,r) in enumerate(zip(left_audio,right_audio)):mix[j]+=l*lg;right[j]+=r*rg
+                        left_audio,right_audio=audio;current=pan if self._pan_state[tr] is None else self._pan_state[tr]
+                        step=2/max(1,.005*self.rate)
+                        for j,(l,r) in enumerate(zip(left_audio,right_audio)):
+                            current+=min(step,max(-step,pan-current))
+                            mix[j]+=l*(vol*(1-current)*.5);right[j]+=r*(vol*(1+current)*.5)
+                        self._pan_state[tr]=current
                     else:
                         for j,v in enumerate(audio):mix[j]+=v*vol
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,

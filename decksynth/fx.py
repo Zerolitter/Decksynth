@@ -407,6 +407,11 @@ class TrackFx:
         self.lib.dsfx_tune(self.handle, freqs, len(strings))
         if self.right:self.lib.dsfx_tune(self.right,freqs,len(strings))
     def configure(self, chain):
+        if not self.right:
+            for m in (chain or {}).get('modules',[]):
+                stereo=m['id']=='cloud' or (m['id'] in ('chorus','delay','reverb') and (m['params'].get('width',0.)>0 or m['params'].get('haas',0.)>0))
+                if m['on'] and not m.get('bypass') and stereo:
+                    raise ValueError('Stereo controls require the cached native kernel; run tools/build-native-filter.py and restart')
         self.chain = chain
         gate=next((m for m in (chain or {}).get('modules',[]) if m['id']=='gate'),None)
         values={k:(gate['params'].get(k,v[2]) if gate else v[2]) for k,v in GATE_PERFORMANCE.items()}
@@ -498,7 +503,7 @@ class TrackFx:
     def comp_reduction(self):
         """Compressor gain reduction in dB (0 when the library is older)."""
         if not self.handle or not hasattr(self.lib, 'dsfx_comp_gr'): return 0.
-        return round(self.lib.dsfx_comp_gr(self.handle), 2)
+        return round(max(self.lib.dsfx_comp_gr(self.handle),self.lib.dsfx_comp_gr(self.right) if self.right else 0.), 2)
     def __del__(self):
         try:
             if getattr(self,'right',None):self.lib.dsfx_destroy(self.right)

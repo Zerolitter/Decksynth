@@ -28,7 +28,7 @@ static const int AP_LEN[2] = {556, 441};
 typedef struct {
     double rate;
     double stereo_phase,stereo_width,haas_delay; float haas[2048]; int haas_w;
-    float cloud[96000]; int cloud_w; double cloud_phase,cloud_lp,cloud_diff;
+    float cloud[96000]; int cloud_w; double cloud_phase[4],cloud_lp,cloud_diff;
     /* stutter */
     float stu[STU_LEN]; int stu_w, stu_pos_in_cycle, stu_slice; double stu_r;
     /* filter (TPT SVF) */
@@ -428,15 +428,16 @@ static void m_cloud(FxTrack *t,double *b,int n,const double *p) {
         double wet=0,total=0;
         for(int k=0;k<4;k++) {
             double gain=k==0?1:density;
-            double delay=base*(.52+.16*k)+scatter*t->rate*.003*sin(t->cloud_phase*(1+.17*k)+k*1.97+t->stereo_phase);
+            double delay=base*(.52+.16*k)+scatter*t->rate*.003*sin(t->cloud_phase[k]+k*1.97+t->stereo_phase);
             double rp=t->cloud_w-clampd(delay,2,95998);while(rp<0)rp+=96000;
             int j=(int)rp;double f=rp-j;
             wet+=gain*(t->cloud[j]*(1-f)+t->cloud[(j+1)%96000]*f);total+=gain;
+            t->cloud_phase[k]+=2*PI*.37*(1+.17*k)/t->rate;if(t->cloud_phase[k]>2*PI)t->cloud_phase[k]-=2*PI;
         }
         wet/=total;t->cloud_lp+=tone*(wet-t->cloud_lp);
         double diff=-.35*t->cloud_lp+t->cloud_diff;t->cloud_diff=t->cloud_lp+.35*diff;
         t->cloud[t->cloud_w]=(float)(b[i]+fb*t->cloud_lp);t->cloud_w=(t->cloud_w+1)%96000;
-        b[i]=b[i]*(1-mix)+diff*mix;t->cloud_phase+=2*PI*.37/t->rate;if(t->cloud_phase>2*PI)t->cloud_phase-=2*PI;
+        b[i]=b[i]*(1-mix)+diff*mix;
     }
 }
 static void m_pingpong(FxTrack *l,FxTrack *r,double *a,double *b,int n,const double *p,double bpm) {
