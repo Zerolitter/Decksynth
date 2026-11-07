@@ -11,7 +11,7 @@ import time
 from .drum_loader import DrumLoader
 from .drum_memory import data_directory
 from .drum_library_service import DrumLibraryService
-from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, arp_view
+from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, arp_view
 from .keystep import StepCapacityError
 
 class AudioSpec(C.Structure):
@@ -178,7 +178,13 @@ def worker(commands,updates):
                             lo,hi=SPECTRAL_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
                         elif key in ('attack','decay','sustain','release','filter','modulation'):t['instrument'][key]=value
                         elif key in VOICE_RANGES:
-                            lo,hi=VOICE_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
+                            if key in FILTER_ENV or key=='vcf_morph':
+                                if type(value) not in (int,float) or not math.isfinite(value):
+                                    raise ValueError('Filter parameter must be a finite number')
+                            lo,hi=VOICE_RANGES[key];value=max(lo,min(hi,float(value)))
+                            if key in FILTER_ENV:
+                                for field,amp in FILTER_ENV.items():t['instrument'].setdefault(field,t['instrument'][amp])
+                            t['instrument'][key]=value
                         elif key in VOICE_CHOICES:
                             if int(value) not in VOICE_CHOICES[key]:raise ValueError('Unknown choice for '+key)
                             t['instrument'][key]=int(value)

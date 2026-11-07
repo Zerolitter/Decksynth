@@ -1,0 +1,113 @@
+[
+  {
+    "params": {
+      "harmonics": [
+        1,
+        0.5,
+        0.22,
+        0.12,
+        0.08,
+        0.04,
+        0.02,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "attack": 0.008,
+      "decay": 0.6,
+      "sustain": 0.35,
+      "release": 0.5,
+      "filter": 0.85,
+      "modulation": 0.08,
+      "vcf_type": 1,
+      "vcf_cutoff": 0.46,
+      "vcf_reso": 0.8,
+      "vcf_env": -0.35,
+      "uni_voices": 3,
+      "sub": 0.2
+    },
+    "note": 60,
+    "velocity": 100,
+    "sha256": "923e3fddda0794609029b46b53da9a2f41d5bfd938463e65a01e18f12bd6053d"
+  },
+  {
+    "params": {
+      "harmonics": [
+        1,
+        0.5,
+        0.22,
+        0.12,
+        0.08,
+        0.04,
+        0.02,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "attack": 0.008,
+      "decay": 0.6,
+      "sustain": 0.35,
+      "release": 0.5,
+      "filter": 0.85,
+      "modulation": 0.08,
+      "vcf_type": 2,
+      "vcf_cutoff": 0.46,
+      "vcf_reso": 0.8,
+      "vcf_env": -0.35,
+      "uni_voices": 3,
+      "sub": 0.2
+    },
+    "note": 60,
+    "velocity": 100,
+    "sha256": "fe1ec5c4c9a9cb048bfb56c06fd199da9db74c1bd1b9f57321ce22facefe28c6"
+  },
+  {
+    "params": {
+      "harmonics": [
+        1,
+        0.5,
+        0.22,
+        0.12,
+        0.08,
+        0.04,
+        0.02,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "attack": 0.008,
+      "decay": 0.6,
+      "sustain": 0.35,
+      "release": 0.5,
+      "filter": 0.85,
+      "modulation": 0.08,
+      "vcf_type": 3,
+      "vcf_cutoff": 0.46,
+      "vcf_reso": 0.8,
+      "vcf_env": -0.35,
+      "uni_voices": 3,
+      "sub": 0.2
+    },
+    "note": 60,
+    "velocity": 100,
+    "sha256": "10bbaf3c5946c47e1797f21a86bbd7e70e2c5ae78e29f946c97a698e69fb1ea6"
+  }
+]

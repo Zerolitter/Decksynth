@@ -528,7 +528,10 @@ typedef struct {
 static double vsine[2049]; static int vsine_ready = 0;
 static inline double vlut(double ph) { int j = (int)ph; double fr = ph - j; return vsine[j] + (vsine[j + 1] - vsine[j]) * fr; }
 
-int dsfx_voice2(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v) {
+/* S2 uses st[80..84]: independent envelope level/release base and smoothed morph/cutoff/reso.
+ * The old entry point and state size stay valid, including installed legacy libraries. */
+typedef struct { double a, d, sus, rel, morph; int independent; } DsFilter;
+static int voice_ext(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f) {
     if (!vsine_ready) { for (int i = 0; i <= 2048; i++) vsine[i] = sin(2 * PI * i / 2048); vsine_ready = 1; }
     double age = st[1], r = st[2], base = st[3], level = st[4], xf = st[5];
     int result = 0, partial = v->weights != NULL;
@@ -548,6 +551,11 @@ int dsfx_voice2(double *out, int n, const double *tab, const double *prev, doubl
         for (int k = 0; k < np && inc[u] * pr[k] < .45 * 2048; k++) { dks[u][k] = inc[u] * pr[k]; na[u] = k + 1; }
     double ic1 = st[13], ic2 = st[14], a1 = 0, a2 = 0, a3 = 0, kk = 2;
     double subph = st[15], substep = v->step / (v->suboct == 2 ? 4 : 2);
+    double fl=0, fb=0, morph=0, logcut=0, reso=0, smooth=0, target=0;
+    if (f) {
+        fl=st[80]; fb=st[81]; morph=st[82]; logcut=st[83]; reso=st[84];
+        smooth=1-exp(-1/(.004*v->rate)); target=log2(v->cutoff);
+    }
     for (int i = 0; i < n; i++) {
         if (v->released) {
             level = base * fmax(0, 1 - r / v->rel); r += 1;
@@ -555,10 +563,18 @@ int dsfx_voice2(double *out, int n, const double *tab, const double *prev, doubl
         } else if (age < v->a) level = age / v->a;
         else if (age < v->a + v->d) level = 1 - (1 - v->sus) * (age - v->a) / v->d;
         else level = v->sus;
+        if (f) {
+            if (!f->independent) fl=level;
+            else if (v->released) { if (r==1) fb=fl; fl=fb*fmax(0,1-(r-1)/f->rel); }
+            else if (age<f->a) fl=age/f->a;
+            else if (age<f->a+f->d) fl=1-(1-f->sus)*(age-f->a)/f->d;
+            else fl=f->sus;
+            morph+=(f->morph-morph)*smooth; logcut+=(target-logcut)*smooth; reso+=(v->reso-reso)*smooth;
+        }
         if (v->ftype && (i & 15) == 0) {
-            double fc = v->cutoff * pow(2, v->envamt * level);
+            double fc = (f ? pow(2,logcut) : v->cutoff) * pow(2, v->envamt * (f ? fl : level));
             fc = fc < 20 ? 20 : fc > .45 * v->rate ? .45 * v->rate : fc;
-            double g = tan(PI * fc / v->rate); kk = 2 - 1.96 * v->reso;
+            double g = tan(PI * fc / v->rate); kk = 2 - 1.96 * (f ? reso : v->reso);
             a1 = 1 / (1 + g * (g + kk)); a2 = g * a1; a3 = g * a2;
         }
         double s = 0;
@@ -588,7 +604,10 @@ int dsfx_voice2(double *out, int n, const double *tab, const double *prev, doubl
         if (v->ftype) {
             double v3 = s - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
             ic1 = 2 * v1 - ic1; ic2 = 2 * v2 - ic2;
-            s = v->ftype == 1 ? v2 : v->ftype == 2 ? v1 : s - kk * v1 - v2;
+            if (f) {
+                double hp=s-kk*v1-v2;
+                s=morph<=.5 ? v2+(v1-v2)*(morph*2) : v1+(hp-v1)*(morph*2-1);
+            } else s = v->ftype == 1 ? v2 : v->ftype == 2 ? v1 : s - kk * v1 - v2;
         }
         out[i] += s * level * v->gain;
         age += 1;
@@ -597,5 +616,13 @@ int dsfx_voice2(double *out, int n, const double *tab, const double *prev, doubl
     if (uni > 1) st[0] = ph[0];
     st[1] = age; st[2] = r; st[3] = base; st[4] = level; st[5] = xf;
     st[13] = ic1; st[14] = ic2; st[15] = subph;
+    if (f) { st[80]=fl; st[81]=fb; st[82]=morph; st[83]=logcut; st[84]=reso; }
     return result;
+}
+
+int dsfx_voice2(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v) {
+    return voice_ext(out,n,tab,prev,st,v,NULL);
+}
+int dsfx_voice3(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f) {
+    return voice_ext(out,n,tab,prev,st,v,f);
 }

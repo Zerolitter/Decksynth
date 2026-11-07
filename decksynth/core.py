@@ -14,6 +14,7 @@ from .drum_engine import DrumEngine
 from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
 from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
+from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes,
@@ -38,8 +39,17 @@ SPECTRAL_RANGES=dict(curve=(-1,1),balance=(0,1),focus=(0,1),focus_center=(1,16),
 VOICE_DEFAULTS=dict(vcf_type=0,vcf_cutoff=.65,vcf_reso=.2,vcf_env=.3,uni_voices=1,uni_detune=.3,
                     formant=0.,vowel=0.,inharm=0.,sub=0.,sub_oct=1)
 VOICE_RANGES=dict(vcf_cutoff=(0,1),vcf_reso=(0,1),vcf_env=(-1,1),uni_detune=(0,1),formant=(0,1),vowel=(0,4),inharm=(0,1),sub=(0,1))
+VOICE_RANGES.update(vcf_morph=(0,1),fenv_a=(.001,3),fenv_d=(.001,3),fenv_s=(0,1),fenv_r=(.01,3))
+FILTER_ENV=dict(fenv_a='attack',fenv_d='decay',fenv_s='sustain',fenv_r='release')
 VOICE_CHOICES=dict(vcf_type=(0,1,2,3),uni_voices=(1,2,3,4,5,7),sub_oct=(1,2))
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS}
+def sound_default(p,key):
+    if key in FILTER_ENV:return p[FILTER_ENV[key]]
+    if key=='vcf_morph':return max(0,p.get('vcf_type',1)-1)/2
+    return PARAM_DEFAULTS.get(key,0.)
+
+def filter_extended(p):return 'vcf_morph' in p or any(k in p for k in FILTER_ENV)
+
 # Vowel formants F1-F3 in Hz (adult voice): A E I O U
 VOWELS=((730,1090,2440),(530,1840,2480),(270,2290,3010),(570,840,2410),(300,870,2240))
 VSINE=[math.sin(2*math.pi*i/2048) for i in range(2049)]
@@ -195,9 +205,10 @@ TABLE_STEPS=48
 class Synth:
     def __init__(self,rate=48000):
         prepare_spectral_kernel()
+        prepare_filter_kernel()
         self.rate=rate; self.params=instrument('Warm Keys'); self.voices={}; self.sustain=False; self.bend=1.; self.mod_wheel=0.; self.tables={}; self.wave_cache={}; self.clock=0
         self.live=None; self.shape=None; self.shape_key=None; self.shape_clock=-10**9
-        self.weights={}; self.weight_cache={}; self.st=(ctypes.c_double*80)(); self.vargs=DsVoice()
+        self.weights={}; self.weight_cache={}; self.st=(ctypes.c_double*85)(); self.vargs=DsVoice(); self.fargs=DsFilter()
     def configure(self,p):
         changed=any(self.params.get(k)!=p.get(k) for k in ('harmonics',)+TABLE_KEYS)
         self.params=copy.deepcopy(p)
@@ -212,7 +223,7 @@ class Synth:
             return
         live=dict(self.params)
         for k,v in offsets.items():
-            lo,hi=SOUND_PARAMS[k]; live[k]=min(hi,max(lo,self.params.get(k,PARAM_DEFAULTS.get(k,0.))+v))
+            lo,hi=SOUND_PARAMS[k]; live[k]=min(hi,max(lo,self.params.get(k,sound_default(self.params,k))+v))
         self.live=live
         moved=[k for k in TABLE_KEYS if k in offsets]
         if not moved:return self.reshape(None,None)
@@ -286,7 +297,7 @@ class Synth:
     @staticmethod
     def voice_mode(p):
         sub=p.get('sub',0.)>0
-        return (int(p.get('uni_voices',1)),int(p.get('vcf_type',0)),p.get('inharm',0.)>0,int(p.get('sub_oct',1)) if sub else 0)
+        return (int(p.get('uni_voices',1)),int(p.get('vcf_type',0)),p.get('inharm',0.)>0,int(p.get('sub_oct',1)) if sub else 0,filter_extended(p))
     def render(self,frames):
         # Switching a card's buttons (voices, filter type, sub octave, stretched partials) mid-note would jump,
         # so that block is rendered both ways and crossfaded.
@@ -305,7 +316,7 @@ class Synth:
         a=max(1,p['attack']*sr); d=max(1,p['decay']*sr); slow=max(1,p['release']*sr); quick=min(slow,.006*sr)
         mod=min(1.,p['modulation']+self.mod_wheel); trem=1-mod*.12+mod*.12*math.sin(self.clock/sr*2*math.pi*.27)
         uni=int(p.get('uni_voices',1)); ft=int(p.get('vcf_type',0)); sub=p.get('sub',0.); inh=p.get('inharm',0.)
-        if uni>1 or ft or sub>0 or inh>0:return self.render_ext(frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh)
+        if uni>1 or ft or sub>0 or inh>0 or filter_extended(p):return self.render_ext(frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh)
         fast=native_voice()
         if fast is not None:
             buf=(ctypes.c_double*frames)(); st=(ctypes.c_double*6)()
@@ -359,13 +370,16 @@ class Synth:
         return x
     def render_ext(self,frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh):
         """Voices with the Filter, Unison or Character cards on: dsfx_voice2 in C, or the same loop in Python."""
-        sr=self.rate; fast=native_voice2()
+        sr=self.rate; extended=filter_extended(p); fast=native_filter_voice() if extended else native_voice2()
         if fast is not None and not all(isinstance(v['table'],ctypes.Array) and (v.get('prev') is None or isinstance(v['prev'],ctypes.Array))
                                         for v in self.voices.values()):fast=None
         out=(ctypes.c_double*frames)() if fast is not None else [0.]*frames
         va=self.vargs; st=self.st
         cfg=dict(a=a,d=d,sus=p['sustain'],uni=uni,detune=p.get('uni_detune',.3)*.5,ftype=ft,reso=p.get('vcf_reso',.2),
                  envamt=p.get('vcf_env',.3)*6,rate=float(sr),npart=16,stretch=.008*inh*inh,sub=sub,suboct=int(p.get('sub_oct',1)))
+        fc=dict(a=max(1,p.get('fenv_a',p['attack'])*sr),d=max(1,p.get('fenv_d',p['decay'])*sr),
+                sus=p.get('fenv_s',p['sustain']),rel=max(1,p.get('fenv_r',p['release'])*sr),
+                morph=p.get('vcf_morph',sound_default(p,'vcf_morph')),independent=int(any(k in p for k in FILTER_ENV))) if extended else None
         for key,v in list(self.voices.items()):
             if 'x' not in v:v['x']=self.ext_state(v)
             rel=v['release']; prev=v.get('prev')
@@ -375,18 +389,31 @@ class Synth:
                        cutoff=cutoff_hz(p,v['note']),weights=self.weights[v['note']] if inh>0 else None)
             st[0:6]=[v['phase'],v['age'],rel[0] if rel else 0,rel[1] if rel else 0,v['level'],v.get('xf',1.)]
             st[6:80]=v['x']
+            if extended:
+                if 'fstate' not in v:
+                    # Newly enabled filter envelope starts at the note's actual age.
+                    age=max(0,v['age']-(rel[0] if rel else 0)-1)
+                    level=age/fc['a'] if age<fc['a'] else 1-(1-fc['sus'])*(age-fc['a'])/fc['d'] if age<fc['a']+fc['d'] else fc['sus']
+                    initial=fc['morph'] if v['age']==0 else sound_default(getattr(self,'last_p',p) or p,'vcf_morph')
+                    v['fstate']=[level,level,initial,math.log2(cfg['cutoff']),cfg['reso']]
+                st[80:85]=v['fstate']
             if fast is not None:
                 for k,val in cfg.items():
                     if k!='weights':setattr(va,k,val)
                 va.weights=ctypes.cast(cfg['weights'],ctypes.POINTER(ctypes.c_double)) if cfg['weights'] is not None else None
-                res=fast(out,frames,v['table'],prev,st,ctypes.byref(va))
-            else:res=voice2_py(out,frames,v['table'],prev,st,cfg)
+                if extended:
+                    for k,val in fc.items():setattr(self.fargs,k,val)
+                    res=fast(out,frames,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs))
+                else:res=fast(out,frames,v['table'],prev,st,ctypes.byref(va))
+            else:res=voice2_py(out,frames,v['table'],prev,st,cfg,fc)
             if res&1:self.voices.pop(key,None); continue
             v.update(phase=st[0],age=int(st[1]),release=(int(st[2]),st[3]) if rel else None,level=st[4],
                      prev=None if res&2 else prev,xf=st[5],x=st[6:80])
+            if extended:v['fstate']=list(st[80:85])
+            else:v.pop('fstate',None)
         self.clock+=frames; return list(out)
 
-def voice2_py(out,n,tab,prev,st,c):
+def voice2_py(out,n,tab,prev,st,c,f=None):
     """Python twin of dsfx_voice2 (used when the native library is missing). Keep the two in step."""
     age,r,base,level,xf=st[1],st[2],st[3],st[4],st[5]
     result=0; W=c['weights']; partial=W is not None
@@ -400,6 +427,8 @@ def voice2_py(out,n,tab,prev,st,c):
     ic1,ic2=st[13],st[14]; a1=a2=a3=0.; kk=2.
     subph=st[15]; substep=c['step']/(4 if c['suboct']==2 else 2)
     ftype=c['ftype']; sub=c['sub']; gain=c['gain']; rate=c['rate']; A=c['a']; D=c['d']; sus=c['sus']
+    if f:
+        fl,fb,morph,logcut,reso=st[80:85];smooth=1-math.exp(-1/(.004*rate));target=math.log2(c['cutoff'])
     for i in range(n):
         if c['released']:
             level=base*max(0,1-r/c['rel']); r+=1
@@ -407,10 +436,19 @@ def voice2_py(out,n,tab,prev,st,c):
         elif age<A:level=age/A
         elif age<A+D:level=1-(1-sus)*(age-A)/D
         else:level=sus
+        if f:
+            if not f['independent']:fl=level
+            elif c['released']:
+                if r==1:fb=fl
+                fl=fb*max(0,1-(r-1)/f['rel'])
+            elif age<f['a']:fl=age/f['a']
+            elif age<f['a']+f['d']:fl=1-(1-f['sus'])*(age-f['a'])/f['d']
+            else:fl=f['sus']
+            morph+=(f['morph']-morph)*smooth;logcut+=(target-logcut)*smooth;reso+=(c['reso']-reso)*smooth
         if ftype and (i&15)==0:
-            fc=c['cutoff']*2**(c['envamt']*level)
+            fc=(2**logcut if f else c['cutoff'])*2**(c['envamt']*(fl if f else level))
             fc=20 if fc<20 else .45*rate if fc>.45*rate else fc
-            g=math.tan(math.pi*fc/rate); kk=2-1.96*c['reso']
+            g=math.tan(math.pi*fc/rate); kk=2-1.96*(reso if f else c['reso'])
             a1=1/(1+g*(g+kk)); a2=g*a1; a3=g*a2
         s=0.
         if partial:
@@ -444,7 +482,10 @@ def voice2_py(out,n,tab,prev,st,c):
         if ftype:
             v3=s-ic2; v1=a1*ic1+a2*v3; v2=ic2+a2*ic1+a3*v3
             ic1=2*v1-ic1; ic2=2*v2-ic2
-            s=v2 if ftype==1 else v1 if ftype==2 else s-kk*v1-v2
+            if f:
+                hp=s-kk*v1-v2
+                s=v2+(v1-v2)*(morph*2) if morph<=.5 else v1+(hp-v1)*(morph*2-1)
+            else:s=v2 if ftype==1 else v1 if ftype==2 else s-kk*v1-v2
         out[i]+=s*level*gain
         age+=1
     if uni==1:st[0]=ph[0]
@@ -452,6 +493,7 @@ def voice2_py(out,n,tab,prev,st,c):
         for u in range(uni):st[6+u]=ph[u]
         st[0]=ph[0]
     st[1]=age; st[2]=r; st[3]=base; st[4]=level; st[5]=xf; st[13]=ic1; st[14]=ic2; st[15]=subph
+    if f:st[80:85]=[fl,fb,morph,logcut,reso]
     return result
 
 RESONATOR=FX_ORDER.index('resonator')
@@ -557,7 +599,7 @@ class Engine(DrumEngine):
         fx=self.fx[track]; s=self.synths[track]; t=self.project.tracks[track]; out={}
         for k,v in fx.sound.items():
             lo,hi=SOUND_PARAMS[k]
-            base=t['volume'] if k=='volume' else t['instrument'].get(k,SPECTRAL_DEFAULTS.get(k,0.))
+            base=t['volume'] if k=='volume' else t['instrument'].get(k,sound_default(t['instrument'],k))
             out[k]=round(min(hi,max(lo,base+v)),4)
         return out
     @property

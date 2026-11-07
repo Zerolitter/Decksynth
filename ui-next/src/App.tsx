@@ -1,3 +1,4 @@
+import {FILTER_ENV_KEYS} from './sound-cards';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity, AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
@@ -172,7 +173,11 @@ function App() {
       else if(cmd==='parameter'){
         const [name,index,value]=args as [keyof Instrument,number|null,number];
         if(name==='harmonics' && index!==null)owner.instrument.harmonics[index]=clamp(value,0,1);
-        else if(name!=='harmonics')owner.instrument[name]=value;
+        else if(name!=='harmonics'){
+          if(Object.values(FILTER_ENV_KEYS).includes(name as never))for(const [amp,field] of Object.entries(FILTER_ENV_KEYS))
+            owner.instrument[field]??=owner.instrument[amp as keyof typeof FILTER_ENV_KEYS];
+          owner.instrument[name]=value;
+        }
       }
       else if(cmd==='edit_note'){
         const [index,noteIndex,note]=args as [number,number,Note];
@@ -328,7 +333,7 @@ function App() {
     const directory=await api.chooseFile('open','sample_folder');
     if(directory)command('drum_library_root',directory);
   };
-  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'?[key,index,value,selected]:[key,index,value]);
+  const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',key==='character'||key.startsWith('fenv_')||key.startsWith('vcf_')?[key,index,value,selected]:[key,index,value]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
   useEffect(()=>{

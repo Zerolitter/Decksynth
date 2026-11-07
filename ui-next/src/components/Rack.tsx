@@ -7,7 +7,7 @@ import { SOUND_TARGETS, normalizeChain, type FxChain } from '../fx';
 import { EnvEditor } from './EnvEditor';
 import { readRackOrder, useRackOrder } from './RackOrder';
 import { useRingDepth } from './RingDepth';
-import { FILTER_NAMES, FILTER_TYPES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, fmtCents, fmtHz, fmtOct, fmtVowel, voiceParam, type VoiceKey } from '../sound-cards';
+import { FILTER_ENV_KEYS, filterEnvelope, filterMorph, fmtMorph, FILTER_NAMES, FILTER_TYPES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, fmtCents, fmtHz, fmtOct, fmtVowel, voiceParam, type VoiceKey } from '../sound-cards';
 import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 type Params=Track['instrument'];
@@ -68,6 +68,8 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
   };
   useAutoFold(rack,order,autoFold);
   const p=track.instrument;
+  const fenv=filterEnvelope(p),morph=filterMorph(p);
+  const fenvLive=Object.fromEntries(Object.entries(FILTER_ENV_KEYS).flatMap(([k,v])=>live?.sound?.[v]===undefined?[]:[[k,live.sound[v]]]));
   const accent=TRACK_COLORS[selected];
   const set=(key:keyof Params,value:number)=>onParam(key,null,value);
   const vp=(k:VoiceKey)=>voiceParam(p,k);
@@ -132,10 +134,10 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
     </Panel>},
     {id:'sound-filter',node:<Panel rail reorder={reorder('sound-filter')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-filter')} id="sound-filter" className="rack-card sound-card card-filter" icon={<AudioWaveform size={15}/>} title="Filter" accent={accent} tag={TAGS.filter} mods={linksInto('sound-filter')}
       power={{on:ftype>0,label:'filter',onToggle:()=>set('vcf_type',ftype?0:lastType.current)}}
-      summary={ftype?FILTER_TYPES[ftype-1]+' · '+fmtHz(vp('vcf_cutoff'))+' · Res '+pct(vp('vcf_reso')):'Off'}
-      actions={reset('filter',()=>resetVoice(['vcf_cutoff','vcf_reso','vcf_env']))}>
-      <div className={'rack-knobs'+(ftype?'':' is-off')} title="A filter on every note. Env amount opens it with the envelope.">
-        <Choice label="Type" name="Filter type" value={ftype} onPick={v=>set('vcf_type',v)}
+      summary={ftype?fmtMorph(morph)+' · '+fmtHz(vp('vcf_cutoff'))+' · Res '+pct(vp('vcf_reso')):'Off'}
+      actions={reset('filter',()=>{resetVoice(['vcf_cutoff','vcf_reso','vcf_env']);set('vcf_morph',0);Object.entries(FILTER_ENV_KEYS).forEach(([k,v])=>set(v,p[k as keyof typeof fenv]));})}>
+      <div className={'rack-knobs'+(ftype?'':' is-off')} title="A filter on every note, with its own envelope. Morph blends LP through BP to HP.">
+        <Choice label="Type" name="Filter type" value={ftype?(morph===0?1:morph===.5?2:morph===1?3:0):0} onPick={v=>{set('vcf_type',v);set('vcf_morph',(v-1)/2);}}
           options={FILTER_TYPES.map((l,i)=>({label:l,value:i+1,aria:FILTER_NAMES[i+1]}))}/>
         {cell('vcf_cutoff',m=><Knob id={selected+'-vcf-cutoff'} name="Cutoff" value={vp('vcf_cutoff')} min={0} max={1} step={.002}
           format={fmtHz} compact accent={accent} onChange={v=>set('vcf_cutoff',v)} {...m}/>)}
@@ -143,6 +145,14 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           compact accent={accent} onChange={v=>set('vcf_reso',v)} {...m}/>)}
         {cell('vcf_env',m=><Knob id={selected+'-vcf-env'} name="Env amount" value={vp('vcf_env')} min={-1} max={1} step={.005}
           format={fmtOct} compact accent={accent} onChange={v=>set('vcf_env',v)} {...m}/>)}
+        {cell('vcf_morph',m=><Knob id={selected+'-vcf-morph'} name="Morph" value={morph} min={0} max={1} step={.002}
+          format={fmtMorph} compact accent={TAGS.filter} onChange={v=>set('vcf_morph',v)} {...m}/>)}
+        <div className="rack-inline-env" aria-label="Filter envelope"><EnvEditor compact env={fenv} color={TAGS.filter} live={fenvLive}
+          onChange={(k,v)=>set(FILTER_ENV_KEYS[k],v)}/></div>
+        {(Object.entries(FILTER_ENV_KEYS) as [keyof typeof fenv,typeof FILTER_ENV_KEYS[keyof typeof fenv]][]).map(([k,param])=>cell(param,m=><Knob
+          id={selected+'-'+param.replace('_','-')} name={'Filter '+k} value={fenv[k]}
+          min={k==='sustain'?0:k==='release'?.01:.001} max={k==='sustain'?1:3} step={k==='sustain'?.005:.001}
+          suffix={k==='sustain'?'%':'s'} compact accent={TAGS.filter} onChange={v=>set(param,v)} {...m}/>))}
       </div>
     </Panel>},
     {id:'sound-unison',node:<Panel rail reorder={reorder('sound-unison')} modColors={linkedSourceColors(chain,t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card==='sound-unison')} id="sound-unison" className="rack-card sound-card card-unison" icon={<Layers size={15}/>} title="Unison" accent={accent} tag={TAGS.unison} mods={linksInto('sound-unison')}

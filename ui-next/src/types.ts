@@ -8,6 +8,7 @@ export type Instrument = {
   character?:number; spectral_energy?:number; random_seed?:number;
   /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
   vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
+  vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
 };

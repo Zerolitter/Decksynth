@@ -43,7 +43,8 @@ SOUND_PARAMS = {
     # Filter, Unison and Character cards (patch 24)
     'vcf_cutoff': (0, 1), 'vcf_reso': (0, 1), 'vcf_env': (-1, 1), 'uni_detune': (0, 1),
     'formant': (0, 1), 'vowel': (0, 4), 'inharm': (0, 1), 'sub': (0, 1),
-    'character': (-1, 1),
+    'character': (-1, 1), 'vcf_morph': (0, 1),
+    'fenv_a': (.001, 3), 'fenv_d': (.001, 3), 'fenv_s': (0, 1), 'fenv_r': (.01, 3),
 }
 SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smooth', 'steps', 'curve']
 # Mod-pad rates in beats per cycle: 4 bars, 2 bars, 1 bar, 1/2, 1/4, 1/8, 1/16
