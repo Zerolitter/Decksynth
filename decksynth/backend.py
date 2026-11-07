@@ -226,6 +226,7 @@ def worker(commands,updates):
                         except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='editor_note':engine.editor_note(*args)
                     elif cmd=='note_edit':engine.note_edit(*args)
+                    elif cmd=='catalog_action':engine.catalog_action(*args)
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']
@@ -299,7 +300,7 @@ def worker(commands,updates):
                 meter=dict(channels=stereo,rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
                            fx_live=engine.fx_live(engine.selected))
-                send(dict(state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
+                send(dict(pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
                           drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',

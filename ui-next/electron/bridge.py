@@ -28,7 +28,7 @@ COMMANDS = {
     'perform_set', 'perform_step', 'perform_action',
     'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
-    'edit_note','note_edit','editor_note', 'track', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
+    'edit_note','note_edit','editor_note','catalog_action', 'track', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
     'save', 'load', 'export','export_wav', 'save_preset', 'load_preset',
 }
 

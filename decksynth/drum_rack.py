@@ -58,12 +58,12 @@ def validate_kit(value):
 
 
 class Voice:
-    __slots__ = ('sample', 'pad', 'pos', 'step', 'gain', 'age', 'stamp', 'remaining',
+    __slots__ = ('token','sample', 'pad', 'pos', 'step', 'gain', 'age', 'stamp', 'remaining',
                  'old_sample', 'old_pos', 'old_step', 'old_gain', 'old_age', 'old_remaining',
                  'old_scalar', 'last')
 
     def __init__(self):
-        self.sample = None; self.old_sample = None
+        self.token=None;self.sample = None; self.old_sample = None
         self.pad = -1; self.pos = 0.; self.step = 1.; self.gain = 0.; self.age = 0
         self.stamp = 0; self.remaining = -1
         self.old_pos = 0.; self.old_step = 1.; self.old_gain = 0.; self.old_age = 0; self.old_remaining = 0
@@ -135,7 +135,7 @@ class DrumRack:
         else:
             v.old_sample = None; v.old_scalar = 0.; v.old_remaining = 0; v.last = 0.
         self.stamp += 1
-        v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(p['tune']/12.)
+        v.token=token;v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(p['tune']/12.)
         v.gain = p['gain']*(velocity/127.)**p['velocity']; v.age = 0
         v.stamp = self.stamp; v.remaining = -1
         self.serial += 1; self.events[pad] = self.serial
@@ -144,6 +144,11 @@ class DrumRack:
     @staticmethod
     def off(note, token=None):
         pass  # Ordinary one-shots always finish; gated playback is outside M1.
+
+    def cancel_source(self,prefix):
+        for v in self.voices:
+            if isinstance(v.token,tuple) and v.token[0]==prefix and v.sample is not None:
+                v.remaining=min(v.remaining,self.fade_frames) if v.remaining>=0 else self.fade_frames
 
     def panic(self):
         for v in self.voices:

@@ -63,6 +63,7 @@ export type Project = {
   clips?: {open:number[];slots:Note[][][]};
 };
 export type DeckUpdate = {
+  pattern_library?:{roles:Record<string,number>;ready:Record<string,boolean>;preview:{id:string;track:number;step:number}|null};
   midi_learn?:{track:number;module:string;param:string}|null;
   drum_racks?: (DrumRuntime|null)[];
   drum_library?:DrumLibraryState;

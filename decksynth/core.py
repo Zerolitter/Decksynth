@@ -542,8 +542,9 @@ RESONATOR=FX_ORDER.index('resonator')
 
 from .workflow import WorkflowEngine
 from .note_edit import NoteEditEngine
+from .pattern_catalog import PatternCatalogEngine
 
-class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
+class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
@@ -560,6 +561,7 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
         self.init_drums()
         self.configure()
     def configure(self):
+        self.stop_pattern_preview()
         self.midi_learn=None
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
         for t,fx in zip(self.project.tracks,self.fx): fx.configure(t.get('fx'))
@@ -778,6 +780,7 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
         from .devices import track_index
         track_index(track)
         if track!=self.selected:
+            self.stop_pattern_preview()
             self.cancel_sound_gesture();self.automation_arm=False
             self.midi_learn=None
             if self.recording: self.finish_record()
@@ -798,6 +801,7 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
         for key in list(self.pending): self.close_note(key)
         self.recording=False
     def stop(self):
+        self.stop_pattern_preview()
         self.cancel_sound_gesture();self.automation_arm=False
         self.finish_record(); self.down.clear(); self.capture_sustain.clear(); self.playing=False; self.frame=0
         self.project.performance['seq']['recording']=False
@@ -1145,6 +1149,7 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
     def panic(self):
+        self.stop_pattern_preview()
         self.midi_learn=None
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
@@ -1186,6 +1191,8 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
                         events.setdefault(max(0,due-abs_start),[]).append((4,tr,pitch,velocity,source,token))
                 else:waiting.append((due,tr,pitch,velocity,source,token))
             self.scheduled_live=waiting
+            for offset,action,tr,pitch,velocity,token in self.preview_events(abs_start,abs_end):
+                events.setdefault(offset,[]).append((5,action,tr,pitch,velocity,token))
             if self.playing:
                 loop=self.project.beats*self.fpb
                 song=self.project.song if self.project.song['on'] and not self.recording else None
@@ -1210,7 +1217,7 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
                                 if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
-                if self.playing and not self.project.tracks[self.selected]['mute']:
+                if self.playing and not getattr(self,'_pattern_preview',None) and not self.project.tracks[self.selected]['mute']:
                     generated=schedule_notes(self.project.performance,[] if self.arp_paused else self.perform_held.held(),
                                              start,end,self.fpb,velocities=self.perform_held.velocities(),
                                              arp_anchor=self.arp_anchor_beat*self.fpb)
@@ -1225,6 +1232,11 @@ class Engine(NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
                 self._event_frame=abs_start+pos
                 for event in sorted(events[pos],key=lambda x:x[0]):
                     if event[0]==2:self.click_age=0; self.click_freq=1500 if event[1]%4==0 else 1000; continue
+                    if event[0]==5:
+                        _,action,tr,pitch,velocity,token=event
+                        if action:self.voice_on(tr,pitch,velocity,token)
+                        else:self.voice_off(tr,pitch,token)
+                        continue
                     if event[0]==3:
                         _,action,tr,pitch,velocity,token=event
                         rec_key=('gen',str(token),pitch)

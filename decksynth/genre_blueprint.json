@@ -1,0 +1,1029 @@
+{
+  "version": 1,
+  "patterns": [
+    {
+      "id": "genre.edm.01",
+      "genre": "EDM",
+      "slot": 1,
+      "name": "Festival Four",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "drop",
+      "rhythm_brief": "Four-on-floor kick, claps on beats two/four, open offbeat hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.02",
+      "genre": "EDM",
+      "slot": 2,
+      "name": "Big Room Drop",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "drop",
+      "rhythm_brief": "Sparse high-impact kick, wide clap, syncopated tom punctuation",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.03",
+      "genre": "EDM",
+      "slot": 3,
+      "name": "Progressive Drive",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Persistent kick and evolving 16th closed hats with two-bar variation",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.04",
+      "genre": "EDM",
+      "slot": 4,
+      "name": "Uplifter Build",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "build",
+      "rhythm_brief": "Kick and snare build with rising percussion density toward final bar",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.05",
+      "genre": "EDM",
+      "slot": 5,
+      "name": "Breakdown Pulse",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "breakdown",
+      "rhythm_brief": "Half-time soft kick and rim pulse with deliberate spaces",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.06",
+      "genre": "EDM",
+      "slot": 6,
+      "name": "Trance Hats",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Straight kick with rolling sixteenth hats and quarter-beat accents",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.07",
+      "genre": "EDM",
+      "slot": 7,
+      "name": "Psy Offbeat",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Kick on quarters with offbeat snare percussion and clipped hat notes",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.08",
+      "genre": "EDM",
+      "slot": 8,
+      "name": "Electro Sync",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Broken kick syncopation and sparse snare plus metallic percussion",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.09",
+      "genre": "EDM",
+      "slot": 9,
+      "name": "Future Bounce",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Bouncy kick anticipation, clap backbeat and alternating open hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.10",
+      "genre": "EDM",
+      "slot": 10,
+      "name": "Ghost Sidechain",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "breakdown",
+      "rhythm_brief": "Very sparse kick foundation, soft ghost snares, no fake sidechain FX",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.11",
+      "genre": "EDM",
+      "slot": 11,
+      "name": "Mainstage Fill",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "fill",
+      "rhythm_brief": "Regular first-bar groove and dense but playable ending fill",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.12",
+      "genre": "EDM",
+      "slot": 12,
+      "name": "Tom Lift",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "build",
+      "rhythm_brief": "Kick anchor with rising tom call-and-response between bars",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.13",
+      "genre": "EDM",
+      "slot": 13,
+      "name": "Percussion Gate",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Syncopated hand percussion with strong kick/clap anchor",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.14",
+      "genre": "EDM",
+      "slot": 14,
+      "name": "Half-Time Bridge",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "transition",
+      "rhythm_brief": "Slow perceived half-time snare with EDM hats at normal tempo",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.15",
+      "genre": "EDM",
+      "slot": 15,
+      "name": "Riser Roll",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "build",
+      "rhythm_brief": "Quantized snare rolls increasing in density; no unimplemented riser sample",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.edm.16",
+      "genre": "EDM",
+      "slot": 16,
+      "name": "Final Drop",
+      "suggested_bpm_range": [
+        124,
+        140
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "drop",
+      "rhythm_brief": "Hard kick and clap return with short final-fill variation",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.01",
+      "genre": "House",
+      "slot": 1,
+      "name": "Classic Four",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Kick on every beat, clap two/four and offbeat closed hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.02",
+      "genre": "House",
+      "slot": 2,
+      "name": "Deep Shuffle",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Moderate shuffled hats, subdued kick and ghost percussion",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.03",
+      "genre": "House",
+      "slot": 3,
+      "name": "Disco Offbeat",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Offbeat hats and claps with lightly syncopated percussion",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.04",
+      "genre": "House",
+      "slot": 4,
+      "name": "Jackin Snare",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Jackin kick syncopation, rim and emphatic snare accents",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.05",
+      "genre": "House",
+      "slot": 5,
+      "name": "Garage Swing",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Swinging two-step kick/snare with swung hats and ghosts",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.06",
+      "genre": "House",
+      "slot": 6,
+      "name": "Minimal House",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Sparse kick and clipped hi-hat with deliberate negative space",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.07",
+      "genre": "House",
+      "slot": 7,
+      "name": "Piano Stab Backbeat",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Drum-only backbeat with open pockets for piano on other track",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.08",
+      "genre": "House",
+      "slot": 8,
+      "name": "Funky Hat Shuffle",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Funk-style hats alternating velocities and occasional open notes",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.09",
+      "genre": "House",
+      "slot": 9,
+      "name": "Tribal Perc",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Layered tom/hand percussion above steady low kick",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.10",
+      "genre": "House",
+      "slot": 10,
+      "name": "Soulful Pocket",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Soft clap, delicate ghost snare and restrained kick",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.11",
+      "genre": "House",
+      "slot": 11,
+      "name": "Offbeat Open Hat",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Alternating open hat on offbeats with closed-hat choke intent",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.12",
+      "genre": "House",
+      "slot": 12,
+      "name": "Rim Shuffle",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Rim-led accents and swung sixteenths over sparse kicks",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.13",
+      "genre": "House",
+      "slot": 13,
+      "name": "Double Clap",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "variation",
+      "rhythm_brief": "Two-bar clap variation with one deliberate anticipatory clap",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.14",
+      "genre": "House",
+      "slot": 14,
+      "name": "House Two-Bar Break",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "transition",
+      "rhythm_brief": "Break groove with a one-beat kick absence at transition",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.15",
+      "genre": "House",
+      "slot": 15,
+      "name": "House Fill",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "fill",
+      "rhythm_brief": "Kick/clap foundation and sixteenth tom/snare fill at final beat",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.house.16",
+      "genre": "House",
+      "slot": 16,
+      "name": "Afterhours Drift",
+      "suggested_bpm_range": [
+        118,
+        130
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Soft kick, offbeat hats and slower percussion response",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.01",
+      "genre": "Techno",
+      "slot": 1,
+      "name": "Warehouse Pulse",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Relentless kick, clipped hats, snare every other backbeat",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.02",
+      "genre": "Techno",
+      "slot": 2,
+      "name": "Industrial Drive",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Hard four kick plus mechanical closed-hat sixteenths",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.03",
+      "genre": "Techno",
+      "slot": 3,
+      "name": "Hypnotic Hats",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Evolving hat accents with stable low kick and sparse snare",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.04",
+      "genre": "Techno",
+      "slot": 4,
+      "name": "Acid Companion",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Light percussion grid leaving bassline room; avoid fixed synth notes",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.05",
+      "genre": "Techno",
+      "slot": 5,
+      "name": "Offbeat Rim",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Sparse kick with rim syncopation and subtle hat ghosts",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.06",
+      "genre": "Techno",
+      "slot": 6,
+      "name": "Rolling Kick",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Alternating eighth-note kick doubles that remain dynamically controlled",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.07",
+      "genre": "Techno",
+      "slot": 7,
+      "name": "Metal Perc",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Metallic percussion call-and-response with sturdy four kick",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.08",
+      "genre": "Techno",
+      "slot": 8,
+      "name": "Minimal Clock",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Low-density kick with precise short ticking hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.09",
+      "genre": "Techno",
+      "slot": 9,
+      "name": "Dark Sixteenths",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "build",
+      "rhythm_brief": "Tension created by rapid closed hats with changing velocity",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.10",
+      "genre": "Techno",
+      "slot": 10,
+      "name": "Broken Techno",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Off-grid perceived syncopation using on-grid deliberate kick rests",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.11",
+      "genre": "Techno",
+      "slot": 11,
+      "name": "Stutter Tension",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "build",
+      "rhythm_brief": "Short repeated snare or percussion notes before bar boundary",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.12",
+      "genre": "Techno",
+      "slot": 12,
+      "name": "Polyrhythm Overlay",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Three-against-four perception across a four-beat sequencer grid",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.13",
+      "genre": "Techno",
+      "slot": 13,
+      "name": "Ride Peak",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "peak",
+      "rhythm_brief": "Sustained ride emphasis near the end of a two-bar peak groove",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.14",
+      "genre": "Techno",
+      "slot": 14,
+      "name": "Tunnel Groove",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Tight sparse kick/hat motif repeating with one ghost fill",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.15",
+      "genre": "Techno",
+      "slot": 15,
+      "name": "Industrial Fill",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "fill",
+      "rhythm_brief": "Tom/rim build and kick release on last four sixteenths",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.techno.16",
+      "genre": "Techno",
+      "slot": 16,
+      "name": "Drop Switch",
+      "suggested_bpm_range": [
+        128,
+        146
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "transition",
+      "rhythm_brief": "Alternates busy first bar with deliberate minimal second bar",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.01",
+      "genre": "Drum & Bass",
+      "slot": 1,
+      "name": "Two-Step Break",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Classic DnB two-step kick/snare placements with swung hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.02",
+      "genre": "Drum & Bass",
+      "slot": 2,
+      "name": "Liquid Roller",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Smooth rolling hats, soft ghost snare and restrained kick",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.03",
+      "genre": "Drum & Bass",
+      "slot": 3,
+      "name": "Jungle Sync",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Rapid broken snare ghosts and syncopated kicks; original rhythm",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.04",
+      "genre": "Drum & Bass",
+      "slot": 4,
+      "name": "Neuro Pulse",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Dark kick/snare backbone with intricate alternating hats",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.05",
+      "genre": "Drum & Bass",
+      "slot": 5,
+      "name": "Half-Time DnB",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Snare emphasis on beat three against modern fast tempo",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.06",
+      "genre": "Drum & Bass",
+      "slot": 6,
+      "name": "Reese Companion",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Sparse kick/snare leaving space for a separate moving bass instrument",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.07",
+      "genre": "Drum & Bass",
+      "slot": 7,
+      "name": "Ghost Snare Ladder",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Offbeat snare ghost ladder toward beat four",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.08",
+      "genre": "Drum & Bass",
+      "slot": 8,
+      "name": "Breakbeat Shuffle",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Staccato closed-hat shuffle and two-bar snare counterpoint",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.09",
+      "genre": "Drum & Bass",
+      "slot": 9,
+      "name": "Open Hat Chase",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Fast alternating open/closed hats, respecting kit choke groups",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.10",
+      "genre": "Drum & Bass",
+      "slot": 10,
+      "name": "Kick Swap",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "variation",
+      "rhythm_brief": "Second bar moves one kick accent to an alternate eighth",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.11",
+      "genre": "Drum & Bass",
+      "slot": 11,
+      "name": "32-Step Roller",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Two-bar 32-step drum pattern with meaningful dynamic contrast",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.12",
+      "genre": "Drum & Bass",
+      "slot": 12,
+      "name": "Tight Roller",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Short kick notes and sparse perc taps under sharp backbeat",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.13",
+      "genre": "Drum & Bass",
+      "slot": 13,
+      "name": "Perc Scatter",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "groove",
+      "rhythm_brief": "Syncopated percussion around stable 2-step kick/snare",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.14",
+      "genre": "Drum & Bass",
+      "slot": 14,
+      "name": "Minimal DnB",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 16,
+      "kind": "groove",
+      "rhythm_brief": "Spacious fast beat with ghost hat movement",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.15",
+      "genre": "Drum & Bass",
+      "slot": 15,
+      "name": "Snare Rush Fill",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "fill",
+      "rhythm_brief": "Dense snare roll in last two beats, no copyrighted break sample",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    },
+    {
+      "id": "genre.drum_bass.16",
+      "genre": "Drum & Bass",
+      "slot": 16,
+      "name": "Drop Re-Entry",
+      "suggested_bpm_range": [
+        160,
+        180
+      ],
+      "time_signature": "4/4",
+      "intended_steps": 32,
+      "kind": "transition",
+      "rhythm_brief": "One short breakdown then forceful re-entry to standard DnB drums",
+      "is_factory": true,
+      "status": "design_only_not_playable"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {PatternLibrary} from './PatternLibrary';
 import {NoteEditor} from './NoteEditor';
 import {useNoteContext} from './useNoteContext';
 import {useContextTarget} from './ContextWheel';
@@ -55,7 +56,7 @@ type Section='seq'|'arp'|'chord'|'scale'|'sync';
 
 export type ArpView={groups:number[][];step:number;phase?:number;paused?:boolean};
 type Props={
-  state:PerformanceState; beat:number; playing:boolean; held:number[]; arpView?:ArpView|null;
+  track:import('../types').Track;catalogStatus:import('../types').DeckUpdate['pattern_library'];onCommand:(command:string,args?:unknown)=>void;state:PerformanceState; beat:number; playing:boolean; held:number[]; arpView?:ArpView|null;
   /** Step record cursor from the engine: the step the next recorded key goes to. */
   recStep?:number;
   selectedTrack:number;recording?:boolean;device?:string;onNoteEdit:(target:NoteTarget,expected:StepPattern,events:import('../types').Note[])=>void;onEditorNote:(track:number,id:string,note:number,velocity:number)=>void;onUndo:()=>void;onSet:(section:Section,key:string,value:unknown)=>void;
@@ -89,7 +90,7 @@ export function PerformTools({hold,onHold,onPanic,arp=false,paused=false,onArp}:
   </>;
 }
 
-export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo}:Props){
+export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo}:Props){
   const [noteEditorOpen,setNoteEditorOpen]=useState(false);
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
@@ -121,7 +122,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
   const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,chord:pitch=>{const intervals=SCALES[scale.name==='Chromatic'?'Major':scale.name]??SCALES.Major;const degree=intervals.findIndex(v=>(pitch-scale.root+120)%12===v),d=degree<0?0:degree;return [0,2,4].map(i=>Math.min(127,pitch+intervals[(d+i)%intervals.length]-intervals[d]+12*Math.floor((d+i)/intervals.length)));},open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
   const locate=(x:number,y:number)=>{const el=gridRef.current;if(!el)return null;const r=el.getBoundingClientRect(),lines=Array.from(el.querySelectorAll<HTMLElement>('.pf-row'));const row=lines.find(n=>{const b=n.getBoundingClientRect();return y>=b.top&&y<b.bottom;})??(y<r.top?lines[0]:lines.at(-1));return {time:clamp(page*16+Math.floor((x-r.left-40)/(r.width-40)*16),page*16,Math.min(pat.length-1,page*16+15)),pitch:Number(row?.dataset.pitch??60)};};
-  const factoryName=LIBRARY.patterns[seq.bank-1]?.[seq.slot-1];
+  const factoryName=undefined; // Slot number is not a factory identity after edits/imports.
   const pages=Math.max(1,Math.ceil(pat.length/16));
   const currentStep=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
   const cursor=seq.recording?recStep%pat.length:-1;
@@ -189,6 +190,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
     <Knob id={id} name={name} value={Math.round(value*100)} min={min} max={max} step={1} format={pct}
       onChange={n=>onChange(Math.round(n)/100)}/>;
 
+  const userPatterns=useContextTarget(el=>{const pad=el.closest<HTMLElement>('[data-user-pattern]');if(!pad)return null;const slot=Number(pad.dataset.userPattern);return {kind:'library.pattern',label:'User slot '+seq.bank+':'+slot,caps:{copy:()=>{setClip(seq.bank+':'+slot);setMessage('Copied slot '+seq.bank+':'+slot);},details:()=>{set('seq','slot',slot);setSheet('mutate');},library:()=>setSheet('library')}};});
   let controls:ReactNode;
   const hasNotes=(b:number,sl:number)=>{const ptn=state.patterns[b+':'+sl];return !!ptn&&ptn.steps.some(st=>st.length>0);};
   const density=(b:number,sl:number)=>{const ptn=state.patterns[b+':'+sl];if(!ptn)return [] as number[];
@@ -205,9 +207,9 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
       {[1,2,3,4].map(b=><button key={b} type="button" aria-pressed={seq.bank===b} className={seq.bank===b?'on':''}
         aria-label={'Bank '+b} onClick={()=>pick(b,seq.slot)}>{b}{[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].some(sl=>hasNotes(b,sl))?<i/>:null}</button>)}
     </div>
-    <div className="pf-pads" role="group" aria-label={'Patterns in bank '+seq.bank}>
+    <div {...userPatterns} className="pf-pads" role="group" aria-label={'Patterns in bank '+seq.bank}>
       {Array.from({length:16},(_,i)=>{const sl=i+1,on=seq.slot===sl,full=hasNotes(seq.bank,sl),d=density(seq.bank,sl),top=Math.max(1,...d);
-        return <button key={sl} type="button" data-testid={'pf-pad-'+seq.bank+'-'+sl}
+        return <button key={sl} data-user-pattern={sl} type="button" data-testid={'pf-pad-'+seq.bank+'-'+sl}
           aria-label={'Pattern '+seq.bank+'·'+sl+(full?'':' (empty)')} aria-pressed={on}
           className={'pf-pad'+(on?' on':'')+(full?' full':'')+(on&&seq.enabled&&playing?' playing':'')}
           onPointerDown={()=>padDown(seq.bank,sl)} onPointerUp={padUp} onPointerLeave={padUp} onPointerCancel={padUp}
@@ -521,7 +523,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
       </div>:null}
       <div className={'pf-lane pf-lane-'+mode}>{laneView}
         {message?<span className="pf-msg" role="status">{message}</span>:null}</div>
-      {sheet?<div className={'pf-sheet pf-sheet-'+sheet} role="dialog" aria-label={SHEET_TITLE[sheet]}>
+      {sheet==='library'?<PatternLibrary trackIndex={selectedTrack} track={track} pattern={pat} bank={seq.bank} slot={seq.slot} recording={recording} status={catalogStatus} send={onCommand} close={()=>setSheet(null)} chain={<div className="genre-chain"><button type="button" aria-pressed={seq.chain_enabled} onClick={()=>set('seq','chain_enabled',!seq.chain_enabled)}>Chain {seq.chain_enabled?'on':'off'}</button><input type="text" value={chainText} onChange={e=>setChainText(e.target.value)} aria-label="Pattern chain, bank:pattern"/><button type="button" onClick={setChain}>Set chain</button></div>}/>:sheet?<div className={'pf-sheet pf-sheet-'+sheet} role="dialog" aria-label={SHEET_TITLE[sheet]}>
         <header><strong>{SHEET_TITLE[sheet]}</strong>
           <button type="button" aria-label="Close" onClick={()=>setSheet(null)}><X size={16}/></button></header>
         {sheet==='scale'?<div className="pf-scale-sheet">
@@ -554,20 +556,7 @@ export function Performance({state,beat,playing,held,arpView,recStep=0,onSet,onS
           <button type="button" className={'pf-btn'+(sync.receive_transport?' on':'')} onClick={()=>set('sync','receive_transport',!sync.receive_transport)}>
             MIDI start/stop {sync.receive_transport?'on':'off'}</button>
           <button type="button" className="pf-btn" onClick={tapTempo}>Tap tempo{tapTimes.length?' ('+tapTimes.length+')':''}</button>
-        </div>:<div className="pf-library">
-          {LIBRARY.banks.map((name,i)=><div key={name} className="pf-lib-row">
-            <div><strong>Bank {i+1} · {name}</strong><span>{LIBRARY.patterns[i].slice(0,4).join(' · ')} …</span></div>
-            <button type="button" className="pf-btn" aria-label={'Load '+name+' into bank '+(i+1)}
-              onClick={()=>{onAction('load_factory',i+1);set('seq','bank',i+1);set('seq','slot',1);setSheet(null);
-                setMessage('Loaded '+name.toLowerCase()+' into bank '+(i+1)+'. Undo brings the old ones back.');}}>Load</button>
-          </div>)}
-          <div className="pf-lib-row chain">
-            <button type="button" className={'pf-btn'+(seq.chain_enabled?' on':'')} aria-pressed={seq.chain_enabled}
-              onClick={()=>set('seq','chain_enabled',!seq.chain_enabled)}>Chain {seq.chain_enabled?'on':'off'}</button>
-            <input type="text" value={chainText} onChange={e=>setChainText(e.target.value)} aria-label="Pattern chain, bank:pattern"/>
-            <button type="button" className="pf-btn" onClick={setChain}>Set</button>
-          </div>
-        </div>}
+        </div>:null}
       </div>:null}
     </div>
     <TouchKeys held={held} sounding={sounding} channel={channel} onMidi={onMidi}

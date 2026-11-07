@@ -525,7 +525,7 @@ function App() {
             beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false}/>
         </>}
       </div></PanelScope>
-      :<div className="perform-page"><Performance state={project.performance} beat={playhead}
+      :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
           onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
