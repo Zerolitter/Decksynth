@@ -92,13 +92,13 @@ export function ModBand({selected,chain:raw,onChange,beat,live,edit,onEdit,armed
             onClick={()=>setMod({rate:i})}>{r}</button>)}
         </div>
         <div className="pe-links"><LinkSummary targets={mod.targets} onOpen={()=>setSheet('links')}/></div>
-        {sheet?<ModSheet chain={chain} index={edit.index} tab={sheet} onTab={setSheet} onChange={onChange} onClose={()=>setSheet(null)}
+        {sheet?<ModSheet key={'mod-'+edit.index} chain={chain} index={edit.index} tab={sheet} onTab={setSheet} onChange={onChange} onClose={()=>setSheet(null)}
           phase={phaseOf(edit.index)} live={mod.targets.length?live?.mods?.[edit.index]:undefined}
-          container={band.current?.closest('.frame')??null}/>:null}
+          container={band.current?.closest('.frame')??null} anchor={band.current?.querySelector('.pad-editor')??null}/>:null}
       </div>:<div className="pe-body">
         <div className="pe-links wide"><LinkSummary targets={macro!.targets} onOpen={()=>setSheet('links')}/></div>
-        {sheet?<MacroSheet chain={chain} index={edit.index} onChange={onChange} onClose={()=>setSheet(null)}
-          container={band.current?.closest('.frame')??null}/>:null}
+        {sheet?<MacroSheet key={'macro-'+edit.index} chain={chain} index={edit.index} onChange={onChange} onClose={()=>setSheet(null)}
+          container={band.current?.closest('.frame')??null} anchor={band.current?.querySelector('.pad-editor')??null}/>:null}
       </div>}
     </div>
   </section>;

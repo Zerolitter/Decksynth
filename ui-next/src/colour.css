@@ -1,4 +1,4 @@
-/* Colour and icons (UI-RULES §5b): green stays the base, but every page, Perform mode and tool has its own accent.
+/* Colour and icons (UI-RULES §5b): neutral surfaces support a distinct accent for every page, Perform mode and tool.
    One palette, defined here only. A section uses the same colour on its tab, its edge and its active state. */
 :root{
   /* pages */
@@ -13,7 +13,7 @@
 /* ---------- page tabs ---------- */
 .harness-shell .page-tabs button svg{color:var(--sec)}
 .harness-shell .page-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#172124);border-color:var(--sec);color:#fff;
-  box-shadow:0 0 14px color-mix(in srgb,var(--sec) 30%,transparent),inset 0 -2px 0 var(--sec)}
+  box-shadow:inset 0 -2px 0 var(--sec)}
 
 /* ---------- Perform: the open mode tints its own controls ---------- */
 .harness-shell .pf{--mode:var(--c-seq)}

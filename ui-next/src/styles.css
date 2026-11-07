@@ -1,9 +1,9 @@
 /* DeckSynth Next — instrument UI. Design language: restrained hardware depth,
    live LED feedback, touch-first spacing, Chordz-style owned control gestures. */
 :root{
-  --app:#0f1318;--panel:#1b232b;--panel-hi:#25303a;--raised:#283541;
-  --inset:#101821;--line:#34404b;--line-soft:#29353f;--text:#e4ebec;
-  --soft:#9aaeb7;--muted:#6f8390;--accent:#82ddc1;--amber:#e5b674;
+  --app:#101113;--panel:#1b1d21;--panel-hi:#22252a;--raised:#282b30;
+  --inset:#101215;--line:#3a3e45;--line-soft:#2e3238;--text:#e5e8ec;
+  --soft:#b7bdc6;--muted:#a2aab4;--accent:#82ddc1;--amber:#e5b674;
   --red:#e78d88;--blue:#9ac0df;--shadow:rgba(0,0,0,.45);
   font-family:"Segoe UI",Inter,"DejaVu Sans",sans-serif;color:var(--text);
   font-synthesis:none;font-size:13px;
@@ -299,7 +299,7 @@ button svg{flex:none}
 .harmonic-bar.current{border-color:#5f9783;border-radius:3px;background:#1e3434}
 .harmonic-bar .bar-index{font:750 9px "DejaVu Sans Mono",monospace;z-index:2}
 .bar-line{position:absolute;top:22px;bottom:16px;width:52%;display:flex;align-items:flex-end;
-  background:#192a35;border-left:1px solid #2b4149;border-right:1px solid #2b4149}
+  background:var(--raised);border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
 .bar-line span{width:100%;height:var(--partial);background:linear-gradient(0deg,
   color-mix(in srgb,var(--partial-color) 54%,#172333),var(--partial-color));
   border-top:2px solid #bceee2;box-shadow:0 -1px 9px #89d8c835;transition:height .07s}

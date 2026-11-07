@@ -30,7 +30,7 @@ export function GateSheet({params, color, beat, playing, container, onParam, onC
   // Cells past the length keep their bits, so a shorter gate can grow back to the same pattern.
   const fill = (bits:number) => setSteps((steps & ~all) | (bits & all));
   const pattern = (f:(k:number) => boolean) => fill(Array.from({length:L}, (_, k) => f(k) ? 1 << k : 0).reduce((a, b) => a | b, 0));
-  return createPortal(<div className="mod-sheet-backdrop" onPointerDown={e => { if (e.target===e.currentTarget) onClose(); }}>
+  return createPortal(<div className="mod-sheet-backdrop gate-backdrop" onPointerDown={e => { if (e.target===e.currentTarget) onClose(); }}>
     <section className="mod-sheet gate-sheet" role="dialog" aria-label="Audio gate steps" style={{['--src' as string]:color}}>
       <header className="mod-sheet-bar">
         <i className="pe-dot"/><strong>Audio gate</strong>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { FxModuleId } from '../fx';
+import { FX_MODULES, type FxModuleId } from '../fx';
 
 type Props = { id:FxModuleId; params:Record<string,number>; level:number; color:string; on:boolean;
   /** compressor gain reduction in dB, from the engine */ reduction?:number; /** resonator string notes, from the engine */ strings?:number[] };
@@ -17,11 +17,11 @@ export function FxGraph(props:Props) {
       if(now-last<33)return; last=now;
       const c=canvas.current, ctx=c?.getContext('2d'); if(!c||!ctx)return;
       const dpr=window.devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
-      if(c.width!==Math.round(W*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);}
+      if(c.width!==Math.round(W*dpr)||c.height!==Math.round(H*dpr)){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);}
       ctx.setTransform(dpr,0,0,dpr,0,0);
       const {id,params:p,level,color,on,reduction,strings}=latest.current;
       smooth.current=smooth.current*.8+Math.min(1,level*6)*.2;
-      const L=on?smooth.current:0, t=now/1000;
+      const L=on?smooth.current:0, t=on&&level>1e-5?now/1000:0;
       ctx.clearRect(0,0,W,H);
       // grid
       ctx.strokeStyle='#ffffff0d';ctx.lineWidth=1;
@@ -29,7 +29,7 @@ export function FxGraph(props:Props) {
       for(let i=1;i<8;i++){ctx.beginPath();ctx.moveTo(W*i/8,0);ctx.lineTo(W*i/8,H);ctx.stroke();}
       const alpha=on?1:.35;
       ctx.globalAlpha=alpha;
-      ctx.shadowColor=color;ctx.shadowBlur=on?6+L*16:0;
+      ctx.shadowColor=color;ctx.shadowBlur=0;
       ctx.strokeStyle=color;ctx.lineWidth=2;
       const grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,color+'88');grad.addColorStop(1,color+'00');
       const line=(f:(x:number)=>number,fill=false)=>{
@@ -44,7 +44,7 @@ export function FxGraph(props:Props) {
         const fc=20*Math.pow(1000,p.cutoff??.7),q=2-1.9*(p.reso??.3),mode=Math.round(p.mode??0);
         const resp=(x:number)=>{const f=20*Math.pow(1000,x),w=f/fc;const den=Math.sqrt(Math.pow(1-w*w,2)+Math.pow(q*w,2));
           const m=mode===0?1/den:mode===1?(q*w)/den:(w*w)/den;return Math.max(-1,Math.min(1,(20*Math.log10(m+1e-6))/24))*.9+.1;};
-        ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=on?6+L*16:0;line(resp);
+        ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=0;line(resp);
       } else if(id==='overdrive'){
         const d=1+(p.drive??.4)*24;line(x=>Math.tanh(wave(x,1)*d*amp)/Math.tanh(d)*.95);
         ctx.globalAlpha=alpha*.35;line(x=>wave(x,1)*amp);
@@ -94,13 +94,13 @@ export function FxGraph(props:Props) {
         const resp=(x:number)=>{const f=1.3+x*3; // log10 of 20 Hz .. 20 kHz
           const sl=1/(1+Math.exp((f-Math.log10(200))*6)),sh=1/(1+Math.exp(-(f-Math.log10(4000))*6)),bell=Math.exp(-Math.pow((f-fm)/.35,2));
           return (lo*sl+mid*bell+hi*sh)*.8;};
-        ctx.globalAlpha=alpha*.3;line(()=>0);ctx.globalAlpha=alpha;ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=on?6+L*16:0;line(resp);
+        ctx.globalAlpha=alpha*.3;line(()=>0);ctx.globalAlpha=alpha;ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=0;line(resp);
       } else if(id==='autowah'){
         // A band-pass peak that slides up as you play louder.
         const base=(p.base??.3)*.5,range=(p.range??.6)*.5,q=.04+.18*(1-(p.reso??.6));
         const c=base+range*Math.min(1,L*(.5+(p.sens??.5)*1.5));
         const resp=(x:number)=>Math.exp(-Math.pow((x-c)/q,2))*1.6*(.4+.6*amp)-.8;
-        ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=on?6+L*16:0;line(resp);
+        ctx.shadowBlur=0;line(resp,true);ctx.shadowBlur=0;line(resp);
       } else if(id==='gate'){
         // The gate's amplitude over one pattern: open cells (falling with Pump), closed cells down to (1 - Depth).
         const L=[4,6,8,9,12,16][Math.round(p.length??2)]??8,steps=Math.round(p.steps??0),depth=p.depth??1,pump=p.pump??0;
@@ -124,5 +124,5 @@ export function FxGraph(props:Props) {
     raf=requestAnimationFrame(draw);
     return()=>cancelAnimationFrame(raf);
   },[]);
-  return <canvas ref={canvas} className="fx-graph-canvas" aria-hidden="true"/>;
+  return <canvas ref={canvas} className="fx-graph-canvas" role="img" aria-label={FX_MODULES[props.id].name+' parameter preview'} data-bypassed={!props.on}/>;
 }

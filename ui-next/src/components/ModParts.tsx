@@ -22,7 +22,7 @@ export function LinkSummary({targets,onOpen}:{targets:FxTarget[];onOpen:()=>void
   return <div className="fx-targets compact">
     <span className="mod-group-label">Links{targets.length?' · '+targets.length:''}</span>
     {targets.length?shown.map((t,k)=>{const info=targetInfo(t);return <span key={k} className="link-chip" style={{['--fx-color' as string]:info.color}}>
-      <i/>{info.name} · {info.label}<b>{t.depth>0?'+':''}{Math.round(t.depth*100)}%</b></span>;})
+      <i/><span className="link-label">{info.name} · {info.label}</span><b>{t.depth>0?'+':''}{Math.round(t.depth*100)}%</b></span>;})
       :<p className="mod-empty">Not linked yet.</p>}
     {targets.length>2?<span className="link-more">+{targets.length-2} more</span>:null}
     <button type="button" className="fx-add" onClick={onOpen}><Plus size={15}/>{targets.length?'Edit links':'Add target'}</button>

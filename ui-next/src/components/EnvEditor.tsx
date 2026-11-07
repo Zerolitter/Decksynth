@@ -29,11 +29,11 @@ const fmt=(k:Key,v:number)=>k==='sustain'?Math.round(v*100)+'%':v<1?Math.round(v
 export function EnvelopeGraph({p}:{p:Env}){
   const w=120,h=56,g=envGeometry(p,w,h,6);
   const line=`M${g.start} L${g.a} L${g.d} L${g.n} L${g.r}`;
-  return <svg className="env-graph" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Envelope shape">
-    <path d={line+` L${g.r[0]},${g.base} Z`} fill="#7bd8bb22"/>
-    <path d={`M${g.start} L${g.a} L${g.d}`} stroke="#91e6ca" fill="none" strokeWidth={2} strokeLinejoin="round"/>
-    <path d={`M${g.d} L${g.n}`} stroke="#91e6ca" fill="none" strokeWidth={2} strokeDasharray="3 3"/>
-    <path d={`M${g.n} L${g.r}`} stroke="#91e6ca" fill="none" strokeWidth={2}/>
+  return <svg className="env-graph" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Envelope shape" style={{color:'var(--panel-tag,#f2c46d)'}}>
+    <path d={line+` L${g.r[0]},${g.base} Z`} fill="currentColor" opacity={.12}/>
+    <path d={`M${g.start} L${g.a} L${g.d}`} stroke="currentColor" fill="none" strokeWidth={2} strokeLinejoin="round"/>
+    <path d={`M${g.d} L${g.n}`} stroke="currentColor" fill="none" strokeWidth={2} strokeDasharray="3 3"/>
+    <path d={`M${g.n} L${g.r}`} stroke="currentColor" fill="none" strokeWidth={2}/>
   </svg>;
 }
 

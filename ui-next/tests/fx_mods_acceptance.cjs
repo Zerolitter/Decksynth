@@ -15,9 +15,10 @@ const ROOT=path.resolve(__dirname,'..');
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1280,722));
   await p.getByRole('tab',{name:/^FX$/}).click();
-  const covered=()=>p.evaluate(sel=>[...document.querySelectorAll(sel)].filter(b=>{const r=b.getBoundingClientRect();
-    if(!r.width||!r.height)return false;const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
-    return !(e===b||b.contains(e));}).map(b=>b.getAttribute('aria-label')||b.textContent),'.fx-picker-sheet button,.mod-sheet button');
+  const covered=async()=>{const bad=[];for(const n of await p.locator('.fx-picker-sheet button,.mod-sheet button').all()){
+    if(!await n.isVisible())continue;await n.scrollIntoViewIfNeeded();
+    const ok=await n.evaluate(b=>{const r=b.getBoundingClientRect(),e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return e===b||b.contains(e);});
+    if(!ok)bad.push(await n.getAttribute('aria-label')||await n.innerText());}return bad;};
 
   // An empty rack shows the picker in the window itself; the Add effect sheet sits over the window, not under the rack.
   const win=p.getByRole('region',{name:'FX window'});
@@ -39,12 +40,12 @@ const ROOT=path.resolve(__dirname,'..');
   const ratio=p.getByRole('radiogroup',{name:'Compressor Ratio'}).getByRole('radio',{name:'8:1'});
   await ratio.click();
   assert.equal(await ratio.getAttribute('aria-checked'),'true');
-  assert.ok(await p.locator('.fx-graph-tile').filter({hasText:'Resonator'}).isVisible(),'Resonator graph in the window');
+  await p.getByRole('button',{name:'Focus Resonator',exact:true}).click();assert.ok(await p.locator('.fx-graph-tile').filter({hasText:'Resonator'}).isVisible(),'selected Resonator preview in the window');
 
   // Compact mod editor: Shape, Rate and the link summary, no scroll list.
   await p.getByRole('button',{name:/^Mod pad 1 /}).click();
   assert.equal(await p.locator('.pad-editor select,.pad-editor input[type=range]').count(),0,'no scroll list in the compact editor');
-  await p.getByRole('button',{name:/^Rate of Mod pad 1/}).click();
+  await p.getByRole('button',{name:/^Shape of Mod pad 1/}).click();
   const mod=p.getByRole('dialog',{name:'Mod pad 1 editor'});
   await mod.waitFor();
   assert.deepEqual(await covered(),[],'nothing in the mod sheet is covered');

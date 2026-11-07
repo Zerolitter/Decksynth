@@ -2,17 +2,17 @@
    Every panel folds to its title bar (double-tap the bar or tap the arrow). No horizontal scrolling. */
 .harness-shell .workspace-stage{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;padding:6px 8px;overflow:hidden}
 .harness-shell .page-bar{display:flex;align-items:center;gap:10px;min-width:0}
-.harness-shell .page-tabs{display:flex;gap:4px;padding:3px;border:1px solid #38494a;background:#121b1d;border-radius:10px;flex:0 0 auto}
+.harness-shell .page-tabs{display:flex;gap:4px;padding:3px;border:1px solid var(--line);background:var(--inset);border-radius:10px;flex:0 0 auto}
 .harness-shell .page-tabs button{min-width:80px;min-height:44px;padding:0 10px;display:flex;align-items:center;justify-content:center;gap:6px;
   background:transparent;border:1px solid transparent;border-radius:8px;color:#aebbb9;font-weight:760;letter-spacing:.3px}
 .harness-shell .page-tabs button.active{background:#315149;border-color:#5b9a86;color:#b2f4dc}
 .harness-shell .page-tracks{flex:0 1 auto;min-width:0;display:flex;gap:5px}
 .harness-shell .page-track{flex:0 1 124px;width:124px;min-width:84px;min-height:44px;display:flex;align-items:center;gap:7px;padding:0 8px;border-radius:9px;
-  background:#172023;border:1px solid #2f3e43;color:#b9c7c3;text-align:left}
+  background:var(--panel);border:1px solid #2f3e43;color:#b9c7c3;text-align:left}
 .harness-shell .page-track-text{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
 .harness-shell .page-track-notes{display:block;width:100%;height:6px;color:#c9d6d2}
 .harness-shell .page-tools{margin-left:auto;flex:0 1 auto;min-width:0;display:flex;align-items:center;gap:6px}
-.harness-shell .page-tool-icon{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;border-radius:9px;background:#1a2427;border:1px solid #38494f;color:#d7e3df}
+.harness-shell .page-tool-icon{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;border-radius:9px;background:var(--raised);border:1px solid #38494f;color:#d7e3df}
 .harness-shell .page-tools .preset-strip{position:static;min-width:0}
 .harness-shell .page-tools .preset-bar{min-height:44px;gap:4px}
 .harness-shell .page-tools .preset-step{width:44px;height:44px}
@@ -24,7 +24,7 @@
 .harness-shell .page-track-no{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;border-radius:6px;font-size:11px;font-weight:800;
   border:1px solid var(--track-accent);color:var(--track-accent)}
 .harness-shell .page-track-name{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.harness-shell .page-track.active{border-color:var(--track-accent);background:color-mix(in srgb,var(--track-accent) 14%,#172023);color:#eef4f1}
+.harness-shell .page-track.active{border-color:var(--track-accent);background:color-mix(in srgb,var(--track-accent) 14%,var(--panel));color:#eef4f1}
 .harness-shell .page-track.active .page-track-no{background:var(--track-accent);color:#10171a}
 .harness-shell .page-track.muted .page-track-name{opacity:.5;text-decoration:line-through}
 .harness-shell .page-song .page-tracks{display:flex}
@@ -35,16 +35,16 @@
 .harness-shell .workspace-stage{position:relative}
 
 /* ---------- foldable panel ---------- */
-.ds-panel{display:flex;flex-direction:column;min-width:0;border:1px solid #34464b;border-radius:11px;background:#182124;flex:0 0 auto}
+.ds-panel{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:11px;background:var(--panel);flex:0 0 auto}
 .ds-panel.grow{flex:1 1 auto;min-height:0}
-.ds-panel-bar{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 4px 0 12px;border-bottom:1px solid #2b393e;
+.ds-panel-bar{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 4px 0 12px;border-bottom:1px solid var(--line);
   user-select:none;cursor:default;touch-action:manipulation}
 .ds-panel.folded .ds-panel-bar{border-bottom:0}
 .ds-panel-icon{display:grid;place-items:center;color:var(--panel-accent,#7fd6bb)}
 .ds-panel-title{margin:0;font-size:12.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#dbe6e2;white-space:nowrap}
-.ds-panel-summary{min-width:0;font-size:11.5px;color:#8ea09c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ds-panel-summary{min-width:0;font-size:11.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ds-panel-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
-.ds-panel-fold{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:transparent;border:1px solid transparent;color:#9fb0ab}
+.ds-panel-fold{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:transparent;border:1px solid transparent;color:var(--soft)}
 .ds-panel-fold:hover{border-color:#3d5056;background:#1f2a2e}
 .ds-panel-fold svg{transition:transform .15s}
 .ds-panel.folded .ds-panel-fold svg{transform:rotate(-90deg)}
@@ -59,14 +59,14 @@
 .harness-shell .song-lower-panel .song-lower{height:172px;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,.8fr);gap:8px}
 .harness-shell .track-row:has(.lane-sound){grid-template-columns:194px 44px 44px minmax(0,1fr)}
 .harness-shell .lane-sound{align-self:center;width:44px;height:44px;display:grid;place-items:center;border-radius:8px;
-  background:#1b2629;border:1px solid #3a4b51;color:#a9c9be}
+  background:var(--raised);border:1px solid var(--line);color:#a9c9be}
 .harness-shell .lane-sound:hover{border-color:var(--track-accent);color:#eef4f1}
 .harness-shell .track-info span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* step view: chips sit in the header, 16 pads in one row */
 .harness-shell .pattern-panel .pattern-header{height:auto;min-height:40px;gap:8px;flex-wrap:nowrap}
 .harness-shell .pattern-heading{display:flex;align-items:center;gap:8px;white-space:nowrap}
-.harness-shell .pattern-res{font-size:10.5px;color:#8ea09c}
+.harness-shell .pattern-res{font-size:10.5px;color:var(--soft)}
 .harness-shell .pattern-header .pattern-focus-chips{flex:1;min-width:0;height:auto;min-height:0;border:0;padding:0;justify-content:center}
 .harness-shell .pattern-focus-chip{min-height:30px}
 .harness-shell .sequencer-pad-grid{grid-template-columns:repeat(16,minmax(0,1fr));gap:4px}
@@ -109,18 +109,18 @@
 .harness-shell .card-output{width:168px}
 .harness-shell .card-movement{width:160px}
 .harness-shell .card-fxmod{width:300px}
-.harness-shell .panel-icon-action{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:#1d282b;border:1px solid #3a4b51;color:#c9d6d2}
-.harness-shell .panel-toggle{min-height:36px;min-width:64px;padding:0 10px;border-radius:8px;background:#1d282b;border:1px solid #3a4b51;color:#c9d6d2;font-weight:750;font-size:12px}
+.harness-shell .panel-icon-action{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:var(--raised);border:1px solid var(--line);color:#c9d6d2}
+.harness-shell .panel-toggle{min-height:36px;min-width:64px;padding:0 10px;border-radius:8px;background:var(--raised);border:1px solid var(--line);color:#c9d6d2;font-weight:750;font-size:12px}
 .harness-shell .panel-toggle.on{background:#5b2d2d;border-color:#c46a6a;color:#ffd9d9}
 /* Partials: shape chips live in the title row, the legend sits on the bars */
 .harness-shell .shape-chips{display:flex;gap:3px}
-.harness-shell .shape-chips button{min-height:36px;padding:0 7px;border-radius:7px;background:#1b2629;border:1px solid #3a4f55;color:#bcd0ca;font-size:10.5px;font-weight:760;letter-spacing:.2px}
+.harness-shell .shape-chips button{min-height:36px;padding:0 7px;border-radius:7px;background:var(--raised);border:1px solid #3a4f55;color:#bcd0ca;font-size:10.5px;font-weight:760;letter-spacing:.2px}
 .harness-shell .shape-chips button.selected{background:#3b5851;border-color:#8bd7ba;color:#f0fff7}
 .harness-shell .card-partials .ds-panel-title{margin-right:4px}
 .harness-shell .card-partials .ds-panel-actions{margin-left:auto}
 .harness-shell .card-partials .harmonic-spectrum{height:212px;min-height:0;max-height:none;border-radius:8px;padding:6px 4px 4px}
 .harness-shell .card-partials .bar-line{top:18px;bottom:15px}
-.harness-shell .spectral-legend{position:absolute;right:8px;top:4px;z-index:3;display:flex;gap:10px;font-size:10.5px;color:#8ea09c;pointer-events:none}
+.harness-shell .spectral-legend{position:absolute;right:8px;top:4px;z-index:3;display:flex;gap:10px;font-size:10.5px;color:var(--soft);pointer-events:none}
 .harness-shell .spectral-legend span{display:flex;align-items:center;gap:4px}
 .harness-shell .legend-bar{width:8px;height:10px;border-radius:2px;background:var(--panel-accent,#7fd6bb);opacity:.75}
 .harness-shell .legend-line{width:12px;height:3px;border-radius:2px;background:#fff;box-shadow:0 0 6px #fff}
@@ -132,13 +132,13 @@
 /* Waveform + fine tuning */
 .harness-shell .wave-card-svg{display:block;width:100%;height:92px;border-radius:8px;background:#0d1620}
 .harness-shell .partial-fine{display:flex;align-items:center;gap:8px;margin-top:8px}
-.harness-shell .partial-fine p{margin:0;font-size:11px;line-height:1.35;color:#8ea09c}
+.harness-shell .partial-fine p{margin:0;font-size:11px;line-height:1.35;color:var(--soft)}
 /* Envelope, output, movement */
 .harness-shell .rack-env{display:grid;grid-template-columns:184px auto;gap:8px;align-items:center}
 .harness-shell .rack-env .mini-graph-btn{height:92px;width:184px}
 .harness-shell .rack-env .env-graph{width:100%;height:100%}
 .harness-shell .sound-card .rack-knobs{justify-content:center;gap:4px}
-.harness-shell .rack-note{margin:6px 0 0;font-size:11px;color:#8ea09c;line-height:1.35}
+.harness-shell .rack-note{margin:6px 0 0;font-size:11px;color:var(--soft);line-height:1.35}
 .harness-shell .motion-routes{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;max-height:118px;overflow-y:auto}
 .harness-shell .motion-routes li{display:flex;flex-wrap:wrap;gap:4px;align-items:baseline;padding:6px 8px;border-radius:7px;background:#1e2a2e;font-size:11.5px;color:#c7d3cf}
 .harness-shell .motion-routes li span{color:#93a4a0}

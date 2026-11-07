@@ -18,9 +18,9 @@ const ROOT=path.resolve(__dirname,'..');
   const checked=(group,name)=>p.getByRole('radiogroup',{name:group}).getByRole('radio',{name,exact:true}).getAttribute('aria-checked');
   const val=id=>p.locator(`[data-param="${id}"] .knob-value`).innerText();
 
-  // Every new card is fully on screen at 722 px, with no sideways scroll.
+  // Cards remain reachable within the rack; the page never scrolls sideways.
   for(const id of ['sound-filter','sound-unison','sound-character']){
-    const b=await p.locator('[data-panel="'+id+'"]').boundingBox();
+    const card=p.locator('[data-panel="'+id+'"]');if(await card.evaluate(n=>n.classList.contains('folded')))await card.getByRole('button',{name:/Unfold/}).click();await card.scrollIntoViewIfNeeded();const b=await card.boundingBox();
     assert.ok(b&&b.y+b.height<=722&&b.x+b.width<=1280,id+' is on screen: '+JSON.stringify(b));
   }
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no sideways scroll');

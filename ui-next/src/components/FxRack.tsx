@@ -42,36 +42,35 @@ function Stepper({label,name,value,min,max,color,onChange}:{label:string,name:st
   </div>;
 }
 
-type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; levels?:number[]; live?:Live; spectrum?:number[]; bpm?:number};
+type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; levels?:number[]; live?:Live; spectrum?:number[]; bpm?:number; focus?:FxModuleId|null; onFocus?:(id:FxModuleId)=>void};
 
 /** FX focus window: the animated graph of each effect in use, or the Morph pad. */
-export function FxWindow({chain:raw,onChange,levels,live,spectrum,bpm}:WindowProps) {
+export function FxWindow({chain:raw,onChange,levels,live,spectrum,bpm,focus,onFocus}:WindowProps) {
   const chain=normalizeChain(raw);
   const active=chain.modules.filter(m=>m.on);
   return <FrameWindow id="fx" label="FX" tabs={[
-    {id:'GRAPHS',label:'Effects',render:()=>active.length?<div className="fx-graph-strip"
-      style={{gridTemplateColumns:`repeat(${active.length},minmax(0,1fr)) 196px`}}>
-      {active.map(state=>{const def=FX_MODULES[state.id],idx=FX_ORDER.indexOf(state.id);
-        return <div key={state.id} className="fx-graph-tile" style={{['--fx-color' as string]:def.color}}>
-          <span>{def.name}</span>
-          <FxGraph id={state.id} level={levels?.[idx]??0} color={def.color} on reduction={live?.comp} strings={live?.strings}
+    {id:'GRAPHS',label:'Effects',render:()=>active.length?<div className="fx-focus">
+      <div className="fx-focus-pick" role="group" aria-label="Effect to inspect">{active.map(m=><button type="button" key={m.id} aria-label={'Focus '+FX_MODULES[m.id].name}
+        aria-pressed={m.id===(active.find(m=>m.id===focus)??active[0]).id} style={{['--fx-color' as string]:FX_MODULES[m.id].color}} onClick={()=>onFocus?.(m.id)}>{FX_MODULES[m.id].name}</button>)}</div>
+      <div className="fx-graph-strip" style={{gridTemplateColumns:'minmax(0,1fr) 196px'}}>
+      {(()=>{const state=active.find(m=>m.id===focus)??active[0],def=FX_MODULES[state.id],idx=FX_ORDER.indexOf(state.id);
+        return <div className="fx-graph-tile" data-module={state.id} style={{['--fx-color' as string]:def.color}}>
+          <span>{def.name} · {state.bypass?'Bypassed · ':''}Parameter preview</span>
+          <FxGraph id={state.id} level={levels?.[idx]??0} color={def.color} on={!state.bypass} reduction={live?.comp} strings={live?.strings}
             params={live?.params?Object.fromEntries(def.params.map((p,j)=>[p.key,live.params[idx*NPAR+j]??state.params[p.key]])):state.params}/>
-        </div>;})}
-      <div className="fx-graph-tile fx-output-tile" style={{['--fx-color' as string]:'#9fb0ab'}}>
-        <span>Output</span><Spectrum samples={spectrum}/>
-      </div>
-    </div>:<div className="fx-window-pick"><p>Pick an effect. Its live graph and knobs appear here and below.</p>
-      <FxPickerGrid chain={chain} onAdd={id=>onChange(addModule(chain,id))}/></div>},
+        </div>;})()}
+      <div className="fx-graph-tile fx-output-tile" style={{['--fx-color' as string]:'#adb3bd'}}><span>Native output</span><Spectrum samples={spectrum}/></div>
+      </div></div>:<div className="fx-window-pick"><p>Pick an effect to edit its controls and inspect its parameters.</p><FxPickerGrid chain={chain} onAdd={id=>onChange(addModule(chain,id))}/></div>},
     {id:'MORPH',label:'Morph pad',render:()=><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/>},
   ]}/>;
 }
 
 type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live;
-  armed:Source|null; autoFold:boolean; beat?:number; playing?:boolean};
+  armed:Source|null; autoFold:boolean; beat?:number; playing?:boolean; onFocus?:(id:FxModuleId)=>void};
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,playing=false}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,playing=false,onFocus}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -118,7 +117,7 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
     style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}} data-track={selected}>
     {active.map((state,pos)=>{
       const def=FX_MODULES[state.id], idx=FX_ORDER.indexOf(state.id);
-      return {id:'fx-'+state.id,node:<Panel rail role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
+      return {id:'fx-'+state.id,node:<Panel rail onUse={()=>{onFocus?.(state.id);window.dispatchEvent(new CustomEvent('decksynth-window',{detail:{id:'fx',tab:'GRAPHS'}}));}} role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
         className={'rack-card fx-card-module on'+(state.bypass?' bypassed':'')} tag={def.color} mods={linksInto(state.id)}
         style={{['--fx-color' as string]:def.color}}
         icon={<span className="fx-slot-no">{pos+1}</span>}

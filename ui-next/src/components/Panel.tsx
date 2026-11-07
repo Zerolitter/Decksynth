@@ -60,13 +60,14 @@ type Props = {
   role?:string; label?:string; style?:React.CSSProperties;
   /** Rack cards fold individually into an upright, keyboard-operable rail. */
   rail?:boolean;
+  onUse?:()=>void;
 };
 
 /** A panel with a title bar. Double-tap (or double-click) the title bar, or tap the arrow,
  *  to fold it down to its title. A folded panel keeps its on/off button, colour tag and
  *  linked-mods badge. The fold state is remembered between sessions. */
 export function Panel({id,title,icon,actions,summary,children,className='',defaultFolded=false,grow=false,accent,
-  tag,power,mods=0,role,label,style,rail=false}:Props){
+  tag,power,mods=0,role,label,style,rail=false,onUse}:Props){
   const [folded,setFolded]=useFold(id,defaultFolded);
   const section=useRef<HTMLElement>(null);
   const reopen=()=>{markUsed(id);setFolded(false);requestAnimationFrame(()=>section.current?.scrollIntoView({block:'nearest',inline:'nearest'}));};
@@ -81,7 +82,7 @@ export function Panel({id,title,icon,actions,summary,children,className='',defau
   return <section ref={section} className={'ds-panel'+(rail?' rack-rail':'')+(folded?' folded':'')+(grow?' grow':'')+(power&&!power.on?' powered-off':'')+(className?' '+className:'')}
     data-panel={id} role={role} aria-label={label}
     style={{...(accent?{['--panel-accent' as string]:accent}:{}),...(tag?{['--panel-tag' as string]:tag}:{}),...style}}
-    onPointerDownCapture={()=>markUsed(id)}>
+    onPointerDownCapture={()=>{markUsed(id);onUse?.();}}>
     {rail&&folded?<header className="ds-panel-bar rail-bar">
       <button type="button" className="rail-open" aria-label={'Unfold '+name} aria-expanded={false} title={'Open '+name} onClick={reopen}>
         <ChevronDown size={16}/><span className="rail-title">{title}</span>{mods>0?<span className="ds-panel-mods" title={mods+' mod links'}>{mods}</span>:null}

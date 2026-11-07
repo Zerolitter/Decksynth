@@ -3,13 +3,13 @@
 .drum-rack *{box-sizing:border-box}
 .drum-rack h1,.drum-rack h2,.drum-rack p{margin:0}
 .drum-rack button,.drum-rack select{min-width:44px;min-height:44px;font:inherit;touch-action:manipulation}
-.drum-rack button{border:1px solid #43565b;border-radius:8px;background:#243237;color:#e3eeea;font-weight:750;cursor:pointer}
+.drum-rack button{border:1px solid var(--line);border-radius:8px;background:var(--raised);color:#e3eeea;font-weight:750;cursor:pointer}
 .drum-rack button:hover:not(:disabled){background:#2e4145;border-color:#7aaca0}
 .drum-rack button:active:not(:disabled){background:#36544c}
-.drum-rack button:disabled{color:#a7b8b4;background:#182326;border-color:#34454a;cursor:not-allowed}
+.drum-rack button:disabled{color:#a7b8b4;background:var(--panel);border-color:var(--line);cursor:not-allowed}
 .drum-rack button:focus-visible,.drum-rack select:focus-visible,.drum-rack input:focus-visible,.drum-rack [role=slider]:focus-visible{outline:2px solid #aaf2dc;outline-offset:2px}
 .drum-rack ::selection{background:#467c6e;color:#fff}
-.drum-device-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:54px;padding:4px 12px;background:#1b272b;border:1px solid #3c5055;border-radius:10px}
+.drum-device-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:54px;padding:4px 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 .drum-device-title{display:flex;align-items:center;gap:10px;white-space:nowrap}
 .drum-device-title svg{color:var(--drum-accent)}
 .drum-device-title h1{font-size:18px;font-weight:780;letter-spacing:-.3px}
@@ -17,10 +17,10 @@
 .drum-device-meta{display:flex;align-items:center;gap:18px;color:#b2c4be;font-size:11.5px}
 .drum-device-meta strong{color:var(--drum-accent);font-weight:750;font-variant-numeric:tabular-nums}
 .drum-workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 432px;gap:8px}
-.drum-pads-panel,.drum-pad-sound{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid #34464b;border-radius:11px;background:#182124;overflow:hidden}
+.drum-pads-panel,.drum-pad-sound{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:11px;background:var(--panel);overflow:hidden}
 .drum-section-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 12px;border-bottom:1px solid #2f4044}
 .drum-section-bar h2{font-size:12.5px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
-.drum-section-bar>span{color:#b4c6c0;font-size:11px}
+.drum-section-bar>span{color:var(--soft);font-size:11px}
 .drum-pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(2,minmax(88px,1fr));gap:8px;padding:12px;flex:1;min-height:208px;max-height:340px}
 .drum-rack .drum-pad{--pad:#c1cbd2;position:relative;min-width:56px;min-height:88px;padding:9px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:7px;text-align:left;border-color:#3c4043;background:#282a2c;box-shadow:0 2px 4px #0003;border-radius:8px;user-select:none;touch-action:manipulation}
 .drum-rack .drum-pad:hover:not(:disabled){background:#2d2f31;border-color:color-mix(in srgb,var(--pad) 55%,#3c4043)}
@@ -45,12 +45,12 @@
 .drum-family-legend:empty{display:none}
 .drum-family-legend>span{display:flex;align-items:center;gap:5px;color:var(--family);white-space:nowrap}
 .drum-family-legend i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
-.drum-pad-legend{display:flex;align-items:center;gap:16px;min-height:28px;padding:0 12px;color:#b4c8be;font-size:10.5px}
+.drum-pad-legend{display:flex;align-items:center;gap:16px;min-height:28px;padding:0 12px;color:var(--soft);font-size:10.5px}
 .drum-pad-legend>span{display:flex;align-items:center;gap:6px}
 .drum-pad-legend>span:last-child{margin-left:auto;color:#a8bfb5}
 .drum-pad-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid var(--pad-accent)}
 .drum-pad-legend i.trigger{background:var(--pad-accent)}
-.drum-unavailable{display:flex;align-items:center;gap:12px;padding:8px 12px;border-top:1px solid #304145;background:#151f22}
+.drum-unavailable{display:flex;align-items:center;gap:12px;padding:8px 12px;border-top:1px solid #304145;background:var(--panel)}
 .drum-pending-buttons{display:flex;gap:6px;flex:none}
 .drum-pending-buttons button{min-width:56px;padding:0 9px}
 .drum-unavailable p{max-width:47ch;font-size:11.5px;line-height:1.55;color:#b3c7be}
@@ -62,8 +62,8 @@
 .drum-status{font-size:10px;font-weight:750;color:var(--drum-accent);flex:none}
 .drum-status.status-missing,.drum-status.status-error{color:#f2bc9f}
 .drum-status.status-empty,.drum-status.status-loading{color:#b1c3bc}
-.drum-source-file{padding:0 12px 8px;font-size:11px;color:#b7cbc2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:23px}
-.drum-wave-shell{position:relative;min-height:78px;height:92px;margin:0 12px;border:1px solid #304249;border-radius:8px;background:#0f181b;flex:1;max-height:124px;overflow:hidden}
+.drum-source-file{padding:0 12px 8px;font-size:11px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:23px}
+.drum-wave-shell{position:relative;min-height:78px;height:92px;margin:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--inset);flex:1;max-height:124px;overflow:hidden}
 .drum-waveform{position:absolute;top:6px;left:5px;width:calc(100% - 10px);height:calc(100% - 24px);color:var(--pad-accent)}
 .drum-waveform line{stroke:currentColor}
 .drum-wave-zero{stroke:#35484b;stroke-width:.7;fill:none}
@@ -76,35 +76,35 @@
 .drum-rack .drum-import-actions .drum-relink{background:#3a3025;border-color:#a18760;color:#f0d8b7}
 .drum-pad-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:8px 12px 12px}
 .drum-rack .tactile-knob{display:grid;width:100%;min-width:0;grid-template-columns:1fr;grid-template-rows:16px 52px 44px;gap:3px;align-items:center;justify-items:center}
-.drum-rack .tactile-knob .knob-heading{grid-column:1/-1;text-align:center;font-size:11px;color:#c6dacf}
+.drum-rack .tactile-knob .knob-heading{grid-column:1/-1;text-align:center;font-size:11px;color:var(--soft)}
 .drum-rack .tactile-knob .knob-target{width:52px;height:52px;min-width:52px;min-height:52px}
-.drum-rack .tactile-knob .knob-value{width:100%;height:44px;min-height:44px;min-width:44px;padding:0 4px;font-size:12px;display:flex;align-items:center;justify-content:center;background:#1c2b2f;border-color:#3b5055;color:var(--pad-accent);font-variant-numeric:tabular-nums}
-.drum-rack .knob-entry{min-height:44px;width:100%;min-width:44px;background:#0f191c;color:#edf5f1;border:1px solid var(--drum-accent);border-radius:6px;caret-color:var(--drum-accent);text-align:center}
+.drum-rack .tactile-knob .knob-value{width:100%;height:44px;min-height:44px;min-width:44px;padding:0 4px;font-size:12px;display:flex;align-items:center;justify-content:center;background:var(--raised);border-color:#3b5055;color:var(--pad-accent);font-variant-numeric:tabular-nums}
+.drum-rack .knob-entry{min-height:44px;width:100%;min-width:44px;background:var(--inset);color:#edf5f1;border:1px solid var(--drum-accent);border-radius:6px;caret-color:var(--drum-accent);text-align:center}
 .drum-rack .knob-live-value{z-index:5}
 .drum-pad-switches{display:flex;align-items:flex-end;gap:7px;padding:0 12px 10px}
 .drum-pad-switches>button{flex:1;min-width:56px}
-.drum-rack .drum-pad-switches>button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 24%,#182124);border-color:var(--pad-accent);color:#f1f8f5}
+.drum-rack .drum-pad-switches>button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 24%,var(--panel));border-color:var(--pad-accent);color:#f1f8f5}
 .drum-pad-switches label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:#bfd3c8;flex:1;min-width:94px}
 .drum-pad-switches select{background:#142125;border:1px solid #435a60;color:#e3eee8;border-radius:7px;padding:0 8px;width:100%;font-variant-numeric:tabular-nums}
-.drum-pan{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid #304145;background:#151f22}
+.drum-pan{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid #304145;background:var(--panel)}
 .drum-pan button{min-width:56px}
-.drum-pan p{font-size:11px;line-height:1.5;color:#b0c6bb}
+.drum-pan p{font-size:11px;line-height:1.5;color:var(--soft)}
 .drum-rack-loading{align-items:center;justify-content:center;color:#bacdc3}
 @media(max-width:1100px){.drum-workspace{grid-template-columns:minmax(0,1fr) 340px;gap:8px}.drum-pads{gap:5px;padding:8px}.drum-rack .drum-pad{padding:6px}.drum-pad-legend{gap:9px}.drum-pad-legend>span:last-child{display:none}.drum-device-meta{gap:10px}.drum-device-meta>span:last-child{display:none}.drum-unavailable{gap:10px}.drum-pending-buttons button{min-width:44px}.drum-section-bar>span{font-size:10px}.drum-pad-name{font-size:11px}}
 
 @media(max-width:1100px){.drum-pad-sound .drum-section-bar>span{display:none}}
 /* Shared device selector beside the track buttons; matches the native header controls. */
-.harness-shell .track-device-picker{min-width:130px;min-height:44px;padding:0 12px;border:1px solid #43585e;border-radius:8px;background:#19282d;color:#e1eee8;font:inherit;font-size:12px;font-weight:700;color-scheme:dark;cursor:pointer}
+.harness-shell .track-device-picker{min-width:130px;min-height:44px;padding:0 12px;border:1px solid #43585e;border-radius:8px;background:var(--panel);color:#e1eee8;font:inherit;font-size:12px;font-weight:700;color-scheme:dark;cursor:pointer}
 .harness-shell .track-device-picker:focus-visible{outline:2px solid #aaf2dc;outline-offset:2px}
-.harness-shell .track-device-picker option{background:#19282d;color:#e1eee8}
+.harness-shell .track-device-picker option{background:var(--panel);color:#e1eee8}
 /* Read-only native postmix telemetry; no timer, smoothing or synthesized activity. */
-.drum-output{display:flex;align-items:center;gap:20px;flex:0 0 30px;min-height:30px;padding:0 12px;border:1px solid #34464b;border-radius:7px;background:#162125;color:#b4c9bf;font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.drum-output{display:flex;align-items:center;gap:20px;flex:0 0 30px;min-height:30px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--soft);font-size:10.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .drum-output b{font-weight:700;color:#dcece4}
 .drum-output-source{display:flex;gap:9px;align-items:center}
 .drum-output-source b{color:var(--drum-accent)}
 .drum-output-level{margin-left:auto;display:flex;align-items:center;gap:15px}
 .drum-output meter{width:144px;height:10px;appearance:none;border:0;background:transparent}
-.drum-output meter::-webkit-meter-bar{border:1px solid #3f5659;background:#0d171a;border-radius:3px}
+.drum-output meter::-webkit-meter-bar{border:1px solid #3f5659;background:var(--inset);border-radius:3px}
 .drum-output meter::-webkit-meter-optimum-value{background:#78d8bf}
 .drum-output meter::-webkit-meter-suboptimum-value{background:#d7b67c}
 .drum-output meter::-webkit-meter-even-less-good-value{background:#e69d9e}
@@ -115,31 +115,31 @@
 .drum-device-meta .drum-kit-name{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:#e0ede6}
 .drum-device-meta button{display:flex;align-items:center;justify-content:center;gap:7px;padding:0 13px}
 .drum-device-meta button[aria-expanded=true]{border-color:var(--drum-accent);color:var(--drum-accent)}
-.drum-kit-browser{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:#182124;border:1px solid #34464b;border-radius:11px}
+.drum-kit-browser{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:11px}
 .drum-kit-browser .drum-section-bar{padding-right:6px;flex:none;min-height:52px}
 .drum-kit-browser .drum-section-bar button{display:flex;align-items:center;gap:7px;background:transparent;border-color:transparent;padding:0 8px;font-size:11.5px}
-.drum-library-root{padding:9px 12px 0;min-height:26px;color:#b7cbc2;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drum-library-root{padding:9px 12px 0;min-height:26px;color:var(--soft);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .drum-library-actions{display:flex;gap:8px;padding:8px 12px}
 .drum-library-actions button{display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px}
-.drum-kit-search{display:flex;align-items:center;gap:8px;margin:0 12px 8px;padding-left:12px;border:1px solid #43565b;border-radius:8px;background:#0f181b;color:#b7cbc2;flex:none}
+.drum-kit-search{display:flex;align-items:center;gap:8px;margin:0 12px 8px;padding-left:12px;border:1px solid var(--line);border-radius:8px;background:var(--inset);color:var(--soft);flex:none}
 .drum-kit-search input{min-width:0;width:100%;min-height:44px;padding:0 12px 0 0;border:0;border-radius:7px;background:transparent;color:#e3eeea;font:inherit;caret-color:var(--drum-accent);color-scheme:dark}
 .drum-kit-search input::placeholder{color:#acc2b8;opacity:1}
 .drum-kit-search:focus-within{outline:2px solid #aaf2dc;outline-offset:2px}
 .drum-kit-search input:focus-visible{outline:none}
-.drum-kit-list{flex:1;min-height:54px;padding:0 12px 8px;overflow:auto;scrollbar-width:thin;scrollbar-color:#577b6e #182124}
-.drum-rack .drum-kit-folder{display:flex;align-items:center;gap:10px;min-height:48px;width:100%;padding:6px 10px;border-radius:0;border-width:0 0 1px;border-color:#34464b;background:transparent;text-align:left}
+.drum-kit-list{flex:1;min-height:54px;padding:0 12px 8px;overflow:auto;scrollbar-width:thin;scrollbar-color:#577b6e var(--panel)}
+.drum-rack .drum-kit-folder{display:flex;align-items:center;gap:10px;min-height:48px;width:100%;padding:6px 10px;border-radius:0;border-width:0 0 1px;border-color:var(--line);background:transparent;text-align:left}
 .drum-kit-folder svg{color:#b2c9bf;flex:none}
 .drum-kit-folder>span{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .drum-kit-folder strong{flex:none;color:#b4c8bf;font-size:11px;font-variant-numeric:tabular-nums}
 .drum-rack .drum-kit-folder[aria-pressed=true]{background:#2b443c;color:#dff9ee}
 .drum-kit-folder[aria-pressed=true] svg,.drum-kit-folder[aria-pressed=true] strong{color:var(--drum-accent)}
-.drum-library-empty{padding:12px 2px;color:#b7cbc2;font-size:12px;line-height:1.6;max-width:65ch}
+.drum-library-empty{padding:12px 2px;color:var(--soft);font-size:12px;line-height:1.6;max-width:65ch}
 .drum-library-error{padding:0 12px 8px;color:#f2bc9f;font-size:11px;line-height:1.5;max-height:56px;overflow:auto;flex:none}
 .drum-library-error span{color:#d6c2b8}
-.drum-kit-selection{display:flex;align-items:center;gap:16px;padding:12px;border-top:1px solid #34464b;background:#151f22;min-height:86px;flex:none}
+.drum-kit-selection{display:flex;align-items:center;gap:16px;padding:12px;border-top:1px solid var(--line);background:var(--panel);min-height:86px;flex:none}
 .drum-kit-selection>div{min-width:0;flex:1}
 .drum-kit-selection strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.drum-kit-selection p{margin-top:5px;max-width:65ch;color:#b7cbc2;line-height:1.5;font-size:11px}
+.drum-kit-selection p{margin-top:5px;max-width:65ch;color:var(--soft);line-height:1.5;font-size:11px}
 .drum-rack .drum-kit-load{min-width:102px;padding:0 14px;background:#31584a;border-color:#6caa93;color:#e8fff3;flex:none}
 .drum-rack .drum-kit-load:disabled{background:#202d2b;border-color:#3c5149;color:#a8bfb3}
 @media(max-width:1100px){.drum-device-meta .drum-kit-name{max-width:150px}.drum-library-actions{gap:6px}.drum-library-actions button{padding:0 9px;font-size:11px}.drum-kit-selection{gap:10px}}

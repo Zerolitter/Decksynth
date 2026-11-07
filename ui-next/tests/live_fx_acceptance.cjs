@@ -98,7 +98,7 @@ let app;
   await page.locator('[data-panel="fx-filter"] .ds-panel-bar').dblclick();
   assert.ok(await page.locator('[data-panel="fx-filter"].folded .ds-panel-mods').isVisible(),'folded Filter shows its mod badge');
   await page.getByRole('button',{name:'Turn off Filter'}).waitFor({timeout:3000});
-  await page.locator('[data-panel="fx-filter"] .ds-panel-bar').dblclick();
+  await page.getByRole('button',{name:'Unfold Filter',exact:true}).click();
   // Clean up from Settings: clear every link, then empty the rack.
   await page.getByRole('button',{name:'Settings'}).click();
   await page.getByRole('button',{name:/Clear all mod links/}).click();
@@ -115,7 +115,7 @@ let app;
   // Layout: Sound cards fold with a double-tap on the title bar; no sideways scrolling on the page.
   await page.locator('[data-panel="sound-tone"] .ds-panel-bar').dblclick();
   assert.equal(await page.locator('[data-param="0-brightness"]').count(),0,'Tone card should fold');
-  await page.locator('[data-panel="sound-tone"] .ds-panel-bar').dblclick();
+  await page.getByRole('button',{name:'Unfold Tone',exact:true}).click();
   assert.equal(await page.locator('[data-param="0-brightness"]').count(),1,'Tone card should unfold');
   // Sound knobs take links too: from the Sound page, link mod pad 2 to Brightness and the engine moves it.
   await page.getByRole('button',{name:/^Mod pad 2 /}).click();

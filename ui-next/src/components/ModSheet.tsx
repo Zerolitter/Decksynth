@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { SourceInspector } from './SourceInspector';
 import { depthAt, parseDepth } from '../depth';
 import { Magnet, Pencil, X } from 'lucide-react';
 import {
@@ -100,6 +100,7 @@ export function BipolarDepth({value,color,label,onChange}:{value:number;color:st
   const g=useRef<{v0:number;x0:number;w:number;fine:boolean;held:ReturnType<typeof setTimeout>|null;long:ReturnType<typeof setTimeout>|null;
     moved:boolean;lastX:number;lastT:number}|null>(null);
   const tap=useRef(0);
+  useEffect(()=>()=>{const s=g.current;if(s?.held)clearTimeout(s.held);if(s?.long)clearTimeout(s.long);g.current=null;},[]);
   const v=preview??value;
   const stopTimers=()=>{const s=g.current;if(s?.held)clearTimeout(s.held);if(s?.long)clearTimeout(s.long);};
   if(typing!==null)return <div className="bipolar typing" style={{['--src' as string]:color}}>
@@ -145,17 +146,15 @@ const MiniShape=({shape,color}:{shape:ModShape;color:string})=>{
 };
 
 type SheetProps={chain:FxChain;index:number;tab:SheetTab;onTab:(t:SheetTab)=>void;onChange:(c:FxChain)=>void;onClose:()=>void;
-  phase:number;live?:number;container:Element|null};
+  phase:number;live?:number;container:Element|null;anchor:Element|null};
 
-export function ModSheet({chain,index,tab,onTab,onChange,onClose,phase,live,container}:SheetProps){
+export function ModSheet({chain,index,tab,onTab,onChange,onClose,phase,live,container,anchor}:SheetProps){
   const mod=chain.mods[index];const color=MOD_COLORS[index];
   const [snap,setSnap]=useState(true);
   const set=(patch:Partial<FxModSource>)=>onChange({...chain,mods:chain.mods.map((m,i)=>i===index?{...m,...patch}:m)});
   const setTargets=(t:FxTarget[])=>set({targets:t.slice(0,16)});
-  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[onClose]);
   if(!container)return null;
-  return createPortal(<div className="mod-sheet-backdrop" onPointerDown={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <section className="mod-sheet" role="dialog" aria-label={'Mod pad '+(index+1)+' editor'} style={{['--src' as string]:color}}>
+  return <SourceInspector container={container} anchor={anchor} label={'Mod pad '+(index+1)+' editor'} color={color} onClose={onClose}>
       <header className="mod-sheet-bar">
         <i className="pe-dot"/><strong>Mod pad {index+1}</strong>
         <nav className="frame-tabs" role="tablist" aria-label="Mod pad views">
@@ -201,8 +200,7 @@ export function ModSheet({chain,index,tab,onTab,onChange,onClose,phase,live,cont
           </div>
         </div>
       </div>:<LinksBody chain={chain} targets={mod.targets} color={color} onTargets={setTargets}/>}
-    </section>
-  </div>,container);
+  </SourceInspector>;
 }
 
 /** The Links view, shared by mod pads and macros: pick an effect, tap parameters to link them, set each depth. */
@@ -214,7 +212,7 @@ export function LinksBody({chain,targets,color,onTargets}:{chain:FxChain;targets
   const linked=(m:string,p:string)=>targets.findIndex(t=>t.module===m&&t.param===p);
   const setTargets=(t:FxTarget[])=>onTargets(t.slice(0,16));
   const mod={targets};
-  return <div className="mod-sheet-body links">
+  return <div className={'mod-sheet-body links'+(targets.length?'':' no-routes')}>
         <div className="mod-link-pick">
           <span className="mod-group-label">Link to</span>
           <div className="fx-segment mod-link-modules" role="radiogroup" aria-label="Target effect">
@@ -239,16 +237,14 @@ export function LinksBody({chain,targets,color,onTargets}:{chain:FxChain;targets
       </div>;
 }
 
-type MacroSheetProps={chain:FxChain;index:number;onChange:(c:FxChain)=>void;onClose:()=>void;container:Element|null};
+type MacroSheetProps={chain:FxChain;index:number;onChange:(c:FxChain)=>void;onClose:()=>void;container:Element|null;anchor:Element|null};
 
 /** A macro's links in the same sheet as the mod pads use; its name is edited in the title. */
-export function MacroSheet({chain,index,onChange,onClose,container}:MacroSheetProps){
+export function MacroSheet({chain,index,onChange,onClose,container,anchor}:MacroSheetProps){
   const macro=chain.macros[index];const color=MACRO_COLORS[index];
   const set=(patch:Partial<FxChain['macros'][number]>)=>onChange({...chain,macros:chain.macros.map((m,i)=>i===index?{...m,...patch}:m)});
-  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[onClose]);
   if(!container)return null;
-  return createPortal(<div className="mod-sheet-backdrop" onPointerDown={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <section className="mod-sheet" role="dialog" aria-label={'Macro '+(index+1)+' links'} style={{['--src' as string]:color}}>
+  return <SourceInspector container={container} anchor={anchor} label={'Macro '+(index+1)+' links'} color={color} onClose={onClose}>
       <header className="mod-sheet-bar">
         <i className="pe-dot"/><input className="pe-title-input" aria-label={'Macro '+(index+1)+' name'} value={macro.name} maxLength={24}
           onChange={e=>set({name:e.target.value})}/>
@@ -257,6 +253,5 @@ export function MacroSheet({chain,index,onChange,onClose,container}:MacroSheetPr
         <button type="button" className="mod-sheet-done" onClick={onClose}>Done</button>
       </header>
       <LinksBody chain={chain} targets={macro.targets} color={color} onTargets={targets=>set({targets})}/>
-    </section>
-  </div>,container);
+  </SourceInspector>;
 }
