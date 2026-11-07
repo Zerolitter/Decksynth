@@ -313,6 +313,11 @@ function App() {
     const filepath=await api.chooseFile('open','sample');
     if(filepath)command('drum_import',[tr,kit.id,pad,filepath,sha]);
   };
+  const chooseDrumLibrary=async()=>{
+    if(isPreview||!api){setToast('Open the native audio app to choose a sample folder');return;}
+    const directory=await api.chooseFile('open','sample_folder');
+    if(directory)command('drum_library_root',directory);
+  };
   const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
 
@@ -451,7 +456,9 @@ function App() {
         output={{peak:snapshot?.meter?.peak??0,rms:snapshot?.meter?.rms??0,voices:snapshot?.voices??0,underruns:snapshot?.underruns??0,driver:snapshot?.audio??'Unavailable'}}
         onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
         onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
-        onImport={importDrum}/>
+        onImport={importDrum} library={snapshot?.drum_library}
+        onLoadFolder={folder=>{if(track.drum_rack)command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}
+        onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
       :page==='SOUND'||page==='FX'?<div className={'frame frame-'+page.toLowerCase()}>
         <ModBand selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
           live={snapshot?.meter?.fx_live} edit={edit} onEdit={setEdit} armed={armed}

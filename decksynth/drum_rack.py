@@ -26,7 +26,8 @@ def new_kit():
 
 
 def validate_kit(value):
-    if not isinstance(value, dict) or set(value) != {'version', 'id', 'pads'}:
+    required={'version','id','pads'}
+    if not isinstance(value, dict) or not required<=set(value) or set(value)-required-{'name'}:
         raise ValueError('Invalid Drum Rack kit')
     if type(value['version']) is not int or value['version'] != 1:
         raise ValueError('Unsupported Drum Rack kit version')
@@ -34,6 +35,8 @@ def validate_kit(value):
         raise ValueError('Invalid Drum Rack identity')
     if not isinstance(value['pads'], list) or len(value['pads']) != PAD_COUNT:
         raise ValueError('Drum Rack requires exactly sixteen pads')
+    if 'name' in value and (not isinstance(value['name'],str) or not 1<=len(value['name'])<=80):
+        raise ValueError('Invalid Drum Rack kit name')
     out = copy.deepcopy(value)
     for i, p in enumerate(out['pads']):
         if not isinstance(p, dict) or set(p) != {'note', 'name', 'source', 'gain', 'velocity', 'mute', 'solo', 'tune', 'choke'}:

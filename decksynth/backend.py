@@ -9,6 +9,8 @@ import gc
 import queue
 import time
 from .drum_loader import DrumLoader
+from .drum_memory import data_directory
+from .drum_library_service import DrumLibraryService
 from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, arp_view
 from .keystep import StepCapacityError
 
@@ -92,7 +94,7 @@ class MidiDevice:
         return rejections
 
 def worker(commands,updates):
-    engine=Engine(); midi=MidiDevice(); audio=None; loader=None; last_status=0; underruns=0; started=False
+    engine=Engine(); midi=MidiDevice(); audio=None; loader=None; library=None; last_status=0; underruns=0; started=False
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
     monitor_samples=deque(maxlen=768)
@@ -110,6 +112,7 @@ def worker(commands,updates):
     try:
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
+        library=DrumLibraryService(engine,data_directory())
         loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
@@ -124,6 +127,9 @@ def worker(commands,updates):
                     elif cmd=='drum_note':engine.drum_note(*args)
                     elif cmd=='drum_edit':engine.edit_drum_pad(*args)
                     elif cmd=='drum_import':loader.request(*args)
+                    elif cmd=='drum_library_root':library.set_root(args)
+                    elif cmd=='drum_library_refresh':library.refresh()
+                    elif cmd=='drum_load_folder':library.load_folder(*args)
                     elif cmd=='select':engine.select(args)
                     elif cmd=='play':
                         if engine.playing:engine.stop()
@@ -218,6 +224,7 @@ def worker(commands,updates):
                         engine.snapshot(); t=engine.project.tracks[engine.selected]; t['instrument']=p.tracks[0]['instrument']; t['preset']='Custom'; engine.configure()
                 except Exception as exc:send(dict(error=str(exc)))
             if not running:break
+            library.poll()
             for rejection in loader.poll():send(dict(error=rejection))
             for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
@@ -233,6 +240,7 @@ def worker(commands,updates):
             if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
             if now-last_status>.1:
                 last_status=now
+                library.observe()
                 samples=list(monitor_samples)
                 if samples:
                     n=len(samples)
@@ -247,7 +255,7 @@ def worker(commands,updates):
                 send(dict(state=engine.project.data(),selected=engine.selected,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
-                          drum_racks=engine.drum_state(),audio=audio.driver if audio else 'UNAVAILABLE',
+                          drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
@@ -258,6 +266,7 @@ def worker(commands,updates):
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:
+        if library:library.close()
         if loader:loader.close()
         midi.close()
         if audio:audio.close()

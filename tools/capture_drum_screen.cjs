@@ -5,9 +5,10 @@ const fs=require('node:fs');
 const {execFileSync}=require('node:child_process');
 const ROOT=path.resolve(__dirname,'../ui-next');
 const {_electron}=require(path.join(ROOT,'node_modules/playwright'));
-const OUT=path.resolve(__dirname,'../artifacts/recovery/drum-rack-m1');
+const OUT=process.argv[4]?path.resolve(process.argv[4]):path.resolve(__dirname,'../artifacts/recovery/drum-rack-m1');
+const folder=process.argv[3];
 const samples=process.argv[2];
-if(!samples)throw new Error('Usage: node tools/capture_drum_screen.cjs USER_SAMPLE_DIRECTORY');
+if(!samples)throw new Error('Usage: node tools/capture_drum_screen.cjs USER_SAMPLE_DIRECTORY [KIT_FOLDER] [OUTPUT_DIRECTORY]');
 let app;
 (async()=>{
  fs.mkdirSync(OUT,{recursive:true});
@@ -21,11 +22,19 @@ let app;
  await send('select',3);await send('set_device',[3,'drum_rack']);
  await page.waitForFunction(()=>window.__captureState.state.tracks[3].drum_rack);
  const kit=await page.evaluate(()=>window.__captureState.state.tracks[3].drum_rack.id);
- for(const [pad,file] of [[0,'Kick Berlin 512.wav'],[6,'Hi-Hat Berlin 512 Closed.wav'],[7,'Hi-Hat Berlin 512 Open.wav']]){
-  const source=path.join(samples,'Berlin 512',file);if(!fs.existsSync(source))throw new Error('Missing private user sample: '+source);
-  await send('drum_import',[3,kit,pad,source,null]);
+ if(folder){
+  await send('drum_library_root',samples);
+  await page.waitForFunction(id=>window.__captureState.drum_library?.folders.some(f=>f.id===id)&&!window.__captureState.drum_library.scanning,folder);
+  await send('drum_load_folder',[3,kit,folder]);
+  await page.waitForFunction(name=>window.__captureState.state.tracks[3].drum_rack.name===name&&!window.__captureState.drum_library.loading,folder);
+  await page.waitForFunction(()=>window.__captureState.drum_racks[3].pads.every(p=>['READY','EMPTY'].includes(p.status)));
+ }else{
+  for(const [pad,file] of [[0,'Kick Berlin 512.wav'],[6,'Hi-Hat Berlin 512 Closed.wav'],[7,'Hi-Hat Berlin 512 Open.wav']]){
+   const source=path.join(samples,'Berlin 512',file);if(!fs.existsSync(source))throw new Error('Missing private user sample: '+source);
+   await send('drum_import',[3,kit,pad,source,null]);
+  }
+  await page.waitForFunction(()=>[0,6,7].every(i=>window.__captureState.drum_racks[3].pads[i].status==='READY'));
  }
- await page.waitForFunction(()=>[0,6,7].every(i=>window.__captureState.drum_racks[3].pads[i].status==='READY'));
  await page.getByRole('tab',{name:'Sound',exact:true}).click();
  await page.locator('.drum-rack').waitFor();
  await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];w.maximize();w.show();w.focus();});
@@ -40,6 +49,13 @@ let app;
  if(geometry.content.width!==1280||geometry.content.height!==718)throw new Error('Unexpected native content geometry: '+JSON.stringify(geometry.content));
  await page.screenshot({path:path.join(OUT,'drum-rack-final-renderer-1280x718.png')});
  execFileSync('spectacle',['-b','-n','-f','-o',path.join(OUT,'drum-rack-deck-screen-1280x800.png')],{timeout:15000});
+ if(folder){
+  await page.getByRole('button',{name:'Kits',exact:true}).click();
+  await page.getByRole('searchbox',{name:'Search kit folders'}).fill('Legend');
+  await page.locator('.drum-kit-folder').filter({hasText:folder}).click();
+  await page.screenshot({path:path.join(OUT,'drum-library-browser-1280x718.png')});
+  execFileSync('spectacle',['-b','-n','-f','-o',path.join(OUT,'drum-library-deck-1280x800.png')],{timeout:15000});
+ }
  const state=await page.evaluate(()=>window.__captureState);
  fs.writeFileSync(path.join(OUT,'drum-rack-physical-screen.json'),JSON.stringify({geometry,audio:state.audio,devices:state.devices,connected:state.connected,
   selected:state.selected,voices:state.voices,underruns:state.underruns,physical_input_exercised:false,source_files_copied:false},null,2));

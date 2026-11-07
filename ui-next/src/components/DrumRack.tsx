@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, FolderOpen, Grid2X2, Link2, Volume2 } from 'lucide-react';
 import { Knob } from './Knob';
-import { TRACK_COLORS, noteName, type Track, type DrumRuntime } from '../types';
+import { DrumKitBrowser } from './DrumKitBrowser';
+import { TRACK_COLORS, noteName, type Track, type DrumRuntime, type DrumLibraryState } from '../types';
 import '../drum-rack.css';
 
 export type { DrumPad, DrumRuntime } from '../types';
-type Props = {track:Track;trackIndex:number;runtime?:DrumRuntime;output?:{peak:number;rms:number;voices:number;underruns:number;driver:string};onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void};
+type Props = {track:Track;trackIndex:number;runtime?:DrumRuntime;output?:{peak:number;rms:number;voices:number;underruns:number;driver:string};onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void;library?:DrumLibraryState;onLoadFolder?:(folderId:string)=>void;onChooseLibrary?:()=>void;onRefreshLibrary?:()=>void};
 
 /** The shared knob previews locally; only the end of its gesture reaches the worker. */
 function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,onCommit}:{
@@ -49,9 +50,10 @@ function SourceWave({peaks}:{peaks:number[][]}) {
   </svg>;
 }
 
-function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport}:Props) {
+function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary}:Props) {
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
+  const [browsing,setBrowsing]=useState(false);
   const [flashes,setFlashes]=useState<Set<number>>(()=>new Set());
   const serials=useRef<number[]|null>(null);
   const timers=useRef(new Map<number,ReturnType<typeof setTimeout>>());
@@ -79,10 +81,10 @@ function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport}:Pr
   return <section className="drum-rack" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length]}}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><Grid2X2 size={23}/><h1>Drum Rack</h1><span>Track {trackIndex+1}</span></div>
-      <div className="drum-device-meta"><span>16 pads · MIDI 36–51</span><strong>{loaded}/16 sources ready</strong><span>Mono one-shots</span></div>
+      <div className="drum-device-meta"><span className="drum-kit-name" title={kit.name||'Custom kit'}>{kit.name||'Custom kit'}</span><strong>{loaded}/16 sources ready</strong><button type="button" aria-expanded={browsing} onClick={()=>setBrowsing(open=>!open)}><FolderOpen size={17}/>Kits</button></div>
     </header>
     <div className="drum-workspace">
-      <section className="drum-pads-panel" aria-labelledby="drum-pads-title">
+      {browsing?<DrumKitBrowser library={library} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary} onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
         <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to audition · MIDI velocity supported</span></div>
         <div className="drum-pads" role="group" aria-label="Sixteen sample pads">
           {pads.map((p,i)=>{
@@ -104,7 +106,7 @@ function RackSurface({track,trackIndex,runtime,output,onNote,onEdit,onImport}:Pr
           <p id="drum-pending-note">SEQ, MIX and FX are not available in this version. Record pads with the existing SONG transport.</p>
         </div>
         <div className="drum-playback-note"><Volume2 size={17}/><p>One-shots play to the end. Pads in the same choke group stop each other. Tune changes pitch and duration together.</p></div>
-      </section>
+      </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">
         <div className="drum-section-bar"><h2 id="drum-pad-sound-title">PAD SOUND</h2><span>Pad {String(selected+1).padStart(2,'0')} · MIDI {pad.note}</span><div className="drum-import-actions">
           <button type="button" aria-label={pad.source?'Replace WAV':'Import WAV'} onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>{pad.source?null:'Import WAV'}</button>

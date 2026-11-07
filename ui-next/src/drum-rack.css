@@ -105,3 +105,35 @@
 @media(max-width:1100px){.drum-output{gap:12px}.drum-output-level{gap:10px}.drum-output meter{width:90px}}
 /* Keep the additive device selector and the existing preset controls on one row. */
 .harness-shell .page-tools:has(.track-device-picker) .preset-current{width:120px;flex-basis:120px}
+/* Folder kits occupy the pad region; the selected sound and native output stay visible. */
+.drum-device-meta .drum-kit-name{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:#e0ede6}
+.drum-device-meta button{display:flex;align-items:center;justify-content:center;gap:7px;padding:0 13px}
+.drum-device-meta button[aria-expanded=true]{border-color:var(--drum-accent);color:var(--drum-accent)}
+.drum-kit-browser{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:#182124;border:1px solid #34464b;border-radius:11px}
+.drum-kit-browser .drum-section-bar{padding-right:6px;flex:none;min-height:52px}
+.drum-kit-browser .drum-section-bar button{display:flex;align-items:center;gap:7px;background:transparent;border-color:transparent;padding:0 8px;font-size:11.5px}
+.drum-library-root{padding:9px 12px 0;min-height:26px;color:#b7cbc2;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drum-library-actions{display:flex;gap:8px;padding:8px 12px}
+.drum-library-actions button{display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px}
+.drum-kit-search{display:flex;align-items:center;gap:8px;margin:0 12px 8px;padding-left:12px;border:1px solid #43565b;border-radius:8px;background:#0f181b;color:#b7cbc2;flex:none}
+.drum-kit-search input{min-width:0;width:100%;min-height:44px;padding:0 12px 0 0;border:0;border-radius:7px;background:transparent;color:#e3eeea;font:inherit;caret-color:var(--drum-accent);color-scheme:dark}
+.drum-kit-search input::placeholder{color:#acc2b8;opacity:1}
+.drum-kit-search:focus-within{outline:2px solid #aaf2dc;outline-offset:2px}
+.drum-kit-search input:focus-visible{outline:none}
+.drum-kit-list{flex:1;min-height:54px;padding:0 12px 8px;overflow:auto;scrollbar-width:thin;scrollbar-color:#577b6e #182124}
+.drum-rack .drum-kit-folder{display:flex;align-items:center;gap:10px;min-height:48px;width:100%;padding:6px 10px;border-radius:0;border-width:0 0 1px;border-color:#34464b;background:transparent;text-align:left}
+.drum-kit-folder svg{color:#b2c9bf;flex:none}
+.drum-kit-folder>span{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.drum-kit-folder strong{flex:none;color:#b4c8bf;font-size:11px;font-variant-numeric:tabular-nums}
+.drum-rack .drum-kit-folder[aria-pressed=true]{background:#2b443c;color:#dff9ee}
+.drum-kit-folder[aria-pressed=true] svg,.drum-kit-folder[aria-pressed=true] strong{color:var(--drum-accent)}
+.drum-library-empty{padding:12px 2px;color:#b7cbc2;font-size:12px;line-height:1.6;max-width:65ch}
+.drum-library-error{padding:0 12px 8px;color:#f2bc9f;font-size:11px;line-height:1.5;max-height:56px;overflow:auto;flex:none}
+.drum-library-error span{color:#d6c2b8}
+.drum-kit-selection{display:flex;align-items:center;gap:16px;padding:12px;border-top:1px solid #34464b;background:#151f22;min-height:86px;flex:none}
+.drum-kit-selection>div{min-width:0;flex:1}
+.drum-kit-selection strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.drum-kit-selection p{margin-top:5px;max-width:65ch;color:#b7cbc2;line-height:1.5;font-size:11px}
+.drum-rack .drum-kit-load{min-width:102px;padding:0 14px;background:#31584a;border-color:#6caa93;color:#e8fff3;flex:none}
+.drum-rack .drum-kit-load:disabled{background:#202d2b;border-color:#3c5149;color:#a8bfb3}
+@media(max-width:1100px){.drum-device-meta .drum-kit-name{max-width:150px}.drum-library-actions{gap:6px}.drum-library-actions button{padding:0 9px;font-size:11px}.drum-kit-selection{gap:10px}}

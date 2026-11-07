@@ -14,7 +14,7 @@ let window = null;
 let backend = null;
 let lastMessage = { bridge: 'starting' };
 
-const COMMANDS = new Set(['set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
+const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder','set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
  'midi','select','play','stop','panic','record','undo','quantize',
  'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars','fx','cleanup',
  'metronome','save','load','export','save_preset','load_preset']);
@@ -141,6 +141,11 @@ else {
   ipcMain.handle('deck-file-dialog', async (event, operation, extension) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return null;
     if (PREVIEW) return null;
+    if (operation === 'open' && extension === 'sample_folder') {
+      const result = await dialog.showOpenDialog(window, { title: 'Choose your sample library folder',
+        properties: ['openDirectory'], defaultPath: os.homedir() });
+      return result.canceled ? null : result.filePaths[0];
+    }
     const extensions = { project: 'decksynth', midi: 'mid', instrument: 'dspreset', sample: 'wav' };
     if (!['save','open'].includes(operation) || !(extension in extensions)) return null;
     const ext = extensions[extension];

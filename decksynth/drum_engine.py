@@ -116,6 +116,29 @@ class DrumEngine:
         self.drum_epoch += 1; self.drums[tr].configure(kit)
         for i, sample in enumerate(samples): self.drums[tr].bind(i, sample)
 
+    def install_drum_kit(self, track, kit_id, kit, samples, epoch=None, expected=None):
+        current=self.drum_target(track,kit_id)
+        if epoch is not None and epoch!=self.drum_epoch:
+            raise ValueError('The device changed while the kit was loading; choose the folder again')
+        if expected is not None and current!=expected:
+            raise ValueError('The kit was edited while the folder was loading; choose it again')
+        clean=validate_kit(kit)
+        if not isinstance(samples,(list,tuple)) or len(samples)!=16:raise ValueError('Invalid prepared kit samples')
+        for p,sample in zip(clean['pads'],samples):
+            if (p['source'] is None)!=(sample is None) or (sample is not None and p['source']!=sample.source):
+                raise ValueError('Prepared sample does not match its kit source')
+        self.snapshot()
+        for key,(_,_,owner) in list(self.pending.items()):
+            if owner==track:self.close_note(key)
+        self.synths[track].panic();self.drums[track].panic()
+        self.scheduled_live=[event for event in self.scheduled_live if event[1]!=track]
+        self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=track}
+        if track==self.selected:
+            self.perform_held.reset();self.live_note_map.clear();self.down.clear()
+        self.project.tracks[track]['drum_rack']=clean
+        self.drum_epoch+=1;self.drums[track].configure(clean)
+        for i,sample in enumerate(samples):self.drums[track].bind(i,sample)
+
     def drum_note(self, track, kit_id, pad, velocity):
         kit = self.drum_target(track, kit_id, pad)
         if type(velocity) is not int or not 1 <= velocity <= 127: raise ValueError('Velocity must be 1–127')

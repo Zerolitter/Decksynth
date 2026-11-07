@@ -11,7 +11,8 @@
     "test": "node --test tests/*.mjs",
     "test:ui": "node tests/desktop_acceptance.cjs && node tests/knob_drag_acceptance.cjs && node tests/touch_target_acceptance.cjs && node tests/performance_ui_acceptance.cjs && node tests/perform_fixes_acceptance.cjs && node tests/seq_patterns_acceptance.cjs && node tests/chord_builder_acceptance.cjs && node tests/fx_mods_acceptance.cjs && node tests/visuals_depth_acceptance.cjs && node tests/song_timeline_acceptance.cjs && node tests/voice_cards_acceptance.cjs && node tests/gate_acceptance.cjs && node tests/arp_interrupt_acceptance.cjs",
     "test:bridge": "python3 tests/bridge_acceptance.py && node tests/live_ui_bridge_acceptance.cjs && node tests/live_performance_acceptance.cjs && node tests/mutation_transactions_acceptance.cjs && node tests/live_fx_acceptance.cjs",
-    "test:drums": "node tests/drum_rack_acceptance.cjs"
+    "test:drums": "node tests/drum_rack_acceptance.cjs",
+    "test:drum-library": "node tests/drum_library_acceptance.cjs"
   },
   "dependencies": {
     "lucide-react": "^1.69.0",
