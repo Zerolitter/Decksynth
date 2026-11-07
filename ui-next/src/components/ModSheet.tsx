@@ -208,7 +208,7 @@ export function LinksBody({chain,targets,color,onTargets}:{chain:FxChain;targets
   const used:(FxModuleId|'sound')[]=['sound',...chain.modules.filter(m=>m.on).map(m=>m.id)];
   const [module,setModule]=useState<FxModuleId|'sound'>('sound');
   const pick=used.includes(module)?module:'sound';
-  const params=pick==='sound'?Object.entries(SOUND_TARGETS).map(([key,d])=>({key,label:d.label})):FX_MODULES[pick].params.filter(p=>!p.hidden&&!p.editor);
+  const params=pick==='sound'?Object.entries(SOUND_TARGETS).map(([key,d])=>({key,label:d.label})):FX_MODULES[pick].params.filter(p=>!p.hidden&&!p.editor&&p.modulatable!==false);
   const linked=(m:string,p:string)=>targets.findIndex(t=>t.module===m&&t.param===p);
   const setTargets=(t:FxTarget[])=>onTargets(t.slice(0,16));
   const mod={targets};

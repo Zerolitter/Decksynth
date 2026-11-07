@@ -30,3 +30,10 @@
 .harness-shell .env-sheet{display:flex;flex-direction:column}
 .harness-shell .env-sheet-knobs .knob-value,.harness-shell .env-sheet-knobs .knob-entry{min-width:44px;min-height:44px;padding:0 6px}
 .harness-shell .wave-thumb{width:120px;height:34px;border-radius:6px;background:var(--inset);border:1px solid var(--line);flex:none}
+
+/* S3 controls share the existing gate sheet; engine telemetry owns the cell lights. */
+.harness-shell .gate-performance .fx-segment button,.harness-shell .gate-performance>.panel-toggle{min-width:64px;min-height:44px}
+.harness-shell .gate-performance{gap:12px}
+.harness-shell .gate-performance .tactile-knob{width:90px}
+.harness-shell .gate-performance .knob-value,.harness-shell .gate-performance .knob-entry{min-width:44px;min-height:44px;height:44px;padding:0 4px}
+.harness-shell .gate-sheet .gate-body{gap:8px}

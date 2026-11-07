@@ -594,7 +594,7 @@ class Engine(DrumEngine):
         """Effective (modulated) FX params and mod-pad values of one track, for the UI."""
         fx=self.fx[track]; return dict(params=[round(v,4) for v in fx.params],mods=[round(v,3) for v in fx.mod_values],
                     phases=[round(v,3) for v in fx.mod_phases],puck=[round(v,3) for v in fx.puck],
-                    sound=self.sound_live(track),comp=fx.comp_reduction(),strings=list(fx.tuned))
+                    sound=self.sound_live(track),comp=fx.comp_reduction(),strings=list(fx.tuned),gate=fx.gate_runtime())
     def sound_live(self,track):
         """Where each linked Sound knob is right now, for the rings on the Sound cards."""
         fx=self.fx[track]; s=self.synths[track]; t=self.project.tracks[track]; out={}
@@ -709,8 +709,11 @@ class Engine(DrumEngine):
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
         if device_kind(self.project.tracks[track])=='drum_rack':
+            empty=self.drums[track].active_count==0
             hit=False if self.project.tracks[track]['mute'] else self.drums[track].on(note,velocity,token)
-            if hit:self.drum_frames[track][note-36]=self.absolute_frame if self._event_frame is None else self._event_frame
+            if hit:
+                frame=self.absolute_frame if self._event_frame is None else self._event_frame
+                self.drum_frames[track][note-36]=frame;self.fx[track].retrigger(frame,empty)
             return hit
         fading=lambda k:isinstance(k,tuple) and k[0]=='fade'
         candidates=[(s,k,v) for s in self.synths for k,v in s.voices.items() if not fading(k)]
@@ -718,7 +721,9 @@ class Engine(DrumEngine):
             # Steal the quietest-to-lose voice (released first, then oldest) with a short fade, not a cut.
             s,k,_=min(candidates,key=lambda item:(item[2]['release'] is None,-item[2]['age']))
             s.fade(k)
-        self.synths[track].on(note,velocity,token); self.fx[track].retrigger()
+        empty=not any(v.get('release') is None and not v.get('fast') for v in self.synths[track].voices.values())
+        self.synths[track].on(note,velocity,token)
+        self.fx[track].retrigger(self.absolute_frame if self._event_frame is None else self._event_frame,empty)
     def select(self,track):
         from .devices import track_index
         track_index(track)
@@ -746,6 +751,7 @@ class Engine(DrumEngine):
         self.project.performance['seq']['recording']=False
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
+        for fx in self.fx:fx.clear_gate_events()
         self.drum_keys.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
@@ -1190,7 +1196,7 @@ class Engine(DrumEngine):
             for t,fx,audio in zip(self.project.tracks,self.fx,track_audio):
                 if not t['mute']:
                     audio=fx.process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
-                                     clock=start/self.fpb if self.playing else None)
+                                     clock=start/self.fpb if self.playing else None,frame=abs_start)
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
                     for j,v in enumerate(audio):mix[j]+=v*vol
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,

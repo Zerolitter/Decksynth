@@ -33,6 +33,7 @@ PARAMS = {
     'gate': [('length', 0, 5, 2), ('division', 0, 4, 2), ('steps', 0, 65535, 44461), ('smooth', 0, 1, .3),
              ('depth', 0, 1, 1), ('pump', 0, 1, 0)],
 }
+GATE_PERFORMANCE={'retrig':(0,2,2),'phase':(0,1,0.),'notelen':(0,1,1.),'hold':(0,1,0)}
 GATE_LENGTHS = (4, 6, 8, 9, 12, 16)
 NPAR = 6
 # Sound knobs a macro or mod pad can move too: (min, max) in the knob's own units.
@@ -69,6 +70,7 @@ def default_morph():
 
 def _range(module, key):
     if module == 'sound': return SOUND_PARAMS[key]
+    if module=='gate' and key in ('phase','notelen'):return (0,1)
     for k, lo, hi, _ in PARAMS[module]:
         if k == key: return lo, hi
     raise KeyError(key)
@@ -113,6 +115,13 @@ def validate_chain(chain):
                 v = m['params'].get(key, init)
                 assert isinstance(v, (int, float)) and math.isfinite(v)
                 params[key] = min(hi, max(lo, float(v)))
+            if m['id']=='gate':
+                for key,(lo,hi,init) in GATE_PERFORMANCE.items():
+                    if key not in m['params']:continue
+                    value=m['params'][key]
+                    assert type(value) in (int,float) and math.isfinite(value) and lo<=value<=hi
+                    if key in ('retrig','hold'):assert type(value) is int
+                    params[key]=value
             entry = dict(id=m['id'], on=m['on'], params=params)
             bypass = m.get('bypass', False); assert isinstance(bypass, bool)
             if bypass: entry['bypass'] = True  # in the rack but not heard
@@ -152,11 +161,18 @@ def validate_chain(chain):
         raise ValueError('Invalid FX chain') from exc
 
 _lib = None
-def _load():
-    global _lib
-    if _lib is None:
+_legacy_lib = None
+def _load(legacy=False):
+    global _lib,_legacy_lib
+    loaded=_legacy_lib if legacy else _lib
+    if loaded is None:
         try:
-            lib = ctypes.CDLL(str(Path(__file__).with_name('native') / 'libdsfx.so'))
+            source=Path(__file__).with_name('native')/'libdsfx.so'
+            if not legacy:
+                from .filter_native import library_path
+                cached=library_path()
+                if cached.exists():source=cached
+            lib = ctypes.CDLL(str(source))
             lib.dsfx_create.restype = ctypes.c_void_p; lib.dsfx_create.argtypes = [ctypes.c_double]
             lib.dsfx_destroy.argtypes = [ctypes.c_void_p]
             lib.dsfx_reset.argtypes = [ctypes.c_void_p]
@@ -181,10 +197,15 @@ def _load():
                 D = ctypes.POINTER(ctypes.c_double)
                 lib.dsfx_voice.argtypes = [D, ctypes.c_int, D, D, D, ctypes.c_int] + [ctypes.c_double] * 6
                 lib.dsfx_voice.restype = ctypes.c_int
-            _lib = lib
-        except OSError:
-            _lib = False
-    return _lib or None
+            if hasattr(lib,'dsfx_gate_controls'):
+                lib.dsfx_gate_controls.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_int]
+                lib.dsfx_gate_beat.argtypes=[ctypes.c_void_p];lib.dsfx_gate_beat.restype=ctypes.c_double
+                lib.dsfx_gate_reset.argtypes=[ctypes.c_void_p]
+            loaded=lib
+        except OSError:loaded=False
+        if legacy:_legacy_lib=loaded
+        else:_lib=loaded
+    return loaded or None
 
 class _Table:
     """Mixin for wavetables kept as C arrays: they're never changed after building, so a copy is the
@@ -210,17 +231,17 @@ class DsVoice(ctypes.Structure):
 
 def native_voice2():
     """The C voice renderer with the Filter, Unison and Character cards, or None."""
-    lib = _load()
+    lib = _load(legacy=True)
     return lib.dsfx_voice2 if lib and hasattr(lib, 'dsfx_voice2') else None
 
 def native_voice():
     """The C voice renderer, or None when the native library is missing or older."""
-    lib = _load()
+    lib = _load(legacy=True)
     return lib.dsfx_voice if lib and hasattr(lib, 'dsfx_voice') else None
 
 def build_table(weights, norm, size):
     """An additive wavetable in C, or None when the native library is missing or older."""
-    lib = _load()
+    lib = _load(legacy=True)
     if not lib or not hasattr(lib, 'dsfx_table'): return None
     w = (ctypes.c_double * max(1, len(weights)))(*weights); out = _table_type(size)()
     lib.dsfx_table(w, len(weights), float(norm), out, size)
@@ -315,10 +336,26 @@ class TrackFx:
         self.puck = [.5, .5, 0.]; self._origin = 0.; self._retrig = False; self._held = 0.
         self.sound = {}  # Sound knob offsets (knob units) from macros and mod pads, for the synth
         self.tuned = []  # resonator string pitches (MIDI notes)
+        self.rate=rate;self.gate_values={k:v[2] for k,v in GATE_PERFORMANCE.items()};self._gate_events=[];self._gate_origin=None;self._gate_frame=0
         self._tail = 0  # blocks left to fade out after the last effect is switched off
-    def retrigger(self):
+    def retrigger(self,frame=None,empty=True):
         """A note started on this track: in Retrigger mode the puck goes back to the start of its path."""
         self._retrig = True
+        mode=self.gate_values['retrig']
+        if mode==0 or (mode==1 and empty):
+            self._gate_events.append(self._gate_frame if frame is None else int(frame))
+            self._gate_events=self._gate_events[-256:]
+    def clear_gate_events(self):
+        self._gate_events=[];self._gate_origin=None
+    def gate_runtime(self):
+        if not self.handle or not hasattr(self.lib,'dsfx_gate_beat'):return None
+        gate=next((m for m in (self.chain or {}).get('modules',[]) if m['id']=='gate'),None)
+        if not gate:return None
+        beat=self.lib.dsfx_gate_beat(self.handle);p=gate['params']
+        length=GATE_LENGTHS[round(p['length'])];division=(1.,.5,.25,1/3,1/6)[round(p['division'])]
+        position=(beat/division+self.gate_values['phase']*length)%length
+        return dict(beat=beat,position=position,cell=int(position),active=bool(gate['on'] and not gate.get('bypass')),
+                    values=dict(self.gate_values))
     def move_puck(self, beat, values):
         """Advance the Morph pad puck and write Puck X, Puck Y and Pad mix into their macros."""
         c = self.chain; mo = c.get('morph')
@@ -359,6 +396,13 @@ class TrackFx:
         self.lib.dsfx_tune(self.handle, freqs, len(strings))
     def configure(self, chain):
         self.chain = chain
+        gate=next((m for m in (chain or {}).get('modules',[]) if m['id']=='gate'),None)
+        values={k:(gate['params'].get(k,v[2]) if gate else v[2]) for k,v in GATE_PERFORMANCE.items()}
+        if values['retrig']!=self.gate_values['retrig']:self.clear_gate_events()
+        self.gate_values=values
+        self._gate_extended=bool(gate and any(k in gate['params'] for k in GATE_PERFORMANCE))
+        if self._gate_extended and self.handle and not hasattr(self.lib,'dsfx_gate_controls'):
+            raise ValueError('Audio Gate controls require the cached native kernel; run tools/build-native-filter.py and restart')
         if chain is None:
             self.active = False; self.sound = {}; return
         for i, m in enumerate(chain['modules']):
@@ -387,6 +431,11 @@ class TrackFx:
             for t in m['targets']:
                 key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth'] * .5
         self.sound = {k[1]: v * (SOUND_PARAMS[k[1]][1] - SOUND_PARAMS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sound'}
+        gate=next((m for m in c['modules'] if m['id']=='gate'),None)
+        if gate:
+            for k,(lo,hi,init) in GATE_PERFORMANCE.items():
+                self.gate_values[k]=min(hi,max(lo,gate['params'].get(k,init)+offsets.get(('gate',k),0.)*(hi-lo)))
+            if any(('gate',k) in offsets for k in ('phase','notelen')):self._gate_extended=True
         if not offsets and not getattr(self, '_dirty', False): return
         self._dirty = bool(offsets)
         for m in c['modules']:
@@ -394,7 +443,7 @@ class TrackFx:
             for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
                 v = m['params'].get(key, init) + offsets.get((m['id'], key), 0.) * (hi - lo)
                 self.params[idx * NPAR + j] = min(hi, max(lo, v))
-    def process(self, samples, bpm, beat=0., modulated=False, clock=None):
+    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None):
         """samples: list of floats; returns a list (same object when bypassed).
         modulated: the engine already called modulate() for this block.
         clock: song position in beats while the transport plays (the audio gate locks to it)."""
@@ -405,8 +454,19 @@ class TrackFx:
             if not self._tail: return samples
             self._tail -= 1
         n = len(samples); buf = (ctypes.c_double * n)(*samples)
-        if clock is not None and hasattr(self.lib, 'dsfx_set_clock'): self.lib.dsfx_set_clock(self.handle, float(clock))
-        self.lib.dsfx_process(self.handle, buf, n, self.order, self.on, self.params, float(bpm))
+        start=self._gate_frame if frame is None else int(frame);end=start+n;self._gate_frame=end
+        events=sorted(set(max(start,x) for x in self._gate_events if x<end)) if self._gate_extended else []
+        self._gate_events=[x for x in self._gate_events if x>=end]
+        if hasattr(self.lib,'dsfx_gate_controls'):
+            self.lib.dsfx_gate_controls(self.handle,int(self._gate_extended),self.gate_values['phase'],self.gate_values['notelen'],int(self.gate_values['hold']))
+        boundaries=sorted(set([start,end]+events))
+        for pos,stop in zip(boundaries,boundaries[1:]):
+            if pos in events and not self.gate_values['hold']:
+                self._gate_origin=pos;self.lib.dsfx_gate_reset(self.handle)
+            current=(pos-self._gate_origin)*bpm/60/self.rate if self._gate_extended and self.gate_values['retrig']<2 and self._gate_origin is not None else (None if clock is None else clock+(pos-start)*bpm/60/self.rate)
+            if current is not None and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(current))
+            pointer=ctypes.cast(ctypes.byref(buf,(pos-start)*ctypes.sizeof(ctypes.c_double)),ctypes.POINTER(ctypes.c_double))
+            self.lib.dsfx_process(self.handle,pointer,stop-pos,self.order,self.on,self.params,float(bpm))
         return list(buf)
     def levels(self):
         if not self.handle: return [0.] * len(ORDER)

@@ -65,7 +65,7 @@ export type DeckUpdate = {
   playing: boolean; recording: boolean; connected: string | null;
   devices: string[]; audio: string; audio_output: string;
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; preview?: boolean;
-  meter?: { rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
+  meter?: { rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
   held_notes?: number[];
   /** Step record cursor: the step the next recorded key goes to. */
   rec_step?: number;

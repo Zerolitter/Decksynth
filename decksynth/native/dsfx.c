@@ -65,6 +65,7 @@ typedef struct {
     double pcur[NMOD * NPAR]; int pinit; double onamt[NMOD];
     /* output levels per module, for UI graphs */
     double level[NMOD];
+    int g_extended,g_hold; double g_phase,g_notelen;
 } FxTrack;
 
 FxTrack *dsfx_create(double rate) {
@@ -386,16 +387,25 @@ static void m_gate(FxTrack *t, double *b, int n, const double *p, double bpm) {
     double depth = clampd(p[4], 0, 1), pump = clampd(p[5], 0, 1), bps = bpm / 60.0 / t->rate;
     if (!t->g_init) { t->g_env = 1; t->g_init = 1; }
     for (int i = 0; i < n; i++) {
-        double cell = t->g_beat / div, c = floor(cell);
+        double cell = t->g_beat / div;
+        if (t->g_extended) cell += t->g_phase * L;
+        double c = floor(cell);
         long k = ((long)c % L + L) % L;
-        double open = (mask >> k) & 1 ? 1 - pump * (cell - c) : 0;
+        double frac=cell-c;
+        double open = (mask >> k) & 1 ? 1 - pump * frac : 0;
+        if (t->g_extended && t->g_notelen<1) open=frac<t->g_notelen ? ((mask>>k)&1 ? 1-pump*frac/t->g_notelen : 0) : 0;
         t->g_env += (1 - depth * (1 - open) - t->g_env) * coef;
         b[i] *= t->g_env;
-        t->g_beat += bps;
+        if (!t->g_extended || !t->g_hold) t->g_beat += bps;
     }
 }
 /* The gate follows the song position while the transport runs; stopped, it keeps its own time. */
-void dsfx_set_clock(FxTrack *t, double beat) { t->g_beat = beat; }
+void dsfx_set_clock(FxTrack *t, double beat) { if (!t->g_extended || !t->g_hold) t->g_beat = beat; }
+void dsfx_gate_controls(FxTrack *t,int enabled,double phase,double notelen,int hold) {
+    t->g_extended=enabled;t->g_phase=phase;t->g_notelen=notelen;t->g_hold=hold;
+}
+void dsfx_gate_reset(FxTrack *t) { if (!t->g_hold) t->g_beat=0; }
+double dsfx_gate_beat(FxTrack *t) { return t->g_beat; }
 
 static void run_module(FxTrack *t, int m, double *b, int n, const double *p, double bpm) {
     switch (m) {

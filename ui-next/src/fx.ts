@@ -7,7 +7,7 @@ export type FxModuleId = 'stutter'|'filter'|'overdrive'|'bitcrusher'|'volume'|'p
 export type FxParamDef = { key:string; label:string; min:number; max:number; init:number; suffix?:string; precision?:number;
   /** labels for each whole value from min to max: shown as tap buttons instead of a knob */ options?:string[];
   /** set in the effect's own sheet, not on the card, and not a link target */ hidden?:boolean;
-  /** drawn by a custom editor on the card (the gate's step strip) */ editor?:'gate' };
+  /** drawn by a custom editor on the card (the gate's step strip) */ editor?:'gate'; modulatable?:boolean };
 export type FxModuleDef = { name:string; color:string; params:FxParamDef[]; blurb?:string };
 export type FxModuleState = { id:FxModuleId; on:boolean; params:Record<string,number>; /** kept in the rack but not heard */ bypass?:boolean };
 /** 'sound' targets are the Sound page knobs of the same track. */
@@ -155,8 +155,13 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
     {key:'division',label:'Cell size',min:0,max:4,init:2,precision:0,hidden:true},
     {key:'steps',label:'Steps',min:0,max:65535,init:44461,precision:0,editor:'gate'},
     {key:'smooth',label:'Smooth',min:0,max:1,init:.3},{key:'depth',label:'Depth',min:0,max:1,init:1},
-    {key:'pump',label:'Pump',min:0,max:1,init:0}]},
+    {key:'pump',label:'Pump',min:0,max:1,init:0},
+    {key:'retrig',label:'Retrigger',min:0,max:2,init:2,precision:0,options:['Always','No Notes','Never'],modulatable:false},
+    {key:'phase',label:'Phase',min:0,max:1,init:0,suffix:'%'},
+    {key:'notelen',label:'Note length',min:0,max:1,init:1,suffix:'%'},
+    {key:'hold',label:'Hold',min:0,max:1,init:0,precision:0,options:['Run','Hold'],modulatable:false}]},
 };
+export type GateRuntime={beat:number;position:number;cell:number;active:boolean;values:Record<string,number>};
 /** Audio gate cells and cell sizes, same order as decksynth/native/dsfx.c GATE_LEN / GATE_DIV. */
 export const GATE_LENGTHS=[4,6,8,9,12,16];
 export const GATE_DIVS=['1/4','1/8','1/16','1/8T','1/16T'];

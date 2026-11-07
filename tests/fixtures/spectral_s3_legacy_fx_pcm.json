@@ -1,0 +1,70 @@
+[
+  {
+    "module": "stutter",
+    "sha256": "d645130c6e85ee8308424dea055f762028a56b510c25ed2b1f6006e43c8772ed"
+  },
+  {
+    "module": "filter",
+    "sha256": "aee2221d6da6cee1790ae704ff6467e37bf373750e3d086bff0c258ca4f7eb36"
+  },
+  {
+    "module": "overdrive",
+    "sha256": "4f661e1140635bda4f6cae023ec9e45fb4ba5916cb14cb7548348e0d895d6733"
+  },
+  {
+    "module": "bitcrusher",
+    "sha256": "f79d5eee32b58f9fd8d09ba8c75dd7892841c0e7e9d53389726fc00bbcc7c936"
+  },
+  {
+    "module": "volume",
+    "sha256": "d645130c6e85ee8308424dea055f762028a56b510c25ed2b1f6006e43c8772ed"
+  },
+  {
+    "module": "phaser",
+    "sha256": "31936cfb9666f6fb0994a0d503dd70cc9cad5fa7d57fb645d37e7341d7c59048"
+  },
+  {
+    "module": "flanger",
+    "sha256": "7e1c84fef727fa6e02135daf1d02117373089dede409e2c0435430b009a06b8d"
+  },
+  {
+    "module": "ringmod",
+    "sha256": "c9942d550c1501d6d31964e1e076639337d66a44c98d5fa681f12a6a1a4c866b"
+  },
+  {
+    "module": "delay",
+    "sha256": "d645130c6e85ee8308424dea055f762028a56b510c25ed2b1f6006e43c8772ed"
+  },
+  {
+    "module": "reverb",
+    "sha256": "c720ab0f57253b5208071424c5bfa89aaab99fe30641cc3ca988984c02f86173"
+  },
+  {
+    "module": "time",
+    "sha256": "bcceeacfd9b55a8aae2e7f6d35718095cc623ad7dc1dcfbb7abb5d1ffa83fcf3"
+  },
+  {
+    "module": "chorus",
+    "sha256": "e9cc7a8d60f0b2ab5dc8e838a2d099763e1b10f80e35590e21a37b781be250d2"
+  },
+  {
+    "module": "compressor",
+    "sha256": "6c175091731acd310681d4a578fe138d42d3de231391caeb3fbde18fd60b9989"
+  },
+  {
+    "module": "eq",
+    "sha256": "976aa4eda0539de0c63d206d94694e12a4563d9ec41821264dd8ec42372601c7"
+  },
+  {
+    "module": "autowah",
+    "sha256": "8e8f9c22d4fa5805e6a04cea912823648b2f4a7b99f205631b992f9c7e87e4eb"
+  },
+  {
+    "module": "resonator",
+    "sha256": "e638b7d7ccc323fad1474533ee27df781958db6a6b4d5d45ec7949095062e4b7"
+  },
+  {
+    "module": "gate",
+    "sha256": "d645130c6e85ee8308424dea055f762028a56b510c25ed2b1f6006e43c8772ed"
+  }
+]

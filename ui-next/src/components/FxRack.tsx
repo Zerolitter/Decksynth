@@ -130,25 +130,25 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         <div className="rack-card-body">
           {def.params.map((p,j)=>{
             if(p.hidden)return null;
-            if(p.editor==='gate')return <GateStrip key={p.key} params={state.params} beat={beat} playing={playing} onOpen={()=>setGateOpen(true)}/>;
+            if(p.editor==='gate')return <GateStrip key={p.key} params={state.params} runtime={live?.gate} onOpen={()=>setGateOpen(true)}/>;
             const routes=routesFor(state.id,p.key);
             const routed=!!armed&&sourceTargets(chain,armed).some(t=>t.module===state.id&&t.param===p.key);
             const preferred=armed??source;
             const color=preferred&&sourceTargets(chain,preferred).some(t=>t.module===state.id&&t.param===p.key)?sourceColor(preferred):routes[0]?.color;
             const cls=(routes.length?' has-mod':'')+(routed?' routed-here':'');
-            if(p.options)return <div key={p.key} className={'fx-choice'+cls} onPointerDownCapture={capture(state.id,p.key)}>
+            if(p.options)return <div key={p.key} className={'fx-choice'+cls} onPointerDownCapture={p.modulatable===false?undefined:capture(state.id,p.key)}>
               <span className="fx-choice-label">{p.label}</span>
               <div className="fx-segment" role="radiogroup" aria-label={def.name+' '+p.label}>
-                {p.options.map((label,k)=>{const v=p.min+k,on=Math.round(state.params[p.key])===v;
+                {p.options.map((label,k)=>{const v=p.min+k,on=Math.round(state.params[p.key]??p.init)===v;
                   return <button key={label} type="button" role="radio" aria-checked={on} className={on?'active':''}
                     onClick={()=>setParam(state.id,p.key,v)}>{label}</button>;})}
               </div></div>;
-            const liveValue=live?.params?.[idx*NPAR+j];
+            const liveValue=state.id==='gate'&&j>=NPAR?live?.gate?.values[p.key]:live?.params?.[idx*NPAR+j];
             return <div key={p.key} className={'fx-knob-cell'+cls} onPointerDownCapture={capture(state.id,p.key)}>
-              {p.precision===0?<Stepper label={p.label} value={state.params[p.key]} min={p.min} max={p.max}
+              {p.precision===0?<Stepper label={p.label} value={state.params[p.key]??p.init} min={p.min} max={p.max}
                 name={def.name+' '+p.label} color={def.color} onChange={v=>setParam(state.id,p.key,v)}/>
               :<Knob id={selected+'-fx-'+state.id+'-'+p.key} name={p.label}
-                value={state.params[p.key]} min={p.min} max={p.max} suffix={p.suffix??''}
+                value={state.params[p.key]??p.init} min={p.min} max={p.max} suffix={p.suffix??''}
                 step={.001} precision={p.precision??2} accent={def.color} compact
                 modValue={routes.length&&liveValue!==undefined?liveValue:null}
                 modColor={color}
@@ -172,7 +172,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         <FxPickerGrid chain={chain} onAdd={add}/>
       </div></div>,rack.current.closest('.frame')!):null}
     {gateOpen&&chain.modules.find(m=>m.id==='gate')?.on?<GateSheet params={chain.modules.find(m=>m.id==='gate')!.params}
-      color={FX_MODULES.gate.color} beat={beat} playing={playing} container={rack.current?.closest('.frame')??null}
+      color={FX_MODULES.gate.color} runtime={live?.gate} container={rack.current?.closest('.frame')??null}
       onParam={(k,v)=>setParam('gate',k,v)} onClose={()=>setGateOpen(false)}/>:null}
     {ring.bubble}
   </div>;
