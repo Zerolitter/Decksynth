@@ -201,6 +201,7 @@ def _load(legacy=False):
                 lib.dsfx_gate_controls.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_int]
                 lib.dsfx_gate_beat.argtypes=[ctypes.c_void_p];lib.dsfx_gate_beat.restype=ctypes.c_double
                 lib.dsfx_gate_reset.argtypes=[ctypes.c_void_p]
+                lib.dsfx_gate_events.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_int),ctypes.c_int]
             loaded=lib
         except OSError:loaded=False
         if legacy:_legacy_lib=loaded
@@ -345,14 +346,16 @@ class TrackFx:
         if mode==0 or (mode==1 and empty):
             self._gate_events.append(self._gate_frame if frame is None else int(frame))
             self._gate_events=self._gate_events[-256:]
-    def clear_gate_events(self):
-        self._gate_events=[];self._gate_origin=None
+    def clear_gate_events(self,reset_origin=True):
+        self._gate_events=[]
+        if reset_origin:self._gate_origin=None
     def gate_runtime(self):
         if not self.handle or not hasattr(self.lib,'dsfx_gate_beat'):return None
         gate=next((m for m in (self.chain or {}).get('modules',[]) if m['id']=='gate'),None)
         if not gate:return None
         beat=self.lib.dsfx_gate_beat(self.handle);p=gate['params']
-        length=GATE_LENGTHS[round(p['length'])];division=(1.,.5,.25,1/3,1/6)[round(p['division'])]
+        idx=ORDER.index('gate')*NPAR
+        length=GATE_LENGTHS[round(self.params[idx])];division=(1.,.5,.25,1/3,1/6)[round(self.params[idx+1])]
         position=(beat/division+self.gate_values['phase']*length)%length
         return dict(beat=beat,position=position,cell=int(position),active=bool(gate['on'] and not gate.get('bypass')),
                     values=dict(self.gate_values))
@@ -455,18 +458,19 @@ class TrackFx:
             self._tail -= 1
         n = len(samples); buf = (ctypes.c_double * n)(*samples)
         start=self._gate_frame if frame is None else int(frame);end=start+n;self._gate_frame=end
-        events=sorted(set(max(start,x) for x in self._gate_events if x<end)) if self._gate_extended else []
+        gate_on=bool(self.on[ORDER.index('gate')])
+        events=sorted(set(max(start,x)-start for x in self._gate_events if x<end)) if self._gate_extended and gate_on and not self.gate_values['hold'] else []
         self._gate_events=[x for x in self._gate_events if x>=end]
         if hasattr(self.lib,'dsfx_gate_controls'):
             self.lib.dsfx_gate_controls(self.handle,int(self._gate_extended),self.gate_values['phase'],self.gate_values['notelen'],int(self.gate_values['hold']))
-        boundaries=sorted(set([start,end]+events))
-        for pos,stop in zip(boundaries,boundaries[1:]):
-            if pos in events and not self.gate_values['hold']:
-                self._gate_origin=pos;self.lib.dsfx_gate_reset(self.handle)
-            current=(pos-self._gate_origin)*bpm/60/self.rate if self._gate_extended and self.gate_values['retrig']<2 and self._gate_origin is not None else (None if clock is None else clock+(pos-start)*bpm/60/self.rate)
-            if current is not None and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(current))
-            pointer=ctypes.cast(ctypes.byref(buf,(pos-start)*ctypes.sizeof(ctypes.c_double)),ctypes.POINTER(ctypes.c_double))
-            self.lib.dsfx_process(self.handle,pointer,stop-pos,self.order,self.on,self.params,float(bpm))
+            array=(ctypes.c_int*len(events))(*events)
+            self.lib.dsfx_gate_events(self.handle,array,len(events))
+        # Once retriggered, the native gate integrates each block's current BPM.
+        # Do not reinterpret all elapsed frames at the latest tempo or split other FX.
+        local=self._gate_extended and self.gate_values['retrig']<2 and self._gate_origin is not None
+        if clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(clock))
+        if events:self._gate_origin=start+events[-1]
+        self.lib.dsfx_process(self.handle,buf,n,self.order,self.on,self.params,float(bpm))
         return list(buf)
     def levels(self):
         if not self.handle: return [0.] * len(ORDER)

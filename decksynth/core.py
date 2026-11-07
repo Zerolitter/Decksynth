@@ -206,7 +206,7 @@ class Synth:
     def __init__(self,rate=48000):
         prepare_spectral_kernel()
         prepare_filter_kernel()
-        self.rate=rate; self.params=instrument('Warm Keys'); self.voices={}; self.sustain=False; self.bend=1.; self.mod_wheel=0.; self.tables={}; self.wave_cache={}; self.clock=0
+        self.rate=rate; self.params=instrument('Warm Keys'); self.voices={}; self.gated={}; self.sustain=False; self.bend=1.; self.mod_wheel=0.; self.tables={}; self.wave_cache={}; self.clock=0
         self.live=None; self.shape=None; self.shape_key=None; self.shape_clock=-10**9
         self.weights={}; self.weight_cache={}; self.st=(ctypes.c_double*85)(); self.vargs=DsVoice(); self.fargs=DsFilter()
     def configure(self,p):
@@ -279,21 +279,28 @@ class Synth:
         while len(fading)>8:self.voices.pop(fading.pop(0),None)
     def on(self,note,velocity,token=None):
         token=note if token is None else token
+        self.gated[token]=True
         if token in self.voices:self.fade(token)
         playing=[k for k in self.voices if not (isinstance(k,tuple) and k[0]=='fade')]
         if len(playing)>=24:self.fade(playing[0])
         self.voices[token]=dict(note=note,velocity=velocity/127,phase=0.,age=0,level=0.,release=None,held=True,table=self.table(note))
     def off(self,note,token=None):
-        v=self.voices.get(note if token is None else token)
+        key=note if token is None else token
+        immediate=isinstance(token,tuple) and token[0] in ('loop','perf_seq','perf_arp')
+        if key in self.gated:
+            if self.sustain and not immediate:self.gated[key]=False
+            else:self.gated.pop(key,None)
+        v=self.voices.get(key)
         if v:
             v['held']=False
             if not self.sustain or (isinstance(token,tuple) and token[0] in ('loop','perf_seq','perf_arp')): v['release']=(0,v['level'])
     def pedal(self,on):
         self.sustain=on
         if not on:
+            self.gated={k:v for k,v in self.gated.items() if v}
             for v in self.voices.values():
                 if not v['held'] and v['release'] is None: v['release']=(0,v['level'])
-    def panic(self): self.voices.clear(); self.sustain=False; self.bend=1.; self.mod_wheel=0.
+    def panic(self): self.voices.clear(); self.gated.clear(); self.sustain=False; self.bend=1.; self.mod_wheel=0.
     @staticmethod
     def voice_mode(p):
         sub=p.get('sub',0.)>0
@@ -709,19 +716,20 @@ class Engine(DrumEngine):
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
         if device_kind(self.project.tracks[track])=='drum_rack':
-            empty=self.drums[track].active_count==0
+            empty=not self.drum_gate_keys[track]
             hit=False if self.project.tracks[track]['mute'] else self.drums[track].on(note,velocity,token)
             if hit:
                 frame=self.absolute_frame if self._event_frame is None else self._event_frame
                 self.drum_frames[track][note-36]=frame;self.fx[track].retrigger(frame,empty)
+                if not (isinstance(token,tuple) and token[0]=='touch'):self.drum_gate_keys[track].add(token)
             return hit
+        empty=not self.synths[track].gated
         fading=lambda k:isinstance(k,tuple) and k[0]=='fade'
         candidates=[(s,k,v) for s in self.synths for k,v in s.voices.items() if not fading(k)]
         if len(candidates)>=24:
             # Steal the quietest-to-lose voice (released first, then oldest) with a short fade, not a cut.
             s,k,_=min(candidates,key=lambda item:(item[2]['release'] is None,-item[2]['age']))
             s.fade(k)
-        empty=not any(v.get('release') is None and not v.get('fast') for v in self.synths[track].voices.values())
         self.synths[track].on(note,velocity,token)
         self.fx[track].retrigger(self.absolute_frame if self._event_frame is None else self._event_frame,empty)
     def select(self,track):
@@ -731,6 +739,10 @@ class Engine(DrumEngine):
             if self.recording: self.finish_record()
             self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=self.selected}
             s=self.synths[self.selected]
+            self.drum_gate_keys[self.selected]={k for k in self.drum_gate_keys[self.selected] if not (isinstance(k,tuple) and k[0]=='live')}
+            for key in list(s.gated):
+                if isinstance(key,tuple) and key[0]=='live':s.gated.pop(key,None)
+                elif isinstance(key,tuple) and key[0] in ('perf_seq','perf_arp'):s.off(0,key)
             for key in list(s.voices):
                 if isinstance(key,tuple) and key[0]=='live':s.voices.pop(key)
                 elif isinstance(key,tuple) and key[0] in ('perf_seq','perf_arp'):s.off(0,key)
@@ -752,11 +764,12 @@ class Engine(DrumEngine):
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
         for fx in self.fx:fx.clear_gate_events()
+        for keys in self.drum_gate_keys:keys.clear()
         self.drum_keys.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
         for synth in self.synths:
-            for token in list(synth.voices):
+            for token in set(synth.voices)|set(synth.gated):
                 if isinstance(token,tuple) and token and token[0]==prefix:
                     synth.off(0,token)
 
@@ -1098,6 +1111,8 @@ class Engine(DrumEngine):
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
         self.drum_keys.clear()
+        for fx in self.fx:fx.clear_gate_events(reset_origin=False)
+        for keys in self.drum_gate_keys:keys.clear()
     def render(self,frames):
         result=[]; remaining=frames
         while remaining:

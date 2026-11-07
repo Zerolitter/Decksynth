@@ -13,12 +13,14 @@ class DrumEngine:
         self.drums = [DrumRack(self.rate, self.sample_cache) for _ in range(4)]
         self.drum_epoch = 0
         self.drum_keys = {}
+        self.drum_gate_keys = [set() for _ in range(4)]
         self.drum_frames = [[-1]*16 for _ in range(4)]
         self._event_frame = None
 
     def configure_drums(self):
         self.drum_epoch += 1
         self.drum_keys.clear()
+        for keys in self.drum_gate_keys:keys.clear()
         for tr, t in enumerate(self.project.tracks):
             self.drums[tr].configure(t.get('drum_rack') if device_kind(t) == 'drum_rack' else None)
 
@@ -32,7 +34,7 @@ class DrumEngine:
         self.snapshot()
         for key, (_, _, owner) in list(self.pending.items()):
             if owner == tr: self.close_note(key)
-        self.synths[tr].panic(); self.drums[tr].panic()
+        self.synths[tr].panic(); self.drums[tr].panic(); self.drum_gate_keys[tr].clear()
         self.scheduled_live = [event for event in self.scheduled_live if event[1] != tr]
         self.drum_keys = {key: owner for key, owner in self.drum_keys.items() if owner != tr}
         if tr == self.selected:
@@ -130,7 +132,7 @@ class DrumEngine:
         self.snapshot()
         for key,(_,_,owner) in list(self.pending.items()):
             if owner==track:self.close_note(key)
-        self.synths[track].panic();self.drums[track].panic()
+        self.synths[track].panic();self.drums[track].panic();self.drum_gate_keys[track].clear()
         self.scheduled_live=[event for event in self.scheduled_live if event[1]!=track]
         self.drum_keys={key:owner for key,owner in self.drum_keys.items() if owner!=track}
         if track==self.selected:
@@ -157,7 +159,8 @@ class DrumEngine:
             self.drum_keys.pop(key, None)
             return False
         if off and key in self.drum_keys:
-            self.drum_keys.pop(key)
+            owner=self.drum_keys.pop(key)
+            self.voice_off(owner,note,('live',key[0],note,note))
             self.down.discard(key)
             self.close_note((key[0], note, note))
             return True
@@ -179,7 +182,8 @@ class DrumEngine:
         return True  # Pitch, sustain and scale/chord transforms do not affect one-shots.
 
     def voice_off(self, track, note, token=None):
-        if device_kind(self.project.tracks[track]) == 'drum_rack': self.drums[track].off(note, token)
+        if device_kind(self.project.tracks[track]) == 'drum_rack':
+            self.drum_gate_keys[track].discard(token);self.drums[track].off(note,token)
         else: self.synths[track].off(note, token)
 
     def drum_state(self):

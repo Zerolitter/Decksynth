@@ -70,6 +70,49 @@ class SpectralS3(unittest.TestCase):
    with self.subTest(key=key),self.assertRaises(ValueError):validate_chain(c)
   old=next(m for m in chain()['modules'] if m['id']=='gate')['params'];self.assertNotIn('phase',old)
 
+ def test_retriggers_do_not_change_other_fx_even_with_gate_disabled(self):
+  for enabled in (False,True):
+   a=fx(retrig=0);b=fx(retrig=0)
+   c=chain(retrig=0);next(m for m in c['modules'] if m['id']=='gate').update(on=enabled)
+   next(m for m in c['modules'] if m['id']=='gate')['params']['steps']=65535
+   volume=next(m for m in c['modules'] if m['id']=='volume');volume['on']=True
+   for f in (a,b):f.configure(c);f.process([1.]*1024,120,frame=0)
+   c=copy.deepcopy(c);next(m for m in c['modules'] if m['id']=='volume')['params']['level']=0.
+   for f in (a,b):f.configure(c)
+   b.retrigger(frame=1088);want=a.process([1.]*128,120,frame=1024);got=b.process([1.]*128,120,frame=1024)
+   self.assertEqual(got,want,enabled)
+
+ def test_retrigger_clock_integrates_tempo_changes_without_rewinding(self):
+  f=fx(retrig=0);f.retrigger(frame=0);f.process([1.]*24000,120,frame=0)
+  self.assertAlmostEqual(f.gate_runtime()['beat'],1.,places=9)
+  f.process([1.]*128,60,frame=24000)
+  self.assertAlmostEqual(f.gate_runtime()['beat'],1+128/48000,places=9)
+
+ def test_no_notes_keeps_logical_synth_keys_after_voice_steal(self):
+  e=Engine();e.set_fx(0,chain(retrig=1));e.voice_on(0,60,100,('live',0,60,60));e.render(2400)
+  for i in range(23):e.voice_on(1,65+i,100,('held',i))
+  e.voice_on(0,64,100,('live',0,64,64));e.render(128)
+  self.assertAlmostEqual(e.fx[0].gate_runtime()['beat'],(2400+128)/24000,places=9)
+ def test_no_notes_uses_drum_note_off_instead_of_one_shot_tails(self):
+  import wave
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'one-shot.wav'
+   with wave.open(str(p),'wb') as w:w.setparams((1,2,48000,48000,'NONE','not compressed'));w.writeframes(struct.pack('<h',3000)*48000)
+   e=Engine();e.set_device(0,'drum_rack');kit=e.project.tracks[0]['drum_rack']['id'];e.import_drum_sample(0,kit,0,str(p));e.set_fx(0,chain(retrig=1))
+   e.midi(0x90,36,100);e.render(2400);e.midi(0x80,36,0);self.assertGreater(e.drums[0].active_count,0)
+   e.midi(0x90,36,100);e.render(128);self.assertAlmostEqual(e.fx[0].gate_runtime()['beat'],128/24000,places=9)
+
+ def test_gate_lights_report_effective_modulated_division(self):
+  f=fx(phase=0.);c=chain(phase=0.);c['macros'][0]['value']=1.
+  c['macros'][0]['targets']=[dict(module='gate',param='division',depth=.5)];f.configure(c)
+  f.process([1.]*128,120,clock=.2)
+  self.assertEqual(f.gate_runtime()['cell'],1)
+
+ def test_panic_discards_cancelled_gate_triggers(self):
+  e=Engine();e.set_fx(0,chain(retrig=0));e.midi(0x90,60,100);e.render(2400)
+  e.midi(0x90,64,100);e.panic();e.render(128)
+  self.assertAlmostEqual(e.fx[0].gate_runtime()['beat'],(2400+128)/24000,places=9)
+
  def test_legacy_fx_pcm_is_sample_identical(self):
   gold=json.loads((Path(__file__).parent/'fixtures/spectral_s3_legacy_fx_pcm.json').read_text())
   for row in gold:

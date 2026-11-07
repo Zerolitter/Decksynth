@@ -66,6 +66,7 @@ typedef struct {
     /* output levels per module, for UI graphs */
     double level[NMOD];
     int g_extended,g_hold; double g_phase,g_notelen;
+    int g_events[256],g_event_count,g_event_index,g_offset;
 } FxTrack;
 
 FxTrack *dsfx_create(double rate) {
@@ -387,6 +388,11 @@ static void m_gate(FxTrack *t, double *b, int n, const double *p, double bpm) {
     double depth = clampd(p[4], 0, 1), pump = clampd(p[5], 0, 1), bps = bpm / 60.0 / t->rate;
     if (!t->g_init) { t->g_env = 1; t->g_init = 1; }
     for (int i = 0; i < n; i++) {
+        if (t->g_extended && !t->g_hold) {
+            while (t->g_event_index<t->g_event_count && t->g_events[t->g_event_index]<=t->g_offset+i) {
+                t->g_beat=0;t->g_event_index++;
+            }
+        }
         double cell = t->g_beat / div;
         if (t->g_extended) cell += t->g_phase * L;
         double c = floor(cell);
@@ -406,6 +412,10 @@ void dsfx_gate_controls(FxTrack *t,int enabled,double phase,double notelen,int h
 }
 void dsfx_gate_reset(FxTrack *t) { if (!t->g_hold) t->g_beat=0; }
 double dsfx_gate_beat(FxTrack *t) { return t->g_beat; }
+void dsfx_gate_events(FxTrack *t,const int *events,int count) {
+    t->g_event_count=count<0?0:count>256?256:count;t->g_event_index=0;
+    if (t->g_event_count) memcpy(t->g_events,events,t->g_event_count*sizeof(int));
+}
 
 static void run_module(FxTrack *t, int m, double *b, int n, const double *p, double bpm) {
     switch (m) {
@@ -445,6 +455,7 @@ void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on,
         double w = (double)(c + 1) / chunks;
         for (int i = 0; i < NMOD * NPAR; i++) t->pcur[i] = start[i] + (params[i] - start[i]) * w;
         for (int i = 0; i < 3; i++) t->pcur[AUDIOGATE * NPAR + i] = params[AUDIOGATE * NPAR + i];  /* cells and steps: no glide */
+        t->g_offset=off;
         double *x = b + off;
         for (int k = 0; k < NMOD; k++) {
             int m = order[k];
