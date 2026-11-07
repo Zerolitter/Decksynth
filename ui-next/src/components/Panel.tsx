@@ -36,7 +36,8 @@ export function useAutoFold(ref:RefObject<HTMLElement|null>,ids:string[],enabled
         const open=ids.filter(id=>!isFolded(id));
         if(open.length<=1)return;
         const newest=open.reduce((a,b)=>(lastUsed.get(a)??0)>=(lastUsed.get(b)??0)?a:b);
-        const victim=open.filter(id=>id!==newest&&id!==owner).sort((a,b)=>(lastUsed.get(a)??0)-(lastUsed.get(b)??0))[0];
+        const focused=document.activeElement?.closest<HTMLElement>('[data-panel]')?.dataset.panel;
+        const victim=open.filter(id=>id!==newest&&id!==owner&&id!==focused).sort((a,b)=>(lastUsed.get(a)??0)-(lastUsed.get(b)??0))[0];
         if(victim)setFold(victim,true);
       });
     };
@@ -82,7 +83,7 @@ export function Panel({id,title,icon,actions,summary,children,className='',defau
   return <section ref={section} className={'ds-panel'+(rail?' rack-rail':'')+(folded?' folded':'')+(grow?' grow':'')+(power&&!power.on?' powered-off':'')+(className?' '+className:'')}
     data-panel={id} role={role} aria-label={label}
     style={{...(accent?{['--panel-accent' as string]:accent}:{}),...(tag?{['--panel-tag' as string]:tag}:{}),...style}}
-    onPointerDownCapture={()=>{markUsed(id);onUse?.();}}>
+    onPointerDownCapture={()=>{markUsed(id);onUse?.();}} onFocusCapture={()=>markUsed(id)}>
     {rail&&folded?<header className="ds-panel-bar rail-bar">
       <button type="button" className="rail-open" aria-label={'Unfold '+name} aria-expanded={false} title={'Open '+name} onClick={reopen}>
         <ChevronDown size={16}/><span className="rail-title">{title}</span>{mods>0?<span className="ds-panel-mods" title={mods+' mod links'}>{mods}</span>:null}

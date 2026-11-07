@@ -15,6 +15,8 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
  p=await app.firstWindow();p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));
  await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,718);});
  await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'));
+ // KWin can apply a late restore after setContentSize during first load. Fix the actual Deck geometry after readiness.
+ await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].maximize());await p.waitForFunction(()=>innerWidth===1280&&innerHeight===718);
  await p.evaluate(()=>window.deckApi.onMessage(m=>{if(m.state)window.__patchLatest=m;}));await p.waitForFunction(()=>window.__patchLatest);
  assert.equal(await p.evaluate(()=>window.__patchLatest.audio),'dummy');
  if(phase==='top'||phase==='all'){
@@ -86,6 +88,27 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   await p.waitForTimeout(180);const still=await canvas.evaluate(n=>n.toDataURL());await p.waitForTimeout(160);assert.ok(await canvas.evaluate(n=>n.toDataURL())===still,'silence has no invented moving signal');
   const c=await openCard('fx-overdrive');await c.getByRole('button',{name:'Turn off Overdrive',exact:true}).click();await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx.modules.find(m=>m.id==='overdrive').bypass);await p.waitForFunction(()=>document.querySelector('.fx-graph-tile[data-module=overdrive] canvas')?.dataset.bypassed==='true');
   await frame('fx-focused-preview');console.log('PASS graphs: focused controls/preview, real bypass state, stationary silence, separate output');
+ }
+ if(phase==='keyboard'||phase==='all'){
+  await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).uncheck();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
+  await p.waitForFunction(()=>{const n=document.querySelector('.sound-cards');return n.scrollWidth<=n.clientWidth+1;});
+  const env=await openCard('rack-envelope'),tone=await openCard('sound-tone');await tone.locator('.ds-panel-title').click();await env.getByRole('slider',{name:'Attack',exact:true}).focus();await p.keyboard.press('Enter');const input=env.getByRole('textbox',{name:'Attack numeric value',exact:true});await input.fill('0.73');const stored=(await read()).tracks[0].instrument.attack;
+  await p.evaluate(()=>document.querySelector('.sound-cards').style.width='800px');await p.waitForTimeout(200);assert.equal(await env.evaluate(n=>n.classList.contains('folded')),false,'auto-fold protects the keyboard edit owner');assert.equal(await input.inputValue(),'0.73','pending numeric text survives resize');assert.equal((await read()).tracks[0].instrument.attack,stored);await p.keyboard.press('Escape');await p.evaluate(()=>document.querySelector('.sound-cards').style.width='');console.log('PASS keyboard: focused numeric edit survives auto-fold resize');
+ }
+ if(phase==='summary'||phase==='all'){
+  await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('radiogroup',{name:'Rate of Mod pad 1',exact:true}).getByRole('radio',{name:'1/8',exact:true}).click();await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx);
+  const chain=(await read()).tracks[0].fx;chain.mods[0].targets=['filter','curve','balance','focus','focus_center','attack','decay','sustain','release','modulation','volume','vcf_cutoff','vcf_reso','vcf_env','uni_detune','formant'].map(param=>({module:'sound',param,depth:.5}));await send('fx',[0,chain]);await p.waitForFunction(()=>window.__patchLatest.state.tracks[0].fx.mods[0].targets.length===16);
+  const panel=await p.locator('.pad-editor').boundingBox(),button=p.locator('.pad-editor').getByRole('button',{name:'Edit links',exact:true}),r=await button.boundingBox();assert.ok(r.height>=43.9&&r.y+r.height<=panel.y+panel.height+.1,'16-route summary reserves full 44px Edit links action: '+JSON.stringify({panel,button:r}));console.log('PASS summary: Edit links stays fully visible with 16 routes');
+ }
+ if(phase==='maxfx'||phase==='all'){
+  await p.getByRole('tab',{name:'FX',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).check();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
+  let count=(await read()).tracks[0].fx?.modules.filter(m=>m.on).length||0;
+  while(count<17){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:/^Add /}).first().click();count++;await p.waitForFunction(n=>window.__patchLatest.state.tracks[0].fx?.modules.filter(m=>m.on).length===n,count);}
+  const before=(await read()).tracks[0].fx,ids=await p.locator('.fx-cards [data-panel]').evaluateAll(ns=>ns.map(n=>n.dataset.panel));assert.equal(ids.length,17);
+  for(const id of ids){const c=p.locator('[data-panel="'+id+'"]');if(!await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Fold /}).click();}
+  await frame('fx-seventeen-rails');await assertInView(p.locator('.fx-cards .rail-open,.fx-cards .ds-panel-power'));
+  for(const id of ids){const c=await openCard(id);for(const n of await c.locator('button,[role=slider]').all()){if(!await n.isVisible())continue;await n.scrollIntoViewIfNeeded();const r=await n.boundingBox();assert.ok(r.width>=43.9&&r.height>=43.9,'reachable 44px FX control '+id+' '+JSON.stringify(r));assert.ok(r.x>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'FX control inside viewport');}await c.getByRole('button',{name:/^Fold /}).click();}
+  assert.deepEqual((await read()).tracks[0].fx,before,'all17 FX order/params/bypass survive visual open/fold');console.log('PASS maximum FX: all17 rails and every open control reachable, values/order/bypass preserved');
  }
  assert.deepEqual(errors,[]);console.log('PASS ui patch '+phase);
 })().catch(async e=>{console.error(e.stack||e);if(p){await frame('failure-'+phase);fs.writeFileSync(path.join(OUT,'failure-'+phase+'-layout.json'),JSON.stringify(await p.locator('.app-header>*').evaluateAll(nodes=>nodes.map(n=>({cls:n.className,text:n.textContent,rect:n.getBoundingClientRect().toJSON()}))),null,2));}process.exitCode=1;}).finally(async()=>{if(app)await app.close();fs.rmSync(tmp,{recursive:true,force:true});});

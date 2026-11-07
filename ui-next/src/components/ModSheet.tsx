@@ -232,7 +232,7 @@ export function LinksBody({chain,targets,color,onTargets}:{chain:FxChain;targets
             <BipolarDepth value={t.depth} color={color} label={'Depth '+info.name+' '+info.label}
               onChange={d=>setTargets(mod.targets.map((x,j)=>j===k?{...x,depth:d}:x))}/>
             <button type="button" aria-label={'Unlink '+info.name+' '+info.label} onClick={()=>setTargets(mod.targets.filter((_,j)=>j!==k))}><X size={16}/></button>
-          </div>;}):<p className="mod-empty">Nothing linked yet. Pick knobs on the left.</p>}
+          </div>;}):<p className="mod-empty">Nothing linked yet. Choose a parameter below to add a link.</p>}
         </div>
       </div>;
 }

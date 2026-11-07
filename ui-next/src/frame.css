@@ -280,3 +280,5 @@
 .harness-shell .fx-focus>.fx-graph-strip{flex:1;min-height:0}
 .harness-shell .frame-rack>.rack-card{border-color:color-mix(in srgb,var(--panel-tag,var(--line)) 48%,var(--line));background:linear-gradient(180deg,#ffffff03,transparent 22px),var(--panel);box-shadow:0 3px 7px #0004}
 .harness-shell .frame-rack .ds-panel-bar{background:transparent}
+.harness-shell .frame-rack .rack-card button,.harness-shell .frame-rack .rack-card .fx-segment button{min-width:44px;min-height:44px}
+.harness-shell .frame-rack .rack-card .fx-stepper button{width:44px;height:44px}

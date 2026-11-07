@@ -28,7 +28,7 @@
 .harness-shell .link-chip i{width:7px;height:7px;border-radius:50%;background:var(--fx-color);flex:none}
 .harness-shell .link-chip b{margin-left:auto;color:var(--src);font-size:11px}
 .harness-shell .link-more{font-size:11px;color:var(--soft)}
-.harness-shell .fx-targets.compact .fx-add{margin-top:auto;min-height:44px;border-color:color-mix(in srgb,var(--src) 50%,#44555b);color:#fff}
+.harness-shell .fx-targets.compact .fx-add{margin-top:auto;min-height:44px;flex-shrink:0;border-color:color-mix(in srgb,var(--src) 50%,#44555b);color:#fff}
 .harness-shell .fx-targets.compact .fx-add svg{color:var(--src)}
 
 /* mod pad sheet */

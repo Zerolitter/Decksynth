@@ -76,8 +76,9 @@ const ROOT=path.resolve(__dirname,'..');
   const a=await drop(40),b=await drop(3);
   assert.equal(a,b,'snapped point stays on its grid line');
   // Tap empty space to add a point.
-  const g=await p.locator('.pad-graph-editor svg').boundingBox();
-  await p.mouse.click(g.x+g.width*0.19,g.y+g.height*0.2);
+  // At the compact size the previous fixed point hits a 44px handle, not empty space.
+  const empty=await p.locator('.pad-graph-editor svg').evaluate(n=>{const r=n.getBoundingClientRect();for(const y of [.85,.9,.7,.1]){const x=r.x+r.width*.19,py=r.y+r.height*y;if(document.elementFromPoint(x,py)===n)return {x,y:py};}return null;});
+  assert.ok(empty,'an actual empty graph location is reachable');await p.mouse.click(empty.x,empty.y);
   assert.equal(await dots.count(),n0+1,'tap adds a point');
 
   // Links: pick an effect, tap a param, set depth with the bipolar bar.
