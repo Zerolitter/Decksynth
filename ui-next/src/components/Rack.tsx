@@ -1,146 +1,177 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronRight, CircleHelp, SlidersHorizontal, Volume2, Waves } from 'lucide-react';
-import { autoFold, type FoldItem } from '../chordz-primitives/fold';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AudioWaveform, Layers, Mic2, RotateCcw, SlidersHorizontal, Sparkles, Volume2, Waves } from 'lucide-react';
+import { Panel, stackFolded, useAutoFold, useFolds } from './Panel';
 import { Knob } from './Knob';
 import { TRACK_COLORS, type Track } from '../types';
+import { SOUND_TARGETS, normalizeChain, type FxChain } from '../fx';
+import { EnvelopeGraph } from './EnvEditor';
+import { EnvSheet } from './EnvSheet';
+import { useRingDepth } from './RingDepth';
+import { FILTER_NAMES, FILTER_TYPES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, fmtCents, fmtHz, fmtOct, fmtVowel, voiceParam, type VoiceKey } from '../sound-cards';
+import { MACRO_COLORS, MOD_COLORS, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 type Params=Track['instrument'];
 type Props = {
   track:Track;selected:number;
   onParam:(key:keyof Params,index:number|null,value:number)=>void;
   onTrack:(key:'volume'|'mute',value:number|boolean)=>void;
-  onSound:()=>void;
+  autoFold:boolean;
+  /** Linking: while a macro or pad is armed, tapping a knob links it (or unlinks it). */
+  onChain?:(c:FxChain)=>void; armed?:Source|null; live?:Live;
 };
-
-export function EnvelopeGraph({p}: {p:Params}) {
-  const attack=Math.max(.01,p.attack),decay=Math.max(.01,p.decay);
-  const release=Math.max(.01,p.release),hold=.65,sec=attack+decay+hold+release;
-  const point=(t:number,a:number) => (12+t/sec*292)+','+(78-a*62);
-  const path='M 12,78 L '+point(attack,1)+' L '+point(attack+decay,p.sustain)+
-      ' L '+point(attack+decay+hold,p.sustain)+' L '+point(sec,0);
-  return <svg className="env-graph" viewBox="0 0 320 92" preserveAspectRatio="none"
-    role="img" aria-label="Live ADSR envelope curve">
-    <defs><linearGradient id="envArea" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor="#7bd8bb" stopOpacity=".2"/>
-      <stop offset="100%" stopColor="#7bd8bb" stopOpacity="0"/>
-    </linearGradient></defs>
-    <path d={path+' L 304,78 Z'} fill="url(#envArea)"/>
-    <line x1="0" y1="78" x2="320" y2="78" stroke="#42505a" strokeWidth="1"/>
-    <path d={path} stroke="#91e6ca" fill="none" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
-    <circle cx={12+attack/sec*292} cy="16" r="3.5" fill="#e9f7eb"/>
-    <circle cx={12+(attack+decay)/sec*292} cy={78-p.sustain*62} r="3.5" fill="#e9f7eb"/>
-  </svg>;
+const CARD_IDS=['sound-tone','rack-envelope','motion-synth','rack-output','sound-filter','sound-unison','sound-character'];
+const TAGS={tone:'#7fd6bb',envelope:'#f2c46d',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
+/** A row of buttons for a value with a few fixed choices (UI rule: discrete values are buttons). */
+function Choice({label,name,options,value,onPick}:{label:string;name:string;options:{label:string;value:number;aria?:string}[];value:number;onPick:(v:number)=>void}){
+  return <div className="fx-choice sound-choice"><span className="fx-choice-label">{label}</span>
+    <div className="fx-segment" role="radiogroup" aria-label={name}>
+      {options.map(o=><button key={o.value} type="button" role="radio" aria-checked={value===o.value} aria-label={o.aria}
+        className={value===o.value?'active':''} onClick={()=>onPick(o.value)}>{o.label}</button>)}
+    </div></div>;
 }
+const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 
-export function SoundRack({track,selected,onParam,onTrack,onSound}:Props) {
-  const row=useRef<HTMLDivElement>(null);
-  const [width,setWidth]=useState(1100);
-  const [active,setActive]=useState('tone');
-  const [editor,setEditor]=useState(false);
-  const [handFold,setHandFold]=useState<Set<string>>(new Set());
+/** Sound rack: compact cards, each as wide as its knobs and as tall as the mod pad row.
+ *  Double-tap a card's title to fold it. ↺ resets just that card. */
+export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,armed=null,live}:Props) {
+  const rack=useRef<HTMLDivElement>(null);
+  const [envOpen,setEnvOpen]=useState(false);
+  useEffect(()=>setEnvOpen(false),[selected]);
+  const chain=normalizeChain(track.fx);
+  const routesFor=(param:string)=>{
+    const out:string[]=[];
+    chain.macros.forEach((m,i)=>m.targets.some(t=>t.module==='sound'&&t.param===param)&&out.push(MACRO_COLORS[i]));
+    chain.mods.forEach((m,i)=>m.targets.some(t=>t.module==='sound'&&t.param===param)&&out.push(MOD_COLORS[i]));
+    return out;
+  };
+  const linksInto=(card:string)=>[...chain.macros,...chain.mods].reduce((n,src)=>
+    n+src.targets.filter(t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card===card).length,0);
+  const toggle=(param:string)=>{
+    if(!armed||!onChain)return;
+    const t=sourceTargets(chain,armed), at=t.findIndex(x=>x.module==='sound'&&x.param===param);
+    const next=at>=0?t.filter((_,i)=>i!==at):[...t,{module:'sound' as const,param,depth:armed.kind==='macro'?.5:.4}];
+    onChain(withTargets(chain,armed,next.slice(0,16)));
+  };
+  const ring=useRingDepth(chain,onChain,armed,(_m,p)=>toggle(p));
+  // Every Sound knob sits in a cell that takes the tap while linking and shows who moves it.
+  const cell=(param:string,knob:(mod:{modValue:number|null,modColor?:string})=>ReactNode)=>{
+    const routes=routesFor(param), here=!!armed&&sourceTargets(chain,armed).some(t=>t.module==='sound'&&t.param===param);
+    const now=live?.sound?.[param];
+    return <div key={param} className={'fx-knob-cell sound-knob-cell'+(routes.length?' has-mod':'')+(here?' routed-here':'')}
+      onPointerDownCapture={ring.capture('sound',param)}>
+      {knob({modValue:routes.length&&now!==undefined?now:null,modColor:routes[0]})}
+      {routes.length?<span className="fx-route-dots">{routes.map((c,k)=><i key={k} style={{background:c}}/>)}</span>:null}
+    </div>;
+  };
+  useAutoFold(rack,CARD_IDS,autoFold);
+  const folds=useFolds();
   const p=track.instrument;
-  useEffect(()=>{setEditor(false);},[selected]);
-  useEffect(()=>{
-    const node=row.current;if(!node)return;
-    const observer=new ResizeObserver(entries=>{
-      const w=entries[0]?.contentRect.width;if(w)setWidth(w);
-    });
-    observer.observe(node);return()=>observer.disconnect();
-  },[]);
-  const items=useMemo<FoldItem[]>(()=>[
-    {id:'tone',width:306,instrument:true},
-    {id:'envelope',width:334,instrument:false},
-    {id:'motion',width:240,instrument:false},
-    {id:'mix',width:238,instrument:false},
-  ],[]);
-  const folded=useMemo(()=> {
-    const auto=autoFold(items,active,handFold,width);
-    return new Set([...handFold,...auto]);
-  },[items,active,handFold,width]);
   const accent=TRACK_COLORS[selected];
   const set=(key:keyof Params,value:number)=>onParam(key,null,value);
-  const controls:{id:string;title:string;icon:React.ReactNode;content:React.ReactNode}[]=[
-    {id:'tone',title:'SPECTRAL TONE',icon:<Waves size={15}/>,content:<>
-      <div className="rack-preset"><span className="soft-label">ACTIVE INSTRUMENT</span>
-        <strong>{track.preset}</strong></div>
+  const vp=(k:VoiceKey)=>voiceParam(p,k);
+  const ftype=vp('vcf_type'), lastType=useRef(1); if(ftype)lastType.current=ftype;
+  const resetVoice=(keys:VoiceKey[])=>keys.forEach(k=>set(k,VOICE_DEFAULTS[k]));
+  const pct=(v:number)=>Math.round(v*100)+'%';
+  const spectral=(key:'curve'|'balance'|'focus'|'focus_center')=>p[key]??SPECTRAL_NEUTRAL[key];
+  const reset=(label:string,fn:()=>void)=><button type="button" className="panel-icon-action" aria-label={'Reset '+label}
+    title={'Reset '+label} onClick={fn}><RotateCcw size={15}/></button>;
+  return <div ref={rack} className={'frame-rack sound-cards'+(armed?' is-assigning':'')}
+    style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}}>{stackFolded([
+    {id:'sound-tone',node:<Panel id="sound-tone" className="rack-card sound-card card-tone" title="Tone" tag={TAGS.tone} mods={linksInto('sound-tone')} icon={<Sparkles size={15}/>} accent={accent}
+      summary={'Bright '+pct(p.filter)+' · Curve '+spectral('curve').toFixed(2)}
+      actions={reset('tone',()=>{(['curve','balance','focus','focus_center'] as const).forEach(k=>onParam(k,null,SPECTRAL_NEUTRAL[k]));})}>
       <div className="rack-knobs">
-        <Knob id={selected+'-brightness'} name="Brightness" value={p.filter}
-          min={.02} max={1} step={.005} suffix="%" compact accent={accent}
-          onChange={v=>set('filter',v)}/>
-        <Knob id={selected+'-tone-motion'} name="Movement" value={p.modulation}
-          min={0} max={1} step={.005} suffix="%" compact accent={accent}
-          onChange={v=>set('modulation',v)}/>
+        {cell('filter',m=><Knob id={selected+'-brightness'} name="Brightness" value={p.filter} min={.02} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('filter',v)} {...m}/>)}
+        {cell('curve',m=><Knob id={selected+'-curve'} name="Curve" value={spectral('curve')} min={-1} max={1} step={.01} precision={2}
+          compact accent={accent} onChange={v=>set('curve',v)} {...m}/>)}
+        {cell('balance',m=><Knob id={selected+'-balance'} name="Balance" value={spectral('balance')} min={0} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('balance',v)} {...m}/>)}
+        {cell('focus',m=><Knob id={selected+'-focus'} name="Focus" value={spectral('focus')} min={0} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('focus',v)} {...m}/>)}
+        {cell('focus_center',m=><Knob id={selected+'-focus-center'} name="Focus on" value={spectral('focus_center')} min={1} max={16} step={1} precision={0}
+          compact accent={accent} onChange={v=>set('focus_center',Math.round(v))} {...m}/>)}
       </div>
-    </>},
-    {id:'envelope',title:'AMPLITUDE ENVELOPE',icon:<SlidersHorizontal size={15}/>,content:<>
-      <button className="mini-graph-btn" type="button" onClick={()=>setEditor(true)}
-        aria-label="Open detailed envelope editor"><EnvelopeGraph p={p}/>
-        <ArrowUpRight size={15}/></button>
-      <div className="rack-knobs env-summary">
-        <Knob id={selected+'-attack'} name="Attack" value={p.attack}
-          min={.001} max={3} step={.001} suffix="s" compact accent={accent}
-          onChange={v=>set('attack',v)}/>
-        <Knob id={selected+'-release'} name="Release" value={p.release}
-          min={.01} max={3} step={.005} suffix="s" compact accent={accent}
-          onChange={v=>set('release',v)}/>
-      </div>
-    </>},
-    {id:'motion',title:'MOVEMENT',icon:<Waves size={15}/>,content:<>
-      <div className="rack-summary-name">Slow modulation</div>
+    </Panel>},
+    {id:'rack-envelope',node:<Panel id="rack-envelope" className="rack-card sound-card card-envelope sound-rack" icon={<SlidersHorizontal size={15}/>} title="Envelope" tag={TAGS.envelope} mods={linksInto('rack-envelope')}
+      accent={accent}
+      summary={'A '+p.attack.toFixed(2)+'s · D '+p.decay.toFixed(2)+'s · S '+pct(p.sustain)+' · R '+p.release.toFixed(2)+'s'}
+      actions={reset('envelope',()=>{set('attack',.008);set('decay',.6);set('sustain',.35);set('release',.5);})}>
       <div className="rack-knobs">
-        <Knob id={selected+'-motion'} name="Motion" value={p.modulation}
-          min={0} max={1} step={.005} suffix="%" compact accent={accent}
-          onChange={v=>set('modulation',v)}/>
+        <button type="button" className="rack-mini-env" aria-label="Open the envelope editor" title="Open the envelope editor"
+          onClick={()=>setEnvOpen(true)}><EnvelopeGraph p={p}/></button>
+        {cell('attack',m=><Knob id={selected+'-attack'} name="Attack" value={p.attack}
+          min={.001} max={3} step={.001} suffix="s" compact accent={accent} onChange={v=>set('attack',v)} {...m}/>)}
+        {cell('decay',m=><Knob id={selected+'-decay'} name="Decay" value={p.decay}
+          min={.001} max={3} step={.001} suffix="s" compact accent={accent} onChange={v=>set('decay',v)} {...m}/>)}
+        {cell('sustain',m=><Knob id={selected+'-sustain'} name="Sustain" value={p.sustain}
+          min={0} max={1} step={.005} suffix="%" compact accent={accent} onChange={v=>set('sustain',v)} {...m}/>)}
+        {cell('release',m=><Knob id={selected+'-release'} name="Release" value={p.release}
+          min={.01} max={3} step={.005} suffix="s" compact accent={accent} onChange={v=>set('release',v)} {...m}/>)}
       </div>
-      <div className="rack-subtext">Modulation follows the live synth clock.</div>
-    </>},
-    {id:'mix',title:'TRACK OUTPUT',icon:<Volume2 size={15}/>,content:<>
+    </Panel>},
+    {id:'motion-synth',node:<Panel id="motion-synth" className="rack-card sound-card card-movement" icon={<Waves size={15}/>} title="Movement" accent={accent} tag={TAGS.movement} mods={linksInto('motion-synth')}
+      summary={pct(p.modulation)} actions={reset('movement',()=>set('modulation',.08))}>
+      <div className="rack-knobs" title="Vibrato and tremolo. The mod wheel adds to it.">
+        {cell('modulation',m=><Knob id={selected+'-tone-motion'} name="Amount" value={p.modulation}
+          min={0} max={1} step={.005} suffix="%" compact accent={accent} onChange={v=>set('modulation',v)} {...m}/>)}
+      </div>
+    </Panel>},
+    {id:'rack-output',node:<Panel id="rack-output" className="rack-card sound-card card-output" icon={<Volume2 size={15}/>} title="Output" accent={accent} tag={TAGS.output} mods={linksInto('rack-output')}
+      power={{on:!track.mute,label:'track output',onToggle:()=>onTrack('mute',!track.mute)}}
+      summary={(track.mute?'Muted · ':'')+pct(track.volume)}>
       <div className="rack-knobs">
-        <Knob id={selected+'-volume'} name="Volume" value={track.volume}
+        {cell('volume',m=><Knob id={selected+'-volume'} name="Volume" value={track.volume}
           min={0} max={1} step={.005} suffix="%" compact accent={accent}
-          onChange={v=>onTrack('volume',v)}/>
+          onChange={v=>onTrack('volume',v)} {...m}/>)}
+        <button type="button" className={'panel-toggle'+(track.mute?' on':'')} aria-pressed={track.mute}
+          onClick={()=>onTrack('mute',!track.mute)}>{track.mute?'Muted':'Mute'}</button>
       </div>
-      <button type="button" className={'rack-mute'+(track.mute?' on':'')} onClick={()=>onTrack('mute',!track.mute)}>
-        {track.mute?'MUTED':'MUTE TRACK'}</button>
-    </>},
-  ];
-  return <section className="sound-rack" aria-label="Instrument device rack">
-    <div className="rack-heading">
-      <div><span className="rack-status-led" style={{background:accent}}/>
-        <strong>Device rack</strong><span className="rack-divider">/</span><span className="rack-track-label">{track.preset}</span></div>
-      <button onClick={onSound} type="button">OPEN SOUND EDITOR <ChevronRight size={14}/></button>
-    </div>
-    <div ref={row} className="rack-card-row" style={{'--rack-accent':accent} as React.CSSProperties}>
-      {controls.map(c=><article key={c.id} className={'rack-card'+(folded.has(c.id)?' folded':'')+(active===c.id?' selected':'')}
-        style={{width:folded.has(c.id)?32:items.find(i=>i.id===c.id)?.width}}>
-        {folded.has(c.id)?
-          <button className="rack-spine" type="button" title={'Expand '+c.title}
-            onClick={()=>{setActive(c.id);setHandFold(old=>{const next=new Set(old);next.delete(c.id);return next;});}}>
-            <span>{c.title}</span></button>:
-          <>
-            <div className="rack-card-header">
-              <button className="rack-card-title" onClick={()=>setActive(c.id)} type="button">
-                {c.icon}<span>{c.title}</span></button>
-              <button className="rack-card-fold" type="button" aria-label={'Fold '+c.title}
-                onClick={()=>setHandFold(old=>new Set([...old,c.id]))}>▸</button>
-            </div>
-            <div className="rack-card-inner">{c.content}</div>
-          </>}
-      </article>)}
-    </div>
-    {editor&&<div className="float-shade" onPointerDown={e=>{if(e.target===e.currentTarget)setEditor(false);}}>
-      <div role="dialog" aria-label="Amplitude envelope editor" aria-modal="true" className="floating-envelope">
-        <header><div><span className="eyebrow">DEVICE EDITOR</span><h3>Amplitude envelope</h3></div>
-          <button className="close-float" type="button" onClick={()=>setEditor(false)}>Close ✕</button></header>
-        <EnvelopeGraph p={p}/>
-        <div className="float-knobs">
-          <Knob id={selected+'-float-attack'} name="Attack" value={p.attack} min={.001} max={3} step={.001} suffix="s" onChange={v=>set('attack',v)}/>
-          <Knob id={selected+'-float-decay'} name="Decay" value={p.decay} min={.001} max={3} step={.001} suffix="s" onChange={v=>set('decay',v)}/>
-          <Knob id={selected+'-float-sustain'} name="Sustain" value={p.sustain} min={0} max={1} step={.005} suffix="%" onChange={v=>set('sustain',v)}/>
-          <Knob id={selected+'-float-release'} name="Release" value={p.release} min={.01} max={3} step={.005} suffix="s" onChange={v=>set('release',v)}/>
-        </div>
-        <p>Drag a knob vertically. Hold Shift for fine adjustments, or click its number for exact entry.</p>
+    </Panel>},
+    {id:'sound-filter',node:<Panel id="sound-filter" className="rack-card sound-card card-filter" icon={<AudioWaveform size={15}/>} title="Filter" accent={accent} tag={TAGS.filter} mods={linksInto('sound-filter')}
+      power={{on:ftype>0,label:'filter',onToggle:()=>set('vcf_type',ftype?0:lastType.current)}}
+      summary={ftype?FILTER_TYPES[ftype-1]+' · '+fmtHz(vp('vcf_cutoff'))+' · Res '+pct(vp('vcf_reso')):'Off'}
+      actions={reset('filter',()=>resetVoice(['vcf_cutoff','vcf_reso','vcf_env']))}>
+      <div className={'rack-knobs'+(ftype?'':' is-off')} title="A filter on every note. Env amount opens it with the envelope.">
+        <Choice label="Type" name="Filter type" value={ftype} onPick={v=>set('vcf_type',v)}
+          options={FILTER_TYPES.map((l,i)=>({label:l,value:i+1,aria:FILTER_NAMES[i+1]}))}/>
+        {cell('vcf_cutoff',m=><Knob id={selected+'-vcf-cutoff'} name="Cutoff" value={vp('vcf_cutoff')} min={0} max={1} step={.002}
+          format={fmtHz} compact accent={accent} onChange={v=>set('vcf_cutoff',v)} {...m}/>)}
+        {cell('vcf_reso',m=><Knob id={selected+'-vcf-reso'} name="Resonance" value={vp('vcf_reso')} min={0} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('vcf_reso',v)} {...m}/>)}
+        {cell('vcf_env',m=><Knob id={selected+'-vcf-env'} name="Env amount" value={vp('vcf_env')} min={-1} max={1} step={.005}
+          format={fmtOct} compact accent={accent} onChange={v=>set('vcf_env',v)} {...m}/>)}
       </div>
-    </div>}
-  </section>;
+    </Panel>},
+    {id:'sound-unison',node:<Panel id="sound-unison" className="rack-card sound-card card-unison" icon={<Layers size={15}/>} title="Unison" accent={accent} tag={TAGS.unison} mods={linksInto('sound-unison')}
+      summary={vp('uni_voices')===1?'1 voice':vp('uni_voices')+' voices · '+fmtCents(vp('uni_detune'))}
+      actions={reset('unison',()=>resetVoice(['uni_voices','uni_detune']))}>
+      <div className="rack-knobs" title="Stacks detuned copies of each note for a wider, thicker sound.">
+        <Choice label="Voices" name="Unison voices" value={vp('uni_voices')} onPick={v=>set('uni_voices',v)}
+          options={UNISON_VOICES.map(n=>({label:String(n),value:n,aria:n+(n===1?' voice':' voices')}))}/>
+        {cell('uni_detune',m=><Knob id={selected+'-uni-detune'} name="Detune" value={vp('uni_detune')} min={0} max={1} step={.005}
+          format={fmtCents} compact accent={accent} onChange={v=>set('uni_detune',v)} {...m}/>)}
+      </div>
+    </Panel>},
+    {id:'sound-character',node:<Panel id="sound-character" className="rack-card sound-card card-character" icon={<Mic2 size={15}/>} title="Character" accent={accent} tag={TAGS.character} mods={linksInto('sound-character')}
+      summary={'Vowel '+fmtVowel(vp('vowel'))+' '+pct(vp('formant'))+' · Stretch '+pct(vp('inharm'))+' · Sub '+pct(vp('sub'))}
+      actions={reset('character',()=>resetVoice(['formant','vowel','inharm','sub','sub_oct']))}>
+      <div className="rack-knobs">
+        <Choice label="Vowel" name="Vowel" value={Math.round(vp('vowel'))} onPick={v=>{set('vowel',v);if(!vp('formant'))set('formant',.7);}}
+          options={VOWELS.map((l,i)=>({label:l,value:i,aria:'Vowel '+l}))}/>
+        {cell('formant',m=><Knob id={selected+'-formant'} name="Formant" value={vp('formant')} min={0} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('formant',v)} {...m}/>)}
+        {cell('inharm',m=><Knob id={selected+'-inharm'} name="Stretch" value={vp('inharm')} min={0} max={1} step={.005} suffix="%"
+          description="Inharmonicity: pulls the partials apart like a bell or a piano string."
+          compact accent={accent} onChange={v=>set('inharm',v)} {...m}/>)}
+        {cell('sub',m=><Knob id={selected+'-sub'} name="Sub" value={vp('sub')} min={0} max={1} step={.005} suffix="%"
+          compact accent={accent} onChange={v=>set('sub',v)} {...m}/>)}
+        <Choice label="Sub octave" name="Sub octave" value={vp('sub_oct')} onPick={v=>set('sub_oct',v)}
+          options={[{label:'−1',value:1,aria:'One octave down'},{label:'−2',value:2,aria:'Two octaves down'}]}/>
+      </div>
+    </Panel>}],folds)}
+    {envOpen?<EnvSheet env={p} color="#f2c46d" accent={accent} track={selected} live={live?.sound as never}
+      container={rack.current?.closest('.frame')??null} onChange={(k,v)=>set(k,v)} onClose={()=>setEnvOpen(false)}/>:null}
+    {ring.bubble}
+  </div>;
 }

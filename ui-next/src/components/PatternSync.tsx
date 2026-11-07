@@ -4,7 +4,7 @@
  * Inspired by ReplicantTr8s' lively hardware step indicators (not its drum engine).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, CircleDot, Layers3, Play, Radio } from 'lucide-react';
+import { Activity, CircleDot, Radio } from 'lucide-react';
 import { activeStep, patternCells } from '../pattern';
 import { noteName, TRACK_COLORS, type Note, type Project } from '../types';
 
@@ -39,8 +39,19 @@ export function PatternSync({project,beat,playing,recording,selected,onSelect,co
     aria-label="16-step MIDI pattern synchronizer" data-testid="hardware-sequencer">
     <header className="pattern-header">
       <div className="pattern-heading">
-        <Activity size={17}/><span className="eyebrow">PATTERN CLOCK</span>
-        <strong>16-step synchronizer</strong>
+        <Activity size={17}/><strong>Step view</strong>
+        <span className="pattern-res">{resolution} per step</span>
+      </div>
+    <div className="pattern-focus-chips" role="group" aria-label="Choose the focused instrument">
+        {project.tracks.map((t,i)=><button type="button" key={i}
+          className={'pattern-focus-chip'+(i===selected?' selected':'')}
+          style={{'--step-accent':TRACK_COLORS[i]} as React.CSSProperties}
+          aria-pressed={i===selected} onClick={()=>onSelect(i)}
+          title={'Show '+t.preset+' in the 16-step synchronizer'}>
+          <span className="pattern-focus-dot"/>
+          <span className="pattern-focus-name">{String(i+1).padStart(2,'0')} {t.preset}</span>
+          <span className="pattern-note-count">{t.notes.length}</span>
+        </button>)}
       </div>
       <div className="pattern-head-right">
         <span className={'sync-dot'+(playing?' active':'')}/>
@@ -48,17 +59,6 @@ export function PatternSync({project,beat,playing,recording,selected,onSelect,co
         <b data-testid="pattern-live-step">{String(current+1).padStart(2,'0')} <i>/</i> 16</b>
       </div>
     </header>
-    <div className="pattern-focus-chips" role="group" aria-label="Choose the focused instrument">
-      {project.tracks.map((t,i)=><button type="button" key={i}
-        className={'pattern-focus-chip'+(i===selected?' selected':'')}
-        style={{'--step-accent':TRACK_COLORS[i]} as React.CSSProperties}
-        aria-pressed={i===selected} onClick={()=>onSelect(i)}
-        title={'Show '+t.preset+' in the 16-step synchronizer'}>
-        <span className="pattern-focus-dot"/>
-        <span className="pattern-focus-name">{String(i+1).padStart(2,'0')} {t.preset}</span>
-        <span className="pattern-note-count">{t.notes.length}</span>
-      </button>)}
-    </div>
     <div className="sequencer-pad-grid"
       role="group" aria-label={'16 visible steps for '+track.preset}
       style={{'--step-accent':TRACK_COLORS[selected]} as React.CSSProperties}>

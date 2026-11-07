@@ -16,7 +16,7 @@ let lastMessage = { bridge: 'starting' };
 
 const COMMANDS = new Set(['perform_set','perform_step','perform_action',
  'midi','select','play','stop','panic','record','undo','quantize',
- 'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars',
+ 'clear','device','audio_device','preset','parameter','edit_note','track','tempo','bars','fx','cleanup',
  'metronome','save','load','export','save_preset','load_preset']);
 
 function publish(message) {

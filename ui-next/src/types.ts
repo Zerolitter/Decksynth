@@ -3,10 +3,17 @@ export type Instrument = {
   harmonics: number[];
   attack: number; decay: number; sustain: number; release: number;
   filter: number; modulation: number;
+  /** Optional spectral macros; missing = neutral (curve 0, balance .5, focus 0, centre 4). */
+  curve?: number; balance?: number; focus?: number; focus_center?: number;
+  /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
+  vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
+  uni_voices?: number; uni_detune?: number;
+  formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
 };
 export type Track = {
   name: string; preset: string; instrument: Instrument;
   volume: number; mute: boolean; notes: Note[];
+  fx?: import('./fx').FxChain;
 };
 export type StepNote = { note: number; velocity: number; tie: number };
 export type StepPattern = {
@@ -24,10 +31,11 @@ export type PerformanceState = {
   arp: {
     enabled:boolean; mode:string; length:number; division:string; gate:number;swing:number;
     octaves:number;hold:boolean;retrigger:boolean;spice:number;seed:number;
+    velocity?:'As played'|'Fixed 100'|'Accent first';spice_seed?:number;octave_mode?:'Up'|'Down'|'UpDown';restart_bar?:boolean;
   };
   chord: {
     enabled:boolean;preset:string;user:number[];spread:number;strum_ms:number;
-    strum_type:string;voicing:boolean;
+    strum_type:string;voicing:boolean;strum_sync?:string;bass?:number;slots?:number[][];
   };
   scale:{
     name:string;root:number;octave:number;velocity_curve:string;input_channel:number;
@@ -37,14 +45,22 @@ export type PerformanceState = {
 export type Project = {
   version: number; bpm: number; bars: number; metronome: boolean; tracks: Track[];
   performance:PerformanceState;
+  song?: import('./song').Song;
+  /** Loops per track: the open one is in each track's own notes. */
+  clips?: {open:number[];slots:Note[][][]};
 };
 export type DeckUpdate = {
   state: Project; selected: number; beat: number;
   playing: boolean; recording: boolean; connected: string | null;
   devices: string[]; audio: string; audio_output: string;
-  audio_outputs: string[]; voices: number; underruns: number; preview?: boolean;
-  meter?: { rms: number; peak: number; wave: number[] };
+  audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; preview?: boolean;
+  meter?: { rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
   held_notes?: number[];
+  /** Step record cursor: the step the next recorded key goes to. */
+  rec_step?: number;
+  arp_view?: { groups:number[][]; step:number; phase?:number; paused?:boolean } | null;
+  /** song position in beats (not wrapped to the loop), for the audio gate cursor */ song_beat?: number;
+  song_pos?: { bar:number; length:number; marker:number|null; name:string|null } | null;
 };
 export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string };
 export type DeckApi = {

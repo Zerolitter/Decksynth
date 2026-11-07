@@ -226,7 +226,9 @@
         "hold": false,
         "retrigger": true,
         "spice": 0.0,
-        "seed": 1
+        "seed": 1,
+        "velocity": "As played",
+        "spice_seed": 1
       },
       "chord": {
         "enabled": false,
@@ -239,7 +241,9 @@
         "spread": 0,
         "strum_ms": 0,
         "strum_type": "Up",
-        "voicing": false
+        "voicing": false,
+        "strum_sync": "Off",
+        "bass": 0
       },
       "scale": {
         "name": "Chromatic",

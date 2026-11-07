@@ -30,7 +30,20 @@ SCALES = {
     'Minor Pentatonic': [0, 3, 5, 7, 10],
     'Blues': [0, 3, 5, 6, 7, 10],
     'Harmonic Minor': [0, 2, 3, 5, 7, 8, 11],
+    'Phrygian': [0, 1, 3, 5, 7, 8, 10],
+    'Lydian': [0, 2, 4, 6, 7, 9, 11],
+    'Locrian': [0, 1, 3, 5, 6, 8, 10],
+    'Japanese': [0, 1, 5, 7, 8],
+    'Gypsy': [0, 2, 3, 6, 7, 8, 11],
+    'Arabic': [0, 1, 4, 5, 7, 8, 11],
+    'Freygish': [0, 1, 4, 5, 7, 8, 10],
 }
+ARP_VELOCITY = ('As played', 'Fixed 100', 'Accent first')
+ARP_OCTAVE_MODES = ('Up', 'Down', 'UpDown')
+STRUM_SYNC = {'Off': 0., '1/64': .0625, '1/32': .125, '1/16': .25, '1/8': .5, '1/4': 1.}
+# Settings added after the first saved projects: older files get these defaults on load.
+ADDED_KEYS = {'arp': dict(velocity='As played', spice_seed=1, octave_mode='Up', restart_bar=False), 'chord': dict(strum_sync='Off', bass=0, slots=[[] for _ in range(8)])}
+CHORD_SLOTS = 8
 CHORDS = {
     'User': [0, 4, 7], 'Octave': [0, 12], '5th': [0, 7],
     'Major Triad': [0, 4, 7], 'Minor Triad': [0, 3, 7],
@@ -57,9 +70,11 @@ def defaults():
                  spice_seed=1, mutate_seed=1, chain=['1:1'], chain_enabled=False),
         arp=dict(enabled=False, mode='Up', length=16, division='1/16', gate=.75,
                  swing=.5, octaves=1, hold=False, retrigger=True,
-                 spice=0., seed=1),
+                 spice=0., seed=1, velocity='As played', spice_seed=1,
+                 octave_mode='Up', restart_bar=False),
         chord=dict(enabled=False, preset='Major Triad', user=[0, 4, 7],
-                   spread=0, strum_ms=0, strum_type='Up', voicing=False),
+                   spread=0, strum_ms=0, strum_type='Up', voicing=False,
+                   strum_sync='Off', bass=0, slots=[[] for _ in range(8)]),
         scale=dict(name='Chromatic', root=0, octave=0, velocity_curve='Linear',
                    input_channel=0),
         sync=dict(source='Internal',receive_transport=True),
@@ -104,6 +119,10 @@ def validate_state(value):
     # Projects created before MIDI clock support remain loadable.
     if set(value)==set(expected)-{'sync'}:
         value={**value,'sync':copy.deepcopy(expected['sync'])}
+    if isinstance(value.get('arp'),dict) and isinstance(value.get('chord'),dict):
+        value={**value}
+        for section,added in ADDED_KEYS.items():
+            value[section]={**copy.deepcopy(added),**value[section]}
     if set(value)!=set(expected):raise ValueError('Performance schema mismatch')
     seq,arp,chord,scale=value['seq'],value['arp'],value['chord'],value['scale']
     sync=value['sync']
@@ -137,12 +156,22 @@ def validate_state(value):
         raise ValueError('Invalid performance controls')
     if arp['mode'] not in ARP_MODES or chord['preset'] not in CHORDS:
         raise ValueError('Unknown chord or arpeggio mode')
+    if arp['octave_mode'] not in ARP_OCTAVE_MODES or type(arp['restart_bar']) is not bool:
+        raise ValueError('Invalid arp octave mode or bar restart')
+    if arp['velocity'] not in ARP_VELOCITY or type(arp['spice_seed']) is not int or not 0<=arp['spice_seed']<=1000000:
+        raise ValueError('Invalid arpeggiator velocity or dice')
+    if chord['strum_sync'] not in STRUM_SYNC or type(chord['bass']) is not int or not 0<=chord['bass']<=3:
+        raise ValueError('Invalid strum sync or bass note')
     if chord['strum_type'] not in ('Up','Down','Alt Up','Alt Down'):
         raise ValueError('Unknown strum direction')
     if scale['name'] not in SCALES or scale['velocity_curve'] not in ('Linear','Logarithmic','Exponential','Fixed 100'):
         raise ValueError('Unknown scale/velocity curve')
     if not isinstance(chord['user'],list) or not 1<=len(chord['user'])<=16 or not all(integer(n,-48,48) for n in chord['user']):
         raise ValueError('Invalid custom chord')
+    slots=chord['slots']
+    if (not isinstance(slots,list) or len(slots)!=CHORD_SLOTS or
+            not all(isinstance(c,list) and len(c)<=8 and all(integer(n,0,127) for n in c) for c in slots)):
+        raise ValueError('Invalid saved chord slots')
     chain=seq['chain']
     if not isinstance(chain,list) or not 1<=len(chain)<=64:
         raise ValueError('Invalid pattern chain')
@@ -221,6 +250,7 @@ def chord_notes(state,root,velocity=100):
     if chord['voicing'] and len(pitches)>1:
         # Pick stable close-position inversions instead of jumping all voices.
         pitches[1:]=[n-12 if n-root>6 else n for n in pitches[1:]]
+    if chord.get('bass'):pitches.append(root-12*chord['bass'])
     return sorted(set(max(0,min(127,n)) for n in pitches))
 
 
@@ -248,15 +278,25 @@ def _ratio(note,base):
     return max(0,min(127,note+base))
 
 
-def arp_groups(held,mode='Up',octaves=1,seed=1,steps=16):
-    """Deterministic note groups. Includes nine generative modes, no random UI-only animation."""
+def arp_groups(held,mode='Up',octaves=1,seed=1,steps=16,octave_mode='Up'):
+    """Deterministic note groups. Includes nine generative modes, no random UI-only animation.
+
+    octave_mode says how the octaves are walked: Up (low to high, the original behaviour), Down (high to low)
+    or UpDown (low to high and back, without repeating the top and bottom octave). For Down and UpDown the
+    note pattern plays once per octave pass."""
+    if octave_mode in ('Down','UpDown') and octaves>1:
+        base=arp_groups(held,mode,1,seed,steps)
+        passes=list(range(octaves))
+        passes=passes[::-1] if octave_mode=='Down' else passes+passes[-2:0:-1]
+        return [[n+12*o for n in g if n+12*o<=127] for o in passes for g in base]
     unique=list(dict.fromkeys(max(0,min(127,int(v))) for v in held))[:64]
     if not unique:return []
     ordered=[n+o*12 for o in range(octaves) for n in unique if n+o*12<=127]
     asc=sorted(ordered); desc=asc[::-1]
     if mode=='Up':return [[n] for n in asc]
     if mode=='Down':return [[n] for n in desc]
-    if mode=='UpDown':return [[n] for n in (asc+desc[-2:0:-1] if len(asc)>2 else asc+desc)]
+    # Up then back down without repeating the top or bottom note: C E G B -> C E G B G E.
+    if mode=='UpDown':return [[n] for n in asc+asc[-2:0:-1]]
     if mode=='Order':return [[n] for n in ordered]
     if mode=='Poly':return [asc]
     rng=random.Random(seed)
@@ -314,24 +354,70 @@ def pattern_from_song(notes,bars,division='1/16',length=16):
     return validate_pattern(pattern)
 
 
-def song_from_pattern(pattern,bars,transpose=0,gate=None):
+def song_from_pattern(pattern,bars,transpose=0,gate=None,fill=False):
+    """Song notes for a pattern. With fill, a pattern shorter than the loop repeats until the loop is full,
+    so a 1-bar pattern sent to a 4-bar track plays in every bar instead of leaving 3 bars empty."""
     beat_size=DIVISIONS[pattern['division']]
     length=bars*4
+    span=len(pattern['steps'])*beat_size
+    copies=max(1,math.ceil(length/span-1e-9)) if fill and span>0 else 1
     out=[]
-    for step,notes in enumerate(pattern['steps']):
-        start=step*beat_size
-        if start>=length:break
-        for item in notes:
-            out.append(dict(start=start,duration=min(length,beat_size*(gate or pattern['gate'])*item['tie']),
-                            note=_ratio(item['note'],transpose),velocity=item['velocity']))
+    for rep in range(copies):
+        for step,notes in enumerate(pattern['steps']):
+            start=rep*span+step*beat_size
+            if start>=length-1e-9:break
+            for item in notes:
+                out.append(dict(start=start,duration=min(length,beat_size*(gate or pattern['gate'])*item['tie']),
+                                note=_ratio(item['note'],transpose),velocity=item['velocity']))
     return out
 
 
-def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0):
+def _arp_velocity(arp,note,first,velocities):
+    if arp['velocity']=='Accent first':return 118 if first else 84
+    if arp['velocity']=='Fixed 100' or not velocities:return 100
+    for shift in range(0,61,12):
+        if note-shift in velocities:return velocities[note-shift]
+    return 100
+
+
+def arp_start_tick(anchor_frame,step_frames):
+    """First arp step at or after the frame where the phrase started (the first key press)."""
+    return max(0,int(math.ceil(anchor_frame/step_frames-1e-9)))
+
+
+def arp_phase(arp,tick,start_tick,step_beats=None):
+    """Pattern position for a clock tick: step 1 always lands on the first step after the key press.
+    With Restart on bar, step 1 also lands on every bar line."""
+    phase=tick-start_tick
+    if phase<0:return None
+    if arp.get('restart_bar') and step_beats:
+        bar=math.floor(tick*step_beats/4+1e-9)
+        bar_tick=int(math.ceil(bar*4/step_beats-1e-9))
+        phase=min(phase,tick-bar_tick)
+        return phase%arp['length'] if arp['retrigger'] else phase
+    return phase%arp['length'] if arp['retrigger'] else phase
+
+
+def arp_view(state,held,beat,anchor_beat=0.):
+    """What the arpeggiator is really playing: its note groups and the step at this beat."""
+    arp=state['arp']
+    if not held:return dict(groups=[],step=-1,phase=-1)
+    groups=arp_groups(held,arp['mode'],arp['octaves'],arp['seed'],octave_mode=arp.get('octave_mode','Up'))
+    if not groups:return dict(groups=[],step=-1,phase=-1)
+    size=DIVISIONS[arp['division']]
+    tick=int(math.floor(max(0.,beat)/size+1e-9))
+    phase=arp_phase(arp,tick,arp_start_tick(anchor_beat,size),size)
+    # step indexes groups; phase is the position in the arp cycle (Steps long with Retrig), for the piano roll.
+    return dict(groups=groups[:64],step=-1 if phase is None else phase%len(groups),phase=-1 if phase is None else phase)
+
+
+def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0,velocities=None,arp_anchor=0):
     """Return frame-offset note-on/off events for one 128-sample audio chunk.
 
     Every scheduled occurrence gets a stable per-tick token, so loop wrapping,
     polyphonic chords, long tied notes and releases don't steal live key voices.
+    arp_anchor is the song frame where the current arp phrase began (the key press),
+    so the pattern starts on its first note instead of wherever the clock happened to be.
     """
     events=[]
     seq,arp=state['seq'],state['arp']
@@ -375,7 +461,7 @@ def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0):
                     if start_frame<=on<end_frame:events.append((on-start_frame,1,num,velocity,token))
                     if start_frame<=off<end_frame:events.append((off-start_frame,0,num,0,token))
     if arp['enabled'] and held:
-        pattern=arp_groups(held,arp['mode'],arp['octaves'],arp['seed'])
+        pattern=arp_groups(held,arp['mode'],arp['octaves'],arp['seed'],octave_mode=arp.get('octave_mode','Up'))
         if arp['mode']=='User Sequence':
             user=current_pattern(state)
             actual=[item['note'] for step in user['steps'] for item in step]
@@ -386,16 +472,17 @@ def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0):
         if pattern:
             step_beats=DIVISIONS[arp['division']]
             step_frames=step_beats*fpb
-            begin=max(0,int(math.floor(start_frame/step_frames))-3)
+            first=arp_start_tick(arp_anchor,step_frames)
+            begin=max(first,int(math.floor(start_frame/step_frames))-3)
             finish=int(math.ceil(end_frame/step_frames))+1
             for tick in range(begin,finish):
-                cycle_step=tick%arp['length'] if arp['retrigger'] else tick
+                cycle_step=arp_phase(arp,tick,first,step_beats)
                 group=pattern[cycle_step%len(pattern)]
                 onset=round((tick*step_beats+time_swing(tick,arp['swing'],step_beats))*fpb)
                 for i,note in enumerate(group):
                     gate=arp['gate'];ratchets=1
                     if arp['spice']:
-                        rng=random.Random(tick*301+i*79+arp['seed'])
+                        rng=random.Random(tick*301+i*79+arp['seed']+(arp['spice_seed']-1)*7919)
                         if rng.random()<arp['spice']*.23:continue
                         gate=max(.1,min(.9,gate+rng.uniform(-.25,.25)*arp['spice']))
                         if rng.random()<arp['spice']*.3:ratchets=2
@@ -404,15 +491,18 @@ def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0):
                         on=onset+round(r*sublength)
                         off=on+max(1,round(gate*sublength))
                         token=('perf_arp',tick,i,r)
-                        if start_frame<=on<end_frame:events.append((on-start_frame,1,note,100,token))
+                        vel=_arp_velocity(arp,note,cycle_step%len(pattern)==0,velocities)
+                        if start_frame<=on<end_frame:events.append((on-start_frame,1,note,vel,token))
                         if start_frame<=off<end_frame:events.append((off-start_frame,0,note,0,token))
     return sorted(events,key=lambda event:(event[0],event[1]))
 
 
 class HeldNotes:
     """Runtime-only live chord memory for arpeggios; never persists stuck hardware keys."""
-    def __init__(self):self.keys={};self.latched=[];self.hold=False
-    def on(self,key,notes):
+    def __init__(self):self.keys={};self.latched=[];self.hold=False;self.velocity={}
+    def velocities(self):return dict(self.velocity)
+    def on(self,key,notes,velocity=100):
+        for n in notes:self.velocity[n]=velocity
         if self.hold and not self.keys:self.latched=[]
         self.keys[key]=list(notes)
         self.latched=list(dict.fromkeys([*self.latched,*notes]))[:64]
@@ -425,4 +515,4 @@ class HeldNotes:
     def set_hold(self,enabled):
         self.hold=bool(enabled)
         if not self.hold and not self.keys:self.latched=[]
-    def reset(self):self.keys={};self.latched=[]
+    def reset(self):self.keys={};self.latched=[];self.velocity={}

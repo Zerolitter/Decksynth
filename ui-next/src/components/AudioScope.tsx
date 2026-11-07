@@ -4,14 +4,14 @@ import { clamp } from '../types';
 import { meterIntensity } from '../pattern';
 
 export type Monitor = { rms:number;peak:number;wave:number[] };
-type Props={monitor:Monitor|null;running:boolean;voices:number;underruns:number;preview?:boolean};
+type Props={monitor:Monitor|null;running:boolean;voices:number;underruns:number;preview?:boolean;load?:number;bufferMs?:number};
 
 function dbfs(value:number) {
   if(!value||value<.00003)return '−∞';
   return (20*Math.log10(Math.max(.00003,value))).toFixed(1);
 }
 
-export function AudioScope({monitor,running,voices,underruns,preview=false}:Props) {
+export function AudioScope({monitor,running,voices,underruns,preview=false,load,bufferMs}:Props) {
   const canvas=useRef<HTMLCanvasElement>(null);
   const monitorRef=useRef(monitor);
   const activity=useRef(0);
@@ -90,7 +90,11 @@ export function AudioScope({monitor,running,voices,underruns,preview=false}:Prop
         <span>LIVE OUTPUT</span><strong>Oscilloscope</strong></div>
       <div className="scope-stat">
         <span><SignalHigh size={13}/> {voices} voices</span>
-        <span><Gauge size={13}/> {underruns} xrun</span>
+        <span className={'scope-dropouts'+(underruns?' warn':'')} title="Audio dropouts since start: each one is a click or gap">
+          <Gauge size={13}/> {underruns} dropout{underruns===1?'':'s'}</span>
+        {load!==undefined?<span className={'scope-load'+(load>.7?' warn':'')}
+          title="Engine load: the slowest audio block of the last second, as a share of the time it may take">
+          DSP {Math.round(load*100)}%{bufferMs?' · '+bufferMs+' ms':''}</span>:null}
         {preview?<span className="preview-label">DEMO SIGNAL</span>:null}
       </div>
     </header>

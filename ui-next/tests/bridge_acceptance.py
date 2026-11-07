@@ -62,6 +62,26 @@ try:
         obj.get('state',{}).get('bpm')==240,timeout=12)
     assert len(captured['state']['tracks'][0]['notes'])>=1,captured
     print('PASS: MIDI note recording reflected into canonical four-track project state',flush=True)
+    send('record')
+    send('clip',[0,'copy',1,0])
+    send('clip',[0,'open',1,None])
+    song={'on':True,'loop':True,'length':8,'markers':[{'bar':0,'name':'Intro'},{'bar':4,'name':'Drop'}],
+          'lanes':[[{'at':0,'len':8,'clip':0}],[{'at':4,'len':3,'clip':0},{'at':7,'len':1,'clip':1,'off':3}],[],[]]}
+    send('song',song)
+    arranged=receive(lambda obj:obj.get('state',{}).get('song',{}).get('on') and
+        len(obj['state']['song'].get('lanes',[[],[]])[1])==2 and 'song_pos' in obj,timeout=12)
+    s2=arranged['state']['song']
+    assert s2['markers'][1]['name']=='Drop' and s2['lanes'][1][1]=={'at':7,'len':1,'clip':1,'off':3},s2
+    clips=arranged['state']['clips']
+    assert clips['open'][0]==1 and len(clips['slots'][0][0])>=1,clips
+    assert arranged['state']['tracks'][0]['notes']==clips['slots'][0][0],'loop B is a copy of A'
+    print('PASS: song timeline and clip slots reached the engine and came back in the project state',flush=True)
+    send('select',0)
+    send('parameter',['vcf_type',None,1]); send('parameter',['uni_voices',None,3]); send('parameter',['vowel',None,2])
+    voiced=receive(lambda obj:obj.get('state',{}).get('tracks',[{}])[0].get('instrument',{}).get('vowel')==2.0,timeout=12)
+    ins=voiced['state']['tracks'][0]['instrument']
+    assert ins['vcf_type']==1 and ins['uni_voices']==3,ins
+    print('PASS: Filter, Unison and Character settings reached the engine',flush=True)
 finally:
     try:proc.stdin.close()
     except OSError:pass

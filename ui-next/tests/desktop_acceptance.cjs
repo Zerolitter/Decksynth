@@ -27,8 +27,8 @@ async function run(){
   await page.getByRole('tab',{name:/sound/i}).click();
   await page.locator('.harmonic-spectrum').waitFor({state:'visible'});
   assert.equal(await page.locator('.harmonic-bar').count(),16);
-  assert.ok(await page.locator('.sound-rack').isVisible());
   await page.screenshot({path:path.join(output,'electron-sound-test.png')});
+  assert.ok(await page.locator('.sound-rack').isVisible(),'Envelope sits on the same screen as the partials');
   console.log('PASS: SOUND tab exposes 16 harmonic editors and original Chordz rack');
   const before=await page.locator('.harmonic-bar').first().getAttribute('aria-label');
   await page.getByRole('button',{name:'SQUARE',exact:true}).click();

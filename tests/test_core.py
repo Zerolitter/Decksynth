@@ -57,7 +57,8 @@ class RegressionTests(unittest.TestCase):
     def test_held_note_harmonic_change(self):
         s=Synth(); s.on(60,100); old=s.voices[60]['table']
         p=dict(s.params); p['harmonics']=[0.]*16; s.configure(p)
-        self.assertIsNot(old,s.voices[60]['table']); self.assertEqual(max(s.render(256)),0)
+        # The new table takes over after a 256-sample crossfade (an instant swap clicks).
+        self.assertIsNot(old,s.voices[60]['table']); s.render(256); self.assertEqual(max(s.render(256)),0)
     def test_sustain_recorded_as_note_duration(self):
         e=Engine(1000); e.record(0); e.midi(0x90,60,100); e.render(250)
         e.midi(0xb0,64,127); e.midi(0x80,60,0); e.render(250)

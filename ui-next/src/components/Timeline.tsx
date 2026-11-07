@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AudioWaveform, CircleDot, Layers3, Volume2, VolumeX } from 'lucide-react';
+import { AudioWaveform, CircleDot, Layers3, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
+import { LIBRARY } from './PresetBrowser';
+
+const categoryOf=(name:string)=>LIBRARY.presets.find(p=>p.name===name)?.category??'';
 import { clamp, noteName, TRACK_COLORS, type Project, type Note } from '../types';
 
 type Props = {
@@ -7,6 +10,9 @@ type Props = {
   playing: boolean; recording: boolean;
   onSelect(index:number):void; onMute(index:number,next:boolean):void;
   onEdit(index:number,noteIndex:number,note:Note):void;
+  onOpenSound?(index:number):void; compact?:boolean;
+  /** Song page: each lane's clip button (the open clip's letter) and the toolbar above. */
+  loops?:{label:string;sub:string;aria:string;title:string}[]; onLoops?(index:number):void; header?:React.ReactNode;
 };
 
 function pitchSpan(notes:Note[]) {
@@ -96,10 +102,10 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
   </div>;
 }
 
-export function Timeline({project,selected,beat,playing,recording,onSelect,onMute,onEdit}:Props) {
+export function Timeline({project,selected,beat,playing,recording,onSelect,onMute,onEdit,onOpenSound,compact=false,loops,onLoops,header}:Props) {
   const noteCount=project.tracks.reduce((sum,t)=>sum+t.notes.length,0);
-  return <section className="timeline" aria-label="Four-track MIDI looping timeline">
-    <div className="timeline-toolbar">
+  return <section className={'timeline'+(compact?' compact':'')} aria-label="Four-track MIDI looping timeline">
+    {header??(compact?null:<div className="timeline-toolbar">
       <div className="timeline-toolbar-left">
         <span className="eyebrow">COMPOSITION</span>
         <h2>Loop canvas</h2>
@@ -113,10 +119,11 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
         <span className="measure-readout">{String(Math.floor(beat/4)+1).padStart(2,'0')}
           <span>:</span>{String(Math.floor(beat%4)+1).padStart(2,'0')}</span>
       </div>
-    </div>
+    </div>)}
     <div className="tracks" role="group" aria-label="Music tracks">
       {project.tracks.map((track,i)=>{
         const active=selected===i;
+        const loop=loops?.[i];
         return <div key={i} className={'track-row'+(active?' active':'')}
           style={{'--track-accent':TRACK_COLORS[i]} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
@@ -124,8 +131,12 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
             <span className="track-index">{String(i+1).padStart(2,'0')}</span>
             <span className="track-glyph">{i===1?<AudioWaveform size={16}/>:<Layers3 size={16}/>}</span>
             <span className="track-info"><strong>{track.preset}</strong>
-              <span>{track.notes.length?track.notes.length+' MIDI notes':'Ready to record'}</span></span>
+              <span>{[categoryOf(track.preset),track.notes.length?track.notes.length+' notes':'empty',track.mute?'muted':Math.round(track.volume*100)+'%'].filter(Boolean).join(' · ')}</span></span>
           </button>
+          {loop&&onLoops?<button type="button" className="lane-loop" aria-label={loop.aria}
+            title={loop.title} onClick={()=>onLoops(i)}><b>{loop.label}</b><small>{loop.sub}</small></button>:null}
+          {onOpenSound?<button type="button" className="lane-sound" aria-label={'Edit sound of '+track.preset}
+            title="Edit this sound" onClick={()=>onOpenSound(i)}><SlidersHorizontal size={17}/></button>:null}
           <button type="button" className={'lane-mute'+(track.mute?' muted':'')}
             aria-label={(track.mute?'Unmute ':'Mute ')+track.preset}
             aria-pressed={track.mute} title={track.mute?'Unmute':'Mute'}
@@ -138,9 +149,9 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
         </div>;
       })}
     </div>
-    <div className="timeline-foot">
+    {compact||header?null:<div className="timeline-foot">
       <span className="status-swatch"/> Notes remain editable after changing sounds
       <span className="timeline-foot-right">DRAG A NOTE TO MOVE IT</span>
-    </div>
+    </div>}
   </section>;
 }

@@ -114,8 +114,10 @@ class KeystepAudioTests(unittest.TestCase):
         self.assertEqual(e.project.tracks[0]['notes'],[],'Sequencer must not silently edit song clips')
         e.perform_set('seq','recording',False)
         e.perform_action('commit_song','add')
-        self.assertEqual(len(e.project.tracks[0]['notes']),1)
-        self.assertEqual(e.project.tracks[0]['notes'][0]['note'],60)
+        # A 1-bar pattern fills the 4-bar loop: once per bar, no empty bars.
+        notes=e.project.tracks[0]['notes']
+        self.assertEqual([n['start'] for n in notes],[0,4,8,12])
+        self.assertTrue(all(n['note']==60 for n in notes))
 
     def test_chord_live_voice_and_sustain(self):
         e=Engine(1000)

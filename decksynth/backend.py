@@ -5,9 +5,10 @@ import math
 import ctypes as C
 import glob
 import os
+import gc
 import queue
 import time
-from .core import Engine, MidiParser, Project, instrument
+from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, arp_view
 from .keystep import StepCapacityError
 
 class AudioSpec(C.Structure):
@@ -94,12 +95,21 @@ def worker(commands,updates):
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
     monitor_samples=deque(maxlen=768)
+    # Full-rate tail of the mix for the UI spectrum; the FFT itself runs in the renderer.
+    spectrum_samples=deque(maxlen=512)
     def send(obj):
         try:updates.put_nowait(obj)
         except queue.Full:pass
+    # Audio safety: a deeper buffer that grows after a dropout, no long garbage-collector pauses,
+    # and a higher priority when the system allows it. dsp_load is the worst render time per block
+    # over the last second, as a share of the block's own length (over 100 % means a dropout).
+    target=1024; load_peak=0.; load_shown=0.; load_since=time.monotonic()
+    try:os.nice(-5)
+    except (OSError,AttributeError):pass
     try:
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
+        gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
         while running:
             for _ in range(128):
@@ -138,14 +148,35 @@ def worker(commands,updates):
                         action,value=args
                         engine.perform_action(action,value)
                         send(dict(message='Performance: '+action))
+                    elif cmd=='cleanup':
+                        engine.cleanup(str(args)); audio and args=='all' and audio.clear()
+                        send(dict(message={'effects':'Effects removed','sound':'Sound reset','mods':'Mod pads cleared',
+                            'links':'All mod links removed','all':'New session. Undo brings the old one back.'}[args]))
                     elif cmd=='preset':
-                        engine.snapshot(); t=engine.project.tracks[engine.selected]; t['preset']=args; t['instrument']=instrument(args)
-                        engine.synths[engine.selected].panic(); engine.synths[engine.selected].configure(t['instrument'])
+                        engine.apply_preset(str(args))
                     elif cmd=='parameter':
                         key,index,value=args; t=engine.project.tracks[engine.selected]
-                        if key=='harmonics':t['instrument'][key][index]=value
-                        else:t['instrument'][key]=value
+                        if key=='harmonics':t['instrument'][key][index]=max(0.,min(1.,float(value)))
+                        elif key in SPECTRAL_RANGES:
+                            lo,hi=SPECTRAL_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
+                        elif key in ('attack','decay','sustain','release','filter','modulation'):t['instrument'][key]=value
+                        elif key in VOICE_RANGES:
+                            lo,hi=VOICE_RANGES[key];t['instrument'][key]=max(lo,min(hi,float(value)))
+                        elif key in VOICE_CHOICES:
+                            if int(value) not in VOICE_CHOICES[key]:raise ValueError('Unknown choice for '+key)
+                            t['instrument'][key]=int(value)
+                        else:raise ValueError('Unknown sound parameter: '+str(key))
                         engine.synths[engine.selected].configure(t['instrument'])
+                    elif cmd=='song':
+                        try:engine.set_song(args)
+                        except ValueError as exc:send(dict(error=str(exc)))
+                    elif cmd=='clip':
+                        try:engine.clip_action(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='fx':
+                        tr,chain=args
+                        try:engine.set_fx(int(tr),chain)
+                        except (ValueError,IndexError) as exc:send(dict(error=str(exc)))
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']
@@ -183,13 +214,16 @@ def worker(commands,updates):
             if not running:break
             for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
-                if started and audio.queued()==0:underruns+=1
-                while audio.queued()<768:
-                    block=engine.render(256)
+                if started and audio.queued()==0:
+                    underruns+=1; target=min(2048,target+256)
+                while audio.queued()<target:
+                    t0=time.perf_counter(); block=engine.render(256)
+                    load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
-                    monitor_samples.extend(block[::8])
+                    monitor_samples.extend(block[::8]); spectrum_samples.extend(block)
                 if not started:audio.start(); started=True
             now=time.monotonic()
+            if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
             if now-last_status>.1:
                 last_status=now
                 samples=list(monitor_samples)
@@ -200,13 +234,19 @@ def worker(commands,updates):
                     peak=max(abs(v) for v in samples)
                 else:
                     display=[]; rms=0.; peak=0.
-                meter=dict(rms=round(rms,5),peak=round(peak,5),wave=display)
+                meter=dict(rms=round(rms,5),peak=round(peak,5),wave=display,
+                           spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
+                           fx_live=engine.fx_live(engine.selected))
                 send(dict(state=engine.project.data(),selected=engine.selected,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
-                          meter=meter, held_notes=engine.perform_held.held()))
+                          dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
+                          meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,
+                          arp_view=dict(arp_view(engine.project.performance,engine.perform_held.held(),engine.beat,engine.arp_anchor_beat),
+                                        **(dict(step=-1,phase=-1) if engine.arp_paused else {}),paused=engine.arp_paused)
+                          if engine.project.performance['arp']['enabled'] else None,song_beat=round(engine.beat,4)))
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:

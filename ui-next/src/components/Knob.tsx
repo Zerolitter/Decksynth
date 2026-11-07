@@ -15,10 +15,14 @@ type Props = {
   step?: number; suffix?: string; accent?: string; precision?: number;
   onChange: (next: number) => void;
   description?: string; compact?: boolean;
+  /** Live modulated position (in value units) drawn as an outer ring; null/undefined hides it. */
+  modValue?: number|null; modColor?: string;
+  /** Optional text for the value (e.g. a rate name for a stepped knob). */
+  format?: (n:number)=>string;
 };
 
 export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
-  precision=2,onChange,description='',compact=false}:Props) {
+  precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format}:Props) {
   const gradientId = useId().replace(/:/g,'');
   const drag = useRef<RelativeDragHandle|null>(null);
   const dragging = useRef(false);
@@ -43,6 +47,7 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
   useEffect(()=>{if(editing){setDraft(String(local));input.current?.select();}},[editing]);
 
   function show(n:number){
+    if(format)return format(n);
     if(suffix==='%'&&max<=1)return Math.round(n*100)+'%';
     if(suffix==='Hz')return n>=1000?(n/1000).toFixed(2)+'kHz':Math.round(n)+'Hz';
     return n.toFixed(precision)+(suffix?' '+suffix:'');
@@ -146,6 +151,16 @@ export function Knob({id,name,value,min,max,step=.001,suffix='',accent='var(--ac
         <line x1={28+3*ux} y1={28+3*uy} x2={28+15.8*ux} y2={28+15.8*uy}
           stroke="#f8f9f7" strokeWidth="3" strokeLinecap="round"/>
         <circle cx="28" cy="28" r="2" fill="#f7f8f4" opacity=".84"/>
+        {modValue!==null&&modValue!==undefined?(()=>{
+          const mu=knobToUnit(modValue,min,max),a0=Math.min(unit,mu),a1=Math.max(unit,mu);
+          const pt=(u:number)=>{const a=(-225+u*270)*Math.PI/180;return [28+30*Math.cos(a),28+30*Math.sin(a)];};
+          const [x0,y0]=pt(a0),[x1,y1]=pt(a1),[mx,my]=pt(mu);
+          return <g className="knob-mod">
+            {a1-a0>.004?<path d={`M${x0.toFixed(2)} ${y0.toFixed(2)} A30 30 0 ${(a1-a0)*270>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
+              fill="none" stroke={modColor} strokeWidth="3" strokeLinecap="round" opacity=".9"/>:null}
+            <circle cx={mx} cy={my} r="3.2" fill={modColor} stroke="#0b1114" strokeWidth="1"/>
+          </g>;
+        })():null}
       </svg>
       {showBubble&&!editing&&<span className="knob-live-value" role="status">
         {name}<b>{show(local)}</b></span>}

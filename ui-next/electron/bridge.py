@@ -26,7 +26,7 @@ COMMANDS = {
     'perform_set', 'perform_step', 'perform_action',
     'midi', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
-    'edit_note', 'track', 'tempo', 'bars', 'metronome',
+    'edit_note', 'track', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'cleanup',
     'save', 'load', 'export', 'save_preset', 'load_preset',
 }
 

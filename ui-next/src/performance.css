@@ -211,3 +211,14 @@
 /* Keep the keyboard reference notes and clock limitations visible above the footer. */
 .decksynth-shell .perf-simple{gap:12px}
 .decksynth-shell .perf-simple .perf-footnote{margin:0 8px 1px;line-height:1.35}
+/* Arp rate shortcuts and the live arpeggio lane */
+.decksynth-shell .perf-rate-quick{grid-column:1/-1;order:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.decksynth-shell .perf-rate-quick>span{font:700 11px ui-monospace,monospace;letter-spacing:.08em;color:#8fa9a2;margin-right:6px}
+.decksynth-shell .perf-rate-quick button{min-height:44px;min-width:52px;padding:0 12px;border-radius:8px;border:1px solid #47625b;background:#1d2e30;color:#d7efe5;font:700 13px ui-monospace,monospace}
+.decksynth-shell .perf-rate-quick button.active{background:#6cae95;color:#0a1a15;border-color:#6cae95}
+.decksynth-shell .perf-arp-lane{display:flex;flex-wrap:wrap;gap:6px;padding:14px;border:1px solid #2f4746;border-radius:10px;background:#122022;min-height:64px;align-items:center}
+.decksynth-shell .perf-arp-lane em{color:#8fa9a2;font-style:normal;font-size:14px}
+.decksynth-shell .perf-arp-step{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:52px;min-height:48px;padding:4px 6px;border-radius:7px;background:#263b3c;border:1px solid #47625b;font:700 12px ui-monospace,monospace;color:#d7efe5}
+.decksynth-shell .perf-arp-step i{font-style:normal;font-size:10px;opacity:.6}
+.decksynth-shell .perf-arp-step.active{background:#6cae95;color:#0a1a15;border-color:#9fe0c6;box-shadow:0 0 12px #6cae9566}
+.decksynth-shell .perf-music-actions button:disabled{opacity:.45}
