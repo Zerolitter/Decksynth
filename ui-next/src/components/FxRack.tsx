@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
 import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X } from 'lucide-react';
@@ -6,7 +6,7 @@ import { Knob } from './Knob';
 import { FxGraph } from './FxGraph';
 import { Spectrum } from './Spectrum';
 import { FrameWindow } from './FrameWindow';
-import { Panel, stackFolded, useAutoFold, useFolds } from './Panel';
+import { Panel, useAutoFold } from './Panel';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxTarget } from '../fx';
 import { MorphPad } from './MorphPad';
 import { GateSheet, GateStrip } from './GateSheet';
@@ -79,7 +79,6 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
   useEffect(()=>{setPicking(false);setGateOpen(false);},[selected]);
   const active=chain.modules.filter(m=>m.on), inactive=chain.modules.filter(m=>!m.on);
   useAutoFold(rack,active.map(m=>'fx-'+m.id),autoFold);
-  const folds=useFolds();
   const linksInto=(id:FxModuleId)=>[...chain.macros,...chain.mods].reduce((n,src)=>n+src.targets.filter(t=>t.module===id).length,0);
   const setModule=(id:FxModuleId,patch:(m:FxChain['modules'][number])=>FxChain['modules'][number])=>
     onChange({...chain,modules:chain.modules.map(m=>m.id===id?patch(m):m)});
@@ -117,9 +116,9 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
 
   return <div ref={rack} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
     style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}} data-track={selected}>
-    {stackFolded(active.map((state,pos)=>{
+    {active.map((state,pos)=>{
       const def=FX_MODULES[state.id], idx=FX_ORDER.indexOf(state.id);
-      return {id:'fx-'+state.id,node:<Panel role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
+      return {id:'fx-'+state.id,node:<Panel rail role="listitem" key={state.id} id={'fx-'+state.id} label={def.name} title={def.name}
         className={'rack-card fx-card-module on'+(state.bypass?' bypassed':'')} tag={def.color} mods={linksInto(state.id)}
         style={{['--fx-color' as string]:def.color}}
         icon={<span className="fx-slot-no">{pos+1}</span>}
@@ -163,7 +162,7 @@ export function FxCards({selected,chain:raw,onChange,live,armed,autoFold,beat=0,
           })}
         </div>
       </Panel>};
-    }),folds)}
+    }).map(({id,node})=><Fragment key={id}>{node}</Fragment>)}
     {inactive.length?<div role="listitem" className={'rack-card fx-add-card'+(active.length?'':' empty')}>
       <button type="button" className="fx-add-open" aria-label="Add effect" aria-expanded={picking} onClick={()=>setPicking(v=>!v)}>
         <Plus size={22}/><strong>Add effect</strong>

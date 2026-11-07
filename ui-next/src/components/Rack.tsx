@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AudioWaveform, Layers, Mic2, RotateCcw, SlidersHorizontal, Sparkles, Volume2, Waves } from 'lucide-react';
-import { Panel, stackFolded, useAutoFold, useFolds } from './Panel';
+import { Panel, useAutoFold } from './Panel';
 import { Knob } from './Knob';
 import { TRACK_COLORS, type Track } from '../types';
 import { SOUND_TARGETS, normalizeChain, type FxChain } from '../fx';
@@ -64,7 +64,6 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
     </div>;
   };
   useAutoFold(rack,CARD_IDS,autoFold);
-  const folds=useFolds();
   const p=track.instrument;
   const accent=TRACK_COLORS[selected];
   const set=(key:keyof Params,value:number)=>onParam(key,null,value);
@@ -76,8 +75,8 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
   const reset=(label:string,fn:()=>void)=><button type="button" className="panel-icon-action" aria-label={'Reset '+label}
     title={'Reset '+label} onClick={fn}><RotateCcw size={15}/></button>;
   return <div ref={rack} className={'frame-rack sound-cards'+(armed?' is-assigning':'')}
-    style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}}>{stackFolded([
-    {id:'sound-tone',node:<Panel id="sound-tone" className="rack-card sound-card card-tone" title="Tone" tag={TAGS.tone} mods={linksInto('sound-tone')} icon={<Sparkles size={15}/>} accent={accent}
+    style={{['--armed' as string]:armed?sourceColor(armed):'transparent'}}>{[
+    {id:'sound-tone',node:<Panel rail id="sound-tone" className="rack-card sound-card card-tone" title="Tone" tag={TAGS.tone} mods={linksInto('sound-tone')} icon={<Sparkles size={15}/>} accent={accent}
       summary={'Bright '+pct(p.filter)+' · Curve '+spectral('curve').toFixed(2)}
       actions={reset('tone',()=>{(['curve','balance','focus','focus_center'] as const).forEach(k=>onParam(k,null,SPECTRAL_NEUTRAL[k]));})}>
       <div className="rack-knobs">
@@ -93,7 +92,7 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           compact accent={accent} onChange={v=>set('focus_center',Math.round(v))} {...m}/>)}
       </div>
     </Panel>},
-    {id:'rack-envelope',node:<Panel id="rack-envelope" className="rack-card sound-card card-envelope sound-rack" icon={<SlidersHorizontal size={15}/>} title="Envelope" tag={TAGS.envelope} mods={linksInto('rack-envelope')}
+    {id:'rack-envelope',node:<Panel rail id="rack-envelope" className="rack-card sound-card card-envelope sound-rack" icon={<SlidersHorizontal size={15}/>} title="Envelope" tag={TAGS.envelope} mods={linksInto('rack-envelope')}
       accent={accent}
       summary={'A '+p.attack.toFixed(2)+'s · D '+p.decay.toFixed(2)+'s · S '+pct(p.sustain)+' · R '+p.release.toFixed(2)+'s'}
       actions={reset('envelope',()=>{set('attack',.008);set('decay',.6);set('sustain',.35);set('release',.5);})}>
@@ -110,14 +109,14 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           min={.01} max={3} step={.005} suffix="s" compact accent={accent} onChange={v=>set('release',v)} {...m}/>)}
       </div>
     </Panel>},
-    {id:'motion-synth',node:<Panel id="motion-synth" className="rack-card sound-card card-movement" icon={<Waves size={15}/>} title="Movement" accent={accent} tag={TAGS.movement} mods={linksInto('motion-synth')}
+    {id:'motion-synth',node:<Panel rail id="motion-synth" className="rack-card sound-card card-movement" icon={<Waves size={15}/>} title="Movement" accent={accent} tag={TAGS.movement} mods={linksInto('motion-synth')}
       summary={pct(p.modulation)} actions={reset('movement',()=>set('modulation',.08))}>
       <div className="rack-knobs" title="Vibrato and tremolo. The mod wheel adds to it.">
         {cell('modulation',m=><Knob id={selected+'-tone-motion'} name="Amount" value={p.modulation}
           min={0} max={1} step={.005} suffix="%" compact accent={accent} onChange={v=>set('modulation',v)} {...m}/>)}
       </div>
     </Panel>},
-    {id:'rack-output',node:<Panel id="rack-output" className="rack-card sound-card card-output" icon={<Volume2 size={15}/>} title="Output" accent={accent} tag={TAGS.output} mods={linksInto('rack-output')}
+    {id:'rack-output',node:<Panel rail id="rack-output" className="rack-card sound-card card-output" icon={<Volume2 size={15}/>} title="Output" accent={accent} tag={TAGS.output} mods={linksInto('rack-output')}
       power={{on:!track.mute,label:'track output',onToggle:()=>onTrack('mute',!track.mute)}}
       summary={(track.mute?'Muted · ':'')+pct(track.volume)}>
       <div className="rack-knobs">
@@ -128,7 +127,7 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           onClick={()=>onTrack('mute',!track.mute)}>{track.mute?'Muted':'Mute'}</button>
       </div>
     </Panel>},
-    {id:'sound-filter',node:<Panel id="sound-filter" className="rack-card sound-card card-filter" icon={<AudioWaveform size={15}/>} title="Filter" accent={accent} tag={TAGS.filter} mods={linksInto('sound-filter')}
+    {id:'sound-filter',node:<Panel rail id="sound-filter" className="rack-card sound-card card-filter" icon={<AudioWaveform size={15}/>} title="Filter" accent={accent} tag={TAGS.filter} mods={linksInto('sound-filter')}
       power={{on:ftype>0,label:'filter',onToggle:()=>set('vcf_type',ftype?0:lastType.current)}}
       summary={ftype?FILTER_TYPES[ftype-1]+' · '+fmtHz(vp('vcf_cutoff'))+' · Res '+pct(vp('vcf_reso')):'Off'}
       actions={reset('filter',()=>resetVoice(['vcf_cutoff','vcf_reso','vcf_env']))}>
@@ -143,7 +142,7 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           format={fmtOct} compact accent={accent} onChange={v=>set('vcf_env',v)} {...m}/>)}
       </div>
     </Panel>},
-    {id:'sound-unison',node:<Panel id="sound-unison" className="rack-card sound-card card-unison" icon={<Layers size={15}/>} title="Unison" accent={accent} tag={TAGS.unison} mods={linksInto('sound-unison')}
+    {id:'sound-unison',node:<Panel rail id="sound-unison" className="rack-card sound-card card-unison" icon={<Layers size={15}/>} title="Unison" accent={accent} tag={TAGS.unison} mods={linksInto('sound-unison')}
       summary={vp('uni_voices')===1?'1 voice':vp('uni_voices')+' voices · '+fmtCents(vp('uni_detune'))}
       actions={reset('unison',()=>resetVoice(['uni_voices','uni_detune']))}>
       <div className="rack-knobs" title="Stacks detuned copies of each note for a wider, thicker sound.">
@@ -153,7 +152,7 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
           format={fmtCents} compact accent={accent} onChange={v=>set('uni_detune',v)} {...m}/>)}
       </div>
     </Panel>},
-    {id:'sound-character',node:<Panel id="sound-character" className="rack-card sound-card card-character" icon={<Mic2 size={15}/>} title="Character" accent={accent} tag={TAGS.character} mods={linksInto('sound-character')}
+    {id:'sound-character',node:<Panel rail id="sound-character" className="rack-card sound-card card-character" icon={<Mic2 size={15}/>} title="Character" accent={accent} tag={TAGS.character} mods={linksInto('sound-character')}
       summary={'Vowel '+fmtVowel(vp('vowel'))+' '+pct(vp('formant'))+' · Stretch '+pct(vp('inharm'))+' · Sub '+pct(vp('sub'))}
       actions={reset('character',()=>resetVoice(['formant','vowel','inharm','sub','sub_oct']))}>
       <div className="rack-knobs">
@@ -169,7 +168,7 @@ export function SoundCards({track,selected,onParam,onTrack,autoFold,onChain,arme
         <Choice label="Sub octave" name="Sub octave" value={vp('sub_oct')} onPick={v=>set('sub_oct',v)}
           options={[{label:'−1',value:1,aria:'One octave down'},{label:'−2',value:2,aria:'Two octaves down'}]}/>
       </div>
-    </Panel>}],folds)}
+    </Panel>}].map(({id,node})=><Fragment key={id}>{node}</Fragment>)}
     {envOpen?<EnvSheet env={p} color="#f2c46d" accent={accent} track={selected} live={live?.sound as never}
       container={rack.current?.closest('.frame')??null} onChange={(k,v)=>set(k,v)} onClose={()=>setEnvOpen(false)}/>:null}
     {ring.bubble}

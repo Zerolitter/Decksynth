@@ -82,7 +82,7 @@
 .harness-shell .fx-graph-tile .fx-graph-canvas{flex:1;height:auto;min-height:0}
 
 /* ---------- rack: two rows of cards, each as tall as the mod pad row ---------- */
-.harness-shell .frame-rack{position:relative;min-height:0;display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;overflow-y:auto;overflow-x:hidden;
+.harness-shell .frame-rack{position:relative;min-height:0;display:flex;flex-wrap:nowrap;align-items:stretch;gap:8px;overflow-y:hidden;overflow-x:auto;
   scrollbar-width:thin;scrollbar-color:#3d4f55 transparent}
 .harness-shell .rack-card{flex:0 0 auto;height:104px;box-sizing:border-box;max-width:100%}
 .harness-shell .rack-card.folded{height:40px}
@@ -180,14 +180,6 @@
 .clean-confirm span{flex:1 1 100%}
 .clean-confirm button{min-height:40px;padding:0 14px;border-radius:8px;background:#1d282b;border:1px solid #4a5a60;color:#e6efeb;font-weight:750}
 .clean-confirm button.danger{background:#a04646;border-color:#e08a8a;color:#fff}
-.harness-shell .fold-stack{display:flex;flex-direction:column;gap:5px;height:112px;width:250px;flex:0 0 auto}
-.harness-shell .fold-stack .rack-card.folded{height:34px;width:100%}
-.harness-shell .fold-stack .rack-card.folded .ds-panel-bar{height:32px;min-height:32px;padding-left:2px}
-.harness-shell .fold-stack .ds-panel-power{width:28px;height:28px}
-.harness-shell .fold-stack .ds-panel-fold{height:30px;width:36px;margin-left:auto}
-.harness-shell .fold-stack .ds-panel-actions{display:none}
-.harness-shell .fold-stack .ds-panel-summary{display:none}
-
 /* ---------- Morph pad with path symbols ---------- */
 .harness-shell .morph-v2{display:flex;gap:16px;align-items:stretch;min-height:0}
 .harness-shell .morph-v2 .morph-pad{flex:none;height:100%;aspect-ratio:1;border-radius:10px;border-color:#3b5058}
@@ -233,8 +225,8 @@
 /* ---------- one coherent frame (step 15) ----------
    The rack only takes the rows it uses (one card row, two at most), so the focus window above it
    gets the rest of the height on every page and nothing in the window can spill over the rack. */
-.harness-shell .frame{grid-template-rows:172px minmax(0,1fr) auto}
-.harness-shell .frame-rack{max-height:232px;min-height:112px}
+.harness-shell .frame{grid-template-rows:172px minmax(0,1fr) 176px}
+.harness-shell .frame-rack{height:176px;min-height:176px;max-height:176px;padding-bottom:4px;scroll-padding:4px}
 .harness-shell .frame-window{overflow:hidden}
 .harness-shell .frame-window-body{overflow:hidden}
 /* Effects view: one row of tiles that always fits the window; live output closes the chain. */
@@ -259,3 +251,23 @@
 .harness-shell .pe-body>.pe-links{grid-column:3;grid-row:1 / 3}
 .harness-shell .pe-no{display:grid;place-items:center;width:21px;height:21px;flex:none;border-radius:50%;background:var(--src);color:#101316;font-weight:800}
 .harness-shell .pe-bar>.pe-dot{display:none}
+
+/* Upright rack rails, separate from generic title-bar folding. */
+.harness-shell .frame-rack>.rack-card{height:170px;flex:0 0 auto;max-width:none}
+.harness-shell .frame-rack .rack-card .ds-panel-bar{height:44px;min-height:44px;gap:6px;padding:0 4px 0 8px}
+.harness-shell .frame-rack .rack-card .ds-panel-body{padding:6px 8px;flex:1;min-height:0}
+.harness-shell .frame-rack .rack-card .ds-panel-fold,.harness-shell .frame-rack .panel-icon-action,.harness-shell .frame-rack .fx-order button{width:44px;height:44px;min-width:44px;flex:none}
+.harness-shell .frame-rack .ds-panel-power{width:44px;height:44px;min-width:44px;flex:none;box-shadow:none;border-radius:8px}
+.harness-shell .frame-rack .tactile-knob{width:64px;min-width:64px;gap:2px}
+.harness-shell .frame-rack .tactile-knob .knob-target{width:52px;height:52px;min-width:52px;min-height:52px}
+.harness-shell .frame-rack .tactile-knob .knob-value,.harness-shell .frame-rack .knob-entry{height:44px;min-height:44px;min-width:44px;padding:0 4px;font-size:11px}
+.harness-shell .frame-rack .rack-card .ds-panel-title{font-size:12px}
+.harness-shell .frame-rack .rack-card.folded{width:48px;min-width:48px;flex:0 0 48px}
+.harness-shell .frame-rack .rack-card.folded .rail-bar{height:100%;min-height:0;display:flex;flex-direction:column;padding:1px;gap:0;border:0}
+.harness-shell .rail-open{flex:1;min-height:44px;width:44px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:5px 0;border:0;border-radius:6px;background:transparent;color:var(--panel-tag,var(--text));cursor:pointer}
+.harness-shell .rail-open>svg{transform:rotate(-90deg);flex:none}
+.harness-shell .rail-title{writing-mode:vertical-rl;transform:rotate(180deg);font-size:12px;font-weight:750;flex:1;min-height:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.harness-shell .rail-open .ds-panel-mods{padding:1px 4px;font-size:10px;flex:none}
+.harness-shell .panel-bypass{font-size:10px;color:var(--muted);white-space:nowrap}
+.harness-shell .frame-rack .powered-off .ds-panel-body{opacity:1}
+.harness-shell .frame-rack .fx-add-card{height:170px;min-height:170px}

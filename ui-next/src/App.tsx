@@ -327,6 +327,7 @@ function App() {
       const target=event.target as HTMLElement;
       if(['INPUT','TEXTAREA','SELECT'].includes(target?.tagName)||target?.isContentEditable)return;
       const k=event.key;
+      if(k===' '&&target?.closest('button,[role="button"],[role="slider"],[role="tab"]'))return;
       const controls:{[key:string]:string}={F5:'play',F6:'stop',F7:'record',F10:'undo'};
       if(controls[k]){event.preventDefault();command(controls[k]);return;}
       if(k==='F8'||k==='F9'){event.preventDefault();command('select',(selected+(k==='F8'?3:1))%4);}
