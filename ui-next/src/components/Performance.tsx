@@ -341,7 +341,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
           className={'pf-cell'+(i%4===0?' beat':'')+(i===currentStep?' live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')+(edit.selection.includes(eventIndex)?' selected':'')}
           data-note-time={i} data-note-pitch={note} onPointerDown={e=>edit.begin(e,i,note,locate)} onPointerMove={edit.move} onPointerUp={edit.end} onPointerCancel={edit.cancel}
           onClick={e=>{if(e.detail===0)edit.tap(i,note);}}>
-          {item?<i className={'pf-note'+(item.velocity>=120?' accent':'')+(i===currentStep?' hit':'')}
+          {item?<i className={'pf-note'+(edit.copyGhosts.includes(eventIndex)?' copy-preview':'')+(item.velocity>=120?' accent':'')+(i===currentStep?' hit':'')}
             style={{width:'calc('+Math.min(item.tie,16-(i%16))*100+'% - 4px)'}}/>:null}
         </button>;
       })}

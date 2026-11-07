@@ -301,3 +301,8 @@
 .context-wheel-ring{width:100%;height:auto}.context-wheel-ring text{font-size:10px}.context-wheel-ring path.branch-active{stroke:#b7dacf;stroke-width:2}.context-action-list{max-height:460px;overflow:auto}
 
 .context-wheel-caption{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.pf-note.copy-preview,.note-editor-block.copy-preview{opacity:.45;outline:1px dashed #e0f6ec;outline-offset:-1px}
+
+.context-action-list small{float:right;margin-left:14px;color:#bbd1c8}.context-wheel-ring .wheel-shortcut{font-size:8px;fill:#b7ccc5}
+.note-shortcuts-backdrop{position:fixed;inset:0;z-index:1900;background:#080a0cc0;display:grid;place-items:center}.note-shortcuts{width:650px;max-width:calc(100vw - 32px);background:#1d2327;border:1px solid #64776f;border-radius:12px;padding:16px;color:#e4eded}.note-shortcuts header{display:flex;align-items:center;justify-content:space-between;min-height:44px}.note-shortcuts button{min-width:60px;min-height:44px;background:#282e33;color:#dce5e2;border:1px solid #435159;border-radius:6px;padding:0 12px;font:inherit}.note-shortcuts table{width:100%;font-size:12px;border-collapse:collapse}.note-shortcuts th,.note-shortcuts td{padding:6px 8px;text-align:left;border-bottom:1px solid #36433e}.note-shortcuts th{width:180px;color:#bce0d2}.note-shortcuts p{font-size:11px;line-height:1.5;color:#c1ceca}

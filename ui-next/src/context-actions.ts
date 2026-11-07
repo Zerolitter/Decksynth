@@ -1,12 +1,18 @@
 export type ContextKind='seq.empty'|'seq.note'|'song.empty'|'song.note'|'chord.key'|'drum.pad'|'library.pattern'|'rack.card'|'parameter'|'track.header';
-export type Capability='add'|'chord'|'paste'|'open'|'pitchUp'|'pitchDown'|'octaveUp'|'octaveDown'|'velocity'|'earlier'|'later'|'longer'|'shorter'|'quantize'|'duplicate'|'delete'|'copy'|'selectAll'|'play'|'invert'|'spread'|'chordType'|'saveChord'|'import'|'relink'|'level'|'mute'|'solo'|'kit'|'preview'|'load'|'details'|'library'|'fold'|'pin'|'previous'|'next'|'bypass'|'value'|'reset'|'automation'|'modulation'|'midi'|'focus'|'synth'|'drums'|'presets'|'song'|'sound'|'fx'|'perform';
+export type Capability='cut'|'samePitch'|'chordSelection'|'halfLength'|'doubleLength'|'repeat'|'velocitySoft'|'velocityUp'|'velocityDown'|'major'|'minor'|'add'|'chord'|'paste'|'open'|'pitchUp'|'pitchDown'|'octaveUp'|'octaveDown'|'velocity'|'earlier'|'later'|'longer'|'shorter'|'quantize'|'duplicate'|'delete'|'copy'|'selectAll'|'play'|'invert'|'spread'|'chordType'|'saveChord'|'import'|'relink'|'level'|'mute'|'solo'|'kit'|'preview'|'load'|'details'|'library'|'fold'|'pin'|'previous'|'next'|'bypass'|'value'|'reset'|'automation'|'modulation'|'midi'|'focus'|'synth'|'drums'|'presets'|'song'|'sound'|'fx'|'perform';
 export type Capabilities=Partial<Record<Capability,()=>void>>;
-export type ContextAction={id:string;title:string;run?:()=>void;children?:ContextAction[]};
-const titles:Record<Capability,string>={add:'Add note',chord:'Add chord',paste:'Paste notes',open:'Open editor',pitchUp:'Pitch +1',pitchDown:'Pitch −1',octaveUp:'Octave +1',octaveDown:'Octave −1',velocity:'Accent velocity',earlier:'Earlier',later:'Later',longer:'Longer',shorter:'Shorter',quantize:'Quantize',duplicate:'Duplicate',delete:'Delete notes',copy:'Copy notes',selectAll:'Select all',play:'Audition',invert:'Invert voicing',spread:'Spread voices',chordType:'Chord type',saveChord:'Save chord',import:'Import WAV',relink:'Relink WAV',level:'Edit level',mute:'Toggle mute',solo:'Toggle solo',kit:'Kit browser',preview:'Preview',load:'Load slot',details:'Details',library:'Library',fold:'Fold / unfold',pin:'Pin / unpin',previous:'Previous card',next:'Next card',bypass:'Toggle bypass',value:'Edit value',reset:'Reset default',automation:'Automation',modulation:'Modulation',midi:'MIDI Learn',focus:'Focus track',synth:'Synth',drums:'Drum Rack',presets:'Presets / kits',song:'Song',sound:'Sound',fx:'FX',perform:'Perform'};
-type Entry=Capability|{id:string;title:string;items:Capability[]};
-const group=(id:string,title:string,items:Capability[]):Entry=>({id,title,items});
+export type ContextAction={id:string;title:string;run?:()=>void;children?:ContextAction[];shortcut?:string};
+const titles:Record<Capability,string>={cut:'Cut notes',samePitch:'Same pitch',chordSelection:'Chord notes',halfLength:'Half length',doubleLength:'Double length',repeat:'Repeat',velocitySoft:'Soft velocity',velocityUp:'Velocity +10',velocityDown:'Velocity −10',major:'Major triad',minor:'Minor triad',add:'Add note',chord:'Add chord',paste:'Paste notes',open:'Open editor',pitchUp:'Pitch +1',pitchDown:'Pitch −1',octaveUp:'Octave +1',octaveDown:'Octave −1',velocity:'Accent velocity',earlier:'Earlier',later:'Later',longer:'Longer',shorter:'Shorter',quantize:'Quantize',duplicate:'Duplicate',delete:'Delete notes',copy:'Copy notes',selectAll:'Select all',play:'Audition',invert:'Invert voicing',spread:'Spread voices',chordType:'Chord type',saveChord:'Save chord',import:'Import WAV',relink:'Relink WAV',level:'Edit level',mute:'Toggle mute',solo:'Toggle solo',kit:'Kit browser',preview:'Preview',load:'Load slot',details:'Details',library:'Library',fold:'Fold / unfold',pin:'Pin / unpin',previous:'Previous card',next:'Next card',bypass:'Toggle bypass',value:'Edit value',reset:'Reset default',automation:'Automation',modulation:'Modulation',midi:'MIDI Learn',focus:'Focus track',synth:'Synth',drums:'Drum Rack',presets:'Presets / kits',song:'Song',sound:'Sound',fx:'FX',perform:'Perform'};
+type Entry=Capability|{id:string;title:string;items:Entry[]};
+const group=(id:string,title:string,items:Entry[]):Entry=>({id,title,items});
 const navigation=group('navigation','Navigate',['song','sound','fx','perform','library']);
-const note:Entry[]=[group('note','Note',['pitchUp','pitchDown','octaveUp','octaveDown','velocity']),group('timing','Timing',['earlier','later','longer','shorter','quantize']),'duplicate',group('edit','Edit',['delete','copy','paste','selectAll','open']),navigation];
+const note:Entry[]=[
+ group('note','Note',[group('transpose','Transpose',['pitchUp','pitchDown']),group('octave','Octave',['octaveUp','octaveDown']),group('velocityMenu','Velocity',['velocity','velocitySoft','velocityUp','velocityDown']),group('length','Length',['longer','shorter','halfLength','doubleLength'])]),
+ group('timing','Timing',['quantize','earlier','later',group('rhythm','Rhythm',['halfLength','doubleLength','repeat'])]),
+ group('selection','Selection',['selectAll','samePitch','chordSelection']),
+ group('edit','Edit',['duplicate','copy','cut','paste','delete','open']),
+ group('harmony','Harmony',['invert','spread',group('chordTypeMenu','Chord type',['major','minor'])]),navigation];
+const shortcuts:Partial<Record<Capability,string>>={copy:'Ctrl+C',cut:'Ctrl+X',paste:'Ctrl+V',duplicate:'Ctrl+D',delete:'Del',selectAll:'Ctrl+A',quantize:'Q',octaveUp:'Ctrl+↑',octaveDown:'Ctrl+↓',pitchUp:'↑',pitchDown:'↓',earlier:'←',later:'→',shorter:'Shift+←',longer:'Shift+→'};
 const kinds:Record<ContextKind,Entry[]>={
  'seq.empty':['add','chord','paste','open',navigation], 'seq.note':note,'song.note':note,
  'song.empty':['open','paste','focus',navigation],
@@ -18,8 +24,8 @@ const kinds:Record<ContextKind,Entry[]>={
  'track.header':['focus',group('instrument','Instrument',['synth','drums']),'presets',group('track','Track',['mute']),navigation]
 };
 export function contextActions(kind:ContextKind,caps:Capabilities):ContextAction[]{
- const leaf=(id:Capability):ContextAction|null=>caps[id]?{id,title:titles[id],run:caps[id]}:null;
- return kinds[kind].flatMap(e=>{if(typeof e==='string'){const a=leaf(e);return a?[a]:[];}const children=e.items.flatMap(id=>{const a=leaf(id);return a?[a]:[];});return children.length?[{id:e.id,title:e.title,children}]:[];});
+ const entry=(e:Entry):ContextAction|null=>{if(typeof e==='string')return caps[e]?{id:e,title:titles[e],run:caps[e],shortcut:shortcuts[e]}:null;const children=e.items.map(entry).filter((a):a is ContextAction=>a!==null);return children.length?{id:e.id,title:e.title,children}:null;};
+ return kinds[kind].map(entry).filter((a):a is ContextAction=>a!==null);
 }
 export function wheelPosition(x:number,y:number,w:number,h:number){return {x:Math.max(164,Math.min(w-164,x)),y:Math.max(198,Math.min(h-208,y))};}
 export function sectorAt(x:number,y:number,c:{x:number;y:number},count:number){const dx=x-c.x,dy=y-c.y,r=Math.hypot(dx,dy);if(r<32||r>100.01||!count)return -1;return Math.floor(((Math.atan2(dy,dx)*180/Math.PI+450)%360)/360*count);}

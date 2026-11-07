@@ -24,12 +24,8 @@ export function editNotes(events:Note[],selected:number[],action:NoteAction,b:No
  const ids=selected.filter(i=>i>=0&&i<events.length),set=new Set(ids),out=events.map(n=>({...n}));if(!ids.length)return {events:out,selection:[]};
  if(action.kind==='delete')return {events:out.filter((_,i)=>!set.has(i)),selection:[]};
  if(action.kind==='duplicate'){
-  for(let offset=b.snap;offset<b.span;offset+=b.snap){
-   const copies=ids.map(i=>({...out[i],start:Math.round((out[i].start+offset)*1e6)/1e6}));
-   if(copies.some(n=>n.start>=b.span))break;
-   if(copies.some(n=>out.some(old=>old.start===n.start&&old.note===n.note)))continue;
-   const first=out.length;out.push(...copies);return {events:out,selection:copies.map((_,i)=>first+i)};
-  }
+  const extent=Math.max(...ids.map(i=>out[i].start+out[i].duration))-Math.min(...ids.map(i=>out[i].start));
+  for(let offset=Math.max(b.snap,Math.ceil(extent/b.snap)*b.snap);offset<b.span;offset+=b.snap){const next=copyDragNotes(events,ids,offset,0,b);if(next)return next;}
   return {events:out,selection:ids};
  }
  let time=0,pitch=0;
@@ -50,4 +46,37 @@ export function expectedWithEvents(expected:Note[]|StepPattern,events:Note[]):No
  const steps=Array.from({length:expected.length},()=>[] as StepPattern['steps'][number]);
  for(const n of events)steps[n.start]?.push({note:n.note,velocity:n.velocity,tie:n.duration});
  return {...expected,steps};
+}
+
+export type NoteClipboard={unitBeat:number;notes:Note[]};
+export function stepBeats(p:Note[]|StepPattern):number{if(Array.isArray(p))return 1;const m=/^1\/(\d+)([TD]?)$/.exec(p.division);return m?4/Number(m[1])*(m[2]==='T'?2/3:m[2]==='D'?1.5:1):.25;}
+export function clipboardNotes(events:Note[],ids:number[],unitBeat:number):NoteClipboard{
+ const picked=ids.filter(i=>events[i]).map(i=>({...events[i]})),origin=Math.min(...picked.map(n=>n.start));
+ return {unitBeat,notes:picked.map(n=>({...n,start:n.start-origin}))};
+}
+function inserted(events:Note[],copies:Note[],b:NoteBounds&{integer?:boolean}):{events:Note[];selection:number[]}|null{
+ if(!copies.length)return null;
+ for(let i=0;i<copies.length;i++){const n=copies[i];
+  if(!Number.isFinite(n.start)||!Number.isFinite(n.duration)||n.start<0||n.start>=b.span||n.duration<=0||n.duration>b.maxDuration||!Number.isInteger(n.note)||n.note<0||n.note>127||!Number.isInteger(n.velocity)||n.velocity<1||n.velocity>127)return null;
+  if(b.integer&&(!Number.isInteger(n.start)||!Number.isInteger(n.duration)))return null;
+  if(events.some(old=>old.note===n.note&&n.start<old.start+old.duration-1e-7&&old.start<n.start+n.duration-1e-7))return null;
+  if(copies.slice(0,i).some(old=>old.note===n.note&&Math.abs(old.start-n.start)<1e-7))return null;
+ }
+ const next=[...events.map(n=>({...n})),...copies];
+ if(b.integer&&next.some(n=>next.filter(old=>old.start===n.start).length>8))return null;
+ return {events:next,selection:copies.map((_,i)=>events.length+i)};
+}
+export function copyDragNotes(events:Note[],ids:number[],time:number,pitch:number,b:NoteBounds&{integer?:boolean}){
+ if(!time&&!pitch)return null;return inserted(events,ids.filter(i=>events[i]).map(i=>({...events[i],start:Math.round((events[i].start+time)*1e6)/1e6,note:events[i].note+pitch})),b);
+}
+export function pasteNotes(events:Note[],payload:NoteClipboard,cursor:number,b:NoteBounds&{integer?:boolean},unitBeat:number){
+ const ratio=payload.unitBeat/unitBeat;return inserted(events,payload.notes.map(n=>({...n,start:Math.round((cursor+n.start*ratio)*1e6)/1e6,duration:Math.round(n.duration*ratio*1e6)/1e6})),b);
+}
+export function harmonyNotes(events:Note[],ids:number[],mode:'invert'|'spread'|'major'|'minor',b:NoteBounds){
+ const sorted=ids.filter(i=>events[i]).sort((a,z)=>events[a].note-events[z].note);if(sorted.length<2||sorted.some(i=>events[i].start!==events[sorted[0]].start))return null;
+ if((mode==='major'||mode==='minor')&&sorted.length!==3)return null;
+ const out=events.map(n=>({...n})),root=out[sorted[0]].note;
+ sorted.forEach((i,k)=>{if(mode==='invert'&&k===0)out[i].note+=12;if(mode==='spread'&&k%2)out[i].note+=12;if(mode==='major'||mode==='minor')out[i].note=root+[0,mode==='major'?4:3,7][k];});
+ if(out.some((n,i)=>n.note>127||n.note<0||n.start>=b.span||out.some((a,j)=>i!==j&&a.start===n.start&&a.note===n.note)))return null;
+ return {events:out,selection:ids};
 }
