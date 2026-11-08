@@ -1,8 +1,8 @@
 import {useContextTarget,type ContextBinding} from './ContextWheel';
-import {editNotes,harmonyNotes,noteIndexAt,paintNotes,type NoteBounds,type NoteTarget} from '../note-ops';
+import {editNotes,harmonyNotes,noteIndexAt,type NoteBounds,type NoteTarget} from '../note-ops';
 import type {Note,StepPattern} from '../types';
 import {noteClipboardAvailable,type useNoteEditing} from './useNoteEditing';
-export function useNoteContext({edit,target,bounds,recording,chord,open}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;expected:Note[]|StepPattern;bounds:NoteBounds;recording:boolean;chord?:(pitch:number)=>number[];open?:()=>void}){
+export function useNoteContext({edit,target,bounds,recording,generate,open}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;expected:Note[]|StepPattern;bounds:NoteBounds;recording:boolean;generate?:(kind:'fill'|'chord',time:number,pitch:number,subdivision?:number)=>void;open?:()=>void}){
  return useContextTarget((el,x)=>{const cell=el.closest<HTMLElement>('[data-note-time][data-note-pitch]');if(!cell||recording)return null;
   const time=Number(cell.dataset.noteTime),pitch=Number(cell.dataset.notePitch);if(time>=bounds.span)return null;
   const expected=edit.expectedState(),r=cell.getBoundingClientRect(),at=time+Math.max(0,Math.min(.999,(x-r.left)/r.width))*bounds.snap,events=edit.events.map(n=>({...n})),hit=noteIndexAt(events,at,pitch),selection=hit>=0?(edit.selection.includes(hit)?[...edit.selection]:[hit]):[];
@@ -11,9 +11,9 @@ export function useNoteContext({edit,target,bounds,recording,chord,open}:{edit:R
   const velocity=(delta:number)=>commit(events.map((n,i)=>picked.has(i)?{...n,velocity:Math.max(1,Math.min(127,n.velocity+delta))}:n));
   const length=(factor:number)=>commit(events.map((n,i)=>picked.has(i)?{...n,duration:Math.max(target.kind==='pattern'?1:.000001,Math.min(bounds.maxDuration,target.kind==='pattern'?Math.round(n.duration*factor):n.duration*factor))}:n));
   const harmony=(mode:'invert'|'spread'|'major'|'minor')=>{const next=harmonyNotes(events,selection,mode,bounds);if(next)commit(next.events,next.selection);};
-  const audition=(n:number)=>{edit.play(n);setTimeout(edit.stop,100);};
   const caps:ContextBinding['caps']={open,...(noteClipboardAvailable()?{paste:()=>edit.paste(time,expected,target,events)}:{})};
-  if(hit<0){caps.add=()=>{const next=paintNotes(events,time,time,pitch,bounds);commit(next,[next.length-1]);audition(pitch);};if(chord)caps.chord=()=>{let next=events;for(const n of chord(pitch).slice(0,8))next=paintNotes(next,time,time,n,bounds);commit(next,[]);audition(pitch);};}
+  if(generate)Object.assign(caps,{fillQuarter:()=>generate('fill',time,pitch,1),fillEighth:()=>generate('fill',time,pitch,.5),fillSixteenth:()=>generate('fill',time,pitch,.25),buildChord:()=>generate('chord',time,pitch)});
+  if(hit<0){}
   else Object.assign(caps,{
    pitchUp:()=>apply({kind:'move',time:0,pitch:1}),pitchDown:()=>apply({kind:'move',time:0,pitch:-1}),octaveUp:()=>apply({kind:'move',time:0,pitch:12}),octaveDown:()=>apply({kind:'move',time:0,pitch:-12}),
    earlier:()=>apply({kind:'move',time:-bounds.snap,pitch:0}),later:()=>apply({kind:'move',time:bounds.snap,pitch:0}),longer:()=>apply({kind:'length',delta:bounds.snap}),shorter:()=>apply({kind:'length',delta:-bounds.snap}),halfLength:()=>length(.5),doubleLength:()=>length(2),repeat:()=>apply({kind:'duplicate'}),quantize:()=>apply({kind:'quantize'}),

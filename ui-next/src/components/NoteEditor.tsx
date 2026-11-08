@@ -1,10 +1,12 @@
+import {useNoteGeneration} from './NoteGeneration';
 import {NoteShortcuts} from './NoteShortcuts';import {useNoteContext} from './useNoteContext';import {useEffect,useMemo,useRef,useState} from 'react';import {createPortal} from 'react-dom';import {ChevronLeft,ChevronRight,Plus,Minus,Trash2,Copy,Undo2,Scan} from 'lucide-react';import {noteName,type Note,type StepPattern} from '../types';import {notesInCell,type NoteTarget} from '../note-ops';import {useNoteEditing,type NoteTool} from './useNoteEditing';import {usePianoViewport} from './usePianoViewport';
 type Props={target:NoteTarget;notes:Note[];expected:Note[]|StepPattern;span:number;snap?:number;beat:number;playing:boolean;recording:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void};
 export function NoteEditor({target,notes,expected,span,snap=.25,beat,playing,recording,send,close}:Props){
  const [velocity,setVelocity]=useState(100),grid=useRef<HTMLDivElement>(null),done=useRef<HTMLButtonElement>(null);
  const bounds=useMemo(()=>({span,snap,maxDuration:target.kind==='pattern'?8:span}),[span,snap,target.kind]);
  const edit=useNoteEditing({target,expected,events:notes,bounds,playing,recording,commit:(t,b,a)=>send('note_edit',[t,b,a]),audition:(track,id,n,v)=>send('editor_note',[track,id,n,v]),undo:()=>send('undo')});
- const nav=usePianoViewport(grid,span,snap,notes,edit.active),context=useNoteContext({edit,target,expected,bounds,recording});
+ const generation=useNoteGeneration(edit,target,bounds,recording);
+ const nav=usePianoViewport(grid,span,snap,notes,edit.active),context=useNoteContext({edit,target,expected,bounds,recording,generate:generation.open});
  useEffect(()=>{const previous=document.activeElement as HTMLElement;done.current?.focus();return()=>{if(previous?.isConnected)previous.focus();};},[]);
  useEffect(()=>nav.cancel(),[JSON.stringify(target),playing,recording]);
  const columns=Array.from({length:Math.max(0,nav.lastCol-nav.firstCol)},(_,i)=>nav.firstCol+i),rows=Array.from({length:Math.max(0,nav.lastRow-nav.firstRow)},(_,i)=>nav.firstRow+i);
@@ -14,7 +16,7 @@ export function NoteEditor({target,notes,expected,span,snap=.25,beat,playing,rec
   edit.key(e);if(e.defaultPrevented)return;if(e.key==='Escape'){e.preventDefault();close();}
   if(e.key==='Tab'){const items=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),[tabindex="0"]')),i=items.indexOf(document.activeElement as HTMLElement);if(e.shiftKey&&i===0||!e.shiftKey&&i===items.length-1){e.preventDefault();items[e.shiftKey?items.length-1:0]?.focus();}}
  }}>
- <header><strong>Track {target.track+1} · {target.kind==='clip'?'Clip '+String.fromCharCode(65+target.clip):'Pattern '+target.bank+'·'+target.slot} · Notes</strong><span>{recording?'Finish the take to edit':edit.selection.length+' selected'}</span><NoteShortcuts/><button ref={done} type="button" onClick={close}>Done</button></header>
+ {generation.panel}<header><strong>Track {target.track+1} · {target.kind==='clip'?'Clip '+String.fromCharCode(65+target.clip):'Pattern '+target.bank+'·'+target.slot} · Notes</strong><span>{recording?'Finish the take to edit':edit.selection.length+' selected'}</span><NoteShortcuts/><button ref={done} type="button" onClick={close}>Done</button></header>
  <div className="note-editor-tools"><div role="group" aria-label="Note editing mode">{modes.map(([mode,label])=><button key={mode} type="button" aria-label={label+' notes'} aria-pressed={edit.tool===mode} onClick={()=>edit.setTool(mode)}>{label}</button>)}</div>
  <button type="button" aria-label="Earlier time" disabled={nav.left<=0} onClick={()=>nav.time(-1)}><ChevronLeft size={17}/></button><span>{Math.max(0,(nav.left-44)/nav.timePx*snap).toFixed(1)} / {span}</span><button type="button" aria-label="Later time" disabled={nav.left+nav.width>=width-1} onClick={()=>nav.time(1)}><ChevronRight size={17}/></button>
  <button type="button" aria-label="Lower note range" disabled={nav.top+nav.height>=height-1} onClick={()=>nav.pitch(-1)}><Minus size={16}/></button><span>{noteName(Math.max(0,127-Math.floor((nav.top+nav.height-24)/nav.rowHeight)))}</span><button type="button" aria-label="Higher note range" disabled={nav.top<=0} onClick={()=>nav.pitch(1)}><Plus size={16}/></button>

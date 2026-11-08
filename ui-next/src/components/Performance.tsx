@@ -1,3 +1,4 @@
+import {useNoteGeneration} from './NoteGeneration';
 import {PatternLibrary} from './PatternLibrary';
 import {NoteEditor} from './NoteEditor';
 import {useNoteContext} from './useNoteContext';
@@ -119,7 +120,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const ref=seq.bank+':'+seq.slot;
   const pat=state.patterns[ref]??defaultPattern(seq.length,seq.division);
   const edit=useNoteEditing({target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,events:patternEvents(pat),bounds:{span:pat.length,snap:1,maxDuration:8},playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
-  const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,chord:pitch=>{const intervals=SCALES[scale.name==='Chromatic'?'Major':scale.name]??SCALES.Major;const degree=intervals.findIndex(v=>(pitch-scale.root+120)%12===v),d=degree<0?0:degree;return [0,2,4].map(i=>Math.min(127,pitch+intervals[(d+i)%intervals.length]-intervals[d]+12*Math.floor((d+i)/intervals.length)));},open:()=>setNoteEditorOpen(true)});
+  const generation=useNoteGeneration(edit,{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},{span:pat.length,snap:1,maxDuration:8},recording,scale);
+  const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
   const locate=(x:number,y:number)=>{const el=gridRef.current;if(!el)return null;const r=el.getBoundingClientRect(),lines=Array.from(el.querySelectorAll<HTMLElement>('.pf-row'));const row=lines.find(n=>{const b=n.getBoundingClientRect();return y>=b.top&&y<b.bottom;})??(y<r.top?lines[0]:lines.at(-1));return {time:clamp(page*16+Math.floor((x-r.left-40)/(r.width-40)*16),page*16,Math.min(pat.length-1,page*16+15)),pitch:Number(row?.dataset.pitch??60)};};
   const factoryName=undefined; // Slot number is not a factory identity after edits/imports.
@@ -495,7 +497,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   }
 
   return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode} aria-label="Perform">
-    {noteEditorOpen?<NoteEditor key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
+    {generation.panel}{noteEditorOpen?<NoteEditor key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],
