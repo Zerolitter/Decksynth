@@ -9,18 +9,19 @@ type Gesture={valid:boolean;output:number[];x:number;y:number;preview:Note[];hit
 type Pending={before:string;after:string;events:Note[];expected:Note[]|StepPattern};
 export function useNoteEditing(props:Props){
  const latest=useRef(props);latest.current=props;const id=useId(),counter=useRef(0),gesture=useRef<Gesture|null>(null),pending=useRef<Pending[]>([]),audition=useRef<{track:number;id:string;note:number;pointer?:number}|null>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const [range,setRange]=useState<[number,number]|null>(null);
  const [cursor,setCursor]=useState(0),[status,setStatus]=useState(''),[copyGhosts,setCopyGhosts]=useState<number[]>([]);
  const [tool,setTool]=useState<NoteTool>('draw'),[selection,setSelection]=useState<number[]>([]),[draft,setDraft]=useState<Note[]|null>(null);
  const identity=JSON.stringify(props.target),source=JSON.stringify(props.expected),observedSource=useRef(source);
  const stop=()=>{if(timer.current)clearTimeout(timer.current);timer.current=null;const a=audition.current;if(a)latest.current.audition(a.track,a.id,a.note,0);audition.current=null;};
  const play=(note:number,velocity=100,pointer?:number)=>{stop();const a={track:latest.current.target.track,id:'edit-'+id+'-'+(++counter.current),note,pointer};audition.current=a;latest.current.audition(a.track,a.id,note,velocity);};
- const cancel=()=>{gesture.current=null;setCopyGhosts([]);stop();setDraft(pending.current.at(-1)?.events??null);};
- useEffect(()=>{cancel();pending.current=[];setDraft(null);setSelection([]);setCursor(0);return stop;},[identity,props.playing,props.recording]); // source changes are reconciled below
+ const cancel=()=>{setStatus('');gesture.current=null;setCopyGhosts([]);stop();setDraft(pending.current.at(-1)?.events??null);};
+ useEffect(()=>{cancel();pending.current=[];setDraft(null);setSelection([]);setRange(null);setCursor(0);return stop;},[identity,props.playing,props.recording]); // source changes are reconciled below
  useEffect(()=>{const changed=observedSource.current!==source;observedSource.current=source;const q=pending.current,i=q.findIndex(x=>x.after===source);
   if(i>=0){q.splice(0,i+1);if(!gesture.current)setDraft(q.at(-1)?.events??null);}
   else if(q.length&&q[0].before!==source){pending.current=[];cancel();setDraft(null);setSelection([]);}
   else if(gesture.current&&JSON.stringify(gesture.current.expected)!==source&&!q.some(x=>x.after===JSON.stringify(gesture.current?.expected))){cancel();setSelection([]);}
-  else if(changed&&!q.length)setSelection([]);
+  else if(changed&&!q.length){setSelection([]);setRange(null);}
  },[source]);
  useEffect(()=>{const rejected=()=>{pending.current=[];gesture.current=null;stop();setDraft(null);setSelection([]);};window.addEventListener('decksynth-command-rejected',rejected);return()=>window.removeEventListener('decksynth-command-rejected',rejected);},[]);
  useEffect(()=>{const blur=()=>cancel(),up=(e:PointerEvent)=>{if(audition.current?.pointer===e.pointerId&&(e.type==='pointercancel'||e.pointerType!=='mouse'||e.button===0))stop();};window.addEventListener('blur',blur);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);stop();};},[]);
@@ -47,7 +48,7 @@ export function useNoteEditing(props:Props){
  function begin(e:React.PointerEvent<HTMLElement>,time:number,pitch:number,locate:Gesture['locate']){
   if(e.button!==0||latest.current.recording)return;e.preventDefault();e.stopPropagation();e.currentTarget.focus({preventScroll:true});e.currentTarget.setPointerCapture(e.pointerId);
   const r=e.currentTarget.getBoundingClientRect(),at=time+Math.max(0,Math.min(.999,(e.clientX-r.left)/r.width))*latest.current.bounds.snap;
-  setCursor(time);const base=current().map(n=>({...n})),hit=noteIndexAt(base,at,pitch),picked=hit<0?[]:e.shiftKey?(selection.includes(hit)?selection.filter(i=>i!==hit):[...selection,hit]):selection.includes(hit)?selection:[hit];
+  setCursor(time);setRange(null);const base=current().map(n=>({...n})),hit=noteIndexAt(base,at,pitch),picked=hit<0?[]:e.shiftKey?(selection.includes(hit)?selection.filter(i=>i!==hit):[...selection,hit]):selection.includes(hit)?selection:[hit];
   setSelection(picked);if(e.shiftKey&&hit>=0)return;
   let kind:Gesture['kind']=tool;
   if(hit>=0&&(tool==='select'||tool==='draw')){const edge=r.left+(base[hit].start+base[hit].duration-time)/latest.current.bounds.snap*r.width;kind=e.ctrlKey||e.metaKey?'copy':Math.abs(e.clientX-edge)<=9?'resize':'move';}
@@ -63,10 +64,10 @@ export function useNoteEditing(props:Props){
   if(g.kind==='copy'){const out=g.moved?copyDragNotes(g.base,g.selection,dragDelta(g.base[g.hit].start,g.time,point.time,latest.current.bounds.snap),point.pitch-g.pitch,editingBounds()):null;g.valid=!!out;g.preview=out?.events??g.base;g.output=out?.selection??g.selection;setCopyGhosts(out?.selection??[]);setDraft(g.preview);setStatus(out?'Copy preview · release to insert':g.moved?'Invalid copy destination':'Ctrl-drag to copy');}
   if(g.kind==='draw'||g.kind==='erase'){const next=paintNotes(g.base,g.time,point.time,g.pitch,latest.current.bounds,g.kind==='erase');g.preview=next;setDraft(next);g.selection=next.flatMap((n,i)=>n.note===g.pitch&&n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)?[i]:[]);setSelection(g.selection);}
   if(g.kind==='move'||g.kind==='resize'){const a:NoteAction=g.kind==='move'?{kind:'move',time:point.time-g.time,pitch:point.pitch-g.pitch}:{kind:'length',delta:point.time-g.time};g.preview=g.kind==='resize'&&point.time===g.time?g.base:editNotes(g.base,g.selection,a,latest.current.bounds).events;setDraft(g.preview);}
-  if(g.kind==='box'){g.selection=g.base.flatMap((n,i)=>n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)&&n.note>=Math.min(g.pitch,point.pitch)&&n.note<=Math.max(g.pitch,point.pitch)?[i]:[]);setSelection(g.selection);}
+  if(g.kind==='box'){setRange([Math.min(g.time,point.time),Math.max(g.time,point.time)+latest.current.bounds.snap]);g.selection=g.base.flatMap((n,i)=>n.start>=Math.min(g.time,point.time)&&n.start<=Math.max(g.time,point.time)&&n.note>=Math.min(g.pitch,point.pitch)&&n.note<=Math.max(g.pitch,point.pitch)?[i]:[]);setSelection(g.selection);}
  }
  function end(e:React.PointerEvent<HTMLElement>){const g=gesture.current;if(!g||g.id!==e.pointerId){stop();return;}gesture.current=null;setCopyGhosts([]);
-  if(g.kind==='copy'){if(g.moved&&g.valid&&g.locate(e.clientX,e.clientY))commit(g.preview,g.output,g.expected,g.target);else{setDraft(pending.current.at(-1)?.events??null);setSelection(g.selection);}}
+  if(g.kind==='copy'){if(g.moved&&g.valid&&g.locate(e.clientX,e.clientY)){commit(g.preview,g.output,g.expected,g.target);setStatus('Copied '+g.output.length+' notes');}else{setDraft(pending.current.at(-1)?.events??null);setSelection(g.selection);}}
   else if(g.kind!=='box')commit(g.preview,g.selection,g.expected,g.target);
   if(g.kind==='move'&&!g.moved&&g.hit>=0)setSelection([g.hit]);
   if(e.pointerType==='touch'&&g.kind!=='erase'&&g.kind!=='box'){play(g.note);timer.current=setTimeout(stop,100);}else stop();
@@ -92,5 +93,5 @@ export function useNoteEditing(props:Props){
   else if(k.startsWith('arrow'))a=ctrl?{kind:'move',time:0,pitch:k==='arrowup'?12:-12}:e.shiftKey?{kind:'length',delta:(k==='arrowleft'||k==='arrowdown'?-1:1)*latest.current.bounds.snap}:{kind:'move',time:k==='arrowleft'?-latest.current.bounds.snap:k==='arrowright'?latest.current.bounds.snap:0,pitch:k==='arrowup'?1:k==='arrowdown'?-1:0};
   if(a)action(a);
  }
- return {events:draft??pending.current.at(-1)?.events??props.events,selection,tool,setTool,begin,move,end,cancel,key,action,setSelection,play,stop,commit,tap,cursor,setCursor,status,copyGhosts,copy,paste,selectAll,active:()=>!!gesture.current,expectedState:()=>pending.current.at(-1)?.expected??latest.current.expected};
+ return {range,events:draft??pending.current.at(-1)?.events??props.events,selection,tool,setTool,begin,move,end,cancel,key,action,setSelection,play,stop,commit,tap,cursor,setCursor,status,copyGhosts,copy,paste,selectAll,active:()=>!!gesture.current,expectedState:()=>pending.current.at(-1)?.expected??latest.current.expected};
 }

@@ -1,3 +1,5 @@
+import {NoteShortcuts} from './NoteShortcuts';
+import {PianoRoll,type PianoRollHandle} from './PianoRoll';
 import {useNoteGeneration} from './NoteGeneration';
 import {PatternLibrary} from './PatternLibrary';
 import {NoteEditor} from './NoteEditor';
@@ -6,7 +8,7 @@ import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { CHORD_EXTS, ROOTS, SCALES, chordName, chordText, diatonicChords, leadVoices, type ChordExt } from '../chords';
 import { LIBRARY } from './PresetBrowser';
@@ -103,7 +105,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const [clip,setClip]=useState<string|null>(null);
   const press=useRef<ReturnType<typeof setTimeout>|null>(null);
   const longPressed=useRef(false);
-  const gridRef=useRef<HTMLDivElement>(null);
+  const roll=useRef<PianoRollHandle>(null);
   const [chainText,setChainText]=useState(state.seq.chain.join(','));
   const [message,setMessage]=useState('');
   const [tapTimes,setTapTimes]=useState<number[]>([]);
@@ -123,7 +125,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const generation=useNoteGeneration(edit,{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},{span:pat.length,snap:1,maxDuration:8},recording,scale);
   const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
-  const locate=(x:number,y:number)=>{const el=gridRef.current;if(!el)return null;const r=el.getBoundingClientRect(),lines=Array.from(el.querySelectorAll<HTMLElement>('.pf-row'));const row=lines.find(n=>{const b=n.getBoundingClientRect();return y>=b.top&&y<b.bottom;})??(y<r.top?lines[0]:lines.at(-1));return {time:clamp(page*16+Math.floor((x-r.left-40)/(r.width-40)*16),page*16,Math.min(pat.length-1,page*16+15)),pitch:Number(row?.dataset.pitch??60)};};
+
   const factoryName=undefined; // Slot number is not a factory identity after edits/imports.
   const pages=Math.max(1,Math.ceil(pat.length/16));
   const currentStep=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
@@ -297,16 +299,16 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const gridTools=<>
     <div className="pf-seg" role="group" aria-label="Pattern page">
       {Array.from({length:4},(_,i)=><button key={i} type="button" disabled={i>=pages} aria-pressed={page===i}
-        className={page===i?'on':''} onClick={()=>setPage(i)}>{i*16+1}–{i*16+16}</button>)}
+        className={page===i?'on':''} onClick={()=>{setPage(i);roll.current?.timeTo(i*16);}}>{i*16+1}–{i*16+16}</button>)}
     </div>
     <div className="pf-seg" role="group" aria-label="What a tap does">
       {(['select','draw','erase','length','accent'] as NoteTool[]).map(t=><button key={t} type="button" aria-label={t==='select'?'Select notes':t==='draw'?'Draw notes':t==='erase'?'Erase notes':t==='length'?'Longer':'Accent'} aria-pressed={tap===t}
         className={tap===t?'on':''} onClick={()=>setTap(t)}>{t==='select'?'Select':t==='draw'?'Draw':t==='erase'?'Erase':t==='length'?'Longer':'Accent'}</button>)}
     </div>
     <div className="pf-oct">
-      <button type="button" aria-label="Show lower notes" onClick={()=>setGridBase(Math.max(0,gridBase-12))}><ChevronDown size={16}/></button>
+      <button type="button" aria-label="Show lower notes" onClick={()=>{setGridBase(Math.max(0,gridBase-12));roll.current?.pitchTo(Math.max(0,gridBase));}}><ChevronDown size={16}/></button>
       <span>{noteName(rows[rows.length-1]??gridBase)}</span>
-      <button type="button" aria-label="Show higher notes" onClick={()=>setGridBase(Math.min(108,gridBase+12))}><ChevronUp size={16}/></button>
+      <button type="button" aria-label="Show higher notes" onClick={()=>{setGridBase(Math.min(108,gridBase+12));roll.current?.pitchTo(Math.min(127,gridBase+24));}}><ChevronUp size={16}/></button>
     </div>
   </>;
   const ab=rateParts(arp.division);
@@ -325,30 +327,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   </div>;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[];return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion((inversion+1)%3),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(notes)}};});
-  const grid=<div ref={gridRef} {...noteContext} className="pf-grid" onKeyDown={edit.key} style={{['--rows' as string]:rows.length}}>
-    <div className="pf-grid-head"><span/>
-      {visible.map(i=><span key={i} className={(i%4===0?'beat ':'')+(i===currentStep?'live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')}
->
-        {outside(i,1)?<em title="Notes above">▲</em>:null}{i+1}{outside(i,-1)?<em title="Notes below">▼</em>:null}</span>)}
-    </div>
-    {rows.map(note=><div key={note} data-pitch={note} className={'pf-row'+(BLACK.has(note%12)?' black':'')+((note-scale.root)%12===0?' root':'')}>
-      <button type="button" className="pf-row-note" aria-label={'Play '+noteName(note)}
-        onPointerDown={e=>{if(e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);edit.play(note,100,e.pointerId);}}
-        onPointerUp={edit.stop} onPointerCancel={edit.stop}
-        onContextMenu={e=>e.preventDefault()}>{noteName(note)}</button>
-      {visible.map(i=>{
-        const eventIndex=edit.events.findIndex(n=>n.start===i&&n.note===note),shown=edit.events[eventIndex],item=shown?{note:shown.note,velocity:shown.velocity,tie:shown.duration}:null;
-        return <button key={i} type="button" data-testid={'pf-cell-'+(i+1)+'-'+note}
-          aria-label={'Step '+(i+1)+' '+noteName(note)+(item?' on':'')}
-          className={'pf-cell'+(i%4===0?' beat':'')+(i===currentStep?' live':'')+(i>=pat.length?' off':'')+(i===cursor?' rec':'')+(edit.selection.includes(eventIndex)?' selected':'')}
-          data-note-time={i} data-note-pitch={note} onPointerDown={e=>edit.begin(e,i,note,locate)} onPointerMove={edit.move} onPointerUp={edit.end} onPointerCancel={edit.cancel}
-          onClick={e=>{if(e.detail===0)edit.tap(i,note);}}>
-          {item?<i className={'pf-note'+(edit.copyGhosts.includes(eventIndex)?' copy-preview':'')+(item.velocity>=120?' accent':'')+(i===currentStep?' hit':'')}
-            style={{width:'calc('+Math.min(item.tie,16-(i%16))*100+'% - 4px)'}}/>:null}
-        </button>;
-      })}
-    </div>)}
-  </div>;
+  const grid=<PianoRoll ref={roll} compact edit={edit} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} bounds={{span:pat.length,snap:1,maxDuration:8}} context={noteContext} playing={playing&&seq.enabled} beat={currentStep} recording={recording} scale={scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/16)))}/>;
 
   let laneView:ReactNode;
   const rb=rateParts(pat.division);
@@ -363,6 +342,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <button type="button" style={tool('oct')} aria-label="Oct +" title="Everything an octave up" onClick={()=>action('octave',1)}><b>+8</b><span>Oct</span></button>
     <button type="button" style={tool('dice')} aria-label="Dice" disabled={!seq.spice} title={seq.spice?'New spice variation':'Raise Spice first'}
       onClick={()=>set('seq','spice_seed',(seq.spice_seed%1000000)+1)}><Dices size={18}/><span>Dice</span></button>
+    <button type="button" aria-label="Fit notes" style={tool('more')} onClick={()=>roll.current?.fit()}><Scan size={18}/><span>Fit</span></button>
+    <button type="button" aria-label="Expand notes" style={tool('more')} onClick={()=>setNoteEditorOpen(true)}><Maximize2 size={18}/><span>Expand</span></button>
+    <NoteShortcuts compact/>
   </div>;
   const timing=<div className="pf-bar" data-testid="pf-seq-timing" data-length={pat.length} data-division={pat.division}>
     <button type="button" className={'pf-power'+(seq.enabled?' on':'')} aria-pressed={seq.enabled}
@@ -497,7 +479,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   }
 
   return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode} aria-label="Perform">
-    {generation.panel}{noteEditorOpen?<NoteEditor key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
+    {generation.panel}{noteEditorOpen?<NoteEditor sharedEdit={edit} key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],
