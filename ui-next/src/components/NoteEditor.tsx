@@ -1,13 +1,13 @@
 import {PianoRoll,type PianoRollHandle} from './PianoRoll';
 import {useNoteGeneration} from './NoteGeneration';
 import {NoteShortcuts} from './NoteShortcuts';import {useNoteContext} from './useNoteContext';import {useEffect,useMemo,useRef,useState} from 'react';import {createPortal} from 'react-dom';import {ChevronLeft,ChevronRight,Plus,Minus,Trash2,Copy,Undo2,Scan} from 'lucide-react';import {noteName,type Note,type StepPattern} from '../types';import {notesInCell,type NoteTarget} from '../note-ops';import {useNoteEditing,type NoteTool} from './useNoteEditing';
-type Props={target:NoteTarget;notes:Note[];expected:Note[]|StepPattern;span:number;snap?:number;beat:number;playing:boolean;recording:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void;sharedEdit?:ReturnType<typeof useNoteEditing>};
+type Props={target:NoteTarget;notes:Note[];expected:Note[]|StepPattern;span:number;snap?:number;beat:number;playing:boolean;recording:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void;scale?:{name:string;root:number};sharedEdit?:ReturnType<typeof useNoteEditing>};
 export function NoteEditor(props:Props){return props.sharedEdit?<NoteEditorView {...props} edit={props.sharedEdit}/>:<OwnedNoteEditor {...props}/>;}
 function OwnedNoteEditor(props:Props){const bounds={span:props.span,snap:props.snap??.25,maxDuration:props.target.kind==='pattern'?8:props.span},edit=useNoteEditing({target:props.target,expected:props.expected,events:props.notes,bounds,playing:props.playing,recording:props.recording,commit:(t,b,a)=>props.send('note_edit',[t,b,a]),audition:(track,id,n,v)=>props.send('editor_note',[track,id,n,v]),undo:()=>props.send('undo')});return <NoteEditorView {...props} edit={edit}/>;}
-function NoteEditorView({target,notes,expected,span,snap=.25,beat,playing,recording,send,close,edit}:Props&{edit:ReturnType<typeof useNoteEditing>}){
+function NoteEditorView({target,notes,expected,span,snap=.25,beat,playing,recording,send,close,edit,scale}:Props&{edit:ReturnType<typeof useNoteEditing>}){
  const [velocity,setVelocity]=useState(100),roll=useRef<PianoRollHandle>(null),done=useRef<HTMLButtonElement>(null);
  const bounds=useMemo(()=>({span,snap,maxDuration:target.kind==='pattern'?8:span}),[span,snap,target.kind]);
- const generation=useNoteGeneration(edit,target,bounds,recording);
+ const generation=useNoteGeneration(edit,target,bounds,recording,scale);
  const context=useNoteContext({edit,target,expected,bounds,recording,generate:generation.open});
  useEffect(()=>{const previous=document.activeElement as HTMLElement;done.current?.focus();return()=>{edit.cancel();if(previous?.isConnected)previous.focus();};},[]);
  const modes:[NoteTool,string][]=[['select','Select'],['draw','Draw'],['erase','Erase']];

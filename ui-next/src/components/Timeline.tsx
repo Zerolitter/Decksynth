@@ -42,7 +42,12 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     return()=>watch.disconnect();
   },[]);
   const [drag,setDrag]=useState<{noteIndex:number;original:Note;expected:Note[];target:NoteTarget;startX:number;startY:number;shiftBeat:number;shiftPitch:number;id:number}|null>(null);
-  const context=useContextTarget(el=>{const target:NoteTarget={kind:'clip',track:idx,clip,bars,device:track.device??'synth'},original=track.notes.map(n=>({...n})),head=el.closest<HTMLElement>('[data-song-note]'),index=head?Number(head.dataset.songNote):-1;const caps={open:onOpenNotes,...(selected&&!recording&&index>=0?{delete:()=>onEdit(target,original,original.filter((_,i)=>i!==index)),duplicate:()=>onEdit(target,original,editNotes(original,[index],{kind:'duplicate'},{span:bars*4,snap:.25,maxDuration:bars*4}).events),quantize:()=>onEdit(target,original,editNotes(original,[index],{kind:'quantize'},{span:bars*4,snap:.25,maxDuration:bars*4}).events)}:{})};return {kind:index>=0?'song.note':'song.empty',label:'Track '+(idx+1)+' · Clip '+String.fromCharCode(65+clip),caps,cancel:()=>setDrag(null)};});
+  const context=useContextTarget(el=>{
+    const target:NoteTarget={kind:'clip',track:idx,clip,bars,device:track.device??'synth'},original=track.notes.map(n=>({...n})),head=el.closest<HTMLElement>('[data-song-note]'),index=head?Number(head.dataset.songNote):-1,ids=index>=0?[index]:original.map((_,i)=>i),bounds={span:bars*4,snap:.25,maxDuration:bars*4};
+    const apply=(action:Parameters<typeof editNotes>[2])=>onEdit(target,original,editNotes(original,ids,action,bounds).events);
+    const duplicate=editNotes(original,ids,{kind:'duplicate'},bounds).events;
+    return {kind:index>=0?'song.note':original.length?'song.clip':'song.empty',label:'Track '+(idx+1)+' · Clip '+String.fromCharCode(65+clip)+(index<0&&original.length?' · All notes':''),caps:{open:onOpenNotes,...(selected&&!recording&&original.length?{quantize:()=>apply({kind:'quantize'}),...(duplicate.length>original.length?{duplicate:()=>onEdit(target,original,duplicate)}:{}),...(index>=0?{delete:()=>apply({kind:'delete'})}:{earlier:()=>apply({kind:'move',time:-.25,pitch:0}),later:()=>apply({kind:'move',time:.25,pitch:0}),pitchUp:()=>apply({kind:'move',time:0,pitch:1}),pitchDown:()=>apply({kind:'move',time:0,pitch:-1}),octaveUp:()=>apply({kind:'move',time:0,pitch:12}),octaveDown:()=>apply({kind:'move',time:0,pitch:-12})})}:{})},cancel:()=>setDrag(null)};
+  });
   const beats=bars*4,{low,high}=pitchSpan(track.notes);
   const pos=clamp(beat/beats,0,1);
   const preview=(n:Note,i:number):Note=>{

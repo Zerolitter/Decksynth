@@ -438,7 +438,7 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
 
-    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={playhead} playing={snapshot?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
+    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor scale={project.performance.scale} target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={playhead} playing={snapshot?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>

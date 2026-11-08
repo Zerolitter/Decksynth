@@ -1,4 +1,4 @@
-export type ContextKind='seq.empty'|'seq.note'|'song.empty'|'song.note'|'chord.key'|'drum.pad'|'library.pattern'|'rack.card'|'parameter'|'track.header';
+export type ContextKind='seq.empty'|'seq.note'|'song.empty'|'song.note'|'song.clip'|'chord.key'|'drum.pad'|'library.pattern'|'rack.card'|'parameter'|'track.header';
 export type Capability='fillQuarter'|'fillEighth'|'fillSixteenth'|'buildChord'|'cut'|'samePitch'|'chordSelection'|'halfLength'|'doubleLength'|'repeat'|'velocitySoft'|'velocityUp'|'velocityDown'|'major'|'minor'|'add'|'chord'|'paste'|'open'|'pitchUp'|'pitchDown'|'octaveUp'|'octaveDown'|'velocity'|'earlier'|'later'|'longer'|'shorter'|'quantize'|'duplicate'|'delete'|'copy'|'selectAll'|'play'|'invert'|'spread'|'chordType'|'saveChord'|'import'|'relink'|'level'|'mute'|'solo'|'kit'|'preview'|'load'|'details'|'library'|'fold'|'pin'|'previous'|'next'|'bypass'|'value'|'reset'|'automation'|'modulation'|'midi'|'focus'|'synth'|'drums'|'presets'|'song'|'sound'|'fx'|'perform';
 export type Capabilities=Partial<Record<Capability,()=>void>>;
 export type ContextAction={id:string;title:string;run?:()=>void;children?:ContextAction[];shortcut?:string};
@@ -15,7 +15,8 @@ const note:Entry[]=[
 const shortcuts:Partial<Record<Capability,string>>={copy:'Ctrl+C',cut:'Ctrl+X',paste:'Ctrl+V',duplicate:'Ctrl+D',delete:'Del',selectAll:'Ctrl+A',quantize:'Q',octaveUp:'Ctrl+↑',octaveDown:'Ctrl+↓',pitchUp:'↑',pitchDown:'↓',earlier:'←',later:'→',shorter:'Shift+←',longer:'Shift+→'};
 const kinds:Record<ContextKind,Entry[]>={
  'seq.empty':[group('fill','Fill / Repeat',['fillQuarter','fillEighth','fillSixteenth']),'buildChord','paste','open'], 'seq.note':note,'song.note':note,
- 'song.empty':['open','paste','duplicate','quantize'],
+ 'song.empty':['open','paste'],
+ 'song.clip':[group('clipTiming','Clip timing',['quantize','earlier','later']),group('clipPitch','Transpose clip',['pitchUp','pitchDown','octaveUp','octaveDown']),'duplicate','open'],
  'chord.key':['play',group('voicing','Voicing',['invert','spread']),'chordType','saveChord'],
  'drum.pad':['play',group('pad','Pad sound',['open','import','relink','level']),group('mix','Mute / solo',['mute','solo']),'kit'],
  'library.pattern':['preview','load','details','copy','library'],

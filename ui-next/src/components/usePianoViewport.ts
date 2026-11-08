@@ -4,8 +4,10 @@ export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,
  const pitches=options.pitches??Array.from({length:128},(_,i)=>127-i),firstPitch=options.compact?72:Math.floor((notes.length?Math.min(...notes.map(n=>n.note)):48)/12)*12+7,initialRow=Math.max(0,pitches.findIndex(n=>n<=firstPitch)),density=options.compact?24:44;
 
  const [timePx,setTimePx]=useState(options.compact?56:64),[rowHeight,setRowHeight]=useState(density),[panning,setPanning]=useState(false),[view,setView]=useState({left:0,top:initialRow*density,width:1032,height:376});
+ const previousPitches=useRef(pitches);
  const initialized=useRef(!options.compact);
  const requested=useRef<{left:number;top:number}|null>({left:0,top:initialRow*density}),pan=useRef<{id:number;x:number;y:number;left:number;top:number}|null>(null),latest=useRef({timePx,rowHeight,span,snap,busy,pitches});latest.current={timePx,rowHeight,span,snap,busy,pitches};
+ useLayoutEffect(()=>{const el=ref.current,old=previousPitches.current;previousPitches.current=pitches;if(!el||old.join(',')===pitches.join(','))return;const pitch=old[Math.max(0,Math.floor((el.scrollTop-24)/rowHeight))]??72;el.scrollTop=Math.max(0,pitches.findIndex(n=>n<=pitch))*rowHeight;measure();},[pitches.join(',')]);
  const measure=()=>{const el=ref.current;if(!el)return;setView(v=>v.left===el.scrollLeft&&v.top===el.scrollTop&&v.width===el.clientWidth&&v.height===el.clientHeight?v:{left:el.scrollLeft,top:el.scrollTop,width:el.clientWidth,height:el.clientHeight});};
  const cancel=()=>{const g=pan.current,el=ref.current;if(g&&el){el.scrollLeft=g.left;el.scrollTop=g.top;try{el.releasePointerCapture(g.id);}catch{}}pan.current=null;setPanning(false);measure();};
  useLayoutEffect(()=>{const el=ref.current;if(!el)return;if(!initialized.current&&el.clientWidth&&el.clientHeight){initialized.current=true;const row=Math.max(12,(el.clientHeight-24)/(options.rows??13));requested.current={left:0,top:initialRow*row};setTimePx((el.clientWidth-44)/16);setRowHeight(row);return;}if(requested.current){el.scrollLeft=requested.current.left;el.scrollTop=requested.current.top;requested.current=null;}measure();},[timePx,rowHeight,span,snap]);
