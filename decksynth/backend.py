@@ -182,7 +182,12 @@ def worker(commands,updates):
                         if not isinstance(args,list) or len(args) not in (2,3):raise ValueError('Invalid performance action')
                         engine.perform_action(*args)
                         action=args[0]
-                        send(dict(message='Performance: '+action))
+                        message='Performance: '+action
+                        if action=='capture_song':message='Song notes captured into pattern'
+                        elif action=='commit_song':
+                            message={'add':'Pattern added to open Song clip','replace':'Open Song clip replaced with pattern',
+                                'fill':'Open Song clip filled with pattern'}.get(args[1],'Pattern sent to open Song clip')
+                        send(dict(message=message))
                     elif cmd=='cleanup':
                         engine.cleanup(str(args)); audio and args=='all' and audio.clear()
                         send(dict(message={'effects':'Effects removed','sound':'Sound reset','mods':'Mod pads cleared',
