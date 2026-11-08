@@ -16,7 +16,6 @@ import {
 export type SongView = 'arrange' | 'clips';
 export type SongSel = {kind:'block'; track:number; at:number; bar:number} | {kind:'bar'; bar:number} | null;
 export const ZOOMS = [8, 16, 32];
-
 const pad2 = (n:number) => String(n).padStart(2, '0');
 
 type BarProps = {
@@ -62,10 +61,7 @@ export function SongBar(props:BarProps) {
           <button type="button" aria-label="Later bars" disabled={start + zoom >= MAX_BARS} onClick={() => onStart(Math.min(MAX_BARS - zoom, start + zoom / 2))}><ChevronRight size={18}/></button>
         </div>
       </> : <span className="song-gap"/>}
-      <span className="song-readout" aria-label="Song position">
-        {song.on && view==='arrange' ? <>{m >= 0 ? <em>{song.markers[m].name}</em> : null}{pad2(at + 1)}<span>.</span>{Math.floor(songBeat % 4) + 1}</>
-          : <>{pad2(Math.floor(loopBeat / 4) + 1)}<span>:</span>{pad2(Math.floor(loopBeat % 4) + 1)}</>}
-      </span>
+      {song.on&&view==='arrange'&&m>=0?<span className="song-marker" aria-label="Active song marker">{song.markers[m].name}</span>:null}
     </div>
     {view==='arrange' ? <ContextRow {...props}/> : <div className="song-row song-edit">
       <span className="song-hint">Notes of each track's open clip. Tap the clip letter to open another clip, copy one, or clear it. Recording always goes into the open clip.</span>

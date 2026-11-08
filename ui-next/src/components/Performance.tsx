@@ -2,13 +2,12 @@ import {NoteShortcuts} from './NoteShortcuts';
 import {PianoRoll,type PianoRollHandle} from './PianoRoll';
 import {useNoteGeneration} from './NoteGeneration';
 import {PatternLibrary} from './PatternLibrary';
-import {NoteEditor} from './NoteEditor';
 import {useNoteContext} from './useNoteContext';
 import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2 } from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { CHORD_EXTS, ROOTS, SCALES, chordName, chordText, diatonicChords, leadVoices, type ChordExt } from '../chords';
@@ -57,6 +56,7 @@ export function arpOrder(held:number[],mode:string,octaves:number,octaveMode='Up
 
 type Mode='seq'|'arp'|'chord';
 type Section='seq'|'arp'|'chord'|'scale'|'sync';
+type TransferTarget={track:number;device:string;clip:number;bars:number;bank:number;slot:number;transpose:number;pattern:StepPattern;notes:import('../types').Note[]};
 
 export type ArpView={groups:number[][];step:number;phase?:number;paused?:boolean};
 type Props={
@@ -65,7 +65,8 @@ type Props={
   recStep?:number;
   selectedTrack:number;recording?:boolean;device?:string;onNoteEdit:(target:NoteTarget,expected:StepPattern,events:import('../types').Note[])=>void;onEditorNote:(track:number,id:string,note:number,velocity:number)=>void;onUndo:()=>void;onSet:(section:Section,key:string,value:unknown)=>void;
   onStep:(index:number,notes:StepNote[],replace:boolean)=>void;
-  onAction:(action:string,value?:unknown)=>void;
+  onAction:(action:string,value?:unknown,expected?:TransferTarget)=>void;
+  transfer:{clip:number;bars:number};
   onPlay:()=>void;
   onTempo:(bpm:number)=>void;
   /** Raw MIDI from the touch keyboard and strips: status, data1, data2. */
@@ -92,7 +93,7 @@ export function PerformTools({onPanic,arp=false,paused=false,onArp}:{onPanic:()=
   </>;
 }
 
-export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo}:Props){
+export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo,transfer}:Props){
   const [noteEditorOpen,setNoteEditorOpen]=useState(false);
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
@@ -104,6 +105,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const setGridBase=(base:number)=>setViewBases(v=>({...v,[viewKey]:performanceRange(device,base).base}));
   const [keyboardVisible,setKeyboardVisible]=useState(true);
   const keyboardId=useId();
+  const keyboardShown=keyboardVisible&&!noteEditorOpen;
   const [strength,setStrength]=useState(.35);
   const [sheet,setSheet]=useState<null|'midi'|'library'|'scale'|'mutate'>(null);
   const [padMenu,setPadMenu]=useState<null|{bank:number;slot:number}>(null);
@@ -138,6 +140,12 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const channel=scale.input_channel?scale.input_channel-1:0;
   const set=(sec:Section,key:string,value:unknown)=>onSet(sec,key,value);
   const action=(name:string,value?:unknown)=>{setMessage('');onAction(name,value);};
+  const transferNotes=(name:'capture_song'|'commit_song')=>{
+    edit.cancel();
+    const expected:TransferTarget={track:selectedTrack,device,clip:transfer.clip,bars:transfer.bars,
+      bank:seq.bank,slot:seq.slot,transpose:seq.transpose,pattern:edit.expectedState() as StepPattern,notes:track.notes};
+    onAction(name,name==='commit_song'?'add':null,expected);
+  };
   const tool=(c:string)=>({['--tool' as string]:'var(--t-'+c+')'});
   const slots=chord.slots??Array.from({length:8},()=>[] as number[]);
   const saveSlot=(notes:number[])=>{
@@ -240,6 +248,15 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       :<button type="button" className="pf-btn" onClick={()=>set('seq','overdub',!seq.overdub)}
         title="What a recorded key does to a step that already has notes">{seq.overdub?'Overdub':'Replace'}</button>}
     </div>
+    <div className="pf-transfers" role="group" aria-label="Pattern and Song transfers">
+      <span data-testid="pf-transfer-target">Track {selectedTrack+1} · Clip {String.fromCharCode(65+transfer.clip)} ↔ Pattern {seq.bank}·{seq.slot}</span>
+      <button type="button" aria-label="Pattern → Song" disabled={recording||seq.recording||!edit.events.length}
+        title={'Add Pattern '+seq.bank+'·'+seq.slot+' to Track '+(selectedTrack+1)+' Clip '+String.fromCharCode(65+transfer.clip)+', repeating to fill the clip'}
+        onClick={()=>transferNotes('commit_song')}>Pattern → Song<small>Add · fill clip</small></button>
+      <button type="button" aria-label="Song → Pattern" disabled={recording||seq.recording||!track.notes.length}
+        title={'Replace Pattern '+seq.bank+'·'+seq.slot+' with Track '+(selectedTrack+1)+' Clip '+String.fromCharCode(65+transfer.clip)}
+        onClick={()=>transferNotes('capture_song')}>Song → Pattern<small>Replace pattern</small></button>
+    </div>
   </>;
   else if(mode==='arp')controls=<>
     {power(arp.enabled,'Arp',()=>set('arp','enabled',!arp.enabled))}
@@ -339,7 +356,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <button type="button" style={tool('dice')} aria-label="Dice" disabled={!seq.spice} title={seq.spice?'New spice variation':'Raise Spice first'}
       onClick={()=>set('seq','spice_seed',(seq.spice_seed%1000000)+1)}><Dices size={18}/><span>Dice</span></button>
     <button type="button" aria-label="Fit notes" style={tool('more')} onClick={()=>roll.current?.fit()}><Scan size={18}/><span>Fit</span></button>
-    <button type="button" aria-label="Expand notes" style={tool('more')} onClick={()=>setNoteEditorOpen(true)}><Maximize2 size={18}/><span>Expand</span></button>
+    <button type="button" aria-label={noteEditorOpen?'Restore compact notes':'Expand notes'} aria-expanded={noteEditorOpen}
+      style={tool('more')} onClick={()=>{edit.cancel();setNoteEditorOpen(v=>!v);}}>{noteEditorOpen?<Minimize2 size={18}/>:<Maximize2 size={18}/>}<span>{noteEditorOpen?'Restore':'Expand'}</span></button>
     <NoteShortcuts compact/>
   </div>;
   const timing=<div className="pf-bar" data-testid="pf-seq-timing" data-length={pat.length} data-division={pat.division}>
@@ -474,14 +492,15 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>;
   }
 
-  return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode+(keyboardVisible?'':' keyboard-folded')} aria-label="Perform">
-    {generation.panel}{noteEditorOpen?<NoteEditor scale={scale} sharedEdit={edit} key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
+  return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode+(keyboardShown?'':' keyboard-folded')+(noteEditorOpen?' notes-expanded':'')} aria-label="Perform"
+    onKeyDown={e=>{if(e.key==='Escape'&&!e.defaultPrevented&&noteEditorOpen){e.preventDefault();setNoteEditorOpen(false);}}}>
+    {generation.panel}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],
           ['chord','Chord',<Combine size={16}/>,chord.enabled]] as const)
           .map(([id,label,icon,on])=><button key={id} type="button" role="tab" aria-selected={mode===id}
-            className={(mode===id?'active':'')+(on?' live':'')} style={{['--sec' as string]:'var(--c-'+id+')'}} onClick={()=>{setMode(id);setSheet(null);setSlotMenu(null);}}>
+            className={(mode===id?'active':'')+(on?' live':'')} style={{['--sec' as string]:'var(--c-'+id+')'}} onClick={()=>{setMode(id);setNoteEditorOpen(false);setSheet(null);setSlotMenu(null);}}>
             {icon}<span>{label}</span><i className="pf-led"/></button>)}
       </div>
       <div className="pf-head-tools">{mode==='arp'?arpTools:mode==='chord'?chordTools:gridTools}</div>
@@ -520,8 +539,6 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
               format={n=>(Math.round(n)>0?'+':'')+Math.round(n)} onChange={n=>{const v=Math.round(n);if(v!==seq.transpose)set('seq','transpose',v);}}/>
           </div>
           <div className="pf-buttons">
-            <button type="button" className="pf-btn" onClick={()=>action('capture_song')} title="Copy the song track into this pattern">Song → ptn</button>
-            <button type="button" className="pf-btn" onClick={()=>action('commit_song','add')} title="Add this pattern to the song track">Ptn → song</button>
             <button type="button" className="pf-btn danger wide" onClick={()=>{if(confirm('Clear this pattern?'))action('clear');}}>Clear pattern</button>
           </div>
         </div>:sheet==='midi'?<div className="pf-sheet-grid">
@@ -542,11 +559,11 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <div className="pf-performance-controls">
       <button type="button" className={'pf-tool'+(arp.hold?' on':'')} aria-pressed={arp.hold}
         onClick={()=>set('arp','hold',!arp.hold)} title="Keep the arpeggio going after you let go">Hold</button>
-      <button type="button" className="pf-tool" aria-label={(keyboardVisible?'Hide':'Show')+' playable keyboard'}
-        title={(keyboardVisible?'Hide':'Show')+' playable keyboard'} aria-controls={keyboardId} aria-expanded={keyboardVisible}
-        onClick={()=>{edit.cancel();setKeyboardVisible(v=>!v);}}><Keyboard size={20}/></button>
+      <button type="button" className="pf-tool" aria-label={(keyboardShown?'Hide':'Show')+' playable keyboard'}
+        title={(keyboardShown?'Hide':'Show')+' playable keyboard'} aria-controls={keyboardId} aria-expanded={keyboardShown}
+        onClick={()=>{edit.cancel();if(noteEditorOpen){setNoteEditorOpen(false);setKeyboardVisible(true);}else setKeyboardVisible(v=>!v);}}><Keyboard size={20}/></button>
     </div>
-    {keyboardVisible&&<TouchKeys key={viewKey} id={keyboardId} base={viewRange.keyboardBase} keyCount={viewRange.keyCount} held={held} sounding={sounding} channel={channel} onMidi={onMidi}
+    {keyboardShown&&<TouchKeys key={viewKey} id={keyboardId} base={viewRange.keyboardBase} keyCount={viewRange.keyCount} held={held} sounding={sounding} channel={channel} onMidi={onMidi}
       chord={(mode==='chord'||chord.enabled)&&active?active.notes:null}
       scale={scale.name==='Chromatic'?null:new Set((SCALES[scale.name]??[]).map(d=>(d+scale.root)%12))}/>}
   </section></ContextAreaScope>;

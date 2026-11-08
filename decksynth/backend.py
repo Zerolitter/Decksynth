@@ -179,8 +179,9 @@ def worker(commands,updates):
                         index,notes,replace=args
                         engine.perform_step(index,notes,replace)
                     elif cmd=='perform_action':
-                        action,value=args
-                        engine.perform_action(action,value)
+                        if not isinstance(args,list) or len(args) not in (2,3):raise ValueError('Invalid performance action')
+                        engine.perform_action(*args)
+                        action=args[0]
                         send(dict(message='Performance: '+action))
                     elif cmd=='cleanup':
                         engine.cleanup(str(args)); audio and args=='all' and audio.clear()

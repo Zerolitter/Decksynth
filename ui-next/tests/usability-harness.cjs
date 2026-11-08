@@ -11,7 +11,9 @@ exports.launch = async function launch(slice) {
     DECKSYNTH_DATA_DIR: tmp, SDL_AUDIODRIVER: 'dummy' };
   delete env.DISPLAY;
   delete env.WAYLAND_DISPLAY;
-  const app = await _electron.launch({ cwd: path.resolve(__dirname, '..'),
+  let app;
+  try {
+  app = await _electron.launch({ cwd: path.resolve(__dirname, '..'),
     args: ['--ozone-platform=headless', '--disable-gpu', 'electron/playwright-main.cjs'], env });
   const page = await app.firstWindow();
   page.setDefaultTimeout(5000);
@@ -41,4 +43,9 @@ exports.launch = async function launch(slice) {
   };
   const close = async () => { await app.close(); fs.rmSync(tmp, { recursive: true, force: true }); };
   return { app, page, send, height, point, move, commands, shot, close };
+  } catch (error) {
+    if (app) await app.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw error;
+  }
 };

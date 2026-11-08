@@ -68,6 +68,18 @@ async function main() {
       try { await run(); } finally { await page.keyboard.up(key); }
     };
     const verifyReleased = async (track = 0) => {
+      // Native state delivery precedes React's cleanup effects. Await that
+      // observable cleanup instead of draining the command log mid-transition.
+      await app.evaluate(async () => {
+        for (let i = 0; i < 100; i++) {
+          const live = new Set();
+          for (const [, token, , velocity] of r1Commands) {
+            if (velocity) live.add(token); else live.delete(token);
+          }
+          if (r1Commands.length && !live.size) return;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+      });
       const log = await takeCommands();
       assert.ok(log.some(args => args[0] === track && args[3] > 0), 'no owned voice started');
       const held = new Map();
@@ -304,6 +316,7 @@ async function main() {
       } finally { await page.mouse.up(); }
       await send('select', 0);
       await page.waitForFunction(() => window.r1Snapshot.selected === 0);
+      await page.waitForFunction(() => document.querySelector('[data-track-index="0"]')?.getAttribute('aria-pressed') === 'true');
     });
     await check('leaving Perform releases the owned key audition', async () => {
       await takeCommands();

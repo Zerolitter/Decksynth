@@ -889,7 +889,62 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 self.arp_resume_phase=max(0,next_tick-first); self.arp_paused=True
                 self.release_performance('perf_arp')
         return self.arp_paused
-    def perform_action(self,action,value=None):
+    def _validate_transfer(self,action,expected):
+        """Validate a direct UI transfer before any snapshot, release or model mutation."""
+        fields={'track','device','clip','bars','bank','slot','transpose','pattern','notes'}
+        if type(expected) is not dict or set(expected)!=fields:
+            raise ValueError('Transfer target is incomplete; choose the current track, clip and pattern')
+        seq=self.project.performance['seq'];track=self.selected
+        actual=dict(track=track,device=device_kind(self.project.tracks[track]),
+                    clip=self.project.clips['open'][track],bars=self.project.bars,
+                    bank=seq['bank'],slot=seq['slot'],transpose=seq['transpose'],
+                    pattern=current_pattern(self.project.performance),notes=self.project.tracks[track]['notes'])
+        if any(type(expected[k]) is not int for k in ('track','clip','bars','bank','slot','transpose')) or expected!=actual:
+            raise ValueError('Transfer target changed; check the displayed track, clip and pattern and try again')
+        if self.recording or seq['recording']:
+            raise ValueError('Finish recording before transferring notes')
+        pattern=actual['pattern'];unit=DIVISIONS[pattern['division']]
+        if action=='capture_song':
+            notes=actual['notes']
+            if not notes:raise ValueError('The source clip is empty')
+            if seq['transpose']:raise ValueError('Set pattern Transpose to 0 before an exact Song to Pattern copy')
+            counts={};ratios=[]
+            for n in notes:
+                step=n['start']/unit
+                if not math.isclose(step,round(step),abs_tol=1e-7):
+                    raise ValueError('Clip timing does not fit this pattern division; no notes were quantized')
+                if not 0<=round(step)<pattern['length']:
+                    raise ValueError('Clip notes exceed this pattern length')
+                ratios.append(n['duration']/unit)
+                counts[round(step)]=counts.get(round(step),0)+1
+                if counts[round(step)]>8:raise ValueError('A pattern step holds at most 8 notes; no notes were dropped')
+            # Reuse the converter, choosing an existing-model gate/tie representation
+            # which preserves every source duration instead of rounding or truncating it.
+            gates=[.8]+sorted({ratios[0]/tie for tie in range(1,9) if .1<=ratios[0]/tie<=.9},key=lambda g:abs(g-.8))
+            gate=next((g for g in gates if all(1<=round(r/g)<=8 and math.isclose(r/g,round(r/g),abs_tol=1e-7) for r in ratios)),None)
+            if gate is None:raise ValueError('Clip note lengths cannot share this pattern gate and tie range; no notes were changed')
+            captured=pattern_from_song(notes,self.project.bars,pattern['division'],pattern['length']);captured['gate']=gate
+            offsets={}
+            for n,ratio in zip(notes,ratios):
+                step=round(n['start']/unit);index=offsets.get(step,0);offsets[step]=index+1
+                captured['steps'][step][index]['tie']=round(ratio/gate)
+            return captured
+        else:
+            if not any(pattern['steps']):raise ValueError('The source pattern is empty')
+            for step,notes in enumerate(pattern['steps']):
+                if notes and step*unit>=self.project.beats-1e-9:
+                    raise ValueError('Pattern notes exceed the destination clip length')
+                for n in notes:
+                    if not 0<=n['note']+seq['transpose']<=127:
+                        raise ValueError('Pattern Transpose would clip MIDI pitch; no notes were changed')
+                    if unit*pattern['gate']*n['tie']>self.project.beats+1e-7:
+                        raise ValueError('A note tie is longer than the destination clip')
+
+    def perform_action(self,action,value=None,expected=None):
+        transfer_pattern=None
+        if expected is not None:
+            if action not in ('capture_song','commit_song'):raise ValueError('Only note transfers accept a transfer target')
+            transfer_pattern=self._validate_transfer(action,expected)
         if action in ('arp_stop','arp_pause'):return self.arp_interrupt(action)
         if action in ('rec_cursor','rec_rest','rec_back'):
             length=current_pattern(self.project.performance)['length']
@@ -910,7 +965,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         seq=state['seq']; addr=slot_key(seq['bank'],seq['slot'])
         pattern=current_pattern(state)
         if action=='capture_song':
-            state['patterns'][addr]=pattern_from_song(self.project.tracks[self.selected]['notes'],
+            state['patterns'][addr]=transfer_pattern or pattern_from_song(self.project.tracks[self.selected]['notes'],
                          self.project.bars,seq['division'],seq['length'])
         elif action=='commit_song':
             if value not in ('add','replace'):raise ValueError('Choose add or replace')

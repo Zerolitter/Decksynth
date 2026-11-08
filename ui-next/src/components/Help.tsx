@@ -46,7 +46,10 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
   return()=>{others.forEach(({el,inert})=>el.inert=inert);if(origin?.isConnected)origin.focus({preventScroll:true});};
  },[]);
  useEffect(()=>{
-  if(section==='notes'&&notes.current&&content.current)content.current.scrollTop=notes.current.offsetTop;
+  if(section==='notes'&&notes.current&&content.current){
+   const el=content.current;
+   el.scrollTop=Math.floor(el.scrollTop+notes.current.getBoundingClientRect().top-el.getBoundingClientRect().top);
+  }
   else if(content.current)content.current.scrollTop=0;
  },[section]);
  return <section ref={ref} className="settings-dialog help-dialog" data-shortcut-reference data-help-section={section}
@@ -62,7 +65,8 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
   <header><h2>Decksynth Help</h2><button ref={done} type="button" className="modal-close" aria-label="Close help" onClick={close}><X size={18}/></button></header>
   <div ref={content} className="help-content" tabIndex={0} aria-label="Help content">
    <h3>Guide</h3>
-   <p><strong>Perform.</strong> Edit patterns with the compact grid. Hold is lower-left; the keyboard button beneath it hides or restores the playable keys. Wheel or drag vertically on the octave control to change the viewed range; its arrows and keyboard controls do the same. Drum tracks start at C2. Range navigation never transposes saved notes.</p>
+   <p><strong>Perform.</strong> Edit patterns with the compact grid. Hold is lower-left; the keyboard button beneath it hides or restores the playable keys. Wheel or drag vertically on the octave control to change the viewed range; its arrows and keyboard controls do the same. Drum tracks start at C2. Range navigation never transposes saved notes. Expand enlarges this same grid; Restore or Escape returns to the compact view.</p>
+   <p><strong>Pattern ↔ Song.</strong> The direct buttons name the track, open clip and pattern. Pattern → Song adds notes and repeats to fill the clip. Song → Pattern replaces the named pattern, preserving exact timing where the division, gate and tie range allow it. Incompatible copies are rejected; one Undo restores the transfer.</p>
    <p><strong>Song.</strong> Choose a track and an open clip (A–H), record a loop, or place clips on the arrangement timeline. The global transport controls playback and recording.</p>
    <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four ADSR controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically, hold Shift for finer changes, or tap the numeric value.</p>
    <p><strong>Modulation.</strong> Tap a pad’s label or a macro’s name, then the parameters to link. Shape and Links edit the selected source; Done, Escape or an empty-area tap ends linking. Link depth can be positive or negative.</p>

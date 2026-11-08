@@ -559,12 +559,13 @@ function App() {
         </>}
       </div></PanelScope></ContextAreaScope>
       :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
+          transfer={{clip:clipsOf(project).open[selected],bars:project.bars}}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
           onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
           onSet={(section,key,value)=>command('perform_set',[section,key,value])}
           onStep={(index,notes,replace)=>command('perform_step',[index,notes,replace])}
-          onAction={(action,value)=>command('perform_action',[action,value??null])}
+          onAction={(action,value,expected)=>command('perform_action',expected?[action,value??null,expected]:[action,value??null])}
           onPlay={()=>command('play')}
           onTempo={bpm=>command('tempo',bpm)}
           onMidi={(status,a,b,notes)=>command('midi',notes?[status,a,b,notes]:[status,a,b])}/></div>}

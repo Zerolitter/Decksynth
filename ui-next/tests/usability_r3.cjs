@@ -6,6 +6,10 @@ const { launch } = require('./usability-harness.cjs');
   const { page, send, height, shot, commands } = h;
   const failures = [];
   const help = () => page.getByRole('dialog', { name: 'Decksynth help', exact: true });
+  const openEditor = async () => {
+    await page.getByRole('tab', { name: 'Song', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit notes of track 1', exact: true }).click();
+  };
   const check = async (name, run) => {
     try { await run(); console.log('PASS', name); }
     catch (e) {
@@ -56,7 +60,7 @@ const { launch } = require('./usability-harness.cjs');
       }
     });
     await check('help opened from an editor suspends that editor and Escape returns to its invoker', async () => {
-      await page.getByRole('button', { name: 'Expand notes', exact: true }).click();
+      await openEditor();
       const editor = page.getByRole('dialog', { name: 'MIDI note editor', exact: true });
       await editor.waitFor();
       const button = editor.getByRole('button', { name: 'Note editing help', exact: true });
@@ -66,6 +70,7 @@ const { launch } = require('./usability-harness.cjs');
       assert.ok(await button.evaluate(el => el === document.activeElement));
       assert.ok(!(await editor.evaluate(el => el.inert)));
       await page.keyboard.press('Escape'); await editor.waitFor({ state: 'detached' });
+      await page.getByRole('tab', { name: 'Perform', exact: true }).click();
     });
     await check('documented global keys act outside inputs; help and numeric text entry retain ownership', async () => {
       await commands();
@@ -84,7 +89,7 @@ const { launch } = require('./usability-harness.cjs');
       await page.keyboard.press('F9'); await page.waitForFunction(() => window.usabilityState.selected === 0);
       await page.keyboard.press('F10');
       assert.ok((await commands()).some(c => c.cmd === 'undo'));
-      await page.getByRole('button', { name: 'Expand notes', exact: true }).click();
+      await openEditor();
       const editor = page.getByRole('dialog', { name: 'MIDI note editor', exact: true });
       const input = editor.getByRole('spinbutton', { name: 'Selected note velocity', exact: true });
       await input.fill('88'); await commands();

@@ -360,3 +360,8 @@
 .help-content table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5}
 .help-content th,.help-content td{padding:8px;text-align:left;border-bottom:1px solid #383d43;vertical-align:top}
 .help-content th{width:210px;color:#bce0d2;font-weight:700}
+
+.harness-shell .note-editor{width:calc(100vw - 24px);height:calc(100vh - 24px);max-width:none;max-height:none;display:flex;flex-direction:column;gap:8px}
+.harness-shell .note-editor>header,.harness-shell .note-editor-tools,.harness-shell .note-editor>footer{flex:none}
+.harness-shell .note-editor .note-editor-grid.piano-roll{height:auto;flex:1;min-height:0}
+.song-marker{font-size:12px;font-weight:700;color:#c3d3ce}
