@@ -69,7 +69,7 @@ def _roles(path):
 
 
 def _select(paths):
-    ordered = sorted(paths, key=_sample_order)
+    ordered = sorted((path for path in paths if _automatic_hit(path)), key=_sample_order)
     roles = {path: _roles(path) for path in ordered}
     selected = [None] * PAD_COUNT
     used = set()
@@ -83,6 +83,16 @@ def _select(paths):
         if path is None:
             selected[number] = next(remaining, None)
     return selected
+
+
+def _automatic_hit(path):
+    """Known demonstration/reference names stay browsable, but do not fill pads."""
+    words=re.findall(r'[a-z]+',path.stem.casefold())
+    if any(words[i:i+2]==['demo','loop'] for i in range(len(words)-1)):
+        return False
+    context=re.findall(r'[a-z]+',(path.parent.name+' '+path.stem).casefold())
+    ab='ab' in context or any(context[i:i+2]==['a','b'] for i in range(len(context)-1))
+    return not (ab and bool(set(context)&{'reference','comparison','example','examples','demo'}))
 
 
 def _contained(path, root):
@@ -142,6 +152,8 @@ class LibraryIndex:
             raise ValueError('Unknown sample library folder')
         root = Path(self.root)
         selected = _select(self._paths[folder_id])
+        if not any(path is not None for path in selected):
+            raise ValueError('Folder contains reference audio only; choose a one-shot kit or import a sample explicitly')
         # Resolve every chosen path before any decode; this also rejects a
         # directory replaced with an outside-root symlink after the scan.
         for path in selected:

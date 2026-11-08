@@ -53,13 +53,14 @@ export function useNoteEditing(props:Props){
   else if(gesture.current&&JSON.stringify(gesture.current.expected)!==source&&!q.some(x=>x.after===JSON.stringify(gesture.current?.expected))){cancel();setSelection([]);}
   else if(changed&&!q.length){setSelection([]);setRange(null);}
  },[source]);
- useEffect(()=>{const rejected=()=>{pending.current=[];cancel();setSelection([]);};window.addEventListener('decksynth-command-rejected',rejected);return()=>window.removeEventListener('decksynth-command-rejected',rejected);},[]);
+ useEffect(()=>{const rejected=()=>{pending.current=[];cancel();setSelection([]);};window.addEventListener('decksynth-command-rejected',rejected);window.addEventListener('decksynth-undo',rejected);return()=>{window.removeEventListener('decksynth-command-rejected',rejected);window.removeEventListener('decksynth-undo',rejected);};},[]);
  useEffect(()=>{const blur=()=>cancel(),up=(e:PointerEvent)=>{if(audition.current?.pointer===e.pointerId&&(e.type==='pointercancel'||e.pointerType!=='mouse'||e.button===0))stop();};window.addEventListener('blur',blur);document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',up,true);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);stop();};},[]);
  const current=()=>gesture.current?.preview??pending.current.at(-1)?.events??latest.current.events;
  const editingBounds=()=>({...latest.current.bounds,integer:latest.current.target.kind==='pattern'});
  function copy(ids=selection,events=current()){if(!ids.some(i=>events[i]))return;clipboard=clipboardNotes(events,ids,stepBeats(pending.current.at(-1)?.expected??latest.current.expected));setStatus('Copied '+clipboard.notes.length+' notes');}
  function paste(time=cursor,expected?:Note[]|StepPattern,target?:NoteTarget,events=current()){if(!clipboard?.notes.length)return;const p=latest.current,out=pasteNotes(events,clipboard,time,{...p.bounds,integer:(target??p.target).kind==='pattern'},stepBeats(expected??pending.current.at(-1)?.expected??p.expected));if(!out){setStatus('Paste rejected: incompatible timing, overlap or range');return;}commit(out.events,out.selection,expected,target);setStatus('Pasted '+out.selection.length+' notes at '+time);}
  function selectAll(){setSelection(current().map((_,i)=>i));}
+ function undo(){cancel();pending.current=[];setDraft(null);latest.current.undo();}
  function selectRow(pitch?:number){
   const events=current();
   const active=selection.find(i=>events[i]?.note===activePitch.current)??selection.at(-1);
@@ -159,7 +160,7 @@ export function useNoteEditing(props:Props){
   const recognized=ctrl?['a','c','v','x','d','z','arrowup','arrowdown'].includes(k):['1','2','3','q','delete','backspace','arrowleft','arrowright','arrowup','arrowdown'].includes(k);
   if(!recognized||e.altKey)return;if(gesture.current){e.preventDefault();e.stopPropagation();return;}
   e.preventDefault();e.stopPropagation();
-  if(ctrl&&k==='z'){if(e.shiftKey){setStatus('Redo is not supported by the canonical engine');return;}cancel();pending.current=[];setDraft(null);latest.current.undo();return;}
+  if(ctrl&&k==='z'){if(e.shiftKey){setStatus('Redo is not supported by the canonical engine');return;}undo();return;}
   if(latest.current.recording)return;
   if(ctrl&&k==='a'){if(e.shiftKey)selectRow();else selectAll();return;}
   if(ctrl&&k==='c'){copy();return;}
@@ -172,5 +173,5 @@ export function useNoteEditing(props:Props){
   else if(k.startsWith('arrow'))a=ctrl?{kind:'move',time:0,pitch:k==='arrowup'?12:-12}:e.shiftKey?{kind:'length',delta:(k==='arrowleft'||k==='arrowdown'?-1:1)*latest.current.bounds.snap}:{kind:'move',time:k==='arrowleft'?-latest.current.bounds.snap:k==='arrowright'?latest.current.bounds.snap:0,pitch:k==='arrowup'?1:k==='arrowdown'?-1:0};
   if(a)action(a);
  }
- return {range,box,events:draft??pending.current.at(-1)?.events??props.events,selection,tool,setTool,begin,move,end,cancel,cancelCapture,key,action,setSelection,play,stop,scrub,auditionPitch,commit,tap,cursor,setCursor,status,copyGhosts,copy,paste,selectAll,selectRow,active:()=>!!gesture.current,expectedState:()=>pending.current.at(-1)?.expected??latest.current.expected};
+ return {range,box,events:draft??pending.current.at(-1)?.events??props.events,selection,tool,setTool,begin,move,end,cancel,cancelCapture,key,action,setSelection,play,stop,scrub,auditionPitch,commit,tap,cursor,setCursor,status,copyGhosts,copy,paste,selectAll,selectRow,undo,active:()=>!!gesture.current,expectedState:()=>pending.current.at(-1)?.expected??latest.current.expected};
 }

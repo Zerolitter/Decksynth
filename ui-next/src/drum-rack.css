@@ -1,6 +1,19 @@
 /* Native Drum Rack inherits DeckSynth's materials and shared tactile knobs. */
 .harness-shell .drum-rack{--drum-accent:#78d8bf;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;color:#e3eeea;font-size:12px}
 .drum-rack *{box-sizing:border-box}
+.drum-steps{flex:none;padding:8px 12px 12px;border-top:1px solid #304145;min-width:0}
+.drum-step-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;min-width:0}
+.drum-step-head>strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#c4d3ce}
+.drum-bar-nav{display:flex;align-items:center;gap:4px}
+.drum-bar-nav>span{min-width:64px;text-align:center;font-size:11px;white-space:nowrap;display:flex;flex-direction:column;gap:2px}
+.drum-bar-nav small{font-size:10px;color:#b7c8c3}
+.drum-rack .drum-step-head button{width:44px;min-width:44px;min-height:44px;display:grid;place-items:center;padding:0}
+.drum-step-grid{position:relative;display:grid;grid-template-columns:repeat(16,minmax(44px,1fr));gap:4px}
+.drum-rack .drum-step-grid button{position:relative;min-width:44px;min-height:44px;padding:0 0 6px;border-radius:6px;background:#242729;border-color:#3c4043;color:#bacbc6;font-size:12px}
+.drum-rack .drum-step-grid button.beat{border-left-color:#71847f}
+.drum-rack .drum-step-grid button[aria-pressed=true]{border-color:var(--pad-accent);color:#e4eded}
+.drum-step-grid button i{position:absolute;bottom:6px;left:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:var(--pad-accent)}
+.drum-step-playhead{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}
 .drum-rack h1,.drum-rack h2,.drum-rack p{margin:0}
 .drum-rack button,.drum-rack select{min-width:44px;min-height:44px;font:inherit;touch-action:manipulation}
 .drum-rack button{border:1px solid var(--line);border-radius:8px;background:var(--raised);color:#e3eeea;font-weight:750;cursor:pointer}

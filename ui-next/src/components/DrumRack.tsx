@@ -1,6 +1,6 @@
 import {useContextTarget} from './ContextWheel';
-import { useEffect, useRef, useState } from 'react';
-import { AudioWaveform, FolderOpen, Grid2X2, Link2, ListMusic, Volume2 } from 'lucide-react';
+import { useEffect, useRef, useState,type ReactNode } from 'react';
+import { AudioWaveform, FolderOpen, Grid2X2, Link2, ListMusic } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, type Track, type DrumRuntime, type DrumLibraryState } from '../types';
@@ -8,9 +8,10 @@ import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import '../drum-rack.css';
 
 export type { DrumPad, DrumRuntime } from '../types';
-type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Track;trackIndex:number;runtime?:DrumRuntime;output?:{peak:number;rms:number;voices:number;underruns:number;driver:string};onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void;library?:DrumLibraryState;onLoadFolder?:(folderId:string)=>void;onChooseLibrary?:()=>void;onRefreshLibrary?:()=>void;
+type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Track;trackIndex:number;runtime?:DrumRuntime;onNote:(pad:number,velocity:number)=>void;onEdit:(pad:number,key:string,value:unknown)=>void;onImport:(pad:number,relink:boolean)=>void;library?:DrumLibraryState;onLoadFolder?:(folderId:string)=>void;onChooseLibrary?:()=>void;onRefreshLibrary?:()=>void;
   onBrowseFolder?:(folderId:string,page:number)=>void;onPreviewSample?:(folderId:string,index:number)=>void;
-  onStopPreview?:()=>void;onReplaceSample?:(folderId:string,index:number,pad:number)=>void};
+  onStopPreview?:()=>void;onReplaceSample?:(folderId:string,index:number,pad:number)=>void;
+  steps?:(pad:import('../types').DrumPad)=>ReactNode};
 
 /** The shared knob previews locally; only the end of its gesture reaches the worker. */
 function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,onCommit}:{
@@ -54,7 +55,7 @@ function SourceWave({peaks}:{peaks:number[][]}) {
   </svg>;
 }
 
-function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample}:Props) {
+function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps}:Props) {
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
   const [localBrowsing,setLocalBrowsing]=useState(false);
@@ -114,11 +115,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,
         </div>
         <div className="drum-family-legend" aria-label="Drum families">{families.map(kind=><span key={kind} style={{['--family' as string]:DRUM_KINDS[kind].color}}><i/>{DRUM_KINDS[kind].label}</span>)}</div>
         <div className="drum-pad-legend"><span><i className="selected"/>Selected</span><span><i className="trigger"/>Note event</span><span>One-shot playback</span></div>
-        <div className="drum-unavailable">
-          <div className="drum-pending-buttons" role="group" aria-label="Unavailable Drum Rack pages">{['SEQ','MIX','FX'].map(label=><button key={label} type="button" disabled aria-describedby="drum-pending-note">{label}</button>)}</div>
-          <p id="drum-pending-note">SEQ, MIX and FX are not available in this version. Record pads with the existing SONG transport.</p>
-        </div>
-        <div className="drum-playback-note"><Volume2 size={17}/><p>One-shots play to the end. Pads in the same choke group stop each other. Tune changes pitch and duration together.</p></div>
+        {steps?.(pad)}
       </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">
         <div className="drum-section-bar"><h2 id="drum-pad-sound-title">PAD SOUND</h2><span>Pad {String(selected+1).padStart(2,'0')} · MIDI {pad.note}</span><div className="drum-import-actions">
@@ -143,19 +140,10 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,output,
           <button type="button" aria-pressed={pad.solo} onClick={()=>edit('solo',!pad.solo)}>Solo</button>
           <label>Choke group<select aria-label="Choke group" value={pad.choke} onChange={e=>edit('choke',Number(e.target.value))}><option value={0}>None</option>{Array.from({length:16},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
         </div>
-        <div className="drum-pan"><button type="button" disabled aria-describedby="drum-mono-note">Pan</button><p id="drum-mono-note">Mono output. Stereo WAVs are downmixed; pan is unavailable.</p></div>
+        <div className="drum-pan"><button type="button" disabled aria-describedby="drum-mono-note">Pan</button><p id="drum-mono-note">Stereo samples are downmixed for each drum voice. Per-pad pan is unavailable.</p></div>
       </section>
     </div>
-    {output?<footer className="drum-output" aria-label="Native audio output">
-      <span className="drum-output-source">Native output <b data-output="driver">{output.driver}</b></span>
-      <span className="drum-output-level"><meter min={0} max={1} low={.7} high={.9} optimum={.3}
-        value={Math.max(0,Math.min(1,output.peak))} aria-label="Native output peak"/>
-        <span>Peak <b>{output.peak>0?(20*Math.log10(output.peak)).toFixed(1):'−∞'} dBFS</b></span>
-        <span data-output="rms" data-value={output.rms}>RMS <b>{output.rms>0?(20*Math.log10(output.rms)).toFixed(1):'−∞'} dBFS</b></span>
-      </span>
-      <span data-output="voices" data-value={output.voices}><b>{output.voices}</b> voices</span>
-      <span data-output="underruns" data-value={output.underruns}><b>{output.underruns}</b> underruns</span>
-    </footer>:null}
+
   </section>;
 }
 

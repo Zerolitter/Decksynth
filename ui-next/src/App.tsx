@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
-import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf, type Song } from './song';
-import { PatternSync } from './components/PatternSync';
+import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf, blockAt,phase as clipPhase,type Song } from './song';
+import {DrumSteps} from './components/DrumSteps';
 import { AudioScope } from './components/AudioScope';
 import { SoundWindow } from './components/SoundLab';
 import { SoundCards } from './components/Rack';
@@ -194,6 +194,7 @@ function App() {
   },[toast]);
 
   const command=useCallback((cmd:string,args:unknown=null)=>{
+    if(cmd==='undo')window.dispatchEvent(new Event('decksynth-undo'));
     if(api && !isPreview){api.send(cmd,args);return;}
     // Explicit demo-only interactions: never touch the original synth or disk.
     setSnapshot(prev=>{
@@ -516,11 +517,9 @@ function App() {
         {clipSheet!==null?<ClipSheet project={project} song={song} track={clipSheet}
           container={document.querySelector('.song-page')} onClose={()=>setClipSheet(null)}
           onClip={(t,action,clip,source)=>command('clip',[t,action,clip,source??null])}/>:null}
-        <Panel id="song-lower" className="song-lower-panel" title="Step view and output" icon={<Activity size={15}/>}
+        <Panel id="song-lower" className="song-lower-panel" title="Output" icon={<Activity size={15}/>}
           summary={(snapshot?.voices??0)+' voices'}>
-          <div className="song-lower">
-            <PatternSync project={project} selected={selected} beat={playhead} playing={snapshot?.playing??false}
-              recording={snapshot?.recording??false} onSelect={index=>command('select',index)}/>
+          <div className="song-lower song-output-only">
             <AudioScope monitor={snapshot?.meter??null} running={snapshot?.playing??false}
               voices={snapshot?.voices??0} underruns={snapshot?.underruns??0} preview={isPreview}
               load={snapshot?.dsp_load} bufferMs={snapshot?.buffer_ms}/>
@@ -529,7 +528,17 @@ function App() {
       </div>
       :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
         runtime={snapshot?.drum_racks?.[selected]??undefined}
-        output={{peak:snapshot?.meter?.peak??0,rms:snapshot?.meter?.rms??0,voices:snapshot?.voices??0,underruns:snapshot?.underruns??0,driver:snapshot?.audio??'Unavailable'}}
+        steps={pad=>{
+          const clip=clipsOf(project).open[selected],bar=Math.floor(songBeat/4);
+          const block=song.on?blockAt(song,selected,bar):undefined;
+          const running=!!snapshot?.playing&&(!song.on||block?.clip===clip);
+          const beat=song.on&&block?clipPhase(block,bar,project.bars)*4+songBeat%4:playhead;
+          return <DrumSteps track={selected} clip={clip} bars={project.bars} kitId={track.drum_rack?.id??''} pad={pad} notes={track.notes}
+            playing={running} beat={beat} recording={!!snapshot?.recording||project.performance.seq.recording}
+            onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])}
+            onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])}
+            onUndo={()=>command('undo')}/>;
+        }}
         onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
         onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
         onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>{if(!open)command('drum_preview_stop');setKitBrowserTrack(open?selected:null);}} library={snapshot?.drum_library}

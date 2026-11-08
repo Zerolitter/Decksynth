@@ -1,5 +1,6 @@
 /* Song page arranger (PLAN I). */
 .harness-shell .song-page{position:relative}
+.decksynth-shell .song-lower.song-output-only{grid-template-columns:minmax(0,1fr)}
 .harness-shell .track-row:has(.lane-loop){grid-template-columns:170px 50px 44px 44px minmax(0,1fr)}
 .harness-shell .song-bar{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px 12px 8px;border-bottom:1px solid #26353a}
 .harness-shell .song-row{display:flex;align-items:center;gap:8px;min-width:0}

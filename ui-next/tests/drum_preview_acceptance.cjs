@@ -24,12 +24,14 @@ for name,freq in [('Kick',90),('Snare',195),('ClosedHat',900),('OpenHat',1320)]:
   w.writeframes(b''.join(struct.pack('<h',int(10000*math.sin(2*math.pi*freq*i/48000)*math.exp(-i/16000))) for i in range(48000)))`,soundDir]);
  fs.writeFileSync(path.join(broken,'Invalid.wav'),'not PCM');
  app=await _electron.launch({executablePath:path.join(ROOT,'node_modules/electron/dist/electron'),
-  args:['electron/playwright-main.cjs'],cwd:ROOT,env:{...process.env,DECKSYNTH_UI_PREVIEW:'0',
+  args:['--ozone-platform=headless','--disable-gpu','electron/playwright-main.cjs'],cwd:ROOT,env:{...process.env,DECKSYNTH_UI_PREVIEW:'0',
   DECKSYNTH_DIAGNOSTIC:'1',DECKSYNTH_DATA_DIR:data,SDL_AUDIODRIVER:'dummy',ELECTRON_OZONE_PLATFORM_HINT:'x11'},timeout:20000});
  p=await app.firstWindow({timeout:18000});p.setDefaultTimeout(12000);
  p.on('pageerror',error=>pageErrors.push(error.message));
- await app.evaluate(({BrowserWindow})=>{let w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,718);});
  await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),null,{timeout:15000});
+ // Size after did-finish-load's maximize, as in the usability harness.
+ await app.evaluate(({BrowserWindow})=>{let w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,718);});
+ await p.waitForFunction(()=>innerWidth===1280&&innerHeight===718);
  await p.evaluate(()=>window.deckApi.onMessage(m=>{if(m.state)window.__previewLatest=m;}));
  await p.waitForFunction(()=>!!window.__previewLatest?.state);
  await p.getByRole('tab',{name:/^Sound$/i}).click();

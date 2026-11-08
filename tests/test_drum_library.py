@@ -12,6 +12,29 @@ from decksynth.samples import DecodedSample, SampleCache
 
 
 class DrumLibraryTests(unittest.TestCase):
+    def test_demo_loops_and_ab_references_are_browsable_but_not_automatic_one_shots(self):
+        for folder in ['Legend Forge/kits/Chimera','Personalities/kits/Tidepool','Restyled/kits/Abyss Pressure']:
+            for name in ['Kick 01.wav','Snare Odd Name.wav','Looping Rim.wav','A Kick.wav',
+                         '_Demo Loop 124bpm.wav','_A-B Reference.wav']:
+                self.wav(folder+'/'+name)
+        index=self.api().scan_library(self.root)
+        for row in index.folders:
+            folder=row['id']
+            kit,_=index.prepare(folder,SampleCache())
+            names={pad['name'] for pad in kit['pads'] if pad['source']}
+            self.assertEqual(names,{'Kick 01','Snare Odd Name','Looping Rim','A Kick'})
+            browse=index.browse(folder)
+            self.assertEqual(browse['total'],6)
+            demo=next(item for item in browse['items'] if item['filename'].startswith('_Demo'))
+            self.assertTrue(index.sample_path(folder,demo['index']).is_file())
+
+    def test_reference_only_folder_does_not_prepare_an_empty_replacement_kit(self):
+        self.wav('A-B Examples/A-B comparison.wav');self.wav('A-B Examples/_Demo Loop 90bpm.wav')
+        index=self.api().scan_library(self.root)
+        with self.assertRaisesRegex(ValueError,'reference'):
+            index.prepare('A-B Examples',SampleCache())
+        self.assertEqual(index.browse('A-B Examples')['total'],2)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
