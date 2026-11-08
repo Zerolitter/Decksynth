@@ -23,12 +23,27 @@ export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,
  const begin=(e:React.PointerEvent<HTMLDivElement>)=>{if(e.button!==1||latest.current.busy())return false;e.preventDefault();e.stopPropagation();e.currentTarget.focus({preventScroll:true});e.currentTarget.setPointerCapture(e.pointerId);pan.current={id:e.pointerId,x:e.clientX,y:e.clientY,left:e.currentTarget.scrollLeft,top:e.currentTarget.scrollTop};setPanning(true);return true;};
  const move=(e:React.PointerEvent<HTMLDivElement>)=>{const g=pan.current;if(!g||g.id!==e.pointerId)return;e.preventDefault();e.stopPropagation();e.currentTarget.scrollLeft=g.left+g.x-e.clientX;e.currentTarget.scrollTop=g.top+g.y-e.clientY;measure();};
  const end=(e:React.PointerEvent<HTMLDivElement>)=>{if(pan.current?.id!==e.pointerId)return;e.preventDefault();e.stopPropagation();pan.current=null;setPanning(false);try{e.currentTarget.releasePointerCapture(e.pointerId);}catch{}measure();};
- const locate=(x:number,y:number)=>{const el=ref.current;if(!el)return null;const r=el.getBoundingClientRect();if(x<r.left+44||x>=r.right||y<r.top+24||y>=r.bottom)return null;const column=(el.scrollLeft+x-r.left-44)/timePx,row=(el.scrollTop+y-r.top-24)/rowHeight;if(column<0||column>=span/snap||row<0||row>=pitches.length)return null;return {time:bound(Math.floor(column)*snap,0,span-snap),pitch:pitches[Math.floor(row)]};};
+ const pitchAt=(y:number)=>{
+  const el=ref.current;
+  if(!el)return null;
+  const r=el.getBoundingClientRect();
+  if(y<r.top+24||y>=r.top+el.clientHeight)return null;
+  return pitches[Math.floor((el.scrollTop+y-r.top-24)/rowHeight)]??null;
+ };
+ const locate=(x:number,y:number)=>{
+  const el=ref.current,pitch=pitchAt(y);
+  if(!el||pitch===null)return null;
+  const r=el.getBoundingClientRect();
+  if(x<r.left+44||x>=r.left+el.clientWidth)return null;
+  const column=(el.scrollLeft+x-r.left-44)/timePx;
+  if(column<0||column>=span/snap)return null;
+  return {time:bound(Math.floor(column)*snap,0,span-snap),pitch};
+ };
  const fit=(selected:Note[]=notes)=>{const el=ref.current;if(!el||latest.current.busy()||pan.current)return;const next=fitNotesView(selected,span,snap,el.clientWidth,el.clientHeight);if(selected.length){const high=Math.max(...selected.map(n=>n.note)),low=Math.min(...selected.map(n=>n.note)),top=Math.max(0,pitches.findIndex(n=>n<=high)-2),bottom=Math.max(top+4,pitches.findIndex(n=>n<=low)+2);next.rowHeight=bound((el.clientHeight-24)/(bottom-top+1),12,88);next.top=top*next.rowHeight;}requested.current={left:next.left,top:next.top};setTimePx(next.timePx);setRowHeight(next.rowHeight);requestAnimationFrame(()=>{if(requested.current){el.scrollLeft=next.left;el.scrollTop=next.top;requested.current=null;measure();}});};
  const time=(direction:number)=>ref.current?.scrollBy({left:direction*(view.width-44)*.8,behavior:'smooth'});
  const pitch=(direction:number)=>ref.current?.scrollBy({top:-direction*8*rowHeight,behavior:'smooth'});
  const firstCol=Math.max(0,Math.floor((view.left-44)/timePx)-1),lastCol=Math.min(Math.ceil(span/snap),Math.ceil((view.left+view.width-44)/timePx)+1),firstRow=Math.max(0,Math.floor((view.top-24)/rowHeight)-1),lastRow=Math.min(pitches.length,Math.ceil((view.top+view.height-24)/rowHeight)+1);
  const timeTo=(time:number)=>{if(ref.current){ref.current.scrollLeft=time/snap*timePx;measure();}};
  const pitchTo=(pitch:number)=>{if(ref.current){ref.current.scrollTop=Math.max(0,pitches.findIndex(n=>n<=pitch))*rowHeight;measure();}};
- return {...view,timeTo,pitchTo,timePx,rowHeight,panning,firstCol,lastCol,firstRow,lastRow,begin,move,end,cancel,locate,fit,time,pitch,active:()=>!!pan.current};
+ return {...view,timeTo,pitchTo,timePx,rowHeight,panning,firstCol,lastCol,firstRow,lastRow,begin,move,end,cancel,locate,pitchAt,fit,time,pitch,active:()=>!!pan.current};
 }

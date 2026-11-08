@@ -34,7 +34,6 @@
 .harness-shell .pf .pf-pads button.playing{animation:c-pulse 1s ease-in-out infinite}
 .harness-shell .pf .pf-banks button i{background:var(--mode)}
 .harness-shell .pf .pf-grid-head span.live{color:var(--mode)}
-.harness-shell .pf .pf-cell.live{background:color-mix(in srgb,var(--mode) 12%,transparent)}
 .harness-shell .pf .pf-row.root .pf-row-note{color:var(--mode)}
 .harness-shell .pf .pf-note{background:linear-gradient(180deg,color-mix(in srgb,var(--c-seq) 80%,#fff),var(--c-seq));box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--c-seq) 60%,#000)}
 .harness-shell .pf .pf-note.accent{background:linear-gradient(180deg,#ffd98a,#e9ad4f);box-shadow:inset 0 -2px 0 #a8742a}

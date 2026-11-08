@@ -293,9 +293,6 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     for(let n=gridBase;out.length<span&&n<=127;n++)if(degrees.includes(((n-scale.root)%12+12)%12))out.push(n);
     return out.reverse();
   },[gridBase,scale.name,scale.root]);
-  const visible=Array.from({length:16},(_,i)=>page*16+i);
-  const outside=(index:number,dir:1|-1)=>(pat.steps[index]??[]).filter(n=>dir>0?n.note>rows[0]:n.note<rows[rows.length-1]).length;
-
   const gridTools=<>
     <div className="pf-seg" role="group" aria-label="Pattern page">
       {Array.from({length:4},(_,i)=><button key={i} type="button" disabled={i>=pages} aria-pressed={page===i}
