@@ -75,7 +75,7 @@ export function Panel({id,title,icon,actions,summary,children,className='',defau
   const [folded,setFolded]=useFold(id,defaultFolded);
   const section=useRef<HTMLElement>(null);
   const reopen=()=>{markUsed(id,scope);setFolded(false);requestAnimationFrame(()=>section.current?.scrollIntoView({block:'nearest',inline:'nearest'}));};
-  const context=useContextTarget(()=>rail?{area:area??'sound',kind:'rack.card',label:typeof title==='string'?title:id,caps:{open:reopen,fold:()=>setFolded(!folded),pin:()=>setPinned(id,!pinned,scope),...(power?{bypass:power.onToggle}:{}),previous:()=>{const prev=section.current?.previousElementSibling as HTMLElement;prev?.scrollIntoView({block:'nearest',inline:'nearest'});},next:()=>{const next=section.current?.nextElementSibling as HTMLElement;next?.scrollIntoView({block:'nearest',inline:'nearest'});}}}:null);
+  const context=useContextTarget(()=>{if(!rail)return null;const reset=section.current?.querySelector<HTMLButtonElement>('button[aria-label^="Reset "]');return {area:area??'sound',kind:'rack.card',label:typeof title==='string'?title:id,caps:{...(power?{bypass:power.onToggle}:{}),...(reset?{reset:()=>reset.isConnected&&reset.click()}: {})}};});
   const lastTap=useRef(0);
   const onBarPointerUp=(e:React.PointerEvent)=>{
     if(reorder?.moved()){lastTap.current=0;return;}
