@@ -7,8 +7,9 @@ import {useNoteContext} from './useNoteContext';
 import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2 } from 'lucide-react';
+import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { CHORD_EXTS, ROOTS, SCALES, chordName, chordText, diatonicChords, leadVoices, type ChordExt } from '../chords';
 import { LIBRARY } from './PresetBrowser';
@@ -76,8 +77,8 @@ function defaultPattern(length:number,division:string):StepPattern {
 }
 const pct=(n:number)=>Math.round(n)+'%';
 
-/** Hold and Panic sit in the page bar on the right, like the patch browser on Sound. */
-export function PerformTools({hold,onHold,onPanic,arp=false,paused=false,onArp}:{hold:boolean;onHold:()=>void;onPanic:()=>void;
+/** Panic and arp transport remain in the existing page bar. */
+export function PerformTools({onPanic,arp=false,paused=false,onArp}:{onPanic:()=>void;
   /** arp is on: show Pause / Stop */ arp?:boolean; paused?:boolean; onArp?:(action:'arp_pause'|'arp_stop')=>void}){
   return <>
     {arp&&onArp?<>
@@ -87,8 +88,6 @@ export function PerformTools({hold,onHold,onPanic,arp=false,paused=false,onArp}:
       <button type="button" className="pf-tool" onClick={()=>onArp('arp_stop')}
         title="Stop the arp and let go of the held chord"><Square size={14}/>Stop arp</button>
     </>:null}
-    <button type="button" className={'pf-tool'+(hold?' on':'')} aria-pressed={hold} onClick={onHold}
-      title="Keep the arpeggio going after you let go">Hold</button>
     <button type="button" className="pf-tool panic" onClick={onPanic} title="Stop every sounding note">Panic</button>
   </>;
 }
@@ -98,7 +97,13 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
 
-  const [gridBase,setGridBase]=useState(60);
+  const [viewBases,setViewBases]=useState<Record<string,number>>({});
+  const viewKey=selectedTrack+':'+device;
+  const viewRange=performanceRange(device,viewBases[viewKey]);
+  const gridBase=viewRange.base;
+  const setGridBase=(base:number)=>setViewBases(v=>({...v,[viewKey]:performanceRange(device,base).base}));
+  const [keyboardVisible,setKeyboardVisible]=useState(true);
+  const keyboardId=useId();
   const [strength,setStrength]=useState(.35);
   const [sheet,setSheet]=useState<null|'midi'|'library'|'scale'|'mutate'>(null);
   const [padMenu,setPadMenu]=useState<null|{bank:number;slot:number}>(null);
@@ -158,7 +163,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   useEffect(()=>{
     setPage(0);
     const notes=pat.steps.flat().map(n=>n.note);
-    if(notes.length){const low=Math.min(...notes);setGridBase(clamp(Math.floor(low/12)*12,0,108));}
+    if(notes.length&&device!=='drum_rack'){const low=Math.min(...notes);const base=clamp(Math.floor(low/12)*12,0,108);setGridBase(base);roll.current?.pitchTo(base+12);}
   },[seq.bank,seq.slot]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(page>=pages)setPage(pages-1);},[page,pages]);
   useEffect(()=>{if(cursor>=0&&Math.floor(cursor/16)!==page)setPage(Math.floor(cursor/16));},[cursor]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -286,13 +291,11 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   else controls=null;
 
   /* ---------- right: the lane of the chosen mode ---------- */
-  const rows=useMemo(()=>{
-    const degrees=SCALES[scale.name]??SCALES.Chromatic;
-    const span=degrees.length+1;
-    const out:number[]=[];
-    for(let n=gridBase;out.length<span&&n<=127;n++)if(degrees.includes(((n-scale.root)%12+12)%12))out.push(n);
-    return out.reverse();
-  },[gridBase,scale.name,scale.root]);
+  const showRange=(base:number)=>{
+    const next=performanceRange(device,base);
+    if(next.base===gridBase)return;
+    edit.cancel();setGridBase(next.base);roll.current?.pitchTo(next.top);
+  };
   const gridTools=<>
     <div className="pf-seg" role="group" aria-label="Pattern page">
       {Array.from({length:4},(_,i)=><button key={i} type="button" disabled={i>=pages} aria-pressed={page===i}
@@ -302,11 +305,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       {(['select','draw','erase','length','accent'] as NoteTool[]).map(t=><button key={t} type="button" aria-label={t==='select'?'Select notes':t==='draw'?'Draw notes':t==='erase'?'Erase notes':t==='length'?'Longer':'Accent'} aria-pressed={tap===t}
         className={tap===t?'on':''} onClick={()=>setTap(t)}>{t==='select'?'Select':t==='draw'?'Draw':t==='erase'?'Erase':t==='length'?'Longer':'Accent'}</button>)}
     </div>
-    <div className="pf-oct">
-      <button type="button" aria-label="Show lower notes" onClick={()=>{setGridBase(Math.max(0,gridBase-12));roll.current?.pitchTo(Math.max(0,gridBase));}}><ChevronDown size={16}/></button>
-      <span>{noteName(rows[rows.length-1]??gridBase)}</span>
-      <button type="button" aria-label="Show higher notes" onClick={()=>{setGridBase(Math.min(108,gridBase+12));roll.current?.pitchTo(Math.min(127,gridBase+24));}}><ChevronUp size={16}/></button>
-    </div>
+    <OctaveControl base={gridBase} onRange={showRange}/>
   </>;
   const ab=rateParts(arp.division);
   const arpTools=<>
@@ -324,7 +323,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   </div>;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[];return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion((inversion+1)%3),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(notes)}};});
-  const grid=<PianoRoll ref={roll} compact edit={edit} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} bounds={{span:pat.length,snap:1,maxDuration:8}} context={noteContext} playing={playing&&seq.enabled} beat={currentStep} recording={recording} scale={scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/16)))}/>;
+  const grid=<PianoRoll key={viewKey} ref={roll} compact pitchBase={gridBase} edit={edit} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} bounds={{span:pat.length,snap:1,maxDuration:8}} context={noteContext} playing={playing&&seq.enabled} beat={currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/16)))}/>;
 
   let laneView:ReactNode;
   const rb=rateParts(pat.division);
@@ -475,7 +474,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>;
   }
 
-  return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode} aria-label="Perform">
+  return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode+(keyboardVisible?'':' keyboard-folded')} aria-label="Perform">
     {generation.panel}{noteEditorOpen?<NoteEditor scale={scale} sharedEdit={edit} key={selectedTrack+ref} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} notes={patternEvents(pat)} expected={pat} span={pat.length} snap={1} beat={currentStep} playing={playing} recording={recording} send={(cmd,args)=>{if(cmd==='note_edit'){const [t,b,a]=args as [NoteTarget,StepPattern,import('../types').Note[]];onNoteEdit(t,b,a);}else if(cmd==='editor_note')onEditorNote(...args as [number,string,number,number]);else if(cmd==='undo')onUndo();}} close={()=>setNoteEditorOpen(false)}/>:null}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
@@ -540,21 +539,61 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         </div>:null}
       </div>:null}
     </div>
-    <TouchKeys held={held} sounding={sounding} channel={channel} onMidi={onMidi}
+    <div className="pf-performance-controls">
+      <button type="button" className={'pf-tool'+(arp.hold?' on':'')} aria-pressed={arp.hold}
+        onClick={()=>set('arp','hold',!arp.hold)} title="Keep the arpeggio going after you let go">Hold</button>
+      <button type="button" className="pf-tool" aria-label={(keyboardVisible?'Hide':'Show')+' playable keyboard'}
+        title={(keyboardVisible?'Hide':'Show')+' playable keyboard'} aria-controls={keyboardId} aria-expanded={keyboardVisible}
+        onClick={()=>{edit.cancel();setKeyboardVisible(v=>!v);}}><Keyboard size={20}/></button>
+    </div>
+    {keyboardVisible&&<TouchKeys key={viewKey} id={keyboardId} base={viewRange.keyboardBase} keyCount={viewRange.keyCount} held={held} sounding={sounding} channel={channel} onMidi={onMidi}
       chord={(mode==='chord'||chord.enabled)&&active?active.notes:null}
-      scale={scale.name==='Chromatic'?null:new Set((SCALES[scale.name]??[]).map(d=>(d+scale.root)%12))}/>
+      scale={scale.name==='Chromatic'?null:new Set((SCALES[scale.name]??[]).map(d=>(d+scale.root)%12))}/>}
   </section></ContextAreaScope>;
+}
+
+/** The existing range control owns wheel/touch input only inside its bounds. */
+function OctaveControl({base,onRange}:{base:number;onRange:(base:number)=>void}){
+  const ref=useRef<HTMLDivElement>(null),latest=useRef({base,onRange});latest.current={base,onRange};
+  const drag=useRef<{id:number;y:number;base:number}|null>(null);
+  useEffect(()=>{
+    const el=ref.current;if(!el)return;
+    const wheel=(e:WheelEvent)=>{
+      if(!e.deltaY)return;
+      e.preventDefault();e.stopPropagation();
+      const s=latest.current;s.onRange(s.base+(e.deltaY<0?12:-12));
+    };
+    el.addEventListener('wheel',wheel,{passive:false});
+    return()=>el.removeEventListener('wheel',wheel);
+  },[]);
+  return <div ref={ref} className="pf-oct">
+    <button type="button" aria-label="Show lower notes" disabled={base<=0} onClick={()=>onRange(base-12)}><ChevronDown size={16}/></button>
+    <span role="spinbutton" tabIndex={0} aria-label="Viewed octave" aria-valuemin={-1} aria-valuemax={8}
+      aria-valuenow={base/12-1} aria-valuetext={noteName(base)} title="Viewed range · wheel or drag vertically"
+      onKeyDown={e=>{
+        const next=e.key==='ArrowUp'||e.key==='PageUp'?base+12:e.key==='ArrowDown'||e.key==='PageDown'?base-12:e.key==='Home'?0:e.key==='End'?108:null;
+        if(next!==null){e.preventDefault();e.stopPropagation();onRange(next);}
+      }}
+      onPointerDown={e=>{
+        if(e.button!==0)return;e.preventDefault();e.currentTarget.focus({preventScroll:true});
+        e.currentTarget.setPointerCapture(e.pointerId);drag.current={id:e.pointerId,y:e.clientY,base};
+      }}
+      onPointerMove={e=>{const d=drag.current;if(d?.id===e.pointerId)onRange(d.base+Math.trunc((d.y-e.clientY)/32)*12);}}
+      onPointerUp={e=>{drag.current=null;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
+      onPointerCancel={()=>{const d=drag.current;drag.current=null;if(d)onRange(d.base);}}
+      onLostPointerCapture={()=>{drag.current=null;}}>{noteName(base)}</span>
+    <button type="button" aria-label="Show higher notes" disabled={base>=108} onClick={()=>onRange(base+12)}><ChevronUp size={16}/></button>
+  </div>;
 }
 
 /* ---------- touch keyboard and expression strips ---------- */
 /** Layers, top first: keys you press > notes the arp/seq sounds > held keys > the chord outline > the scale tint. */
-function TouchKeys({held,sounding,channel,onMidi,chord,scale}:{held:number[];sounding:Set<number>;channel:number;
+function TouchKeys({id,base,keyCount,held,sounding,channel,onMidi,chord,scale}:{id:string;base:number;keyCount:number;held:number[];sounding:Set<number>;channel:number;
   onMidi:(s:number,a:number,b:number)=>void;chord:number[]|null;scale:Set<number>|null}){
-  const [octave,setOctave]=useState(3);
   const [down,setDown]=useState<number[]>([]);
   const pointers=useRef(new Map<number,number>());
-  const base=(octave+1)*12;
-  const keys=Array.from({length:37},(_,i)=>base+i).filter(n=>n<=127);
+  const ownerChannel=useRef(channel),sendMidi=useRef(onMidi);sendMidi.current=onMidi;
+  const keys=Array.from({length:keyCount},(_,i)=>base+i).filter(n=>n<=127);
   const whites=keys.filter(n=>!BLACK.has(n%12));
   const heldSet=new Set(held);
   const chordSet=new Set(chord??[]);const chordRoot=chord?.[0];
@@ -573,26 +612,22 @@ function TouchKeys({held,sounding,channel,onMidi,chord,scale}:{held:number[];sou
   const press=(id:number,note:number,vel:number)=>{
     const old=pointers.current.get(id);
     if(old===note)return;
-    if(old!==undefined&&![...pointers.current.entries()].some(([k,v])=>k!==id&&v===old))onMidi(0x80|channel,old,0);
+    if(old!==undefined&&![...pointers.current.entries()].some(([k,v])=>k!==id&&v===old))sendMidi.current(0x80|ownerChannel.current,old,0);
     pointers.current.set(id,note);
-    onMidi(0x90|channel,note,vel);sync();
+    sendMidi.current(0x90|ownerChannel.current,note,vel);sync();
   };
   const release=(id:number)=>{
     const old=pointers.current.get(id);
     pointers.current.delete(id);
-    if(old!==undefined&&![...pointers.current.values()].includes(old))onMidi(0x80|channel,old,0);
+    if(old!==undefined&&![...pointers.current.values()].includes(old))sendMidi.current(0x80|ownerChannel.current,old,0);
     sync();
   };
-  // Changing octave or leaving the page must not leave a key hanging.
-  useEffect(()=>()=>{for(const id of [...pointers.current.keys()])release(id);},[]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shiftOctave=(dir:number)=>{for(const id of [...pointers.current.keys()])release(id);setOctave(clamp(octave+dir,0,7));};
+  const releaseAll=()=>{for(const id of [...pointers.current.keys()])release(id);};
+  useEffect(()=>{releaseAll();ownerChannel.current=channel;},[base,channel]);
+  useEffect(()=>{window.addEventListener('blur',releaseAll);return()=>{window.removeEventListener('blur',releaseAll);releaseAll();};},[]);
 
-  return <div className="pf-keys">
-    <div className="pf-octave">
-      <button type="button" aria-label="Octave up" onClick={()=>shiftOctave(1)}><Plus size={18}/></button>
-      <strong>{noteName(base)}</strong>
-      <button type="button" aria-label="Octave down" onClick={()=>shiftOctave(-1)}><Minus size={18}/></button>
-    </div>
+  return <div id={id} className="pf-keys">
+    <span aria-hidden="true"/>
     <div className="pf-piano" role="group" aria-label="Touch keyboard"
       onPointerDown={e=>{if(e.button!==0)return;const n=noteAt(e.clientX,e.clientY);if(n===null)return;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -600,6 +635,7 @@ function TouchKeys({held,sounding,channel,onMidi,chord,scale}:{held:number[];sou
       onPointerMove={e=>{if(!pointers.current.has(e.pointerId))return;const n=noteAt(e.clientX,e.clientY);
         if(n!==null)press(e.pointerId,n,velocityAt(e.clientY,(e.target as HTMLElement).closest('[data-note]')));}}
       onPointerUp={e=>release(e.pointerId)} onPointerCancel={e=>release(e.pointerId)}
+      onLostPointerCapture={e=>release(e.pointerId)}
       onContextMenu={e=>e.preventDefault()}>
       {whites.map(n=><span key={n} data-note={n} className={'pf-white'+layers(n)}>
         {n%12===0?<em>{noteName(n)}</em>:null}</span>)}
@@ -620,18 +656,20 @@ function Strip({label,onValue,center=false,spring=false}:{label:string;onValue:(
   const rest=center?.5:0;
   const [value,setValue]=useState(rest);
   const active=useRef(false);
+  const latestValue=useRef(onValue);latestValue.current=onValue;
   const move=(e:React.PointerEvent<HTMLDivElement>)=>{
     const r=e.currentTarget.getBoundingClientRect();
     const v=clamp(1-(e.clientY-r.top)/Math.max(1,r.height),0,1);
     setValue(v);onValue(v);
   };
-  const end=()=>{active.current=false;if(center||spring){setValue(rest);onValue(rest);}};
+  const end=()=>{if(!active.current)return;active.current=false;if(center||spring){setValue(rest);latestValue.current(rest);}};
+  useEffect(()=>{window.addEventListener('blur',end);return()=>{window.removeEventListener('blur',end);end();};},[]);
   return <div className="pf-strip">
     <span>{label}</span>
     <div className={'pf-strip-track'+(center?' center':'')} role="slider" aria-label={label} aria-valuemin={0} aria-valuemax={100}
       aria-valuenow={Math.round(value*100)}
       onPointerDown={e=>{active.current=true;e.currentTarget.setPointerCapture(e.pointerId);move(e);}}
-      onPointerMove={e=>{if(active.current)move(e);}} onPointerUp={end} onPointerCancel={end}>
+      onPointerMove={e=>{if(active.current)move(e);}} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
       <i className="pf-strip-fill" style={center?{bottom:Math.min(value,.5)*100+'%',height:Math.abs(value-.5)*100+'%'}:{height:value*100+'%'}}/>
       <b style={{bottom:'calc('+value*100+'% - 9px)'}}/>
     </div>

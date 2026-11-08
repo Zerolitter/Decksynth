@@ -393,7 +393,7 @@ function App() {
   const instruments=project?.tracks.map(t=>t.preset)||[];
   return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,noteEditorTrack,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell">
     <header className="app-header transport" aria-label="Music transport">
-      <span className="brand-glyph" title="DeckSynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
+      <span className="brand-glyph" title="Decksynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
         <button type="button" className={'transport-pad play'+(snapshot?.playing?' engaged':'')}
           onClick={()=>command('play')} aria-label={snapshot?.playing?'Pause loop':'Play loop'}>
@@ -475,8 +475,7 @@ function App() {
           {track.device!=='drum_rack'?<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
           <button type="button" className="page-tool-icon" aria-label="Save patch" title="Save patch"
             onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
-        </>:page==='PERFORM'?<PerformTools hold={project.performance.arp.hold}
-          onHold={()=>command('perform_set',['arp','hold',!project.performance.arp.hold])}
+        </>:page==='PERFORM'?<PerformTools
           onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!snapshot?.arp_view?.paused}
           onArp={a=>command('perform_action',[a,null])}/>:undefined}/>
       <div className="page-body">
@@ -559,7 +558,7 @@ function App() {
           onTempo={bpm=>command('tempo',bpm)}
           onMidi={(status,a,b,notes)=>command('midi',notes?[status,a,b,notes]:[status,a,b])}/></div>}
       </div>
-    </>:<div className="workspace loading-workspace"><AudioWaveform size={40}/><p>Connecting to the DeckSynth audio engine…</p></div>}
+    </>:<div className="workspace loading-workspace"><AudioWaveform size={40}/><p>Connecting to the Decksynth audio engine…</p></div>}
     </div>
 
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}

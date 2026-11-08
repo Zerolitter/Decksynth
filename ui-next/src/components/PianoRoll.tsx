@@ -2,6 +2,7 @@ import {forwardRef,useEffect,useImperativeHandle,useMemo,useRef} from 'react';
 import {notesInCell,type NoteBounds,type NoteTarget} from '../note-ops';
 import {noteName} from '../types';
 import {SCALES} from '../chords';
+import {performanceRange} from '../piano-viewport';
 import {usePianoViewport} from './usePianoViewport';
 import type {useNoteEditing} from './useNoteEditing';
 
@@ -15,6 +16,7 @@ type Props={
   beat:number;
   recording:boolean;
   compact?:boolean;
+  pitchBase?:number;
   scale?:{name:string;root:number};
   onTime?:(step:number)=>void;
 };
@@ -23,16 +25,18 @@ const KEY_WIDTH=44;
 const RULER_HEIGHT=24;
 
 export const PianoRoll=forwardRef<PianoRollHandle,Props>(function PianoRoll(
-  {edit,target,bounds,context,playing,beat,recording,compact=false,scale,onTime},handle
+  {edit,target,bounds,context,playing,beat,recording,compact=false,pitchBase,scale,onTime},handle
 ){
   const grid=useRef<HTMLDivElement>(null);
   const keyPointer=useRef<number|null>(null);
   const pitches=useMemo(()=>Array.from({length:128},(_,i)=>127-i)
     .filter(n=>!compact||!scale||(SCALES[scale.name]??SCALES.Chromatic).includes((n-scale.root+1200)%12)),
   [compact,scale?.name,scale?.root]);
+  const range=performanceRange(target.device??'synth',pitchBase);
   const nav=usePianoViewport(grid,bounds.span,bounds.snap,edit.events,
     ()=>edit.active()||keyPointer.current!==null,
-    {pitches,compact,rows:scale?(SCALES[scale.name]??SCALES.Chromatic).length+1:13});
+    {pitches,compact,firstPitch:compact?range.top:undefined,
+      rows:target.device==='drum_rack'?range.rows:scale?(SCALES[scale.name]??SCALES.Chromatic).length+1:13});
   const {timePx,rowHeight}=nav;
 
   const stopKeys=(el:HTMLDivElement,pointer=keyPointer.current)=>{

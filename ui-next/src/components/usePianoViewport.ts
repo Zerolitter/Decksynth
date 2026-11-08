@@ -1,7 +1,7 @@
 import {useEffect,useLayoutEffect,useRef,useState,type RefObject} from 'react';
 import type {Note} from '../types';import {bound,fitNotesView,zoomAt} from '../piano-viewport';
-export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,snap:number,notes:Note[],busy:()=>boolean,options:{pitches?:number[];compact?:boolean;rows?:number}={}){
- const pitches=options.pitches??Array.from({length:128},(_,i)=>127-i),firstPitch=options.compact?72:Math.floor((notes.length?Math.min(...notes.map(n=>n.note)):48)/12)*12+7,initialRow=Math.max(0,pitches.findIndex(n=>n<=firstPitch)),density=options.compact?24:44;
+export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,snap:number,notes:Note[],busy:()=>boolean,options:{pitches?:number[];compact?:boolean;rows?:number;firstPitch?:number}={}){
+ const pitches=options.pitches??Array.from({length:128},(_,i)=>127-i),firstPitch=options.firstPitch??(options.compact?72:Math.floor((notes.length?Math.min(...notes.map(n=>n.note)):48)/12)*12+7),initialRow=Math.max(0,pitches.findIndex(n=>n<=firstPitch)),density=options.compact?24:44;
 
  const [timePx,setTimePx]=useState(options.compact?56:64),[rowHeight,setRowHeight]=useState(density),[panning,setPanning]=useState(false),[view,setView]=useState({left:0,top:initialRow*density,width:1032,height:376});
  const previousPitches=useRef(pitches);

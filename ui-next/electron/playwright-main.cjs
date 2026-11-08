@@ -68,7 +68,7 @@ function makeWindow() {
   window = new BrowserWindow({
     width: 1280, height: 746, minWidth: 1024, minHeight: 650,
     backgroundColor: '#111315', show: false, autoHideMenuBar: true,
-    title: PREVIEW ? 'DeckSynth Next — UI preview' : 'DeckSynth Next',
+    title: PREVIEW ? 'Decksynth — UI preview' : 'Decksynth',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -150,9 +150,9 @@ else {
     if (!['save','open'].includes(operation) || !(extension in extensions)) return null;
     const ext = extensions[extension];
     const options = {
-      title: operation === 'save' ? 'Save DeckSynth '+extension : 'Open DeckSynth '+extension,
+      title: operation === 'save' ? 'Save Decksynth '+extension : 'Open Decksynth '+extension,
       defaultPath: path.join(os.homedir(), 'Music'),
-      filters: [{ name: 'DeckSynth '+extension, extensions: [ext] }],
+      filters: [{ name: 'Decksynth '+extension, extensions: [ext] }],
     };
     if (operation === 'save') {
       const result = await dialog.showSaveDialog(window, options);

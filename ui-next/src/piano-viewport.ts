@@ -1,5 +1,9 @@
 import type {Note} from './types';
 export const bound=(v:number,min:number,max:number)=>Math.max(min,Math.min(max,v));
+export function performanceRange(device:string,requested?:number){
+ const drum=device==='drum_rack',base=bound(Math.round((requested??(drum?36:60))/12)*12,0,108);
+ return {base,top:base+(drum?15:12),rows:drum?16:13,keyboardBase:drum?base:Math.max(0,base-12),keyCount:drum?16:37};
+}
 export function zoomAt(scroll:number,pointer:number,before:number,after:number,origin:number){return Math.max(0,origin+(scroll+pointer-origin)/before*after-pointer);}
 export function fitNotesView(notes:Note[],span:number,snap:number,width:number,height:number){
  const first=notes.length?Math.min(...notes.map(n=>n.start)):0,last=notes.length?Math.max(...notes.map(n=>n.start+n.duration)):Math.min(span,16*snap),low=notes.length?Math.min(...notes.map(n=>n.note)):48,high=notes.length?Math.max(...notes.map(n=>n.note)):55;
