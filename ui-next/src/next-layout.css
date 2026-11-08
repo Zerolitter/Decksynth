@@ -348,3 +348,15 @@
 .piano-playhead.recording::before{border-top-color:#a84a54}
 .piano-note-guide{display:inline-block;margin:0 2px;font-size:7px;color:#a3c3bd;vertical-align:1px}
 .piano-box-selection{position:absolute;border:1px solid #96c6ba;background:#96c6ba1f;z-index:2;pointer-events:none}
+
+.decksynth-shell .modal-screen.help-screen{z-index:2100}
+.decksynth-shell .settings-dialog.help-dialog{width:min(780px,calc(100vw - 32px));max-height:calc(100vh - 40px);padding:0;display:flex;flex-direction:column;background:#1b1d21;border-color:#45494f}
+.decksynth-shell .help-dialog>header{padding:12px 18px;gap:16px;border-bottom:1px solid #383d43}
+.decksynth-shell .help-dialog h2{margin:0;font-size:19px}
+.decksynth-shell .help-dialog .modal-close{min-width:44px;min-height:44px;padding:0;display:grid;place-items:center;background:#242629;border-color:#45494f}
+.help-content{position:relative;overflow:auto;min-height:0;padding:0 18px 18px;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#58635f #1b1d21}
+.help-content h3{font-size:15px;margin:18px 0 8px;color:#e4eded}
+.decksynth-shell .help-content p{font-size:13px;line-height:1.55;color:#c1ceca}
+.help-content table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5}
+.help-content th,.help-content td{padding:8px;text-align:left;border-bottom:1px solid #383d43;vertical-align:top}
+.help-content th{width:210px;color:#bce0d2;font-weight:700}

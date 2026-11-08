@@ -26,6 +26,7 @@ import type { Source } from './components/ModParts';
 import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
+import {Help} from './components/Help';
 import { Panel } from './components/Panel';
 import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
@@ -72,6 +73,16 @@ function App() {
   const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
   const [fileMenu,setFileMenu]=useState(false);
   const [dialog,setDialog]=useState<Dialog>(null);
+  const [helpSection,setHelpSection]=useState<'guide'|'notes'>('guide');
+  const helpOrigin=useRef<HTMLElement|null>(null);
+  const openHelp=(invoker:HTMLElement|null,section:'guide'|'notes'='guide')=>{
+    helpOrigin.current=invoker;setHelpSection(section);setDialog('help');
+  };
+  useEffect(()=>{
+    const open=(event:Event)=>{const detail=(event as CustomEvent<{section:'notes';invoker:HTMLElement}>).detail;openHelp(detail.invoker,detail.section);};
+    window.addEventListener('decksynth-open-help',open);
+    return()=>window.removeEventListener('decksynth-open-help',open);
+  },[]);
   // Song page view: Clip notes in Loop mode and the Timeline in Song mode, until you pick one yourself.
   const [songViewPick,setSongView]=useState<SongView|null>(null);
   const [songZoom,setSongZoom]=useState(16);
@@ -452,7 +463,7 @@ function App() {
           <span className="file-menu-meta">{project?totalNotes(project)+' notes · '+(instruments[selected]??''):''}</span>
         </div>:null}
       </div>
-      <button className="icon-button" aria-label="Help" title="Help" onClick={()=>setDialog('help')}><CircleHelp size={19}/></button>
+      <button className="icon-button" aria-label="Help" title="Help" aria-haspopup="dialog" onClick={e=>openHelp(e.currentTarget)}><CircleHelp size={19}/></button>
       <button className="icon-button" aria-label="Settings" title="Settings"
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
@@ -562,22 +573,13 @@ function App() {
     </div>
 
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}
-    {dialog?<div className="modal-screen" onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
+    {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
         trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>command('cleanup',c)}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'Deck speakers'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
         onClose={()=>setDialog(null)}/>
-      :<section className="settings-dialog" role="dialog" aria-label="Performance help" aria-modal="true">
-        <header><div><span className="eyebrow">SHORT GUIDE</span><h2>Play / Record / Shape</h2></div>
-          <button className="modal-close" onClick={()=>setDialog(null)}>CLOSE ✕</button></header>
-        <p>Song, Sound, FX and Perform are full pages. The track buttons next to the page tabs pick the track you are editing. On Sound and FX, the macros and mod pads sit top left with the editor of the tapped pad beside them; tap a pad's bottom label (or a macro's name), then tap knobs, then Done. Double-tap a card's title to fold it. Clean up lives in Settings (the gear).</p>
-        <p>SONG: select a track, record a 1–8-bar MIDI loop, and layer more parts while the first loops. The sequencer pads are a visual mirror of the notes, not a separate drum machine.</p>
-        <p>SONG TIMELINE: each track has 8 clips (A–H). Switch to Song, then tap empty bars to place a track's open clip, and tap a block to change its clip, length or start bar, copy it, split it or make a new clip from it for a variation or a fill. Tap the bar ruler to add a marker (Intro, Drop…).</p>
-        <p>LINKING: tap the label under a mod pad (or a macro's name) and then tap knobs; tap Done, Esc or an empty spot to stop. Or open a pad's Links and tap parameter names. Each link's depth runs from −100 % to +100 %: drag its bar, or drag the outer ring of a linked knob while linking. Long-press a depth to type it.</p>
-        <p>SOUND: choose presets and shape harmonics. Drag a knob vertically; hold Shift for fine control. Tap the numeric value for precise entry. Tap the small envelope picture to open the envelope editor and drag its dots; hold still a moment before moving for fine steps.</p>
-        <p>Keys: F5 Play, F6 Stop, F7 Record, F8/F9 Track, F10 Undo. Audio monitor uses real synthesized PCM samples when the bridge is connected.</p>
-      </section>}
+      :<Help section={helpSection} invoker={helpOrigin.current} close={()=>setDialog(null)}/>}
     </div>:null}
   </main></MidiLearnProvider></ContextWheelProvider>;
 }
