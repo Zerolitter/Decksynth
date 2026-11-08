@@ -801,6 +801,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         for key in list(self.pending): self.close_note(key)
         self.recording=False
     def stop(self):
+        self.stop_sample_preview()
         self.stop_pattern_preview()
         self.cancel_sound_gesture();self.automation_arm=False
         self.finish_record(); self.down.clear(); self.capture_sustain.clear(); self.playing=False; self.frame=0
@@ -1149,6 +1150,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
     def panic(self):
+        self.stop_sample_preview()
         self.stop_pattern_preview()
         self.midi_learn=None
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
@@ -1287,6 +1289,9 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         self._pan_state[tr]=current
                     else:
                         for j,v in enumerate(audio):mix[j]+=v*vol
+            # Standalone dry sample audition uses the real native audio clock.
+            # It never alters a pad, SONG notes, the FX chain, or playback state.
+            self._render_sample_preview_into(mix,right,n)
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,
             # instead of flattening the peaks (hard clipping sounds like crackle).
             g=self.limit

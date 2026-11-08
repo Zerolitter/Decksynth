@@ -103,12 +103,34 @@ def _checked_file(path, root):
 
 class LibraryIndex:
     """A snapshot of source paths; requests must name an indexed folder ID."""
+    BROWSE_PAGE = 48  # bounded UI snapshot even for very large WAV directories
+
     def __init__(self, root, paths):
         self.root = str(root)
         self._paths = {folder: tuple(files) for folder, files in paths.items()}
         self.folders = [dict(id=folder, name=root.name if folder == '.' else folder,
                              count=len(self._paths[folder]))
                         for folder in sorted(paths, key=lambda value: (_natural(value), value))]
+
+    def sample_path(self, folder_id, index):
+        """Resolve only an indexed WAV from the previously scanned folder.
+
+        Never accept an untrusted filesystem path from the UI; recheck symlinks
+        after scanning, before playing or replacing a sample.
+        """
+        paths = self._paths.get(folder_id) if type(folder_id) is str else None
+        if paths is None or type(index) is not int or not 0 <= index < len(paths):
+            raise ValueError('Unknown sample in this folder')
+        return _checked_file(paths[index], Path(self.root))
+
+    def browse(self, folder_id, page=0):
+        paths = self._paths.get(folder_id) if type(folder_id) is str else None
+        if paths is None or type(page) is not int or not 0 <= page <= (len(paths)-1)//self.BROWSE_PAGE:
+            raise ValueError('Unknown sample folder page')
+        first = page*self.BROWSE_PAGE
+        return dict(folder=folder_id, page=page, total=len(paths),
+                    items=[dict(index=i, name=path.stem[:120], filename=path.name[:140])
+                           for i,path in enumerate(paths[first:first+self.BROWSE_PAGE],start=first)])
 
     def prepare(self, folder_id: str, cache: SampleCache):
         """Return a complete detached kit, or raise without changing caller state.

@@ -12,7 +12,7 @@ class DrumLoader:
         self.jobs = {}; self.epoch = engine.drum_epoch
         self._restore_needed = True
 
-    def _submit(self, tr, kit_id, pad, path, sha, restore, source):
+    def _submit(self, tr, kit_id, pad, path, sha, restore, source, name=None):
         if (tr, pad) in self.jobs: raise ValueError('This pad already has a sample loading')
         if not self.capacity.acquire(blocking=False): raise ValueError('Sample loader is busy; try again shortly')
         epoch = self.engine.drum_epoch
@@ -20,14 +20,14 @@ class DrumLoader:
         except Exception:
             self.capacity.release(); raise
         future.add_done_callback(lambda _: self.capacity.release())
-        self.jobs[tr, pad] = (future, kit_id, epoch, restore, source)
+        self.jobs[tr, pad] = (future, kit_id, epoch, restore, source, name)
         self.engine.drums[tr].loading[pad] = True
         self.engine.drums[tr].errors[pad] = None
 
-    def request(self, tr, kit_id, pad, path, expected_sha=None):
+    def request(self, tr, kit_id, pad, path, expected_sha=None, name=None):
         self._sync_epoch()
         self.engine.drum_target(tr, kit_id, pad)
-        self._submit(tr, kit_id, pad, path, expected_sha, False, None)
+        self._submit(tr, kit_id, pad, path, expected_sha, False, None, name)
 
     def _sync_epoch(self):
         if self.epoch != self.engine.drum_epoch:
@@ -48,12 +48,12 @@ class DrumLoader:
                         try: self._submit(tr, kit['id'], pad, source['path'], source['sha256'], True, source)
                         except ValueError as exc: self.engine.drums[tr].missing(pad, exc)
         errors = []
-        for (tr, pad), (future, kit_id, epoch, restore, source) in list(self.jobs.items()):
+        for (tr, pad), (future, kit_id, epoch, restore, source, name) in list(self.jobs.items()):
             if not future.done(): continue
             del self.jobs[tr, pad]
             if epoch != self.engine.drum_epoch: continue
             try:
-                self.engine.commit_drum_sample(tr, kit_id, pad, future.result(), epoch, restore, source)
+                self.engine.commit_drum_sample(tr, kit_id, pad, future.result(), epoch, restore, source, name)
             except (OSError, ValueError) as exc:
                 if restore: self.engine.drums[tr].missing(pad, exc)
                 else:

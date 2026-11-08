@@ -144,6 +144,14 @@ def worker(commands,updates):
                     elif cmd=='drum_library_root':library.set_root(args)
                     elif cmd=='drum_library_refresh':library.refresh()
                     elif cmd=='drum_load_folder':library.load_folder(*args)
+                    elif cmd=='drum_list_samples':library.browse_folder(*args)
+                    elif cmd=='drum_preview_sample':library.preview_sample(*args)
+                    elif cmd=='drum_preview_stop':library.stop_preview()
+                    elif cmd=='drum_replace_sample':
+                        tr,kit_id,pad,folder_id,index=args
+                        source=library.sample_path(folder_id,index)
+                        library.stop_preview()  # do not overlap the audition with the replacement
+                        loader.request(tr,kit_id,pad,str(source),name=source.stem[:80])
                     elif cmd=='select':engine.select(args)
                     elif cmd=='play':
                         if engine.playing:engine.stop()

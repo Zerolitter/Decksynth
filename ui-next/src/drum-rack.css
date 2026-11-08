@@ -134,6 +134,22 @@
 .drum-rack .drum-kit-folder[aria-pressed=true]{background:#2b443c;color:#dff9ee}
 .drum-kit-folder[aria-pressed=true] svg,.drum-kit-folder[aria-pressed=true] strong{color:var(--drum-accent)}
 .drum-library-empty{padding:12px 2px;color:var(--soft);font-size:12px;line-height:1.6;max-width:65ch}
+/* One compact nested file browser: direct native audition and an atomic one-pad swap.
+   No new floating modal, no duplicate waveform, and no changes to the pad editor. */
+.drum-samples-heading{display:flex;align-items:center;gap:9px;padding:0 12px 4px;min-width:0;flex:none}
+.drum-rack .drum-samples-back{display:flex;align-items:center;gap:5px;flex:none;min-height:44px;padding:0 9px;border-color:transparent;background:transparent;color:var(--drum-accent)}
+.drum-samples-heading>strong{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;color:var(--text)}
+.drum-audition-hint{display:flex;align-items:center;gap:7px;padding:0 12px 7px;color:var(--soft);font-size:11px;flex:none}
+.drum-audition-hint svg{flex:none;color:var(--drum-accent)}
+.drum-sample-list{scrollbar-color:#666c71 var(--panel)}
+.drum-sample-row{display:flex;align-items:center;gap:6px;min-height:51px;border-bottom:1px solid var(--line);padding:2px 0}
+.drum-sample-row.is-preview{background:rgba(255,255,255,.045)}
+.drum-sample-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-size:12px;padding-left:4px}
+.drum-rack .drum-sample-row button{min-width:70px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;font-size:11px;border-color:var(--line);background:var(--inset);flex:none}
+.drum-rack .drum-sample-row button svg{flex:none}
+.drum-rack .drum-sample-row .drum-sample-swap{min-width:75px;border-color:var(--drum-accent);background:#25292c;color:var(--drum-accent)}
+.drum-sample-pagination{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 12px;min-height:48px;font-size:11px;color:var(--soft);flex:none}
+.drum-rack .drum-sample-pagination button{min-height:44px;padding:0 11px}
 .drum-library-error{padding:0 12px 8px;color:#f2bc9f;font-size:11px;line-height:1.5;max-height:56px;overflow:auto;flex:none}
 .drum-library-error span{color:#d6c2b8}
 .drum-kit-selection{display:flex;align-items:center;gap:16px;padding:12px;border-top:1px solid var(--line);background:var(--panel);min-height:86px;flex:none}

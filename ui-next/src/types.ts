@@ -17,7 +17,9 @@ export type DrumPad = {
   note:number;name:string;source:null|{path:string;sha256:string;[key:string]:unknown};
   gain:number;velocity:number;mute:boolean;solo:boolean;tune:number;choke:number;
 };
-export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null};
+export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null;
+  sample_page?:{folder:string;page:number;total:number;items:{index:number;name:string;filename:string}[]}|null;
+  preview?:{folder:string;index:number;loading:boolean;active:boolean}|null};
 export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string}[]};
 export type AutomationLane={module:string;param:string;points:[number,number][]};
 export type Track = {

@@ -87,7 +87,26 @@ function App() {
   const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
+  const pendingKit=useRef<{track:number;id:string}|null>(null);
+  const pendingSwap=useRef<{track:number;id:string;pad:number;source:string|null}|null>(null);
   useEffect(()=>{setKitBrowserTrack(null);setNoteEditorTrack(t=>t!==null&&t!==selected?null:t);},[selected]);
+  // Only return to the pads AFTER the native worker has committed the complete
+  // kit/sample. A failed load leaves the browser and existing sound untouched.
+  useEffect(()=>{
+    if(!snapshot)return;
+    const kit=pendingKit.current;
+    if(kit && snapshot.state.tracks[kit.track]?.drum_rack?.id!==kit.id){
+      pendingKit.current=null;
+      if(snapshot.selected===kit.track)setKitBrowserTrack(null);
+    }
+    const swap=pendingSwap.current;
+    if(swap){
+      const current=snapshot.state.tracks[swap.track]?.drum_rack;
+      if(current?.id!==swap.id){pendingSwap.current=null;return;}
+      const path=current.pads[swap.pad]?.source?.path??null;
+      if(path!==swap.source){pendingSwap.current=null;if(snapshot.selected===swap.track)setKitBrowserTrack(null);}
+    }
+  },[snapshot]);
   const isPreview=!api||!!snapshot?.preview;
   const project=snapshot?.state;
   const track=project?.tracks[selected];
@@ -503,8 +522,12 @@ function App() {
         output={{peak:snapshot?.meter?.peak??0,rms:snapshot?.meter?.rms??0,voices:snapshot?.voices??0,underruns:snapshot?.underruns??0,driver:snapshot?.audio??'Unavailable'}}
         onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
         onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
-        onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>setKitBrowserTrack(open?selected:null)} library={snapshot?.drum_library}
-        onLoadFolder={folder=>{if(track.drum_rack)command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}
+        onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>{if(!open)command('drum_preview_stop');setKitBrowserTrack(open?selected:null);}} library={snapshot?.drum_library}
+        onLoadFolder={folder=>{if(track.drum_rack){pendingKit.current={track:selected,id:track.drum_rack.id};command('drum_load_folder',[selected,track.drum_rack.id,folder]);}}}
+        onBrowseFolder={(folder,page)=>command('drum_list_samples',[folder,page])}
+        onPreviewSample={(folder,index)=>command('drum_preview_sample',[folder,index])}
+        onStopPreview={()=>command('drum_preview_stop')}
+        onReplaceSample={(folder,index,pad)=>{if(track.drum_rack){pendingSwap.current={track:selected,id:track.drum_rack.id,pad,source:track.drum_rack.pads[pad].source?.path??null};command('drum_replace_sample',[selected,track.drum_rack.id,pad,folder,index]);}}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
       :page==='SOUND'||page==='FX'?<ContextAreaScope area={page==='FX'?'fx':'sound'}><PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()}>
         <ModBand key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}

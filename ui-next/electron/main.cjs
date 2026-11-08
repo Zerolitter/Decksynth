@@ -14,7 +14,8 @@ let window = null;
 let backend = null;
 let lastMessage = { bridge: 'starting' };
 
-const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder','set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
+const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
+ 'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_import','song','clip','perform_set','perform_step','perform_action',
  'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','undo','quantize',
  'clear','device','audio_device','preset','parameter','edit_note','note_edit','editor_note','catalog_action','track','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
  'metronome','save','load','export','export_wav','save_preset','load_preset']);

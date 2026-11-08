@@ -16,6 +16,37 @@ class DrumEngine:
         self.drum_gate_keys = [set() for _ in range(4)]
         self.drum_frames = [[-1]*16 for _ in range(4)]
         self._event_frame = None
+        self._sample_preview = None
+        self._preview_cursor = 0
+
+    def play_sample_preview(self, sample):
+        """One dry source audition, independent of pads, SONG, FX and project state."""
+        if sample.rate != self.rate:raise ValueError('Audition sample rate mismatch')
+        self._sample_preview = sample
+        self._preview_cursor = 0
+
+    def stop_sample_preview(self):
+        self._sample_preview = None
+        self._preview_cursor = 0
+
+    def sample_preview_active(self):
+        return self._sample_preview is not None
+
+    def _render_sample_preview_into(self, left, right, frames):
+        sample = self._sample_preview
+        if sample is None:return
+        pos = self._preview_cursor
+        end = min(sample.frames, self.rate*5)  # no unbounded audition playback
+        fade = max(1, int(self.rate*.012))
+        for i in range(frames):
+            if pos >= end:break
+            gain = .34*min(1.,pos/max(1,self.rate*.001), (end-pos)/fade)
+            value = sample.data[pos]*gain
+            left[i] += value
+            if right is not None:right[i] += value
+            pos += 1
+        self._preview_cursor = pos
+        if pos >= end:self._sample_preview = None
 
     def configure_drums(self):
         self.drum_epoch += 1
@@ -62,7 +93,7 @@ class DrumEngine:
         self.snapshot(); self.project.tracks[track]['drum_rack'] = clean
         self.drums[track].configure(clean)
 
-    def commit_drum_sample(self, track, kit_id, pad, sample, epoch=None, restore=False, source=None):
+    def commit_drum_sample(self, track, kit_id, pad, sample, epoch=None, restore=False, source=None, name=None):
         kit = self.drum_target(track, kit_id, pad)
         if epoch is not None and epoch != self.drum_epoch: return False
         if restore:
@@ -75,7 +106,8 @@ class DrumEngine:
             return True
         candidate = copy.deepcopy(kit)
         candidate['pads'][pad]['source'] = sample.source
-        # Source filenames are user content; keep the deliberately named pad.
+        if name is not None: candidate['pads'][pad]['name'] = name
+        # OS-import keeps the deliberately named pad; indexed library swaps may rename it.
         clean = validate_kit(candidate)
         if clean != kit:
             self.snapshot(); self.project.tracks[track]['drum_rack'] = clean

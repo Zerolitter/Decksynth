@@ -3,6 +3,7 @@ import copy
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from .drum_library import scan_library
+from .samples import SampleCache
 from .drum_memory import KitMemory, read_settings, write_settings
 
 
@@ -13,8 +14,10 @@ class DrumLibraryService:
         self._io=ThreadPoolExecutor(max_workers=1,thread_name_prefix='drum-folder')
         self._saver=ThreadPoolExecutor(max_workers=1,thread_name_prefix='drum-recall') if self.memory else None
         self._scan=None;self._load=None;self._index=None;self._memory_future=None;self._root_future=None
+        self._preview=None;self._preview_token=0
         self._memory_pending=None;self._root_pending=None;self._closed=False
-        self._state=dict(root=None,folders=[],scanning=False,loading=False,loading_track=None,error=None,memory_error=None)
+        self._state=dict(root=None,folders=[],scanning=False,loading=False,loading_track=None,
+                         sample_page=None,preview=None,error=None,memory_error=None)
         remembered=None;memory_bad=False
         if self.memory:
             try:
@@ -39,11 +42,48 @@ class DrumLibraryService:
     def snapshot(self):
         return dict(self._state)
 
+    def sample_path(self, folder_id, sample_index):
+        if self._index is None or self._scan is not None:
+            raise ValueError('Wait for the sample library scan')
+        return self._index.sample_path(folder_id,sample_index)
+
+    def browse_folder(self, folder_id, page=0):
+        if self._index is None or self._scan is not None:
+            raise ValueError('Wait for the sample library scan')
+        self.stop_preview()
+        self._state['sample_page']=self._index.browse(folder_id,page)
+
+    @staticmethod
+    def _load_preview(path, rate):
+        # Independent short-lived cache: auditioning hundreds of files cannot
+        # permanently exhaust the playing kit's 64-MiB sample cache.
+        return SampleCache(rate,16*1024*1024).load(path)
+
+    def preview_sample(self, folder_id, sample_index):
+        if self._load is not None:raise ValueError('Wait for the kit to finish loading')
+        path=self.sample_path(folder_id,sample_index)
+        page=self._state['sample_page']
+        if not page or page['folder']!=folder_id or sample_index not in [item['index'] for item in page['items']]:
+            raise ValueError('Open the sample folder before auditioning')
+        self.stop_preview()
+        token=self._preview_token
+        future=self._io.submit(self._load_preview,path,self.engine.rate)
+        self._preview=(future,token,folder_id,sample_index)
+        self._state['preview']=dict(folder=folder_id,index=sample_index,loading=True,active=False)
+
+    def stop_preview(self):
+        self._preview_token+=1
+        self._preview=None  # running asynchronous jobs finish without committing
+        self._state['preview']=None
+        self.engine.stop_sample_preview()
+
     def set_root(self, path):
         if self._closed:raise ValueError('Sample library is closed')
         if not isinstance(path,str) or not path or len(path)>4096 or '\0' in path:raise ValueError('Choose a sample folder')
         if self._scan is not None:raise ValueError('The sample library is scanning')
         if self._load is not None:raise ValueError('Wait for the current kit to finish loading before changing the library')
+        self.stop_preview()
+        self._state['sample_page']=None
         self._scan=self._io.submit(scan_library,path)
         self._state.update(scanning=True,error=None)
 
@@ -57,6 +97,7 @@ class DrumLibraryService:
         if self._load is not None:raise ValueError('A kit is already loading')
         expected=copy.deepcopy(self.engine.drum_target(track,kit_id))
         if not isinstance(folder_id,str):raise ValueError('Choose a kit folder')
+        self.stop_preview()
         future=self._io.submit(self._index.prepare,folder_id,self.engine.sample_cache)
         self._load=(future,track,kit_id,self.engine.drum_epoch,expected)
         self._state.update(loading=True,loading_track=track,error=None)
@@ -103,10 +144,26 @@ class DrumLibraryService:
                 self.engine.install_drum_kit(tr,kit_id,kit,samples,epoch=epoch,expected=expected)
                 self._state['error']=None
             except (OSError,ValueError) as exc:self._state['error']='Kit was not changed: '+str(exc)
+        if self._preview is not None and self._preview[0].done():
+            future,token,folder_id,index=self._preview;self._preview=None
+            if token==self._preview_token:
+                try:
+                    sample=future.result()
+                    if self.sample_path(folder_id,index)!=Path(sample.path):
+                        raise ValueError('The selected audio source changed during audition')
+                    self.engine.play_sample_preview(sample)
+                    self._state['preview']=dict(folder=folder_id,index=index,loading=False,active=True)
+                    self._state['error']=None
+                except (OSError,ValueError) as exc:
+                    self._state['preview']=None
+                    self._state['error']='Could not preview sound: '+str(exc)
+        if self._state['preview'] and not self._state['preview']['loading']:
+            self._state['preview']['active']=self.engine.sample_preview_active()
         self._flush_settings()
 
     def close(self):
         if self._closed:return
+        self.stop_preview()
         self.observe()
         if self._saver:
             # At most one latest pending snapshot per file; ordering prevents an older
