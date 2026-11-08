@@ -27,7 +27,6 @@
 .harness-shell .page-track.active{border-color:var(--track-accent);background:color-mix(in srgb,var(--track-accent) 14%,var(--panel));color:#eef4f1}
 .harness-shell .page-track.active .page-track-no{background:var(--track-accent);color:#10171a}
 .harness-shell .page-track.muted .page-track-name{opacity:.5;text-decoration:line-through}
-.harness-shell .page-song .page-tracks{display:flex}
 
 .harness-shell .page-body{min-height:0;display:flex;flex-direction:column;gap:8px;overflow-y:auto;overflow-x:hidden;
   overscroll-behavior:contain;padding-right:2px;scrollbar-width:thin;scrollbar-color:#3d4f55 transparent}
@@ -51,12 +50,10 @@
 .ds-panel-body{min-height:0;min-width:0;padding:8px}
 .panel-action{min-height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;gap:6px;background:#22302f;border:1px solid #4a6a62;color:#d6efe6;font-weight:700;font-size:12px}
 
-/* ---------- SONG page: lanes fill the screen, step view + scope fold away ---------- */
+/* ---------- SONG page: lanes fill the screen ---------- */
 .harness-shell .song-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 .harness-shell .song-page>.timeline{flex:1 1 auto;min-height:220px}
 .harness-shell .song-page .tracks{flex:1;min-height:0;grid-template-rows:repeat(4,minmax(52px,1fr))}
-.harness-shell .song-lower-panel .ds-panel-body{padding:6px}
-.harness-shell .song-lower-panel .song-lower{height:172px;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(260px,.8fr);gap:8px}
 .harness-shell .track-row:has(.lane-sound){grid-template-columns:194px 44px 44px minmax(0,1fr)}
 .harness-shell .lane-sound{align-self:center;width:44px;height:44px;display:grid;place-items:center;border-radius:8px;
   background:var(--raised);border:1px solid var(--line);color:#a9c9be}
@@ -88,8 +85,6 @@
 .harness-shell .perform-page .perf-workspace{flex:1 0 auto}
 .harness-shell .timeline.compact{min-height:0;height:auto;flex:none;display:block}
 .harness-shell .timeline.compact .tracks{height:auto;min-height:0;padding:0;margin:0}
-.harness-shell .song-lower-panel .song-lower{height:140px}
-.harness-shell .song-lower-panel .song-lower{height:auto;min-height:0}
 .harness-shell .song-lower .sequencer-pad-grid{flex:none;min-height:0;padding:4px 8px}
 .harness-shell .song-lower .step-hardware-pad{min-height:52px;height:52px}
 .harness-shell .song-lower .audio-scope{max-height:150px}

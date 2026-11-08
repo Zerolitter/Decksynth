@@ -24,7 +24,7 @@ const ROOT=path.resolve(__dirname,'..');
     await p.mouse.click(b.x+b.width*((bar-.5)/zoom),b.y+b.height/2);};
 
   // Loop mode is the default and shows the clip notes; Song switches it on and shows the timeline.
-  assert.equal(await checked('Play mode','Loop'),'true');
+  assert.equal(await checked('Play mode','Clip loop'),'true');
   assert.equal(await checked('View','Clip notes'),'true');
   await p.getByRole('radio',{name:'Song',exact:true}).click();
   assert.equal(await checked('Play mode','Song'),'true');
@@ -32,9 +32,9 @@ const ROOT=path.resolve(__dirname,'..');
   assert.deepEqual(await labels(1),['A, bars 1 to 16'],'every track starts with clip A over the whole song');
 
   // Everything is in view at 722 px and every control is a touch target.
-  const lower=await p.locator('.song-lower-panel').first().boundingBox();
+  const lower=await p.locator('.song-output').first().boundingBox();
   for(let i=1;i<=4;i++){const b=await p.getByRole('group',{name:'Track '+i+' lane'}).boundingBox();
-    assert.ok(b&&b.height>=44&&b.y+b.height<=lower.y+1,'lane '+i+' is in view above the step view');}
+    assert.ok(b&&b.height>=44&&b.y+b.height<=lower.y+1,'lane '+i+' is in view above live output');}
   for(const b of await p.locator('.song-bar button, .arr-ruler button, .arr-head button').all()){
     const r=await b.boundingBox();if(r)assert.ok(r.height>=40&&r.width>=36,'touch target '+(await b.getAttribute('aria-label')||await b.textContent()));}
 
@@ -97,11 +97,12 @@ const ROOT=path.resolve(__dirname,'..');
   assert.ok(await p.getByRole('button',{name:'Bar 1',exact:true}).isVisible());
   await p.getByRole('group',{name:'Marker',exact:true}).getByRole('button',{name:'Done'}).click();
 
-  // Song length and the end; Play once; zoom and paging.
+  // Song length, repeat toggle, zoom and paging.
   await p.getByRole('button',{name:'Longer song'}).click();
   assert.match(await p.getByRole('group',{name:'Song length'}).textContent(),/20 bars/);
-  await p.getByRole('radio',{name:'Play once'}).click();
-  assert.equal(await checked('At the end','Play once'),'true');
+  const repeat=p.getByRole('button',{name:'Repeat song',exact:true});
+  await repeat.click();
+  assert.equal(await repeat.getAttribute('aria-pressed'),'false');
   await p.getByRole('radio',{name:'32',exact:true}).click();
   assert.equal(await p.locator('.arr-tick').count(),32);
   await p.getByRole('radio',{name:'16',exact:true}).click();
@@ -130,8 +131,8 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('radio',{name:'Timeline'}).click();
 
   // Back to Loop mode shows the clip notes and keeps the timeline.
-  await p.getByRole('radio',{name:'Loop',exact:true}).click();
-  assert.equal(await checked('Play mode','Loop'),'true');
+  await p.getByRole('radio',{name:'Clip loop',exact:true}).click();
+  assert.equal(await checked('Play mode','Clip loop'),'true');
   assert.equal(await checked('View','Clip notes'),'true');
   await p.getByRole('radio',{name:'Timeline'}).click();
   assert.equal(await blocks(3).count(),5);

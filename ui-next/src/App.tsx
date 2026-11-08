@@ -9,7 +9,7 @@ import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity, AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
+  AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
   FolderOpen, Pause, Play, Redo2,
   RotateCcw, Save, Settings as SettingsIcon, Square,
 } from 'lucide-react';
@@ -27,7 +27,6 @@ import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup }
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import {Help} from './components/Help';
-import { Panel } from './components/Panel';
 import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
@@ -403,7 +402,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,noteEditorTrack,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell">
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,noteEditorTrack,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell" data-page={page}>
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="Decksynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -431,7 +430,7 @@ function App() {
       <div className="bars-display">
         <select aria-label="Loop bars" value={project?.bars??4}
           onChange={e=>command('bars',Number(e.target.value))}>
-          {[1,2,4,8].map(n=><option value={n} key={n}>{n} BARS</option>)}
+          {[1,2,4,8].map(n=><option value={n} key={n}>{n} {n===1?'BAR':'BARS'}</option>)}
         </select>
       </div>
       {(()=>{const b=song.on?songBeat:playhead,m=song.on?markerAt(song,Math.floor(songBeat/4)):-1;
@@ -473,7 +472,7 @@ function App() {
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      <PageBar onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
+      {page!=='SONG'&&<PageBar onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           {track.device!=='drum_rack'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
@@ -489,13 +488,13 @@ function App() {
             onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
         </>:page==='PERFORM'?<PerformTools
           onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!snapshot?.arp_view?.paused}
-          onArp={a=>command('perform_action',[a,null])}/>:undefined}/>
+          onArp={a=>command('perform_action',[a,null])}/>:undefined}/>}
       <div className="page-body">
       {page==='SONG'?<div className="song-page">
         {(()=>{
           const bar=<SongBar project={project} song={song} view={songView} onView={v=>{setSongView(v);setSongSel(null);}} onSong={s=>command('song',s)}
             zoom={songZoom} onZoom={z=>{setSongZoom(z);setSongStart(Math.floor(songStart/z)*z);}} start={songStart} onStart={setSongStart}
-            sel={songSel} onSel={setSongSel} playing={snapshot?.playing??false} songBeat={songBeat} loopBeat={playhead}
+            sel={songSel} onSel={setSongSel} songBeat={songBeat}
             onClip={(t,action,clip,source)=>command('clip',[t,action,clip,source??null])}
             onEditClip={(t,clip)=>{command('clip',[t,'open',clip,null]);command('select',t);setSongSel(null);setSongView('clips');}}/>;
           return songView==='arrange'?<section className="timeline song-timeline" aria-label="Song">
@@ -517,14 +516,9 @@ function App() {
         {clipSheet!==null?<ClipSheet project={project} song={song} track={clipSheet}
           container={document.querySelector('.song-page')} onClose={()=>setClipSheet(null)}
           onClip={(t,action,clip,source)=>command('clip',[t,action,clip,source??null])}/>:null}
-        <Panel id="song-lower" className="song-lower-panel" title="Output" icon={<Activity size={15}/>}
-          summary={(snapshot?.voices??0)+' voices'}>
-          <div className="song-lower song-output-only">
-            <AudioScope monitor={snapshot?.meter??null} running={snapshot?.playing??false}
-              voices={snapshot?.voices??0} underruns={snapshot?.underruns??0} preview={isPreview}
-              load={snapshot?.dsp_load} bufferMs={snapshot?.buffer_ms}/>
-          </div>
-        </Panel>
+        <AudioScope monitor={snapshot?.meter??null}
+          voices={snapshot?.voices??0} underruns={snapshot?.underruns??0} preview={isPreview}
+          load={snapshot?.dsp_load} bufferMs={snapshot?.buffer_ms}/>
       </div>
       :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
         runtime={snapshot?.drum_racks?.[selected]??undefined}

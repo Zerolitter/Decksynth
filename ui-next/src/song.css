@@ -1,69 +1,62 @@
 /* Song page arranger (PLAN I). */
 .harness-shell .song-page{position:relative}
-.decksynth-shell .song-lower.song-output-only{grid-template-columns:minmax(0,1fr)}
 .harness-shell .track-row:has(.lane-loop){grid-template-columns:170px 50px 44px 44px minmax(0,1fr)}
-.harness-shell .song-bar{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px 12px 8px;border-bottom:1px solid #26353a}
+.harness-shell .song-bar{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px 12px 8px;border-bottom:1px solid #393b42}
 .harness-shell .song-row{display:flex;align-items:center;gap:8px;min-width:0}
 .harness-shell .song-mode button{display:flex;align-items:center;gap:6px;padding:0 14px;min-height:44px}
 .harness-shell .song-edit{min-height:44px}
-.harness-shell .song-name{width:120px;height:40px;border-radius:8px;border:1px solid #2f3d42;background:#0f1618;color:#fff;font:800 14px Inter,system-ui,sans-serif;padding:0 10px}
+.harness-shell .song-name{width:120px;height:40px;border-radius:8px;border:1px solid #3b3d43;background:#17181b;color:#fff;font:800 14px Inter,system-ui,sans-serif;padding:0 10px}
 .harness-shell .song-name:focus{outline:none;border-color:#f5b85c}
-.harness-shell .song-label{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa29d}
+.harness-shell .song-label{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b9bdc7}
 .harness-shell .song-edit .fx-segment button{min-width:44px;min-height:40px}
 .harness-shell .song-tools{display:flex;gap:4px}
-.harness-shell .song-tools button{width:44px;height:44px;border-radius:8px;border:1px solid #2f3d42;background:#141d20;color:#cfdcd8;display:grid;place-items:center}
+.harness-shell .song-tools button{width:44px;height:44px;border-radius:8px;border:1px solid #3b3d43;background:#23252a;color:#d6d9df;display:grid;place-items:center}
 .harness-shell .song-tools button:disabled{opacity:.35}
 .harness-shell .song-gap{flex:1}
-.harness-shell .song-hint{font-size:11.5px;color:#8fa29d}
 .harness-shell .song-readout{min-width:90px;text-align:right;font:800 20px 'JetBrains Mono',ui-monospace,monospace;color:#fff}
 .harness-shell .song-readout b{color:#f5b85c}
 /* lane: which loop plays in the selected section */
-.harness-shell .lane-loop{align-self:center;width:46px;height:44px;border-radius:8px;border:1px solid color-mix(in srgb,var(--track-accent) 50%,#2f3d42);
-  background:color-mix(in srgb,var(--track-accent) 14%,#141d20);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.harness-shell .lane-loop{align-self:center;width:46px;height:44px;border-radius:8px;border:1px solid color-mix(in srgb,var(--track-accent) 50%,#3b3d43);
+  background:color-mix(in srgb,var(--track-accent) 14%,#23252a);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
 .harness-shell .lane-loop b{font-size:17px}
-.harness-shell .lane-loop small{font-size:9px;color:#9fb0ab;font-weight:700}
+.harness-shell .lane-loop small{font-size:9px;color:#b9bdc7;font-weight:700}
 /* loop sheet */
 .harness-shell .loop-backdrop{top:0}
 .harness-shell .loop-body{display:flex;flex-direction:column;gap:12px;padding:12px}
 .harness-shell .loop-slots{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
 .harness-shell .loop-slot{min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:10px;
-  border:1px solid #2f3d42;background:#141d20;color:#cfdcd8;padding:6px}
+  border:1px solid #3b3d43;background:#23252a;color:#d6d9df;padding:6px}
 .harness-shell .loop-slot b{font-size:20px}
-.harness-shell .loop-slot.active{border-color:var(--src);background:color-mix(in srgb,var(--src) 20%,#141d20);color:#fff}
+.harness-shell .loop-slot.active{border-color:var(--src);background:color-mix(in srgb,var(--src) 20%,#23252a);color:#fff}
 .harness-shell .loop-slot.open:not(.active){border-style:dashed}
 .harness-shell .ls-mini{width:100%;height:26px}
 .harness-shell .ls-empty{font-size:10.5px;color:#6f817c}
 .harness-shell .loop-fill,.harness-shell .loop-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .harness-shell .loop-fill .fx-segment button{min-width:44px;min-height:44px}
-.harness-shell .loop-actions button{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #2f3d42;
-  background:#141d20;color:#e6efec;font-weight:700}
+.harness-shell .loop-actions button{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #3b3d43;
+  background:#23252a;color:#e6efec;font-weight:700}
 .harness-shell .loop-actions button:disabled{opacity:.4}
-.harness-shell .loop-tip{font-size:11.5px;color:#8fa29d}
-/* short windows: the step view and scope shrink so all four lanes stay in view */
+.harness-shell .loop-tip{font-size:11.5px;color:#b9bdc7}
+/* Keep all four clip lanes visible on Deck. */
 @media (max-height:820px){
   .harness-shell .song-bar{gap:4px;padding:6px 10px}
   .harness-shell .song-page .tracks{grid-template-rows:repeat(4,minmax(48px,1fr));gap:4px}
-  .harness-shell .song-lower-panel .song-lower{height:116px;overflow:hidden}
-  .harness-shell .song-lower .pattern-footer,.harness-shell .song-lower .scope-footer{display:none}
-  .harness-shell .song-lower .audio-scope{max-height:116px;min-height:0;overflow:hidden}
-  .harness-shell .song-lower .scope-middle{min-height:0;flex:1}
-  .harness-shell .song-lower .pattern-panel{min-height:0;overflow:hidden}
 }
-.harness-shell .song-summary{font-size:11.5px;color:#8fa29d;white-space:nowrap}
+.harness-shell .song-summary{font-size:11.5px;color:#b9bdc7;white-space:nowrap}
 
 /* Song timeline (PLAN K) */
-.harness-shell .song-stepper{display:flex;align-items:center;gap:2px;border:1px solid #2f3d42;border-radius:9px;background:#10181a;padding:1px}
-.harness-shell .song-stepper button{width:44px;height:42px;border-radius:8px;border:0;background:transparent;color:#cfdcd8;display:grid;place-items:center}
+.harness-shell .song-stepper{display:flex;align-items:center;gap:2px;border:1px solid #3b3d43;border-radius:9px;background:#18191c;padding:1px}
+.harness-shell .song-stepper button{width:44px;height:42px;border-radius:8px;border:0;background:transparent;color:#d6d9df;display:grid;place-items:center}
 .harness-shell .song-stepper button:disabled{opacity:.35}
-.harness-shell .song-stepper span{min-width:64px;text-align:center;font-size:12px;color:#9fb0ab;white-space:nowrap}
+.harness-shell .song-stepper span{min-width:64px;text-align:center;font-size:12px;color:#b9bdc7;white-space:nowrap}
 .harness-shell .song-stepper b{font-size:15px;color:#fff}
 .harness-shell .song-view button,.harness-shell .song-row>.fx-segment button{min-height:44px;padding:0 12px}
 .harness-shell .song-readout em{font-style:normal;font-size:12px;font-weight:800;color:#f5b85c;margin-right:8px;letter-spacing:.04em;text-transform:uppercase}
-.harness-shell .song-action{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #2f3d42;background:#141d20;color:#e6efec;font-weight:700}
+.harness-shell .song-action{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #3b3d43;background:#23252a;color:#e6efec;font-weight:700}
 .harness-shell .song-action:disabled{opacity:.4}
 .harness-shell .bt-name{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13px;color:#fff;white-space:nowrap}
 .harness-shell .bt-name i{width:10px;height:10px;border-radius:3px;background:var(--tc)}
-.harness-shell .bt-name small{font-weight:600;font-size:11px;color:#9fb0ab}
+.harness-shell .bt-name small{font-weight:600;font-size:11px;color:#b9bdc7}
 .harness-shell .bt-clips button{min-width:40px;padding:0 4px !important;font-weight:800}
 .harness-shell .bt-clips button.empty:not(.active){color:#62736f}
 .harness-shell .marker-tools .fx-segment button{padding:0 9px}
@@ -72,43 +65,43 @@
 .harness-shell .arr-row{display:grid;grid-template-columns:258px minmax(0,1fr);gap:6px;min-height:0}
 .harness-shell .arr-ruler-row{flex:none;height:44px}
 .harness-shell .arr-head{display:flex;align-items:center;gap:6px;min-width:0}
-.harness-shell .arr-ruler-head{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa29d;padding-left:10px}
-.harness-shell .arr-ruler{position:relative;display:flex;min-width:0;border-radius:8px;overflow:hidden;background:#10181a;border:1px solid #26353a}
-.harness-shell .arr-tick{position:relative;flex:1 1 0;min-width:0;border:0;border-left:1px solid #1f2b2f;background:transparent;color:#71847f;
+.harness-shell .arr-ruler-head{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b9bdc7;padding-left:10px}
+.harness-shell .arr-ruler{position:relative;display:flex;min-width:0;border-radius:8px;overflow:hidden;background:#18191c;border:1px solid #393b42}
+.harness-shell .arr-tick{position:relative;flex:1 1 0;min-width:0;border:0;border-left:1px solid #303238;background:transparent;color:#9b9fa9;
   display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;padding:3px 4px;font:700 10px 'JetBrains Mono',ui-monospace,monospace;overflow:visible}
-.harness-shell .arr-tick.phrase{border-left-color:#3a4b50;color:#cfdcd8}
-.harness-shell .arr-tick.after{background:repeating-linear-gradient(135deg,#0c1213 0 6px,#111a1c 6px 12px);color:#4b5b58}
-.harness-shell .arr-tick.picked{background:color-mix(in srgb,#f5b85c 22%,#10181a);color:#fff}
+.harness-shell .arr-tick.phrase{border-left-color:#4a4d56;color:#d6d9df}
+.harness-shell .arr-tick.after{background:repeating-linear-gradient(135deg,#16171a 0 6px,#1b1c20 6px 12px);color:#4b5b58}
+.harness-shell .arr-tick.picked{background:color-mix(in srgb,#f5b85c 22%,#18191c);color:#fff}
 .harness-shell .arr-marker{position:absolute;left:3px;bottom:3px;z-index:2;display:flex;align-items:center;gap:3px;padding:2px 6px 2px 4px;border-radius:5px;
   background:#f5b85c;color:#1a1306;font:800 10.5px Inter,system-ui,sans-serif;font-style:normal;white-space:nowrap;pointer-events:none}
 .harness-shell .arr-end{position:absolute;top:0;bottom:0;width:2px;background:#f5b85c;pointer-events:none}
 .harness-shell .arr-lanes{flex:1;min-height:0;display:grid;grid-template-rows:repeat(4,minmax(46px,1fr));gap:5px}
-.harness-shell .arr-lane-row .arr-head{border-radius:9px;border:1px solid #26353a;background:#131c1f;padding:0 4px 0 0}
-.harness-shell .arr-lane-row.active .arr-head{border-color:color-mix(in srgb,var(--tc) 70%,#26353a);box-shadow:inset 3px 0 0 var(--tc)}
+.harness-shell .arr-lane-row .arr-head{border-radius:9px;border:1px solid #393b42;background:#212227;padding:0 4px 0 0}
+.harness-shell .arr-lane-row.active .arr-head{border-color:color-mix(in srgb,var(--tc) 70%,#393b42);box-shadow:inset 3px 0 0 var(--tc)}
 .harness-shell .arr-title{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:7px;border:0;background:transparent;color:#e6efec;padding:0 8px;text-align:left}
 .harness-shell .arr-title .track-index{--track-accent:var(--tc)}
 .harness-shell .arr-title strong{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .harness-shell .arr-lane-row .lane-loop{--track-accent:var(--tc);flex:none}
 .harness-shell .arr-lane-row .lane-mute{flex:none}
 .harness-shell .arr-lane-row.muted .arr-lane{opacity:.45}
-.harness-shell .arr-lane{position:relative;min-width:0;border-radius:9px;overflow:hidden;background:#0f1618;border:1px solid #26353a;cursor:copy}
-.harness-shell .arr-cell{position:absolute;top:0;bottom:0;border-left:1px solid #1a2427}
-.harness-shell .arr-cell.phrase{border-left-color:#2f3f44}
-.harness-shell .arr-cell.after{background:repeating-linear-gradient(135deg,#0b1112 0 6px,#0f1719 6px 12px)}
+.harness-shell .arr-lane{position:relative;min-width:0;border-radius:9px;overflow:hidden;background:#17181b;border:1px solid #393b42;cursor:copy}
+.harness-shell .arr-cell{position:absolute;top:0;bottom:0;border-left:1px solid #2b2d33}
+.harness-shell .arr-cell.phrase{border-left-color:#3e4149}
+.harness-shell .arr-cell.after{background:repeating-linear-gradient(135deg,#15161a 0 6px,#191a1e 6px 12px)}
 .harness-shell .arr-block{position:absolute;top:3px;bottom:3px;z-index:1;border-radius:7px;cursor:grab;touch-action:none;overflow:hidden;
-  border:1px solid color-mix(in srgb,var(--tc) 65%,#000);background:color-mix(in srgb,var(--tc) 24%,#11191b);box-shadow:inset 0 0 0 1px #0006;
+  border:1px solid color-mix(in srgb,var(--tc) 65%,#000);background:color-mix(in srgb,var(--tc) 24%,#1d1e22);box-shadow:inset 0 0 0 1px #0006;
   display:flex;align-items:stretch;padding:0 4px 0 0}
-.harness-shell .arr-block.empty{background:color-mix(in srgb,var(--tc) 9%,#11191b);border-style:dashed}
+.harness-shell .arr-block.empty{background:color-mix(in srgb,var(--tc) 9%,#1d1e22);border-style:dashed}
 .harness-shell .arr-block.picked{border-color:#fff;box-shadow:0 0 0 2px #f5b85c;z-index:3}
 .harness-shell .arr-block.dragging{opacity:.85;cursor:grabbing;z-index:4}
-.harness-shell .arr-block.live{background:color-mix(in srgb,var(--tc) 34%,#11191b)}
+.harness-shell .arr-block.live{background:color-mix(in srgb,var(--tc) 34%,#1d1e22)}
 .harness-shell .blk-name{flex:none;align-self:flex-start;margin:3px;min-width:18px;height:18px;padding:0 4px;border-radius:5px;display:grid;place-items:center;
-  background:var(--tc);color:#0b1112;font-size:11.5px;font-weight:900}
+  background:var(--tc);color:#15161a;font-size:11.5px;font-weight:900}
 .harness-shell .blk-notes{flex:1;min-width:0;height:100%;opacity:.95}
-.harness-shell .blk-empty{align-self:center;font-size:10px;color:#71847f}
+.harness-shell .blk-empty{align-self:center;font-size:10px;color:#9b9fa9}
 .harness-shell .arr-playhead{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;z-index:5;pointer-events:none;box-shadow:0 0 6px #fff8}
 .harness-shell .arranger.is-off .arr-lanes,.harness-shell .arranger.is-off .arr-ruler{filter:saturate(.45);opacity:.7}
-.harness-shell .ls-use{font-size:9.5px;color:#8fa29d}
+.harness-shell .ls-use{font-size:9.5px;color:#b9bdc7}
 @media (max-height:820px){
   .harness-shell .arranger{gap:4px;padding-top:4px}
   .harness-shell .arr-lanes{gap:4px}
@@ -118,3 +111,70 @@
 /* the clips sheet only needs its content's height */
 .harness-shell .loop-backdrop{align-items:flex-start}
 .harness-shell .loop-sheet{flex:1;flex-grow:1;max-height:100%;height:auto}
+
+/* Song owns track selection in its lane headers. */
+.harness-shell .workspace-stage.page-song{grid-template-rows:minmax(0,1fr)}
+.harness-shell .transport-lcd .bars-display select{color-scheme:dark}
+
+.harness-shell[data-page="SONG"]{--accent:#e8b66d;--c-sound:#bac1ca}
+.harness-shell[data-page="SONG"] .brand-glyph,
+.harness-shell[data-page="SONG"] .transport-pad.play,
+.harness-shell[data-page="SONG"] .transport-utility,
+.harness-shell[data-page="SONG"] .icon-button,
+.harness-shell[data-page="SONG"] .device-pill,
+.harness-shell[data-page="SONG"] .metronome-button{
+  background:#292b30;border-color:#41444b;color:#d9dde3
+}
+.harness-shell[data-page="SONG"] .transport-pad.play.engaged,
+.harness-shell[data-page="SONG"] .metronome-button.active{
+  background:#342c22;border-color:#b28753;color:#f0c788;box-shadow:none
+}
+.harness-shell[data-page="SONG"] .transport-beat strong{color:#f0c788}
+.harness-shell[data-page="SONG"] .transport-beat i{color:#c19d6e}
+.harness-shell[data-page="SONG"] .page-tabs{background:#17181b;border-color:#3b3d43}
+.harness-shell[data-page="SONG"] .page-tabs button.active{background:#342c22}
+
+.harness-shell .song-page>.timeline{background:#202125;border-color:#3a3c42}
+.harness-shell .song-page .track-row{background:#24262b;border-color:#3a3d44}
+.harness-shell .song-page .track-row.active{border-color:var(--track-accent)}
+.harness-shell .song-page .clip-lane{background:#17181b;border-color:#3a3d44}
+
+.harness-shell .song-toolbar{gap:10px}
+.harness-shell .song-toolbar .fx-segment{flex-wrap:nowrap;background:#18191c;border-color:#3b3d43}
+.harness-shell .song-toolbar .fx-segment button{display:flex;align-items:center;justify-content:center;gap:6px;color:#d0d3d9}
+.harness-shell .song-bar .fx-segment button.active{background:#342c22;border-color:#b28753;color:#f5dbb7}
+.harness-shell .song-toolbar .fx-segment button:not(.active):hover,
+.harness-shell .song-toolbar .song-tools button:not(:disabled):hover,
+.harness-shell .song-repeat:hover{background:#303239}
+.harness-shell .song-length{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.harness-shell .song-toolbar .song-stepper button{height:44px}
+.harness-shell .song-toolbar .song-marker{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ebc18a}
+.harness-shell .song-repeat{
+  width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;
+  background:#18191c;border:1px solid #484b53;border-radius:8px;color:#d0d3d9
+}
+.harness-shell .song-repeat[aria-pressed="true"]{background:#342c22;border-color:#b28753;color:#f0c788}
+
+.harness-shell .song-output.audio-scope{
+  display:flex;flex-direction:row;align-items:center;gap:16px;min-height:52px;flex:none;
+  padding:5px 12px;border-color:#3b3d43;background:#222327
+}
+.harness-shell .song-output .scope-title strong{font-size:11px;letter-spacing:.06em;white-space:nowrap}
+.harness-shell .song-output .scope-stat{font-size:11px;color:#b9bdc7;gap:14px}
+.harness-shell .song-output-levels{margin-left:auto;display:flex;gap:12px;color:#b9bdc7;font-size:11px;white-space:nowrap}
+.harness-shell .song-output-levels strong{font-variant-numeric:tabular-nums;color:#f0f1f3}
+.harness-shell .song-output .scope-stereo-meters{gap:8px}
+.harness-shell .song-output .scope-stereo-meters .scope-meter{width:auto;min-width:14px;gap:2px}
+.harness-shell .song-output .scope-meter-leds{width:14px;height:30px;flex:none;gap:1px;background:#17181b}
+.harness-shell .song-output .scope-meter-leds span{background:#3d4149}
+.harness-shell .song-output .scope-meter-leds span.lit{background:#b1c6dd;box-shadow:none}
+.harness-shell .song-output .scope-meter-leds span.lit:nth-child(n+15){background:#edbe75}
+.harness-shell .song-output .scope-meter-leds span.lit:nth-child(n+17){background:#ee8f87}
+.harness-shell .song-output .scope-stereo-meters .meter-label{writing-mode:horizontal-tb;color:#c7cad2;line-height:1}
+
+@media(max-width:1120px){
+  .harness-shell .song-toolbar{gap:6px}
+  .harness-shell .song-toolbar .song-label{display:none}
+  .harness-shell .song-toolbar .fx-segment button{padding-inline:8px}
+  .harness-shell .song-toolbar .song-marker{max-width:64px}
+}

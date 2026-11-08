@@ -7,7 +7,7 @@ import { AudioWaveform, CircleDot, Pencil,Layers3, SlidersHorizontal, Volume2, V
 import { LIBRARY } from './PresetBrowser';
 
 const categoryOf=(name:string)=>LIBRARY.presets.find(p=>p.name===name)?.category??'';
-import { clamp, noteName, TRACK_COLORS, type Project, type Note } from '../types';
+import { clamp, noteName, SONG_TRACK_COLORS, type Project, type Note } from '../types';
 
 type Props = {
   project: Project; selected: number; beat: number;
@@ -78,7 +78,7 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
   };
   return <div ref={lane} {...context} tabIndex={0} className={'clip-lane'+(track.notes.length?' has-notes':'')+
      (selected?' is-selected':'')+(recording?' is-recording':'')}
-    style={{'--track-accent':TRACK_COLORS[idx]} as React.CSSProperties} onClick={onSelect} onDoubleClick={onOpenNotes}>
+    style={{'--track-accent':SONG_TRACK_COLORS[idx]} as React.CSSProperties} onClick={onSelect} onDoubleClick={onOpenNotes}>
     <div className="clip-gridlines" style={{backgroundSize:(100/beats)+'% 100%'}} aria-hidden="true"/>
     <div className="clip-bar-numbers">
       {Array.from({length:bars},(_,i)=><span key={i} style={{left:(i/bars*100)+'%'}}>{String(i+1).padStart(2,'0')}</span>)}
@@ -134,7 +134,7 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
         const active=selected===i;
         const loop=loops?.[i];
         return <div key={i} className={'track-row'+(active?' active':'')}
-          style={{'--track-accent':TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
+          style={{'--track-accent':SONG_TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
             onClick={()=>onSelect(i)}>
             <span className="track-index">{String(i+1).padStart(2,'0')}</span>

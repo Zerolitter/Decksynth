@@ -1,121 +1,46 @@
-import { useEffect, useRef, useState } from 'react';
 import { AudioLines, Gauge, SignalHigh } from 'lucide-react';
 import { clamp } from '../types';
 import { meterIntensity } from '../pattern';
 
-export type Monitor = { channels?:{rms:number;peak:number;wave:number[]}[];rms:number;peak:number;wave:number[] };
-type Props={monitor:Monitor|null;running:boolean;voices:number;underruns:number;preview?:boolean;load?:number;bufferMs?:number};
+type Monitor = {channels?: {peak:number}[]; rms:number; peak:number};
+type Props = {monitor:Monitor|null; voices:number; underruns:number; preview?:boolean; load?:number; bufferMs?:number};
 
 function dbfs(value:number) {
-  if(!value||value<.00003)return '−∞';
-  return (20*Math.log10(Math.max(.00003,value))).toFixed(1);
+  return value<.00003 ? '−∞' : (20*Math.log10(value)).toFixed(1);
 }
 
-export function AudioScope({monitor,running,voices,underruns,preview=false,load,bufferMs}:Props) {
-  const canvas=useRef<HTMLCanvasElement>(null);
-  const monitorRef=useRef(monitor);
-  const activity=useRef(0);
-  const [reduced,setReduced]=useState(false);
-  useEffect(()=>{monitorRef.current=monitor;},[monitor]);
-  useEffect(()=>{
-    const query=window.matchMedia('(prefers-reduced-motion: reduce)');
-    const change=()=>setReduced(query.matches);
-    change();query.addEventListener('change',change);
-    return()=>query.removeEventListener('change',change);
-  },[]);
-  useEffect(()=>{
-    const c=canvas.current;if(!c)return;
-    const ctx=c.getContext('2d');if(!ctx)return;
-    let raf=0,last=0,live=true;
-    const draw=(now:number)=>{
-      if(!live)return;
-      raf=requestAnimationFrame(draw);
-      if(now-last<33)return;
-      last=now;
-      const rect=c.getBoundingClientRect();
-      const width=Math.max(1,rect.width),height=Math.max(1,rect.height);
-      const ratio=Math.min(window.devicePixelRatio||1,2);
-      if(c.width!==Math.round(width*ratio)||c.height!==Math.round(height*ratio)){
-        c.width=Math.round(width*ratio);c.height=Math.round(height*ratio);
-      }
-      ctx.setTransform(ratio,0,0,ratio,0,0);
-      ctx.clearRect(0,0,width,height);
-      const mid=height/2;
-      const m=monitorRef.current;
-      const samples=m?.wave?.length?m.wave:[];
-      activity.current=Math.max(meterIntensity(m?.rms||0),activity.current*.86);
-      ctx.fillStyle='#0a121a';ctx.fillRect(0,0,width,height);
-      ctx.strokeStyle='#1f323b';ctx.lineWidth=1;
-      for(let i=1;i<4;i++){
-        const y=i*height/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();
-      }
-      for(let i=1;i<13;i++){
-        const x=i*width/13;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,height);ctx.stroke();
-      }
-      ctx.strokeStyle='#526d71';ctx.setLineDash([4,4]);ctx.beginPath();
-      ctx.moveTo(0,mid);ctx.lineTo(width,mid);ctx.stroke();ctx.setLineDash([]);
-      const channels=m?.channels?.length===2?m.channels.map(c=>c.wave):[samples];
-      channels.forEach((samples,ch)=>{if(samples.length>1){
-        const gain=1.45;
-        const grad=ctx.createLinearGradient(0,0,0,height);
-        grad.addColorStop(0,'#98e6cb');
-        grad.addColorStop(.5,'#73c6b5');
-        grad.addColorStop(1,'#579d9f');
-        ctx.beginPath();
-        samples.forEach((value,i)=>{
-          const x=i/(samples.length-1)*width;
-          const y=mid-clamp(value*gain,-.95,.95)*height*.44;
-          if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        });
-        ctx.strokeStyle=channels.length===2?(ch===0?'#83d4c0':'#a3b8eb'):grad;
-        ctx.lineWidth=2;
-        ctx.shadowColor='#8fdac8';ctx.shadowBlur=running&&!reduced?7:0;ctx.stroke();
-        ctx.shadowBlur=0;
-      }
-      });
-      if(running&&!reduced&&samples.length){
-        // A visual oscilloscope scan cursor; the signal under it is the actual PCM trace.
-        const x=(now%2300)/2300*width;
-        ctx.fillStyle='rgba(156,226,210,.21)';
-        ctx.fillRect(x,0,1,height);
-      }
-    };
-    raf=requestAnimationFrame(draw);
-    return()=>{live=false;cancelAnimationFrame(raf);};
-  },[running,reduced]);
-
-  const max=clamp(monitor?.peak||0,0,1);
-
-  return <section className="audio-scope" aria-label="Live synthesizer output visualizer">
-    <header className="scope-top">
-      <div className="scope-title"><AudioLines size={16}/>
-        <span>LIVE OUTPUT</span><strong>Oscilloscope</strong></div>
-      <div className="scope-stat">
-        <span><SignalHigh size={13}/> {voices} voices</span>
-        <span className={'scope-dropouts'+(underruns?' warn':'')} title="Audio dropouts since start: each one is a click or gap">
-          <Gauge size={13}/> {underruns} dropout{underruns===1?'':'s'}</span>
-        {load!==undefined?<span className={'scope-load'+(load>.7?' warn':'')}
-          title="Engine load: the slowest audio block of the last second, as a share of the time it may take">
-          DSP {Math.round(load*100)}%{bufferMs?' · '+bufferMs+' ms':''}</span>:null}
-        {preview?<span className="preview-label">DEMO SIGNAL</span>:null}
-      </div>
-    </header>
-    <div className="scope-middle">
-      <canvas ref={canvas} className="scope-canvas" role="img"
-        aria-label="Signal trace computed from PCM samples generated by the existing audio engine"/>
-      <div className="scope-stereo-meters">{(monitor?.channels??[{peak:max}]).map((channel,index)=><div key={index} className="scope-meter">
-        <div className="scope-meter-leds" aria-label={(index===0?'Left':'Right')+' peak '+dbfs(channel.peak)+' dBFS'}>
-          {Array.from({length:18},(_,i)=>
-            <span key={i} className={meterIntensity(channel.peak)*18>i?'lit':''}
-              style={{'--i':i} as React.CSSProperties}/>)}
-        </div>
-        <span className="meter-label">{monitor?.channels?(index===0?'L':'R'):'PEAK'}</span>
-      </div>)}</div>
+export function AudioScope({monitor,voices,underruns,preview=false,load,bufferMs}:Props) {
+  const peak=clamp(monitor?.peak??0,0,1);
+  const channels=monitor?.channels;
+  const stereo=channels?.length===2;
+  const peaks=stereo ? channels.map(channel=>channel.peak) : [peak];
+  return <section className="audio-scope song-output" aria-label="Live output">
+    <div className="scope-title"><AudioLines size={16} aria-hidden="true"/><strong>LIVE OUTPUT</strong></div>
+    <div className="scope-stat">
+      <span><SignalHigh size={13} aria-hidden="true"/> {voices} voices</span>
+      <span className={'scope-dropouts'+(underruns?' warn':'')} title="Audio dropouts since start">
+        <Gauge size={13} aria-hidden="true"/> {underruns} dropout{underruns===1?'':'s'}
+      </span>
+      {load!==undefined?<span className={'scope-load'+(load>.7?' warn':'')}
+        title="Engine load: the slowest audio block of the last second, as a share of the time it may take">
+        DSP {Math.round(load*100)}%{bufferMs!==undefined?' · '+bufferMs+' ms':''}
+      </span>:null}
+      {preview?<span className="preview-label">DEMO SIGNAL</span>:null}
     </div>
-    <footer className="scope-footer">
-      <span>PCM ENGINE MONITOR</span>
-      <div><span>RMS <strong>{dbfs(monitor?.rms||0)} dB</strong></span>
-        <span>PEAK <strong>{dbfs(max)} dB</strong></span></div>
-    </footer>
+    <div className="song-output-levels">
+      <span>RMS <strong>{dbfs(monitor?.rms??0)} dB</strong></span>
+      <span>Peak <strong>{dbfs(peak)} dB</strong></span>
+    </div>
+    <div className="scope-stereo-meters" role="group" aria-label={stereo?'Stereo peak meters':'Peak meter'}>
+      {peaks.map((value,index)=>{
+        const side=index===0?'Left':'Right';
+        return <div key={index} className="scope-meter">
+          <div className="scope-meter-leds" role="img" aria-label={(stereo?side+' peak':'Peak')+' '+dbfs(value)+' dBFS'}>
+            {Array.from({length:18},(_,i)=><span key={i} className={meterIntensity(value)*18>i?'lit':''}/>)}
+          </div>
+          <span className="meter-label" aria-hidden="true">{stereo?side[0]:'Peak'}</span>
+        </div>;
+      })}
+    </div>
   </section>;
 }

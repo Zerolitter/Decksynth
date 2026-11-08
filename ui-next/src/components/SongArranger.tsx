@@ -4,10 +4,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, Layers3, AudioWaveform, Minus, Pencil, Plus, Repeat, Repeat1,
+  ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, GanttChart, Layers3, AudioWaveform, Minus, Pencil, Piano, Plus, RectangleHorizontal, RotateCw,
   Scissors, Sparkles, Trash2, Volume2, VolumeX, Copy,
 } from 'lucide-react';
-import { TRACK_COLORS, type Note, type Project } from '../types';
+import { SONG_TRACK_COLORS, type Note, type Project } from '../types';
 import {
   CLIP_NAMES, CLIPS, MARKER_NAMES, MAX_BARS, blockAt, changeBlock, clipNotes, clipsOf, deleteBlock, duplicateBlock,
   emptyClip, markerAt, moveBlock, nextMarkerName, phase, place, setLength, setMarker, splitBlock, type Block, type Song,
@@ -21,65 +21,72 @@ const pad2 = (n:number) => String(n).padStart(2, '0');
 type BarProps = {
   project:Project; song:Song; view:SongView; onView(v:SongView):void; onSong(s:Song):void;
   zoom:number; onZoom(z:number):void; start:number; onStart(bar:number):void;
-  sel:SongSel; onSel(s:SongSel):void; playing:boolean; songBeat:number; loopBeat:number;
+  sel:SongSel; onSel(s:SongSel):void; songBeat:number;
   onClip(track:number, action:'open'|'copy'|'clear', clip:number, source?:number):void; onEditClip(track:number, clip:number):void;
 };
 
 export function SongBar(props:BarProps) {
-  const {project, song, view, onView, onSong, zoom, onZoom, start, onStart, playing, songBeat, loopBeat} = props;
+  const {project, song, view, onView, onSong, zoom, onZoom, start, onStart, songBeat} = props;
   const bars = project.bars, step = Math.max(1, bars);
-  const at = Math.floor(songBeat / 4), m = song.on ? markerAt(song, at) : -1;
-  return <div className={'song-bar' + (song.on ? ' is-song' : '')}>
-    <div className="song-row">
+  const marker = song.on ? markerAt(song, Math.floor(songBeat / 4)) : -1;
+  return <div className="song-bar">
+    <div className="song-row song-toolbar">
+      <div className="fx-segment song-view" role="radiogroup" aria-label="View">
+        <button type="button" role="radio" aria-checked={view==='arrange'} className={view==='arrange' ? 'active' : ''}
+          onClick={() => onView('arrange')}><GanttChart size={17} aria-hidden="true"/>Timeline</button>
+        <button type="button" role="radio" aria-checked={view==='clips'} className={view==='clips' ? 'active' : ''}
+          onClick={() => onView('clips')}><Piano size={17} aria-hidden="true"/>Clip notes</button>
+      </div>
       <div className="fx-segment song-mode" role="radiogroup" aria-label="Play mode">
         <button type="button" role="radio" aria-checked={!song.on} className={!song.on ? 'active' : ''}
-          title="Each track repeats its open clip" onClick={() => { if (song.on) onSong({...song, on:false}); onView('clips'); }}><Repeat1 size={16}/>Loop</button>
+          title="Each track repeats its open clip" onClick={() => { if (song.on) onSong({...song, on:false}); onView('clips'); }}>
+          <RectangleHorizontal size={17} aria-hidden="true"/>Clip loop
+        </button>
         <button type="button" role="radio" aria-checked={song.on} className={song.on ? 'active' : ''}
-          title="Play the timeline" onClick={() => { if (!song.on) onSong({...song, on:true}); onView('arrange'); }}><Repeat size={16}/>Song</button>
-      </div>
-      <div className="fx-segment song-view" role="radiogroup" aria-label="View">
-        <button type="button" role="radio" aria-checked={view==='arrange'} className={view==='arrange' ? 'active' : ''} onClick={() => onView('arrange')}>Timeline</button>
-        <button type="button" role="radio" aria-checked={view==='clips'} className={view==='clips' ? 'active' : ''} onClick={() => onView('clips')}>Clip notes</button>
+          title="Play the timeline" onClick={() => { if (!song.on) onSong({...song, on:true}); onView('arrange'); }}>
+          <Layers3 size={17} aria-hidden="true"/>Song
+        </button>
       </div>
       {view==='arrange' ? <>
-        <span className="song-label">Length</span>
-        <div className="song-stepper" role="group" aria-label="Song length">
-          <button type="button" aria-label="Shorter song" disabled={song.length <= 1} onClick={() => onSong(setLength(song, song.length - step, bars))}><Minus size={16}/></button>
-          <span aria-live="polite"><b>{song.length}</b> bars</span>
-          <button type="button" aria-label="Longer song" disabled={song.length >= MAX_BARS} onClick={() => onSong(setLength(song, song.length + step, bars))}><Plus size={16}/></button>
-        </div>
-        <div className="fx-segment" role="radiogroup" aria-label="At the end">
-          <button type="button" role="radio" aria-checked={song.loop} className={song.loop ? 'active' : ''} onClick={() => onSong({...song, loop:true})}>Loop song</button>
-          <button type="button" role="radio" aria-checked={!song.loop} className={!song.loop ? 'active' : ''} onClick={() => onSong({...song, loop:false})}>Play once</button>
+        <div className="song-length">
+          <span className="song-label">Length</span>
+          <div className="song-stepper" role="group" aria-label="Song length">
+            <button type="button" aria-label="Shorter song" disabled={song.length <= 1} onClick={() => onSong(setLength(song, song.length - step, bars))}><Minus size={16}/></button>
+            <span aria-live="polite"><b>{song.length}</b> {song.length===1?'bar':'bars'}</span>
+            <button type="button" aria-label="Longer song" disabled={song.length >= MAX_BARS} onClick={() => onSong(setLength(song, song.length + step, bars))}><Plus size={16}/></button>
+          </div>
+          <button type="button" className="song-repeat" aria-label="Repeat song" aria-pressed={song.loop}
+            title={song.loop ? 'Repeat on · click to play once' : 'Repeat off · click to loop the song'}
+            onClick={() => onSong({...song, loop:!song.loop})}><RotateCw size={19} aria-hidden="true"/></button>
         </div>
         <span className="song-gap"/>
+        <span className="song-label">Bars shown</span>
         <div className="fx-segment" role="radiogroup" aria-label="Bars in view">
           {ZOOMS.map(z => <button key={z} type="button" role="radio" aria-checked={zoom===z} className={zoom===z ? 'active' : ''} onClick={() => onZoom(z)}>{z}</button>)}
         </div>
         <div className="song-tools">
-          <button type="button" aria-label="Earlier bars" disabled={start===0} onClick={() => onStart(Math.max(0, start - zoom / 2))}><ChevronLeft size={18}/></button>
-          <button type="button" aria-label="Later bars" disabled={start + zoom >= MAX_BARS} onClick={() => onStart(Math.min(MAX_BARS - zoom, start + zoom / 2))}><ChevronRight size={18}/></button>
+          <button type="button" aria-label="Earlier bars" title="Earlier bars" disabled={start===0} onClick={() => onStart(Math.max(0, start - zoom / 2))}><ChevronLeft size={18}/></button>
+          <button type="button" aria-label="Later bars" title="Later bars" disabled={start + zoom >= MAX_BARS} onClick={() => onStart(Math.min(MAX_BARS - zoom, start + zoom / 2))}><ChevronRight size={18}/></button>
         </div>
-      </> : <span className="song-gap"/>}
-      {song.on&&view==='arrange'&&m>=0?<span className="song-marker" aria-label="Active song marker">{song.markers[m].name}</span>:null}
+        {marker>=0?<span className="song-marker" aria-label="Active song marker">{song.markers[marker].name}</span>:null}
+      </> : <>
+        <span className="song-gap"/>
+        <span className="song-summary">{bars} {bars===1?'bar':'bars'} per clip · {project.tracks.reduce((n, t) => n + t.notes.length, 0)} notes</span>
+      </>}
     </div>
-    {view==='arrange' ? <ContextRow {...props}/> : <div className="song-row song-edit">
-      <span className="song-hint">Notes of each track's open clip. Tap the clip letter to open another clip, copy one, or clear it. Recording always goes into the open clip.</span>
-      <span className="song-gap"/>
-      <span className="timeline-summary song-summary">{bars} bars per clip · {project.tracks.reduce((n, t) => n + t.notes.length, 0)} notes</span>
-    </div>}
+    {view==='arrange'?<ContextRow {...props}/>:null}
   </div>;
 }
 
-/** The second row: tools for the selected block or bar, or a short hint. */
+/** Tools appear under the toolbar when a block or bar is selected. */
 function ContextRow({project, song, onSong, sel, onSel, onClip, onEditClip}:BarProps) {
   const bars = project.bars;
   if (sel?.kind==='block') {
     const b = song.lanes[sel.track].find(x => x.at===sel.at);
-    if (!b) return <div className="song-row song-edit"/>;
+    if (!b) return null;
     const first = phase(b, b.at, bars) + 1, empty = emptyClip(project, sel.track);
     const edit = (patch:Partial<Block>) => onSong(changeBlock(song, sel.track, b.at, patch, bars));
-    return <div className="song-row song-edit block-tools" role="group" aria-label="Block" style={{['--tc' as string]:TRACK_COLORS[sel.track]}}>
+    return <div className="song-row song-edit block-tools" role="group" aria-label="Block" style={{['--tc' as string]:SONG_TRACK_COLORS[sel.track]}}>
       <span className="bt-name"><i/>Track {sel.track + 1}<small>bars {b.at + 1}–{b.at + b.len}</small></span>
       <div className="fx-segment bt-clips" role="radiogroup" aria-label="Block clip">
         {Array.from({length:CLIPS}, (_, k) => <button key={k} type="button" role="radio" aria-checked={b.clip===k}
@@ -127,13 +134,7 @@ function ContextRow({project, song, onSong, sel, onSel, onClip, onEditClip}:BarP
       <button type="button" className="mod-sheet-done" onClick={() => onSel(null)}>Done</button>
     </div>;
   }
-  return <div className="song-row song-edit">
-    <span className="song-hint">{song.on
-      ? 'Tap an empty bar to place the track\'s open clip there. Tap a block to change, copy or split it, or drag it to move it. Tap the ruler for markers.'
-      : 'Song is off: each track repeats its open clip. Switch to Song to play this timeline.'}</span>
-    <span className="song-gap"/>
-    <span className="timeline-summary song-summary">{bars} {bars===1 ? 'bar' : 'bars'} per clip · {song.markers.length} {song.markers.length===1 ? 'marker' : 'markers'}</span>
-  </div>;
+  return null;
 }
 
 /** Notes of the bars of a clip that a block plays, drawn across the block. */
@@ -195,7 +196,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
     </div>
     <div className="arr-lanes">
       {project.tracks.map((t, tr) => {
-        const color = TRACK_COLORS[tr];
+        const color = SONG_TRACK_COLORS[tr];
         return <div key={tr} className={'arr-row arr-lane-row' + (selected===tr ? ' active' : '') + (t.mute ? ' muted' : '')} style={{['--tc' as string]:color}}>
           <div className="arr-head">
             <button type="button" className="arr-title" aria-pressed={selected===tr} onClick={() => onSelect(tr)}>
@@ -262,7 +263,7 @@ export function ClipSheet({project, song, track, container, onClose, onClip}:She
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => { const k = (e:KeyboardEvent) => { if (e.key==='Escape') close.current(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   if (!container) return null;
-  const open = clipsOf(project).open[track], color = TRACK_COLORS[track], beats = project.bars * 4;
+  const open = clipsOf(project).open[track], color = SONG_TRACK_COLORS[track], beats = project.bars * 4;
   const empty = emptyClip(project, track);
   const uses = (k:number) => song.lanes[track].filter(b => b.clip===k).reduce((n, b) => n + b.len, 0);
   return createPortal(<div className="mod-sheet-backdrop loop-backdrop" onPointerDown={e => { if (e.target===e.currentTarget) onClose(); }}>

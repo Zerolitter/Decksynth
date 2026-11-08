@@ -91,6 +91,7 @@ export type DeckApi = {
 };
 declare global { interface Window { deckApi?: DeckApi } }
 export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf'] as const;
+export const SONG_TRACK_COLORS = ['#a1b9d4', TRACK_COLORS[1], TRACK_COLORS[2], '#8193ab'] as const;
 export const PRESETS = ['Warm Keys','Bass','Atmospheric Pad','Bell','Evolving Texture'] as const;
 export function noteName(n: number) {
   const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
