@@ -53,6 +53,8 @@ snapshot.state.song={on:true,loop:true,length:17,markers:[],lanes:Array.from({le
   for(const height of [718,800]){
    await app.evaluate(({BrowserWindow},height)=>BrowserWindow.getAllWindows()[0].setContentSize(1280,height),height);
    await page.waitForFunction(height=>innerWidth===1280&&innerHeight===height,height);
+   // Each viewport starts in Timeline; the prior viewport ends in Clip notes.
+   await view('Timeline').click();await settled();
    for(const bars of [1,2,4,8])for(const zoom of [8,16,32]){
     await page.evaluate(bars=>{fixture.playing=false;fixture.song_beat=0;fixture.beat=0;fixture.state.bars=bars;emit();},bars);
     await page.getByRole('radiogroup',{name:'Bars in view',exact:true}).getByRole('radio',{name:String(zoom),exact:true}).click();
