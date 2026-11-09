@@ -67,8 +67,14 @@ const { launch } = require('./usability-harness.cjs');
       }).map(button => button.getAttribute('aria-label') || button.textContent));
       assert.deepEqual(problems, [], 'arrangement toolbar controls stay tappable at ' + width + '×' + size);
     }
-    assert.equal(await page.getByLabel('Loop bars', { exact: true })
-      .evaluate(select => getComputedStyle(select).colorScheme), 'dark');
+    const loopBars=page.getByRole('button',{name:'Loop bars',exact:true});
+    await loopBars.click();
+    const choices=page.getByRole('listbox',{name:'Clip loop length'});
+    await choices.waitFor();
+    assert.equal(await choices.evaluate(e=>getComputedStyle(e).colorScheme),'dark');
+    await page.keyboard.press('Escape');
+    await choices.waitFor({state:'detached'});
+    assert.ok(await loopBars.evaluate(e=>document.activeElement===e));
 
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 718));
     await height(718);

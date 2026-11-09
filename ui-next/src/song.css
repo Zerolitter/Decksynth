@@ -114,7 +114,12 @@
 
 /* Song owns track selection in its lane headers. */
 .harness-shell .workspace-stage.page-song{grid-template-rows:minmax(0,1fr)}
-.harness-shell .transport-lcd .bars-display select{color-scheme:dark}
+.harness-shell .transport-lcd .loop-bars-trigger{height:44px;min-height:44px;min-width:86px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:0;background:transparent;color:#d8e6e1;font-size:12px;font-weight:800;padding:0 8px}
+.loop-bars-choices{position:fixed;z-index:210;display:flex;flex-direction:column;min-width:100px;padding:4px;background:#191a1d;color:#e5e6e8;border:1px solid #494c54;border-radius:6px;box-shadow:0 8px 24px #0008;color-scheme:dark}
+.loop-bars-choices button{min-width:92px;min-height:44px;padding:0 12px;border:0;border-radius:3px;background:transparent;color:inherit;text-align:left;font:inherit}
+.loop-bars-choices button[aria-selected=true]{background:#303136;color:#f0c875}
+.loop-bars-choices button:hover{background:#36383e}
+.loop-bars-choices button:focus-visible{outline:2px solid #e7bc6b;outline-offset:-2px}
 
 .harness-shell[data-page="SONG"]{--accent:#e8b66d;--c-sound:#bac1ca}
 .harness-shell[data-page="SONG"] .brand-glyph,

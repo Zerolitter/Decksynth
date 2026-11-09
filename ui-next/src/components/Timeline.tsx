@@ -1,7 +1,8 @@
 import {useContextTarget} from './ContextWheel';
 import {editNotes} from '../note-ops';
 import type {NoteTarget} from '../note-ops';
-import {clipsOf} from '../song';
+import {clipsOf,CLIP_NAMES} from '../song';
+import {clipPlayback} from '../transport-clock';
 import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, CircleDot, Pencil,Layers3, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { LIBRARY } from './PresetBrowser';
@@ -11,7 +12,7 @@ import { clamp, noteName, SONG_TRACK_COLORS, type Project, type Note } from '../
 
 type Props = {
   project: Project; selected: number; beat: number;
-  playing: boolean; recording: boolean;
+  playing: boolean; recording: boolean; songBeat?:number;
   onSelect(index:number):void; onMute(index:number,next:boolean):void;
   onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;onOpenNotes?:(track:number)=>void;
   onOpenSound?(index:number):void; compact?:boolean;
@@ -25,22 +26,12 @@ function pitchSpan(notes:Note[]) {
   return {low:Math.max(0,lo-3), high:Math.min(127,Math.max(lo+15,hi+3))};
 }
 
-function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip}:{
+function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip,playbackLabel}:{
   track:Project['tracks'][number];idx:number;bars:number;beat:number;
   selected:boolean;recording:boolean;playing:boolean;
-  clip:number;onOpenNotes?:()=>void;onSelect():void;onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;
+  clip:number;playbackLabel?:string;onOpenNotes?:()=>void;onSelect():void;onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;
 }) {
   const lane=useRef<HTMLDivElement>(null);
-  const [laneHeight,setLaneHeight]=useState(58);
-  useEffect(()=>{
-    const el=lane.current;if(!el)return;
-    const watch=new ResizeObserver(entries=>{
-      const height=entries[0]?.contentRect.height;
-      if(height)setLaneHeight(height);
-    });
-    watch.observe(el);
-    return()=>watch.disconnect();
-  },[]);
   const [drag,setDrag]=useState<{noteIndex:number;original:Note;expected:Note[];target:NoteTarget;startX:number;startY:number;shiftBeat:number;shiftPitch:number;id:number}|null>(null);
   const context=useContextTarget(el=>{
     const target:NoteTarget={kind:'clip',track:idx,clip,bars,device:track.device??'synth'},original=track.notes.map(n=>({...n})),head=el.closest<HTMLElement>('[data-song-note]'),index=head?Number(head.dataset.songNote):-1,ids=index>=0?[index]:original.map((_,i)=>i),bounds={span:bars*4,snap:.25,maxDuration:bars*4};
@@ -49,6 +40,12 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     return {kind:index>=0?'song.note':original.length?'song.clip':'song.empty',label:'Track '+(idx+1)+' · Clip '+String.fromCharCode(65+clip)+(index<0&&original.length?' · All notes':''),caps:{open:onOpenNotes,...(selected&&!recording&&original.length?{quantize:()=>apply({kind:'quantize'}),...(duplicate.length>original.length?{duplicate:()=>onEdit(target,original,duplicate)}:{}),...(index>=0?{delete:()=>apply({kind:'delete'})}:{earlier:()=>apply({kind:'move',time:-.25,pitch:0}),later:()=>apply({kind:'move',time:.25,pitch:0}),pitchUp:()=>apply({kind:'move',time:0,pitch:1}),pitchDown:()=>apply({kind:'move',time:0,pitch:-1}),octaveUp:()=>apply({kind:'move',time:0,pitch:12}),octaveDown:()=>apply({kind:'move',time:0,pitch:-12})})}:{})},cancel:()=>setDrag(null)};
   });
   const beats=bars*4,{low,high}=pitchSpan(track.notes);
+  // Absolute-position percentages resolve against the lane's own padding box
+  // on the very first paint, and on resize, without a guessed measured height.
+  const noteTop=(pitch:number)=>{
+    const fraction=(high-pitch)/Math.max(1,high-low);
+    return `calc(${fraction*100}% + ${24-41*fraction}px)`;
+  };
   const pos=clamp(beat/beats,0,1);
   const preview=(n:Note,i:number):Note=>{
     if(drag?.noteIndex!==i)return n;
@@ -87,13 +84,11 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     {track.notes.map((note,i)=>{
       const displayed=preview(note,i),left=displayed.start/beats*100;
       const width=Math.max(.7,Math.min(displayed.duration/beats*100,100-left));
-      const minTop=24,maxTop=Math.max(minTop,laneHeight-17);
-      const top=minTop+(high-displayed.note)/Math.max(1,high-low)*(maxTop-minTop);
       return <div data-song-note={i} key={i} role="button" tabIndex={0}
         title={noteName(displayed.note)+' · '+displayed.duration.toFixed(2)+' beats — drag to move'}
         aria-label={noteName(displayed.note)+' note in bar '+(Math.floor(displayed.start/4)+1)}
         className={'clip-note'+(drag?.noteIndex===i?' dragging':'')}
-        style={{left:left+'%',width:width+'%',top:top+'px'}}
+        style={{left:left+'%',width:width+'%',top:noteTop(displayed.note)}}
         onPointerDown={e=>begin(e,i)} onPointerMove={move} onPointerUp={end}
         onPointerCancel={()=>setDrag(null)} onClick={e=>e.stopPropagation()}
         onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();onSelect();}}}>
@@ -103,15 +98,15 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     {track.notes.filter(n=>n.start+n.duration>beats).map((n,i)=>
       <div key={'tail'+i} className="clip-tail"
         style={{left:0,width:((n.start+n.duration-beats)/beats*100)+'%',
-                top:(24+(high-n.note)/Math.max(1,high-low)*(Math.max(24,laneHeight-17)-24))+'px'}}/>
+                top:noteTop(n.note)}}/>
     )}
     {(playing||recording)&&<div className="clip-playhead" style={{left:(pos*100)+'%'}} aria-hidden="true"><span className="playhead-cap"/></div>}
-    <span className="clip-status">{recording?'● RECORDING':track.notes.length?
-      track.notes.length+' NOTES':'EMPTY'}</span>
+    <span className="clip-status">{recording?'● RECORDING':playbackLabel??(track.notes.length?
+      track.notes.length+' NOTES':'EMPTY')}</span>
   </div>;
 }
 
-export function Timeline({project,selected,beat,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header}:Props) {
+export function Timeline({project,selected,beat,songBeat=beat,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header}:Props) {
   const noteCount=project.tracks.reduce((sum,t)=>sum+t.notes.length,0);
   return <section className={'timeline'+(compact?' compact':'')} aria-label="Four-track MIDI looping timeline">
     {header??(compact?null:<div className="timeline-toolbar">
@@ -133,6 +128,7 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
       {project.tracks.map((track,i)=>{
         const active=selected===i;
         const loop=loops?.[i];
+        const clock=clipPlayback(project,i,songBeat,beat,playing);
         return <div key={i} className={'track-row'+(active?' active':'')}
           style={{'--track-accent':SONG_TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
@@ -153,8 +149,9 @@ export function Timeline({project,selected,beat,playing,recording,onSelect,onMut
             onClick={()=>onMute(i,!track.mute)}>
             {track.mute?<VolumeX size={19}/>:<Volume2 size={19}/>}
           </button>
-          <ClipGrid track={track} idx={i} bars={project.bars} beat={beat}
-            selected={active} recording={recording&&active} playing={playing}
+          <ClipGrid track={track} idx={i} bars={project.bars} beat={clock.beat}
+            selected={active} recording={recording&&active} playing={clock.playing}
+            playbackLabel={playing&&clock.heard!==clock.open?`${CLIP_NAMES[clock.open]} OPEN · ${clock.heard===undefined?'NO BLOCK':CLIP_NAMES[clock.heard]+' PLAYING'}`:undefined}
             clip={clipsOf(project).open[i]} onOpenNotes={()=>onOpenNotes?.(i)} onSelect={()=>onSelect(i)} onEdit={onEdit}/>
         </div>;
       })}

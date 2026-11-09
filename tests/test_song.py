@@ -67,6 +67,37 @@ class SongTests(unittest.TestCase):
         self.e.playing = True
         self.assertEqual([n for _, n, _ in played(self.e, 16)], [60, 61, 60, 61])
 
+    def test_open_a_and_offset_b_playback_are_independent_and_survive_reopen(self):
+        # Renderer fixture: at song beat 12.5, B is at clip beat 8.5 with
+        # four-bar clips. Native scheduling must agree while A stays open.
+        import copy
+        e = self.e
+        e.project.bars = 4
+        a = copy.deepcopy(e.project.tracks[0]['notes'])
+        e.clip_action(0, 'open', 1)
+        e.project.tracks[0]['notes'] = [note(72, 8), note(73, 12)]
+        e.clip_action(0, 'open', 0)
+        s = timeline(17, [block(2, 8, 1, 1)], loop=True)
+        e.set_song(s)
+        e.playing = True
+        seen = played(e, 17)
+        self.assertEqual([(n, beat) for _, n, beat in seen], [(72, 12), (73, 16)])
+        self.assertEqual(e.project.clips['open'][0], 0)
+        self.assertEqual(e.project.tracks[0]['notes'], a)
+        with tempfile.TemporaryDirectory() as d:
+            f = pathlib.Path(d) / 'identity.decksynth'
+            e.project.save(f)
+            restored = Project.load(f)
+        self.assertEqual(restored.data(), e.project.data())
+        self.assertEqual(restored.clip_notes(0, 1), [note(72, 8), note(73, 12)])
+        # Removing a placement uses the song transaction and its Undo. The
+        # source clip and both edit/play identities survive that operation.
+        e.set_song(timeline(17, [], loop=True))
+        self.assertEqual(e.project.clip_notes(0, 1), [note(72, 8), note(73, 12)])
+        e.undo()
+        self.assertEqual(e.project.song, s)
+        self.assertEqual(e.project.clips['open'][0], 0)
+
     def test_other_tracks_follow_their_own_lanes(self):
         p = self.e.project; p.tracks[1]['notes'] = [note(40)]
         s = timeline(2, [block(0, 2, 0)]); s['lanes'][1] = [block(1, 1, 0, 1)]

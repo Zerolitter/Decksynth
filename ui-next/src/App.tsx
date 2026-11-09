@@ -7,7 +7,7 @@ import {AutomationEditor} from './components/AutomationEditor';
 import type {ControlTarget} from './parameter-registry';
 import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SetStateAction } from 'react';
 import {
   AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
   FolderOpen, Pause, Play, Redo2,
@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
-import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf, blockAt,phase as clipPhase,type Song } from './song';
+import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf,type Song } from './song';
+import {transportPosition,clipPlayback} from './transport-clock';
+import {LoopBars} from './components/LoopBars';
 import {DrumSteps} from './components/DrumSteps';
 import { AudioScope } from './components/AudioScope';
 import { SoundWindow } from './components/SoundLab';
@@ -31,7 +33,7 @@ import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
 import { harmonicShape, nextSeed, type Shape } from './spectral-seeds';
-import { interpolateBeat, totalNotes } from './pattern';
+import { totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
 import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type StepNote } from './types';
 import previewState from './preview-state.json';
@@ -61,7 +63,23 @@ function renderMIDI(value:string|null) {
 const previewPads=new Map<number,number[]>();
 
 function App() {
-  const [snapshot,setSnapshot]=useState<DeckUpdate|null>(api?null:demoInitial);
+  const [received,setReceived]=useState(()=>({snapshot:api?null:demoInitial as DeckUpdate|null,when:performance.now()}));
+  const snapshot=received.snapshot;
+  const clockEpoch=useRef(received);clockEpoch.current=received;
+  const [visualNow,setVisualNow]=useState(()=>performance.now());
+  const setSnapshot=useCallback((update:SetStateAction<DeckUpdate|null>)=>{
+    const when=performance.now();
+    setReceived(previous=>{
+      // Local preview commands also rebase at the current position, so editing
+      // a sound or opening a clip cannot reset the preview's running clock.
+      let prior=previous.snapshot;
+      if(typeof update==='function'&&prior){
+        const p=transportPosition(prior,previous.when,when,!api||prior.preview?100000:220);
+        prior={...prior,beat:p.clipBeat,song_beat:p.absoluteBeat};
+      }
+      return {snapshot:typeof update==='function'?update(prior):update,when};
+    });
+  },[]);
   const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.page') as Page)||'SONG';}catch{return 'SONG';}});
   const [edit,setEdit]=useState<Source>({kind:'mod',index:0});
   const [armed,setArmed]=useState<Source|null>(null);
@@ -92,8 +110,6 @@ function App() {
   const [clipSheet,setClipSheet]=useState<number|null>(null);
   const [toast,setToast]=useState('');
   const [bridgeStatus,setBridgeStatus]=useState(api?'CONNECTING':'PREVIEW');
-  const [playhead,setPlayhead]=useState(0);
-  const anchor=useRef({beat:0,when:performance.now(),bpm:120,bars:4,playing:false,preview:false});
   const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
@@ -122,13 +138,12 @@ function App() {
   const track=project?.tracks[selected];
   const song=project?songOf(project):defaultSong();
   const songView:SongView=songViewPick??(song.on?'arrange':'clips');
-  // Song playhead: the engine's beat since play started, moved on smoothly between updates, wrapped when the song loops.
-  const loopBeats=(project?.bars??4)*4;
-  const rawSongBeat=snapshot?.song_beat!==undefined?snapshot.song_beat+(((playhead-snapshot.beat)%loopBeats)+loopBeats)%loopBeats:playhead;
-  const songBeat=song.loop?rawSongBeat%(song.length*4):Math.min(rawSongBeat,song.length*4);
+  const position=transportPosition(snapshot,received.when,visualNow,isPreview?100000:220);
+  const playhead=position.clipBeat,songBeat=position.songBeat;
+  const editorClock=project?clipPlayback(project,selected,songBeat,playhead,!!snapshot?.playing):null;
   // Follow the playhead: when it runs out of the bars in view, page along with it (paging away yourself is kept).
   const headBar=Math.floor(songBeat/4),lastHead=useRef(headBar);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     const was=lastHead.current;lastHead.current=headBar;
     if(!(snapshot?.playing&&song.on)||was===headBar)return;
     const inView=(b:number)=>b>=songStart&&b<songStart+songZoom;
@@ -164,23 +179,16 @@ function App() {
   },[]);
 
   useEffect(()=>{
-    if(!snapshot)return;
-    anchor.current={beat:snapshot.beat,when:performance.now(),
-                    bpm:snapshot.state.bpm,bars:snapshot.state.bars,
-                    playing:snapshot.playing,preview:!!snapshot.preview||!api};
-    setPlayhead(snapshot.beat);
-  },[snapshot]);
-
-  useEffect(()=>{
     let raf=0,active=true;
     const tick=(now:number)=>{
       if(!active)return;
       raf=requestAnimationFrame(tick);
       if(now-lastVisualFrame.current<32)return;
       lastVisualFrame.current=now;
-      const a=anchor.current;
-      const next=interpolateBeat(a.beat,a.when,now,a.bpm,a.bars,a.playing,a.preview?100000:220);
-      setPlayhead(prev=>Math.abs(prev-next)>.0001?next:prev);
+      const epoch=clockEpoch.current;
+      if(!epoch.snapshot?.playing)return;
+      const cap=!api||epoch.snapshot.preview?100000:220;
+      setVisualNow(Math.min(now,epoch.when+cap));
     };
     raf=requestAnimationFrame(tick);
     return()=>{active=false;cancelAnimationFrame(raf);};
@@ -202,7 +210,7 @@ function App() {
       const arg=args as never;
       const owner=next.state.tracks[next.selected];
       if(cmd==='play')next.playing=!next.playing;
-      else if(cmd==='stop'){next.playing=false;next.recording=false;next.beat=0;}
+      else if(cmd==='stop'){next.playing=false;next.recording=false;next.beat=0;next.song_beat=0;}
       else if(cmd==='record'){next.recording=!next.recording;next.playing=true;}
       else if(cmd==='select')next.selected=clamp(Number(arg),0,3);
       else if(cmd==='tempo'){next.state.bpm=clamp(Number(arg),30,240);next.playing=false;}
@@ -428,10 +436,7 @@ function App() {
         </div>
       </div>
       <div className="bars-display">
-        <select aria-label="Loop bars" value={project?.bars??4}
-          onChange={e=>command('bars',Number(e.target.value))}>
-          {[1,2,4,8].map(n=><option value={n} key={n}>{n} {n===1?'BAR':'BARS'}</option>)}
-        </select>
+        <LoopBars value={project?.bars??4} onChange={bars=>command('bars',bars)}/>
       </div>
       {(()=>{const b=song.on?songBeat:playhead,m=song.on?markerAt(song,Math.floor(songBeat/4)):-1;
         return <div className="transport-beat" aria-label="Position"><strong>
@@ -468,7 +473,7 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
 
-    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor scale={project.performance.scale} target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={playhead} playing={snapshot?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
+    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor scale={project.performance.scale} target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={editorClock?.beat??playhead} playing={editorClock?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
@@ -503,7 +508,7 @@ function App() {
               onSong={s=>command('song',s)} playing={snapshot?.playing??false} songBeat={songBeat}
               onSelect={index=>command('select',index)} onMute={(idx,next)=>command('track',[idx,'mute',next])} onClips={t=>setClipSheet(t)}/>
           </section>
-          :<Timeline project={project} selected={selected} beat={playhead} playing={snapshot?.playing??false}
+          :<Timeline project={project} selected={selected} beat={playhead} songBeat={songBeat} playing={snapshot?.playing??false}
             recording={snapshot?.recording??false} header={bar}
             loops={project.tracks.map((_,t)=>{const k=clipsOf(project).open[t];
               return {label:CLIP_NAMES[k],sub:'clip',aria:'Clips of track '+(t+1)+': clip '+CLIP_NAMES[k]+' is open',title:'Open, copy or clear this track\'s clips'};})}
@@ -523,10 +528,8 @@ function App() {
       :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
         runtime={snapshot?.drum_racks?.[selected]??undefined}
         steps={pad=>{
-          const clip=clipsOf(project).open[selected],bar=Math.floor(songBeat/4);
-          const block=song.on?blockAt(song,selected,bar):undefined;
-          const running=!!snapshot?.playing&&(!song.on||block?.clip===clip);
-          const beat=song.on&&block?clipPhase(block,bar,project.bars)*4+songBeat%4:playhead;
+          const clip=clipsOf(project).open[selected];
+          const {playing:running,beat}=clipPlayback(project,selected,songBeat,playhead,!!snapshot?.playing);
           return <DrumSteps track={selected} clip={clip} bars={project.bars} kitId={track.drum_rack?.id??''} pad={pad} notes={track.notes}
             playing={running} beat={beat} recording={!!snapshot?.recording||project.performance.seq.recording}
             onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])}
