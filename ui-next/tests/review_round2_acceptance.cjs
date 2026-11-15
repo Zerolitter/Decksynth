@@ -77,22 +77,23 @@ with wave.open(sys.argv[1],'wb') as f:
  const was=(await state()).performance.seq.enabled;
  await power.click();await p.waitForFunction(was=>window.__latest.state.performance.seq.enabled===!was,was);
  if(!was){/* leave it on for the picture */}else{await power.click();await p.waitForFunction(()=>window.__latest.state.performance.seq.enabled===true);}
- await p.getByRole('tab',{name:'EQ',exact:true}).click();
+ // Stage 12: EQ and the compressor are cards in Pad Sound, always in view.
  await p.getByRole('slider',{name:'Low',exact:true}).focus();for(let i=0;i<3;i++)await p.keyboard.press('Shift+ArrowUp');
  await p.waitForFunction(()=>window.__latest.state.tracks[0].drum_rack.pads[6].shape?.eq_low>0);
  await p.waitForTimeout(300);
  await p.screenshot({path:path.join(OUT,'drum-rack-eq-'+H+'.png')});
  for(const node of await p.locator('.drum-rack button,.drum-rack select,.drum-rack [role="slider"]').all()){
   if(!await node.isVisible())continue;const r=await node.boundingBox();
+  if(await node.evaluate(e=>e.classList.contains('smp-handle')))continue;
   assert.ok(r.width>=44&&r.height>=44,'44px '+(await node.getAttribute('aria-label')||await node.innerText()));
   assert.ok(r.y+r.height<=H+1&&r.x+r.width<=1281,'inside window '+(await node.getAttribute('aria-label')||await node.innerText())+' '+JSON.stringify(r));
  }
- await p.getByRole('tab',{name:'Compressor',exact:true}).click();await p.waitForTimeout(200);
+ await p.getByRole('region',{name:'Compressor',exact:true}).getByRole('slider',{name:'Ratio',exact:true}).waitFor();
  await p.screenshot({path:path.join(OUT,'drum-rack-comp-'+H+'.png')});
  // Perform shows the same pattern.
  await p.getByRole('tab',{name:/^Perform$/i}).click();await p.waitForTimeout(400);
  await p.screenshot({path:path.join(OUT,'perform-after-drum-steps-'+H+'.png')});
  assert.deepEqual(errors,[],'no renderer errors');
- console.log('PASS round 2 at 1280×'+H+': fold toggle ('+wrapped+' card rows), compact pads, drum steps edit SEQ '+ref+', EQ/compressor tabs, 44px controls');
+ console.log('PASS round 2 at 1280×'+H+': fold toggle ('+wrapped+' card rows), compact pads, drum steps edit SEQ '+ref+', EQ/compressor cards, 44px controls');
  await app.close();
 })().catch(async e=>{console.error('FAIL',e);try{await app?.close();}catch{}process.exit(1);});
