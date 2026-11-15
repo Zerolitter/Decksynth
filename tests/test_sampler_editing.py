@@ -78,3 +78,46 @@ class ClearSample(SamplerTrack,unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class LinkSamplerAndDrumKnobs(SamplerTrack,unittest.TestCase):
+    """Stage 9: macros and mod pads can move Sampler knobs and Drum Rack pads."""
+    def chain(self,targets,value=1.):
+        from decksynth.fx import default_chain
+        c=default_chain();c['macros'][0]['value']=value;c['macros'][0]['targets']=targets;return c
+
+    def test_targets_are_checked(self):
+        from decksynth.fx import validate_chain
+        validate_chain(self.chain([dict(module='sampler',param='cutoff',depth=.5),dict(module='drum',param='15:pan',depth=-.5)]))
+        for bad in [('sampler','root'),('drum','16:tune'),('drum','x:gain'),('drum','3:attack'),('drum','tune')]:
+            with self.assertRaises(ValueError,msg=bad):validate_chain(self.chain([dict(module=bad[0],param=bad[1],depth=.5)]))
+
+    def test_a_macro_retunes_the_sampler(self):
+        e=self.e;self.load()
+        e.set_fx(1,self.chain([dict(module='sampler',param='tune',depth=.25)]))
+        e.render(256)
+        self.assertAlmostEqual(e.samplers[1].mod['tune'],12.)
+        s=e.samplers[1];s.on(60,100);s._modulate()
+        v=next(v for v in s.voices if v.active);self.assertAlmostEqual(v.pmul,2.,places=6)
+        s.mod={};s._modulate();self.assertAlmostEqual(v.pmul,1.,places=6,msg='unlinking puts the pitch back')
+
+    def test_gain_link_scales_the_output(self):
+        e=self.e;self.load();s=e.samplers[1]
+        def level(mod):
+            s.panic();s.mod=mod;s.on(60,127);out=[0.]*2048;s.render_into(out,2048);return max(abs(x) for x in out)
+        dry=level({});self.assertGreater(dry,0.)
+        self.assertAlmostEqual(level({'gain':-.5*s.spec['gain']})/dry,.5,places=3)
+
+    def test_a_drum_pad_hit_reads_its_links(self):
+        from decksynth.drum_rack import DrumRack
+        e=self.e;e.set_device(2,'drum_rack');d=e.drums[2]
+        self.assertIsNotNone(d.kit);d.samples[3]=object()
+        p=d.kit['pads'][3];p.update(mute=False,solo=False,choke=0)
+        for q in d.kit['pads']:q['solo']=False
+        d.mod={'3:tune':12.,'3:gain':-p['gain']/2,'3:pan':1.}
+        self.assertTrue(d.on(39,127))
+        v=next(v for v in d.voices if v.pad==3 and v.sample is not None)
+        self.assertAlmostEqual(v.step,2.**((p['tune']+12.)/12.))
+        self.assertAlmostEqual(v.gain,p['gain']/2)
+        self.assertAlmostEqual(v.gl,0.,places=6)
+        d.panic()

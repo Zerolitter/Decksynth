@@ -134,6 +134,7 @@ class Sampler:
     """The voices of one Sampler track. Python objects only change between render calls."""
     def __init__(self, rate, cache):
         self.rate = rate; self.cache = cache; self.spec = None
+        self.mod = {}; self._shifted = False   # macro / mod pad offsets (fx.SAMPLER_TARGETS units)
         self.raw = None; self.sample = None; self.loading = False; self.error = None
         self.view = None   # (sha, a, b, peaks) while the waveform is zoomed
         self.shaping = 0; self.shaped_key = None; self._pending = None
@@ -323,7 +324,8 @@ class Sampler:
         """Add `frames` samples into the mono list `out`."""
         if self._pending is not None: self.take_pending()
         if frames <= 0 or self.params.data is None or not any(v.active for v in self.voices): return
-        offset = 0
+        offset = 0; s = self.spec or {}; base = s.get('gain', 1.); lift = self.mod.get('gain', 0.)
+        g = max(0., base+lift)/base if lift and base > 1e-6 else 1.
         while offset < frames:
             count = min(256, frames-offset)
             self._modulate()
@@ -331,28 +333,35 @@ class Sampler:
                 scratch = self.scratch
                 C.memset(scratch, 0, 8*count)
                 self._kernel(self.voices, SLOTS, C.byref(self.params), scratch, count)
-                for i in range(count): out[offset+i] += scratch[i]
+                if g == 1.:
+                    for i in range(count): out[offset+i] += scratch[i]
+                else:
+                    for i in range(count): out[offset+i] += scratch[i]*g
             else:
                 part = [0.]*count
                 mix_python(self.voices, self.params, self.sample.data, part, count)
-                for i in range(count): out[offset+i] += part[i]
+                for i in range(count): out[offset+i] += part[i]*g
             offset += count
 
     def _modulate(self):
         """Block-rate pitch envelope and filter coefficients per voice (the kernel needs no libm)."""
         s = self.spec
         if s is None: return
-        rate = self.rate; p_env = s['p_env']; filtered = s['filter'] != 'off'
-        if not p_env and not filtered: return
+        m = self.mod
+        rate = self.rate; p_env = s['p_env'] + m.get('p_env', 0.); filtered = s['filter'] != 'off'
+        shift = m.get('tune', 0.) + m.get('fine', 0.)/100.
+        if not p_env and not filtered and not shift and not self._shifted: return
+        self._shifted = bool(shift)
         p_fall = 4.6/max(.001, s['p_decay']); f_attack = s['f_attack']; f_fall = 4.6/max(.001, s['f_decay'])
-        k = 2. - 1.96*s['resonance']; top = .45*rate
+        k = 2. - 1.96*min(1., max(0., s['resonance'] + m.get('resonance', 0.))); top = .45*rate
+        f_env = s['f_env'] + m.get('f_env', 0.); cut = m.get('cutoff', 0.)
         for i, v in enumerate(self.voices):
             if not v.active: continue
             t = v.age/rate
-            v.pmul = 2.**(p_env*math.exp(-t*p_fall)/12.) if p_env else 1.
+            v.pmul = 2.**(((p_env*math.exp(-t*p_fall)) if p_env else 0.)/12. + shift/12.) if (p_env or shift) else 1.
             if filtered:
                 fe = t/f_attack if t < f_attack else math.exp(-(t-f_attack)*f_fall)
-                octaves = s['f_env']*5.*fe + s['f_velocity']*4.*(self.vels[i]-1.)
+                octaves = f_env*5.*fe + s['f_velocity']*4.*(self.vels[i]-1.) + cut
                 fc = min(top, max(20., s['cutoff']*2.**octaves))
                 g = math.tan(math.pi*fc/rate)
                 v.k = k; v.a1 = 1./(1.+g*(g+k)); v.a2 = g*v.a1; v.a3 = g*v.a2

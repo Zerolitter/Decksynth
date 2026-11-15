@@ -1,4 +1,5 @@
 import {ContextWheelProvider,ContextAreaScope} from './components/ContextWheel';
+import {ModLinkProvider} from './components/ModLink';
 import {expectedWithEvents,type NoteTarget} from './note-ops';
 import {PanelScope} from './components/Panel';
 import {InstrumentSwitcher} from './components/InstrumentSwitcher';
@@ -431,7 +432,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell" data-page={page}>
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><ModLinkProvider track={selected} chain={track?.fx} onChain={chain=>command('fx',[selected,chain])}><main className="decksynth-shell harness-shell" data-page={page}>
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="Decksynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -631,6 +632,6 @@ function App() {
         onClose={()=>setDialog(null)}/>
       :<Help section={helpSection} invoker={helpOrigin.current} close={()=>setDialog(null)}/>}
     </div>:null}
-  </main></MidiLearnProvider></ContextWheelProvider>;
+  </main></ModLinkProvider></MidiLearnProvider></ContextWheelProvider>;
 }
 export default App;

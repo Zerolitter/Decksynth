@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
 import { CommittedKnob } from './DrumRack';
+import { useContextTarget } from './ContextWheel';
 import { ValueBox, parseNote } from './ValueBox';
 import { EnvEditor, type Env } from './EnvEditor';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
@@ -232,10 +233,22 @@ function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit,
     if (i >= 0 && at > slices[i][0] + MIN_SLICE && at < slices[i][1] - MIN_SLICE) onChop('split', { index: i, at: r6(at) });
   };
 
+  // Right-click / touch-hold on the waveform: the radial menu (UI-RULES 37) with zoom and, in Chop, the slice under the pointer.
+  const waveContext = useContextTarget((el, cx) => {
+    if (!peaks.length) return null;
+    const at = toU(cx), i = mode === 'chop' ? slices.findIndex(([a, b]) => at >= a && at < b) : -1, s = slices[i];
+    return { area: 'sound', kind: 'sample.wave', label: mode === 'chop' ? (s ? 'Slice ' + (i + 1) : 'Chop') : 'Trim', caps: {
+      ...(span > MIN_VIEW * 1.01 ? { zoomIn: () => zoomAt(at, .5) } : {}), zoomOut: () => zoomAt(at, 2), ...(span < .999 ? { zoomFit: () => view(0, 1) } : {}),
+      ...(s && at > s[0] + MIN_SLICE && at < s[1] - MIN_SLICE ? { split: () => onChop('split', { index: i, at: r6(at) }) } : {}),
+      ...(s && i < slices.length - 1 ? { join: () => onChop('join', { index: i }) } : {}),
+      ...(s ? { play: () => { onSelect(i, s[0]); onAudition(i); } } : {}),
+      ...(mode === 'chop' && slices.length ? { clearSlices: () => { onChop('clear'); onSelect(-1, at); } } : {}),
+    } };
+  });
   const W = 512, pspan = Math.max(1e-6, pv[1] - pv[0]);
   const sel = shown[selected];
   return <div className={'smp-window' + (mode === 'chop' ? ' chop' : '')} data-testid="sampler-window">
-    <div ref={shell} className="smp-wave-shell" tabIndex={0} aria-label="Sample editor: wheel scrolls, Ctrl+wheel zooms, F fits"
+    <div ref={shell} {...waveContext} className="smp-wave-shell" tabIndex={0} aria-label="Sample editor: wheel scrolls, Ctrl+wheel zooms, F fits"
       onPointerDown={down} onPointerMove={moveShell} onPointerUp={upShell} onPointerCancel={upShell} onKeyDown={key} onDoubleClick={doubleClick}
       onAuxClick={e => e.preventDefault()}>
       {peaks.length ? <svg className="smp-wave" viewBox={'0 0 ' + W + ' 120'} preserveAspectRatio="none" role="img" aria-label="The sample's waveform">

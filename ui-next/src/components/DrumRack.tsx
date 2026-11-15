@@ -48,7 +48,7 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
     // Exact numeric entry commits on Enter and then unmounts its input, so neither keyup nor blur reaches this wrapper.
     onKeyDownCapture={e=>{if(e.key==='Enter')setTimeout(finish,0);}}
     onBlur={()=>{if(!pointer.current)setTimeout(finish,0);}}>
-    <Knob contextArea="drum" id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)" format={format} defaultValue={defaultValue}
+    <Knob contextArea={id.startsWith('smp-')?'sound':'drum'} id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)" format={format} defaultValue={defaultValue}
       onChange={next=>{latest.current=next;dirty.current=next!==original.current;setDraft(next);draftRef.current?.(next);}}/>
   </div>;
 }

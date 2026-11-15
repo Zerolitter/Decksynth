@@ -77,6 +77,7 @@ class Voice:
 class DrumRack:
     def __init__(self, rate, cache):
         self.rate = rate; self.cache = cache; self.kit = None
+        self.mod = {}   # macro / mod pad offsets by '<pad>:<key>', read on each hit
         self.voices = [Voice() for _ in range(VOICE_LIMIT)]
         self.samples = [None]*PAD_COUNT  # what the pads play: the source PCM, or its shaped copy
         self.raw = [None]*PAD_COUNT      # the source PCM from the sample cache
@@ -165,9 +166,12 @@ class DrumRack:
         else:
             v.old_sample = None; v.old_scalar = 0.; v.old_remaining = 0; v.last = 0.
         self.stamp += 1
-        v.token=token;v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(p['tune']/12.)
-        v.gain = p['gain']*(velocity/127.)**p['velocity']; v.age = 0
-        v.stamp = self.stamp; v.remaining = -1; v.gl, v.gr = pan_gains(p.get('shape'))
+        m = self.mod; shape = p.get('shape')
+        tune = p['tune'] + m.get(f'{pad}:tune', 0.); level = max(0., p['gain'] + m.get(f'{pad}:gain', 0.))
+        if f'{pad}:pan' in m: shape = dict(shape or {}, pan=min(1., max(-1., (shape or {}).get('pan', 0.) + m[f'{pad}:pan'])))
+        v.token=token;v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(tune/12.)
+        v.gain = level*(velocity/127.)**p['velocity']; v.age = 0
+        v.stamp = self.stamp; v.remaining = -1; v.gl, v.gr = pan_gains(shape)
         self.serial += 1; self.events[pad] = self.serial
         return True
 

@@ -80,8 +80,21 @@ def default_morph():
     return dict(x=.5, y=.5, xMacro=0, yMacro=1, mixMacro=-1, path='hand', rate=0,
                 size=.8, wander=.2, spin=0., mode='follow')
 
+# Macros and mod pads can also move Sampler knobs and Drum Rack pads (stage 9, 15 Nov evening).
+# Sampler 'cutoff' is in octaves around the knob; Drum Rack params are '<pad>:<key>' and apply on the next hit.
+SAMPLER_TARGETS = dict(gain=(0., 2.), tune=(-24., 24.), fine=(-100., 100.), cutoff=(0., 10.), resonance=(0., 1.),
+                       f_env=(-1., 1.), p_env=(-24., 24.))
+DRUM_TARGETS = dict(gain=(0., 2.), tune=(-24., 24.), pan=(-1., 1.))
+
+def _drum_key(key):
+    pad, sep, k = key.partition(':')
+    if not sep or not pad.isdigit() or not 0 <= int(pad) < 16 or k not in DRUM_TARGETS: raise KeyError(key)
+    return k
+
 def _range(module, key):
     if module == 'sound': return SOUND_PARAMS[key]
+    if module == 'sampler': return SAMPLER_TARGETS[key]
+    if module == 'drum': return DRUM_TARGETS[_drum_key(key)]
     if module=='gate' and key in ('phase','notelen'):return (0,1)
     for k, lo, hi, _ in PARAMS[module]:
         if k == key: return lo, hi
@@ -489,7 +502,7 @@ class TrackFx:
     def modulate(self, beat, automation=None):
         """Write base params plus macro and mod-pad offsets for this block."""
         c = self.chain
-        if not c:self.sound={};return
+        if not c:self.sound={};self.sampler={};self.drum={};return
         automation=automation or {}
         offsets = {}
         macros = c.get('macros') or []
@@ -504,6 +517,10 @@ class TrackFx:
             for t in m['targets']:
                 key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth'] * .5
         self.sound = {k[1]: v * (SOUND_PARAMS[k[1]][1] - SOUND_PARAMS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sound'}
+        self.sampler = {k[1]: v * (SAMPLER_TARGETS[k[1]][1] - SAMPLER_TARGETS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sampler'}
+        self.drum = {}
+        for k, v in offsets.items():
+            if k[0] == 'drum': lo, hi = DRUM_TARGETS[_drum_key(k[1])]; self.drum[k[1]] = v * (hi - lo)
         gate=next((m for m in c['modules'] if m['id']=='gate'),None)
         if gate:
             for k,(lo,hi,init) in GATE_PERFORMANCE.items():

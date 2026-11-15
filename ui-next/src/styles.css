@@ -459,3 +459,6 @@ input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;use
 .knob-value:hover,.knob-value:focus-visible{border-color:#6b7076!important;background-color:#26282b!important;outline:none}
 .knob-entry{border-color:#6b7076!important;outline-color:#a7adb3!important}
 .knob-live-value{border-color:#5a5f65!important;box-shadow:0 6px 18px #0008!important;color:#d9dde0!important}
+/* Sampler editing stage 9: who moves a Sampler / Drum Rack knob (mod source colours). */
+.knob-link-dots{position:absolute;top:0;right:2px;display:flex;gap:2px;pointer-events:none}
+.knob-link-dots i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px #101417}

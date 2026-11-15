@@ -11,7 +11,7 @@ export type FxParamDef = { key:string; label:string; min:number; max:number; ini
 export type FxModuleDef = { name:string; color:string; params:FxParamDef[]; blurb?:string };
 export type FxModuleState = { id:FxModuleId; on:boolean; params:Record<string,number>; /** kept in the rack but not heard */ bypass?:boolean };
 /** 'sound' targets are the Sound page knobs of the same track. */
-export type FxTarget = { module:FxModuleId|'sound'; param:string; depth:number };
+export type FxTarget = { module:FxModuleId|'sound'|'sampler'|'drum'; param:string; depth:number };
 export type FxMacro = { name:string; value:number; targets:FxTarget[] };
 export type ModShape = 'sine'|'triangle'|'saw'|'ramp'|'square'|'pulse'|'random'|'smooth'|'steps'|'curve'
   |'cosine'|'half_sine'|'exp_up'|'log_up'|'exp_down'|'log_down'|'s_curve'|'shark'|'double_sine'|'warm'
@@ -247,6 +247,8 @@ export const SOUND_COLOR='#7fd6bb';
 /** Name, knob label and colour of a link target, for lists and badges. */
 export function targetInfo(t:{module:FxTarget['module'];param:string}){
   if(t.module==='sound')return {name:'Sound',label:SOUND_TARGETS[t.param]?.label??t.param,color:SOUND_COLOR};
+  if(t.module==='sampler')return {name:'Sampler',label:({gain:'Gain',tune:'Tune',fine:'Fine',cutoff:'Cutoff',resonance:'Resonance',f_env:'Filter env',p_env:'Pitch env'} as Record<string,string>)[t.param]??t.param,color:SOUND_COLOR};
+  if(t.module==='drum'){const [pad,key]=t.param.split(':');return {name:'Pad '+(Number(pad)+1),label:({gain:'Gain',tune:'Tune',pan:'Pan'} as Record<string,string>)[key]??key,color:'#ff76a6'};}
   const def=FX_MODULES[t.module];
   return {name:def.name,label:def.params.find(p=>p.key===t.param)?.label??t.param,color:def.color};
 }

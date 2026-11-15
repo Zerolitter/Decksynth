@@ -42,6 +42,8 @@ const sampleKeys=[
  ['← / → on a marker','Nudge it 1% of the view; Shift 10%, Ctrl 0.1%.'],
  ['S / J / Delete','Split at the last tap / join with the next slice / remove the slice\'s start edge.'],
  ['Space / Enter','Play the chosen slice.'],
+ ['Right-click / touch-hold','Radial menu: Zoom in / out / Fit whole; in Chop also Split here, Join next, Audition and Clear slices (the sample stays).'],
+ ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];
 function KeyTable({rows}:{rows:string[][]}){
  return <table><tbody>{rows.map(([key,action])=><tr key={key}><th scope="row">{key}</th><td>{action}</td></tr>)}</tbody></table>;
@@ -83,6 +85,8 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
    <p><strong>Drum Rack.</strong> The lower step lane edits the selected pad’s MIDI pitch in the named open Song clip. Its 16 steps cover one bar of sixteenth notes; use the bar arrows for longer clips. Tap a step to add or remove a hit. Audition previews the selected pad without recording it. Undo restores the last edit.</p>
    <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four ADSR controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically, hold Shift for finer changes, or tap the numeric value.</p>
    <p><strong>Modulation.</strong> Tap a pad’s label or a macro’s name, then the parameters to link. Shape and Links edit the selected source; Done, Escape or an empty-area tap ends linking. Link depth can be positive or negative.</p>
+   <h3>Support Decksynth</h3>
+   <p>Contribute to development through <span className="support-url">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</span>. For contact, use Discord: <strong>zerolitter</strong>.</p>
    <h3>Transport and tracks</h3>
    <KeyTable rows={transportKeys}/>
    <p>Text fields keep their own shortcuts. Transport keys are suspended while Help or Settings is open.</p>

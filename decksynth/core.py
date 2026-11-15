@@ -653,7 +653,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         chain=copy.deepcopy(t.get('fx') or default_fx())
         if action=='effects':
             for m in chain['modules']:m['on']=False
-            for src in chain['macros']+chain['mods']:src['targets']=[x for x in src['targets'] if x['module']=='sound']
+            for src in chain['macros']+chain['mods']:src['targets']=[x for x in src['targets'] if x['module'] in ('sound','sampler','drum')]
         else:
             base=default_fx(); chain['mods']=base['mods']; chain=unlinked(chain)
         t['fx']=validate_fx(chain); self.fx[self.selected].configure(t['fx'])
@@ -1318,6 +1318,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         base=self.project.tracks[tr]['volume'] if param=='volume' else synth.params.get(param,sound_default(synth.params,param))
                         fx.sound[param]=fx.sound.get(param,0.)+value-base
                 synth.modulate(fx.sound)
+                if tr<len(self.samplers):self.samplers[tr].mod=getattr(fx,'sampler',{})
+                if tr<len(self.drums):self.drums[tr].mod=getattr(fx,'drum',{})
                 # The resonator's strings follow the notes this track is playing.
                 if fx.active and fx.on[RESONATOR]:
                     fx.tune([v['note'] for v in synth.voices.values() if v.get('release') is None],

@@ -17,5 +17,7 @@ export function ccForControl(target:ControlTarget,mappings:MidiMapping[]):number
 export function controlName(t:ControlTarget):string{
  if(t.module==='sound')return SOUND_TARGETS[t.param]?.label??t.param;
  if(t.module==='macro')return 'Macro '+(Number(t.param)+1);
+ if(t.module==='sampler')return 'Sampler '+t.param.replace('_',' ');
+ if(t.module==='drum'){const [pad,key]=t.param.split(':');return 'Pad '+(Number(pad)+1)+' '+key;}
  return (FX_MODULES[t.module as FxModuleId]?.name??t.module)+' '+(FX_MODULES[t.module as FxModuleId]?.params.find(p=>p.key===t.param)?.label??t.param);
 }
