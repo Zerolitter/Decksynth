@@ -239,3 +239,28 @@
 .drum-rack .drum-pad-sound .tactile-knob .knob-target{width:44px;height:44px;min-width:44px;min-height:44px}
 @media(max-width:1100px){.drum-workspace{grid-template-columns:410px minmax(0,1fr)}.drum-sound-name{max-width:120px}.drum-pad-sound .drum-source-file{display:none}}
 
+/* Stage 12: Pad Sound in the Sampler layout. Waveform editor on top, four compact cards side by side. */
+.drum-smp .drum-wave-shell.drum-smp-wave{margin:6px 0 0;padding:0;border:0;background:none;min-height:116px;max-height:170px;flex:1 1 130px;overflow:visible;display:flex}
+.drum-smp .drum-smp-wave .smp-window{flex:1;min-height:110px}
+.drum-smp .drum-smp-wave .smp-wave-shell{margin:0 12px}
+.drum-smp .drum-smp-wave .smp-caption{margin:0 12px}
+.drum-smp .drum-cards{flex:none;padding:6px 8px 8px;gap:6px;align-items:flex-start}
+.drum-smp .drum-cards .smp-card{flex:1 1 0;padding:5px 8px 7px;gap:5px}
+.drum-smp .drum-cards .smp-card h2{display:flex;align-items:center;gap:6px;margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pad-accent)}
+.drum-smp .drum-card-play{flex-grow:1.15}
+.drum-smp .drum-cards .smp-knobs.two.one{grid-template-columns:minmax(0,1fr);gap:4px}
+.drum-smp .drum-cards .smp-line{display:flex;gap:6px}
+.drum-smp .drum-cards .smp-line .smp-seg{flex:1}
+.drum-smp .drum-cards .smp-seg{display:flex;gap:4px}
+.drum-smp .drum-cards .smp-seg button{min-height:44px;flex:1;padding:0 6px}
+.drum-smp .drum-cards .smp-seg button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#fff}
+.drum-smp .drum-cards .smp-toggle{min-height:44px}
+.drum-smp .drum-choke{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--soft);font-weight:700}
+.drum-smp .drum-choke select{flex:1;min-height:44px;padding:0 8px;border-radius:8px;border:1px solid #3a3d43;background:#23262b;color:#e3e6ea}
+.drum-smp .drum-graph-row{display:flex;gap:6px;align-items:stretch}
+.drum-smp .drum-graph-row .drum-card-graph{flex:1;height:44px}
+.drum-smp .drum-card-reset{flex:none;width:44px;min-height:44px;padding:0;display:grid;place-items:center}
+.drum-smp .drum-card-graph,.drum-smp .drum-cards .drum-shape-graph{flex:none;align-self:stretch;width:100%;min-width:0;height:44px;border-radius:6px;background:var(--inset);border:1px solid var(--line-soft,#2e3238)}
+.drum-smp .drum-card-graph path{fill:none;stroke:var(--pad-accent);stroke-width:1.6}
+.drum-smp .drum-card-comp.off .smp-knobs{opacity:.6}
+.drum-smp .drum-pad-sound{gap:0}

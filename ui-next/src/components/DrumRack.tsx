@@ -1,12 +1,15 @@
 import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
-import { AudioWaveform, FolderOpen, Grid2X2, KeyboardMusic, Link2, ListMusic } from 'lucide-react';
+import { AudioWaveform, FolderOpen, Grid2X2, KeyboardMusic, Link2, ListMusic, RotateCcw, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
 import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import { compressorPath, envelopePath, responsePath } from '../drum-shape-graph';
 import '../drum-rack.css';
+import '../sampler.css';
+import { SampleWindow } from './Sampler';
+import type { SamplerSpec, SamplerRuntime } from '../types';
 
 export { envelopePath } from '../drum-shape-graph';
 export type { DrumPad, DrumRuntime } from '../types';
@@ -53,22 +56,6 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
   </div>;
 }
 
-function SourceWave({peaks,shape,seconds,step}:{peaks:number[][];shape:DrumShape;seconds:number;step:number}) {
-  const pairs=peaks.filter(p=>p.length>=2&&Number.isFinite(p[0])&&Number.isFinite(p[1]));
-  if(!pairs.length)return null;
-  // The level line only when something changes the level over time (EQ, compressor and pan do not).
-  const shaped=(['start','end','reverse','fade_in','fade_out','attack','hold','decay'] as const).some(k=>shape[k]!==DEFAULT_DRUM_SHAPE[k]);
-  return <svg data-testid="drum-waveform" className="drum-waveform" viewBox="0 0 512 96" preserveAspectRatio="none" role="img" aria-label="Sample waveform from decoded PCM peaks, with the pad's trim, fades and envelope">
-    <path d="M0 48H512" className="drum-wave-zero"/>
-    {pairs.map((p,i)=><line key={i} x1={(i+.5)*512/pairs.length} x2={(i+.5)*512/pairs.length}
-      y1={48-Math.max(-1,Math.min(1,p[1]))*43} y2={48-Math.max(-1,Math.min(1,p[0]))*43} strokeWidth={Math.max(1,512/pairs.length*.75)}/>)}
-    {/* drawn over the peaks: the cut-off parts are dimmed */}
-    {shape.start>0?<rect className="drum-wave-trimmed" x={0} y={0} width={shape.start*512} height={96}/>:null}
-    {shape.end<1?<rect className="drum-wave-trimmed" x={shape.end*512} y={0} width={(1-shape.end)*512} height={96}/>:null}
-    {shaped?<path data-testid="drum-envelope" className="drum-wave-envelope" d={envelopePath(shape,seconds,step)} vectorEffect="non-scaling-stroke"/>:null}
-  </svg>;
-}
-
 /** Small live graph beside the EQ / filter / compressor knobs (no handles, so it may stretch). */
 function ShapeGraph({kind,shape}:{kind:'eq'|'comp';shape:DrumShape}){
   const w=220,h=88;
@@ -79,26 +66,6 @@ function ShapeGraph({kind,shape}:{kind:'eq'|'comp';shape:DrumShape}){
     :<><line className="grid zero" x1={0} x2={w} y1={h} y2={h-48/72*h}/>
       <line className="grid" x1={(shape.comp_threshold+48)/48*w} x2={(shape.comp_threshold+48)/48*w} y1={0} y2={h}/><path d={compressorPath(shape,w,h)} vectorEffect="non-scaling-stroke"/></>}
   </svg>;
-}
-
-type ShapeTab='env'|'trim'|'eq'|'comp'|'tone';
-const TABS:[ShapeTab,string][]=[['env','Envelope'],['trim','Trim & fade'],['eq','EQ'],['comp','Compressor'],['tone','Filter & drive']];
-/** Start/End handles on the waveform: drag to trim (44 px hit zones; one gesture is one edit). */
-function TrimHandles({shape,onDraft,onCommit}:{shape:DrumShape;onDraft:(s:DrumShape|null)=>void;onCommit:(s:DrumShape)=>void}){
-  const drag=useRef<{key:'start'|'end';el:HTMLElement;width:number;left:number;value:DrumShape;from:DrumShape}|null>(null);
-  const begin=(key:'start'|'end')=>(e:React.PointerEvent<HTMLButtonElement>)=>{
-    const shell=e.currentTarget.parentElement!.getBoundingClientRect();e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current={key,el:e.currentTarget,width:shell.width-10,left:shell.left+5,value:shape,from:shape};
-  };
-  const move=(e:React.PointerEvent)=>{const d=drag.current;if(!d)return;
-    const at=Math.max(0,Math.min(1,(e.clientX-d.left)/d.width));
-    const next={...d.value,[d.key]:d.key==='start'?Math.min(at,d.value.end-.002):Math.max(at,d.value.start+.002)};
-    d.value={...next,start:Math.round(next.start*1000)/1000,end:Math.round(next.end*1000)/1000};onDraft(d.value);};
-  const end=(commit:boolean)=>()=>{const d=drag.current;drag.current=null;onDraft(null);if(d&&commit&&(d.value.start!==d.from.start||d.value.end!==d.from.end))onCommit(d.value);};
-  return <>{(['start','end'] as const).map(key=><button key={key} type="button" className={'drum-trim-handle '+key} style={{left:'calc(5px + (100% - 10px) * '+shape[key]+')'}}
-    aria-label={'Trim '+key+' '+Math.round(shape[key]*1000)/10+'%'} onPointerDown={begin(key)} onPointerMove={move} onPointerUp={end(true)} onPointerCancel={end(false)}
-    onKeyDown={e=>{if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;e.preventDefault();const step=e.key==='ArrowLeft'?-.01:.01;
-      const v=Math.round((shape[key]+step)*1000)/1000;if(key==='start'?v>=0&&v<shape.end-.001:v<=1&&v>shape.start+.001)onCommit({...shape,[key]:v});}}><i/></button>)}</>;
 }
 
 const panText=(n:number)=>Math.round(n)===0?'C':Math.round(n)<0?'L'+Math.round(-n):'R'+Math.round(n);
@@ -132,8 +99,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const loaded=runtime?.pads.filter(p=>['READY','PLAYING','MUTED'].includes(p.status)).length??0;
   const anySolo=pads.some(p=>p.solo),fileName=pad?.source?.path.split(/[\\/]/).pop();
   const edit=(key:string,value:unknown)=>onEdit(selected,key,value);
-  const [shapeTab,setShapeTab]=useState<ShapeTab>('env');
-  const [trimDraft,setTrimDraft]=useState<DrumShape|null>(null);
+  const [toneTab,setToneTab]=useState<'eq'|'filter'>('eq');
   // Knob values while turning: the graphs follow them live; the engine gets the value on release.
   const [drafts,setDrafts]=useState<Partial<DrumShape>&{tune?:number}>({});
   const committed=JSON.stringify([selected,pad?.shape,pad?.tune]);
@@ -141,7 +107,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   if(!kit||!pad)return <section className="drum-rack drum-rack-loading" aria-label="Drum Rack"><AudioWaveform size={24}/><p>Preparing Drum Rack…</p></section>;
   const shape:DrumShape={...DEFAULT_DRUM_SHAPE,...pad.shape};
   const {tune:tuneDraft,...shapeDrafts}=drafts;
-  const shown:DrumShape=trimDraft??{...shape,...shapeDrafts};
+  const shown:DrumShape={...shape,...shapeDrafts};
   const step=2**((tuneDraft??pad.tune)/12);
   const seconds=pad.source&&typeof pad.source.frames==='number'&&typeof pad.source.source_rate==='number'?pad.source.frames/pad.source.source_rate:1;
   const setShape=(key:keyof DrumShape,value:number|boolean)=>edit('shape',{...shape,[key]:value});
@@ -153,8 +119,10 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const kinds=pads.map(p=>drumKind(p.name,p.source?.path));
   const selectedKind=DRUM_KINDS[kinds[selected]];
   const families=[...new Set(kinds.filter((_,i)=>!!pads[i].source))];
-  const playMs=Math.round((shown.end-shown.start)*seconds/step*1000);
-  return <section className="drum-rack" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length],['--pad-accent' as string]:pad.source?selectedKind.color:DRUM_KINDS.other.color}}>
+  // The Sampler's waveform editor shows the pad: Start and End are its tag markers (one drag, one undo step).
+  const waveSpec={start:shown.start,end:shown.end,loop_start:shown.start,loop_end:shown.end,mode:'oneshot',slices:[]} as unknown as SamplerSpec;
+  const waveRuntime={peaks:live?.peaks??[],seconds,playing:[]} as unknown as SamplerRuntime;
+  return <section className="drum-rack drum-smp" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length],['--pad-accent' as string]:pad.source?selectedKind.color:DRUM_KINDS.other.color}}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><Grid2X2 size={21}/><h1>Drum Rack</h1><span>Track {trackIndex+1}</span></div>
       <div className="drum-device-meta"><span className="drum-kit-name" title={kit.name||'Custom kit'}>{kit.name||'Custom kit'}</span><strong>{loaded}/16 sources ready</strong>{onBrowserOpen?null:<button type="button" aria-expanded={browsing} onClick={()=>setBrowsing(!browsing)}><FolderOpen size={17}/>Kits</button>}</div>
@@ -192,59 +160,74 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           <button type="button" aria-label={pad.source?'Import replacement WAV file':'Import WAV file'} title="Choose a WAV file directly" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>{pad.source?null:'Import WAV'}</button>
           {pad.source&&status==='MISSING'?<button type="button" className="drum-relink" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Relink WAV</button>:null}
         </div></div>
-        <div className="drum-wave-shell">
-          {sourceReady&&live?.peaks.length?<><SourceWave peaks={live.peaks} shape={shown} seconds={seconds} step={step}/><TrimHandles shape={shown} onDraft={setTrimDraft} onCommit={s=>edit('shape',s)}/></>:<div className="drum-wave-empty"><AudioWaveform size={22}/><span>{status==='MISSING'?'Sample missing · relink the original WAV':status==='LOADING'?'Loading sample…':status==='ERROR'?'Sample could not load':'Import a WAV to see its waveform'}</span></div>}
-          <span className="drum-wave-caption">{sourceReady?'SOURCE · '+(shown.end-shown.start<1?'TRIM '+Math.round(shown.start*seconds*1000)+'–'+Math.round(shown.end*seconds*1000)+' MS':Math.round(seconds*1000)+' MS')+(shown.reverse?' · REVERSED':'')+(step!==1?' · PLAYS '+playMs+' MS':''):'SOURCE WAVEFORM'}</span>
+        <div className="drum-wave-shell drum-smp-wave">
+          {sourceReady&&live?.peaks.length?<SampleWindow spec={waveSpec} runtime={waveRuntime} mode="trim" selected={-1} marker={null}
+            onSelect={()=>{}} onView={()=>{}} onChop={()=>{}} onAudition={()=>onNote(selected,100)}
+            onEdit={(k,v)=>{if(k!=='patch')return;const p=v as Partial<Record<'start'|'end',number>>;edit('shape',{...shape,...(p.start!==undefined?{start:p.start}:{}),...(p.end!==undefined?{end:p.end}:{})});}}/>
+          :<div className="drum-wave-empty"><AudioWaveform size={22}/><span>{status==='MISSING'?'Sample missing · relink the original WAV':status==='LOADING'?'Loading sample…':status==='ERROR'?'Sample could not load':'Import a WAV to see its waveform'}</span></div>}
         </div>
         {live?.error?<p className="drum-source-error" title={live.error} role="status">{live.error}</p>:null}
-        <div className="drum-pad-controls" key={selected}>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-gain`} defaultValue={1} name="Gain" value={pad.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Pad gain; applied to the next note" onCommit={n=>edit('gain',n)}/>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-velocity`} defaultValue={1} name="Velocity" value={pad.velocity} min={0} max={2} step={.01} suffix="×" precision={2} description="Velocity response curve: 0 is fixed level, 1 is linear, 2 makes soft notes quieter" onCommit={n=>edit('velocity',n)}/>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-tune`} defaultValue={0} name="Tune" value={pad.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Pitch in semitones; envelope times and EQ stay where you set them" onDraft={draft('tune')} onCommit={n=>edit('tune',n)}/>
-          {knob('pan','Pan',-100,100,1,'',0,'Place the pad left or right (C is the middle)',100,panText)}
-          <div className="drum-pad-switches">
-            <button type="button" aria-pressed={pad.mute} onClick={()=>edit('mute',!pad.mute)}>Mute</button>
-            <button type="button" aria-pressed={pad.solo} onClick={()=>edit('solo',!pad.solo)}>Solo</button>
-            <label>Choke<select aria-label="Choke group" value={pad.choke} onChange={e=>edit('choke',Number(e.target.value))}><option value={0}>None</option>{Array.from({length:16},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
-          </div>
-        </div>
-        <div className="drum-shape" data-testid="drum-shape">
-          <div className="drum-shape-tabs" role="tablist" aria-label="Pad sound shaping">
-            {TABS.map(([id,label])=><button key={id} type="button" role="tab" aria-selected={shapeTab===id} onClick={()=>setShapeTab(id)}>{label}</button>)}
-            <button type="button" className="drum-shape-reset" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)} title="Back to the sample as recorded" onClick={()=>edit('shape',{...DEFAULT_DRUM_SHAPE})}>Reset</button>
-          </div>
-          <div className={'drum-shape-controls tab-'+shapeTab} key={selected+':'+shapeTab}>
-            {shapeTab==='env'?<>
+        <div className="smp-cards drum-cards" key={selected} data-testid="drum-shape">
+          <section className="smp-card drum-card-play" aria-label="Play">
+            <h2>Play</h2>
+            <div className="smp-line">
+              <div className="smp-seg" role="group" aria-label="Mute and solo">
+                <button type="button" aria-pressed={pad.mute} onClick={()=>edit('mute',!pad.mute)}>Mute</button>
+                <button type="button" aria-pressed={pad.solo} onClick={()=>edit('solo',!pad.solo)}>Solo</button>
+              </div>
+              <button type="button" className="smp-toggle" aria-pressed={shape.reverse} title="Play backwards" onClick={()=>setShape('reverse',!shape.reverse)}><Undo2 size={15}/>Reverse</button>
+            </div>
+            <div className="smp-knobs two one">
+              <CommittedKnob id={`drum-${trackIndex}-${selected}-gain`} defaultValue={1} name="Gain" value={pad.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Pad gain; applied to the next note" onCommit={n=>edit('gain',n)}/>
+              <CommittedKnob id={`drum-${trackIndex}-${selected}-velocity`} defaultValue={1} name="Velocity" value={pad.velocity} min={0} max={2} step={.01} suffix="×" precision={2} description="Velocity response curve: 0 is fixed level, 1 is linear, 2 makes soft notes quieter" onCommit={n=>edit('velocity',n)}/>
+              <CommittedKnob id={`drum-${trackIndex}-${selected}-tune`} defaultValue={0} name="Tune" value={pad.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Pitch in semitones; envelope times and EQ stay where you set them" onDraft={draft('tune')} onCommit={n=>edit('tune',n)}/>
+              {knob('pan','Pan',-100,100,1,'',0,'Place the pad left or right (C is the middle)',100,panText)}
+            </div>
+            <label className="drum-choke">Choke<select aria-label="Choke group" value={pad.choke} onChange={e=>edit('choke',Number(e.target.value))}><option value={0}>None</option>{Array.from({length:16},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
+          </section>
+          <section className="smp-card drum-card-shape" aria-label="Shape">
+            <h2>Shape</h2>
+            <div className="drum-graph-row"><svg data-testid="drum-envelope-graph" className="drum-card-graph" viewBox="0 0 512 96" preserveAspectRatio="none" role="img" aria-label="Level over time: attack, hold, decay and fades">
+              <path d={envelopePath(shown,seconds,step)} vectorEffect="non-scaling-stroke"/></svg>
+              <button type="button" className="smp-toggle drum-card-reset" aria-label="Reset shape" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)}
+                title="Back to the sample as recorded: trim, fades, envelope, EQ, filter, compressor and pan" onClick={()=>edit('shape',{...DEFAULT_DRUM_SHAPE})}><RotateCcw size={16}/></button></div>
+            <div className="smp-knobs two one">
               {knob('attack','Attack',0,1000,1,'ms',0,'Rise time at the start of the hit',1000)}
               {knob('hold','Hold',0,4000,1,'ms',0,'Full level after the attack. With Decay off the pad stops after the hold',1000,ms)}
               {knob('decay','Decay',0,8000,1,'ms',0,'Fade to silence after the hold; Off plays to the end (or stops after the hold)',1000,n=>n<=0?'Off':ms(n))}
-              <p className="drum-shape-hint">Hold {shown.decay>0?'keeps full level, then Decay fades out.':shown.hold>0?'stops the pad after attack + hold.':'and Decay off: the sample plays to its end.'}</p>
-            </>:shapeTab==='trim'?<>
-              {knob('start','Start',0,99.8,.1,'%',1,'Where playback starts in the sample',100)}
-              {knob('end','End',.2,100,.1,'%',1,'Where playback stops in the sample',100)}
               {knob('fade_in','Fade in',0,2000,1,'ms',0,'Fade at the start of what plays',1000,ms)}
               {knob('fade_out','Fade out',0,2000,1,'ms',0,'Fade at the end of what plays',1000,ms)}
-              <button type="button" className="drum-shape-toggle" aria-pressed={shape.reverse} onClick={()=>setShape('reverse',!shape.reverse)}>{shape.reverse?'Reverse':'Forward'}</button>
-            </>:shapeTab==='eq'?<>
+            </div>
+          </section>
+          <section className="smp-card drum-card-tone" aria-label="Tone">
+            <h2>Tone</h2>
+            <div className="smp-seg" role="radiogroup" aria-label="Tone controls">
+              <button type="button" role="radio" aria-checked={toneTab==='eq'} onClick={()=>setToneTab('eq')}>EQ</button>
+              <button type="button" role="radio" aria-checked={toneTab==='filter'} onClick={()=>setToneTab('filter')}>Filter</button>
+            </div>
+            <ShapeGraph kind="eq" shape={shown}/>
+            {toneTab==='eq'?<div className="smp-knobs two one">
               {knob('eq_low','Low',-18,18,.5,'dB',1,'Low shelf at 200 Hz')}
+              {knob('eq_high','High',-18,18,.5,'dB',1,'High shelf at 5 kHz')}
               {knob('eq_mid','Mid',-18,18,.5,'dB',1,'Bell at the Mid frequency')}
               {knob('eq_freq','Mid freq',100,8000,10,'Hz',0,'Centre of the Mid bell')}
-              {knob('eq_high','High',-18,18,.5,'dB',1,'High shelf at 5 kHz')}
-              <ShapeGraph kind="eq" shape={shown}/>
-            </>:shapeTab==='comp'?<>
+            </div>:<div className="smp-knobs two one">
+              {knob('low_cut','Low cut',20,2000,1,'Hz',0,'High-pass filter, 12 dB per octave; 20 Hz is off')}
+              {knob('high_cut','High cut',500,20000,10,'Hz',0,'Low-pass filter, 12 dB per octave; 20000 Hz is off')}
+              {knob('drive','Drive',0,100,1,'%',0,'Soft saturation',100)}
+            </div>}
+          </section>
+          <section className={'smp-card drum-card-comp'+(shape.comp_ratio<=1?' off':'')} aria-label="Compressor">
+            <h2>Comp</h2>
+            <ShapeGraph kind="comp" shape={shown}/>
+            <div className="smp-knobs two one">
               {knob('comp_threshold','Threshold',-48,0,.5,'dB',1,'Level where compression starts')}
               {knob('comp_ratio','Ratio',1,20,.1,':1',1,'1:1 is off')}
               {knob('comp_attack','Attack',.1,100,.1,'ms',1,'How fast it clamps down')}
               {knob('comp_release','Release',10,1000,1,'ms',0,'How fast it lets go')}
               {knob('comp_makeup','Gain',0,24,.5,'dB',1,'Make-up gain after compression')}
-              <ShapeGraph kind="comp" shape={shown}/>
-            </>:<>
-              {knob('low_cut','Low cut',20,2000,1,'Hz',0,'High-pass filter, 12 dB per octave; 20 Hz is off')}
-              {knob('high_cut','High cut',500,20000,10,'Hz',0,'Low-pass filter, 12 dB per octave; 20000 Hz is off')}
-              {knob('drive','Drive',0,100,1,'%',0,'Soft saturation',100)}
-              <ShapeGraph kind="eq" shape={shown}/>
-            </>}
-          </div>
+            </div>
+          </section>
         </div>
       </section>
     </div>

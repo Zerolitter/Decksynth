@@ -45,7 +45,7 @@ const fitView = (a: number, b: number): [number, number] => {
     Works like the MIDI editor: wheel scrolls, Ctrl+wheel zooms at the pointer, middle-drag (or a one-finger drag when zoomed)
     pans, two fingers pinch. Keys: F fit, Z zoom to the slice, + / − zoom, ← / → previous / next slice, S split, J join,
     Delete removes the slice's start edge, Space / Enter plays it. Every handle has a 44 px hit zone; one drag is one undo step. */
-function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit, onView, onChop, onAudition, onLibrary }: {
+export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit, onView, onChop, onAudition, onLibrary }: {
   spec: SamplerSpec; runtime?: SamplerRuntime | null; mode: 'trim' | 'chop'; selected: number; marker: number | null;
   onSelect(index: number, at: number): void; onEdit: Edit; onView(a: number, b: number): void;
   onChop(mode: string, options?: Record<string, unknown>): void; onAudition(index: number): void; onLibrary?(slice: number): void;
