@@ -128,8 +128,10 @@ export type DeckApi = {
   chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder'): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }
-export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf'] as const;
-export const SONG_TRACK_COLORS = ['#a1b9d4', TRACK_COLORS[1], TRACK_COLORS[2], '#8193ab'] as const;
+export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf','#e59a7a','#6fc6d8','#d68fc0','#a9b4c2'] as const;
+/** Tracks can be added up to 8 and removed down to 4 (Sampler editing stage 10). */
+export const MIN_TRACKS = 4, MAX_TRACKS = 8;
+export const SONG_TRACK_COLORS = ['#a1b9d4', TRACK_COLORS[1], TRACK_COLORS[2], '#8193ab', TRACK_COLORS[4], TRACK_COLORS[5], TRACK_COLORS[6], TRACK_COLORS[7]] as const;
 export const PRESETS = ['Warm Keys','Bass','Atmospheric Pad','Bell','Evolving Texture'] as const;
 export function noteName(n: number) {
   const names = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];

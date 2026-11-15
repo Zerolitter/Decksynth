@@ -13,7 +13,10 @@ def device_kind(track):
     return kind
 
 
+MIN_TRACKS, MAX_TRACKS = 4, 8   # tracks can be added up to 8 (Sampler editing stage 10)
+
+
 def track_index(track):
-    if type(track) is not int or not 0 <= track < 4:
-        raise ValueError('Choose track 1–4')
+    if type(track) is not int or not 0 <= track < MAX_TRACKS:
+        raise ValueError('Choose track 1–%d' % MAX_TRACKS)
     return track

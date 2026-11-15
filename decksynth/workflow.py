@@ -51,7 +51,7 @@ def _put(root,path,entry):
 
 class WorkflowEngine:
  def init_workflow(self):
-  self.sound_history=[{'A':[],'B':[]} for _ in range(4)];self._sound_gesture=None;self.automation_arm=False;self.automation_values=[{} for _ in range(4)];self.automation_touched=set();self.control_revisions={}
+  n=len(self.project.tracks);self.sound_history=[{'A':[],'B':[]} for _ in range(n)];self._sound_gesture=None;self.automation_arm=False;self.automation_values=[{} for _ in range(n)];self.automation_touched=set();self.control_revisions={}
  def patch_history(self,track):return self.sound_history[track][self.project.tracks[track].get('sound_ab',{}).get('active','A')]
  def replace_project(self,project):
   self.stop();self.project=project;self.init_workflow();self.configure();self.history=[];self.mutation_sessions.clear()
@@ -119,7 +119,7 @@ class WorkflowEngine:
   if others or previous:t['automation']=others+previous
   elif g['automation'] is None:t.pop('automation',None)
   else:t['automation']=[]
- def sound_undo_counts(self):return [len(self.patch_history(tr)) for tr in range(4)]
+ def sound_undo_counts(self):return [len(self.patch_history(tr)) for tr in range(len(self.project.tracks))]
  def sound_undo(self,track):
   self.owned(track);self.cancel_sound_gesture()
   history=self.patch_history(track)
@@ -152,7 +152,7 @@ class WorkflowEngine:
   for i,m in enumerate(new['macros']):
    if m['value']!=old['macros'][i]['value']:self.record_control(track,'macro',str(i),m['value'])
  def automation_block(self,count):
-  self.automation_values=[{} for _ in range(4)]
+  self.automation_values=[{} for _ in self.project.tracks]
   if not self.playing:return count
   beat=self.frame/self.fpb;span=self.project.beats
   if not self.project.song['on']:beat%=span

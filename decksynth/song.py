@@ -20,11 +20,11 @@ def block(at, length, clip=0, off=0):
     return dict(at=at, len=length, clip=clip, off=off)
 
 
-def defaults(bars=4):
+def defaults(bars=4, tracks=4):
     """Song off; when switched on, every track plays clip A for 16 bars (or four loops)."""
     length = max(16, bars * 4)
     return dict(on=False, loop=True, length=length, markers=[dict(bar=0, name='Intro')],
-                lanes=[[block(0, length, 0)] for _ in range(4)])
+                lanes=[[block(0, length, 0)] for _ in range(tracks)])
 
 
 def from_sections(song, bars):
@@ -65,7 +65,7 @@ def merge(blocks, length, bars, join=False):
     return out
 
 
-def validate(song, bars=4):
+def validate(song, bars=4, tracks=4):
     """A clean copy of a song, or ValueError."""
     try:
         assert isinstance(song, dict) and isinstance(song.get('on'), bool) and isinstance(song.get('loop'), bool)
@@ -75,7 +75,9 @@ def validate(song, bars=4):
                 assert all(type(c) is int and -1 <= c < CLIPS for c in s['clips']) and len(s['clips']) == 4
             song = from_sections(song, bars)
         length = song['length']; assert type(length) is int and 1 <= length <= MAX_BARS
-        lanes = song['lanes']; assert isinstance(lanes, list) and len(lanes) == 4
+        lanes = song['lanes']; assert isinstance(lanes, list)
+        if len(lanes) == 4 < tracks: lanes = lanes + [[] for _ in range(tracks - 4)]   # older songs and the UI's 4-lane edits
+        assert len(lanes) == tracks
         clean = []
         for lane in lanes:
             assert isinstance(lane, list) and len(lane) <= MAX_BLOCKS
@@ -155,15 +157,17 @@ def song_events(song, lane_clips, track, start_beat, end_beat, bars):
     return out
 
 
-def empty_clips():
+def empty_clips(tracks=4):
     """Per track: the 8 clip slots (the open one is kept in the track's own 'notes') and which one is open."""
-    return dict(slots=[[[] for _ in range(CLIPS)] for _ in range(4)], open=[0, 0, 0, 0])
+    return dict(slots=[[[] for _ in range(CLIPS)] for _ in range(tracks)], open=[0]*tracks)
 
 
-def validate_clips(clips, beats):
+def validate_clips(clips, beats, tracks=4):
     try:
         slots, opened = clips['slots'], clips['open']
-        assert len(slots) == 4 and len(opened) == 4
+        if len(slots) == len(opened) == 4 < tracks:   # older files: 4 tracks of loops
+            slots = list(slots) + [[[] for _ in range(CLIPS)] for _ in range(tracks - len(slots))]; opened = list(opened) + [0]*(tracks - len(opened))
+        assert len(slots) == tracks and len(opened) == tracks
         assert all(type(k) is int and 0 <= k < CLIPS for k in opened)
         total = 0
         for track in slots:

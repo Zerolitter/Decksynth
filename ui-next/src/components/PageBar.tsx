@@ -1,7 +1,7 @@
 import {useContextTarget,useContextNavigation} from './ContextWheel';
 import type { ReactNode } from 'react';
-import { CircleDot, Disc3, Snowflake, Sparkles, Waves } from 'lucide-react';
-import { TRACK_COLORS, type FreezeInfo, type Track } from '../types';
+import { CircleDot, Disc3, Plus, Snowflake, Sparkles, Waves } from 'lucide-react';
+import { MAX_TRACKS, MIN_TRACKS, TRACK_COLORS, type FreezeInfo, type Track } from '../types';
 
 export type Page = 'SONG'|'SOUND'|'FX'|'PERFORM';
 const PAGES:{id:Page,label:string,icon:ReactNode}[]=[
@@ -34,10 +34,10 @@ export function PageTabs({page,onPage}:{page:Page;onPage:(p:Page)=>void}){
 }
 
 /** The second row on Sound, FX and Perform: the track you are working on, and the page's own tools on the right. */
-export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,freeze,onContext}:Props){
-  const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {area:tracks[i].device==='drum_rack'?'drum':'sound',kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{})}};});
+export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,freeze,onContext,onAdd,onRemove}:Props&{onAdd?:()=>void;onRemove?:(track:number)=>void}){
+  const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {area:tracks[i].device==='drum_rack'?'drum':'sound',kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{}),...(onAdd&&tracks.length<MAX_TRACKS?{addTrack:onAdd}:{}),...(onRemove&&tracks.length>MIN_TRACKS?{removeTrack:()=>onRemove(i)}:{})}};});
   return <nav {...context} className="page-bar" aria-label="Tracks">
-    <div className="page-tracks" role="group" aria-label="Track to edit">
+    <div className={"page-tracks"+(tracks.length>5?" many":"")} role="group" aria-label="Track to edit">
       {tracks.map((t,i)=><button data-track-index={i} key={i} type="button" aria-pressed={i===selected}
         aria-label={'Edit track '+(i+1)+' '+deviceName(t)}
         className={'page-track'+(i===selected?' active':'')+(t.mute?' muted':'')}
@@ -47,6 +47,7 @@ export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,freez
           <NoteLine track={t} beats={beats} beat={beat} playing={playing}/></span>
         {freeze?.[i]?.state==='frozen'?<span className="page-track-ice" title="Frozen: plays as audio"><Snowflake size={14}/></span>:null}
       </button>)}
+      {onAdd&&tracks.length<MAX_TRACKS?<button type="button" className="page-track-add" aria-label="Add track" title={'Add a track ('+tracks.length+' of '+MAX_TRACKS+'). Right-click a track to remove it.'} onClick={onAdd}><Plus size={18}/></button>:null}
     </div>
     {tools?<div className="page-tools">{tools}</div>:null}
   </nav>;

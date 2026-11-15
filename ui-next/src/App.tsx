@@ -424,7 +424,7 @@ function App() {
       if(k===' '&&target?.closest('button,[role="button"],[role="slider"],[role="tab"]'))return;
       const controls:{[key:string]:string}={F5:'play',F6:'stop',F7:'record',F10:'undo'};
       if(controls[k]){event.preventDefault();command(controls[k]);return;}
-      if(k==='F8'||k==='F9'){event.preventDefault();command('select',(selected+(k==='F8'?3:1))%4);}
+      if(k==='F8'||k==='F9'){event.preventDefault();const n=project?.tracks.length??4;command('select',(selected+(k==='F8'?n-1:1))%n);}
       else if(k===' '){event.preventDefault();command('play');}
     };
     window.addEventListener('keydown',handler);
@@ -507,7 +507,7 @@ function App() {
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} beat={project.song?.on?songBeat:playhead} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
+      {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           {(track.device??'synth')==='synth'?<div className="sound-workflow" role="group" aria-label="Sound workflow">

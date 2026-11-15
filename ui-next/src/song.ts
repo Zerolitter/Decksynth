@@ -18,7 +18,7 @@ export const defaultSong = (bars = 4):Song => {
 };
 /** A project's song; one saved before the timeline (sections) shows as the default until the engine converts it. */
 export const songOf = (p:Project):Song => p.song && Array.isArray((p.song as Song).lanes) ? p.song : defaultSong(p.bars);
-export const clipsOf = (p:Project) => p.clips ?? {open:[0,0,0,0], slots:p.tracks.map(t=>[t.notes, ...Array.from({length:CLIPS-1}, ()=>[] as Note[])])};
+export const clipsOf = (p:Project) => p.clips ?? {open:p.tracks.map(()=>0), slots:p.tracks.map(t=>[t.notes, ...Array.from({length:CLIPS-1}, ()=>[] as Note[])])};
 
 /** A track's clip by slot (the open clip is the track's own notes). */
 export function clipNotes(p:Project, track:number, clip:number):Note[] {

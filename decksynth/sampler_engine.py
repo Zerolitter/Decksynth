@@ -373,6 +373,30 @@ class SamplerEngine:
             rec.saved()
         self.sampler_tasks.submit(('record', track), work, commit, fail, 'Recording not saved: ')
 
+    def save_sample_to_library(self, track, sampler_id, what, index, name, category):
+        """Save to library: the whole sample, its trim (Start to End) or one slice, as a WAV in the library's save folder
+        (<save>/<category>/<name>.wav). Written in the background; the library rescans when it is done."""
+        lib = getattr(self, 'sample_library', None)
+        if lib is None: raise ValueError('The sample library is not available')
+        track = track_index(track); spec = self.sampler_target(track, sampler_id); sample = self.samplers[track].sample
+        if spec['source'] is None or sample is None: raise ValueError('Load a sample first')
+        if what == 'whole': a, b = 0., 1.
+        elif what == 'trim': a, b = spec['start'], spec['end']
+        elif what == 'slice':
+            if type(index) is not int or not 0 <= index < len(spec['slices']): raise ValueError('Choose a slice to save')
+            a, b = spec['slices'][index][:2]
+        else: raise ValueError('Save the whole sample, its trim or a slice')
+        n = sample.frames; lo = max(0, min(n - 1, int(a * n))); hi = max(lo + 1, min(n, int(round(b * n))))
+        data = sample.data[lo:hi]; path = lib.target(category, name); rate = self.rate
+
+        def work():
+            chopper.write_wav(path, data, rate); return path
+
+        def commit(p):
+            lib.scan(); return 'Saved %s to the library (%s)' % (p.stem, p.parent.name)
+        self.sampler_tasks.submit(('library', track), work, commit, None, 'Not saved to the library: ')
+        return str(path)
+
     def record_state(self):
         out = dict(inputs=self.record_inputs, input=self.record_input, error=self.record_error,
                    **(self.recorder.status() if self.recorder is not None else dict(state='idle', level=-90., peak=-90., threshold=-40., length=60., seconds=0., clipped=False)))

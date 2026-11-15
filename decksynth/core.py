@@ -125,7 +125,7 @@ class Project:
         """A track's loop by slot. The open loop lives in the track's own 'notes', as it always has."""
         return self.tracks[track]['notes'] if clip==self.clips['open'][track] else self.clips['slots'][track][clip]
     def clips_data(self):
-        return dict(open=self.clips['open'],slots=[[self.clip_notes(tr,k) for k in range(songs.CLIPS)] for tr in range(4)])
+        return dict(open=self.clips['open'],slots=[[self.clip_notes(tr,k) for k in range(songs.CLIPS)] for tr in range(len(self.tracks))])
     def data(self):
         return dict(version=1,bpm=self.bpm,bars=self.bars,metronome=self.metronome,
                     tracks=self.tracks,performance=self.performance,song=self.song,clips=self.clips_data())
@@ -139,7 +139,8 @@ class Project:
         try:
             d=json.loads(Path(path).read_text()); p=cls()
             assert d['version']==1 and 30<=d['bpm']<=240 and d['bars'] in BAR_CHOICES
-            assert isinstance(d['metronome'],bool) and len(d['tracks'])==4
+            from .devices import MIN_TRACKS,MAX_TRACKS
+            assert isinstance(d['metronome'],bool) and MIN_TRACKS<=len(d['tracks'])<=MAX_TRACKS
             for t in d['tracks']:
                 assert isinstance(t['name'],str) and len(t['name'])<=100
                 assert isinstance(t['preset'],str) and 0<=t['volume']<=1 and isinstance(t['mute'],bool)
@@ -165,8 +166,9 @@ class Project:
                     assert isinstance(n['note'],int) and 0<=n['note']<=127
                     assert isinstance(n['velocity'],int) and 1<=n['velocity']<=127
             p.bpm=d['bpm']; p.bars=d['bars']; p.metronome=d['metronome']; p.tracks=d['tracks']
-            p.song=songs.validate(d['song'],d['bars']) if 'song' in d else songs.defaults(d['bars'])
-            p.clips=songs.validate_clips(d['clips'],d['bars']*4) if 'clips' in d else songs.empty_clips()
+            n=len(d['tracks'])
+            p.song=songs.validate(d['song'],d['bars'],n) if 'song' in d else songs.defaults(d['bars'],n)
+            p.clips=songs.validate_clips(d['clips'],d['bars']*4,n) if 'clips' in d else songs.empty_clips(n)
             p.performance=validate_performance(d['performance']) if 'performance' in d else performance_defaults()
             reconcile_pattern_timing(p.performance,preserve_chain=True)
             p.performance=validate_performance(p.performance)
@@ -555,8 +557,9 @@ RESONATOR=FX_ORDER.index('resonator')
 from .workflow import WorkflowEngine
 from .note_edit import NoteEditEngine
 from .pattern_catalog import PatternCatalogEngine
+from .track_engine import TrackEngine
 
-class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine,FreezeEngine,SamplerEngine):
+class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine,FreezeEngine,SamplerEngine,TrackEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
@@ -579,6 +582,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.init_freeze()
         self.configure()
     def configure(self):
+        self.sync_tracks()
         self.stop_pattern_preview()
         self.midi_learn=None
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
@@ -780,7 +784,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.snapshot(); self.stop(); self.project.quantize(track)
     def set_song(self,song):
         """Replace the song arrangement (validated), with undo."""
-        clean=songs.validate(song,self.project.bars); self.snapshot()
+        clean=songs.validate(song,self.project.bars,len(self.project.tracks)); self.snapshot()
         if clean['on']!=self.project.song['on']:self.release_loops()
         self.project.song=clean
     def release_loops(self):
@@ -790,7 +794,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             self.drum_gate_keys[i]={k for k in self.drum_gate_keys[i] if not (isinstance(k,tuple) and k[0]=='loop')}
     def clip_action(self,track,action,clip=None,source=None):
         """Loops per track: open one for editing, copy one into another slot, or clear one."""
-        if type(track) is not int or not 0<=track<4:raise ValueError('Choose track 1-4')
+        if type(track) is not int or not 0<=track<len(self.project.tracks):raise ValueError('Choose track 1-%d'%len(self.project.tracks))
         if type(clip) is not int or not 0<=clip<songs.CLIPS:raise ValueError('Choose loop A-H')
         p=self.project; t=p.tracks[track]; slots=p.clips['slots'][track]; opened=p.clips['open'][track]
         def put(k,notes):
@@ -1337,7 +1341,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 events.setdefault(offset,[]).append((5,action,tr,pitch,velocity,token))
             # Frozen tracks play their audio file instead of their notes, synth and FX (freeze_engine.py).
             freeze_mode='song' if self.project.song['on'] and not self.recording else 'loop'
-            frozen=[self.frozen_active(tr,freeze_mode) for tr in range(4)]
+            frozen=[self.frozen_active(tr,freeze_mode) for tr in range(len(self.synths))]
             for tr,on in enumerate(frozen):
                 if on and not self._frozen_on[tr]:
                     # Song and loop notes started live would never get their note-off now: let them go.
@@ -1352,7 +1356,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 # notes still sounding are released (not cut), so the ending rings out.
                 if song and not song['loop'] and start>=round(song['length']*4*self.fpb):
                     # Frozen tracks ring out from where the transport stopped (their file holds the tail).
-                    self.freeze_ring={tr:start for tr in range(4) if frozen[tr]}
+                    self.freeze_ring={tr:start for tr in range(len(frozen)) if frozen[tr]}
                     self.playing=False; self.frame=0; start=0; end=n; self.release_loops()
                 for tr,t in enumerate(self.project.tracks if self.playing else []):
                     if t['mute'] or frozen[tr]:continue
@@ -1390,7 +1394,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     if tick>=abs_start:events.setdefault(tick-abs_start,[]).append((2,0 if k==0 else k))
                     k+=1
             offsets=sorted(set(events)|{n})
-            track_audio=[[] for _ in self.synths]; click=[]; live_frozen=[False]*4
+            track_audio=[[] for _ in self.synths]; click=[]; live_frozen=[False]*len(self.synths)
             # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
             drum_right=[[] if stereo and device_kind(t)=='drum_rack' else None for t in self.project.tracks]
             for pos,nextpos in zip(offsets,offsets[1:]):

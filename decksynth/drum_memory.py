@@ -58,8 +58,9 @@ class KitMemory:
         if not isinstance(value,dict) or set(value)!={'version','selected','tracks'}:
             raise ValueError('Invalid remembered kit state')
         if type(value['version']) is not int or value['version']!=1: raise ValueError('Unsupported remembered kit version')
-        if type(value['selected']) is not int or not 0<=value['selected']<4: raise ValueError('Invalid remembered track')
-        if not isinstance(value['tracks'],list) or len(value['tracks'])!=4: raise ValueError('Invalid remembered tracks')
+        from .devices import MIN_TRACKS, MAX_TRACKS
+        if not isinstance(value['tracks'],list) or not MIN_TRACKS<=len(value['tracks'])<=MAX_TRACKS: raise ValueError('Invalid remembered tracks')
+        if type(value['selected']) is not int or not 0<=value['selected']<len(value['tracks']): raise ValueError('Invalid remembered track')
         result = copy.deepcopy(value)
         for t in result['tracks']:
             if not isinstance(t,dict) or set(t)-{'device','drum_rack','sampler'}: raise ValueError('Invalid remembered device')
@@ -96,6 +97,8 @@ class KitMemory:
     def restore(engine, value):
         if value is None: return
         clean=KitMemory.validate(value)  # Validate every track before applying any.
+        grow=getattr(engine,'grow_tracks',None)   # tracks added last time come back (up to 8)
+        if grow: grow(len(clean['tracks']))
         for target, remembered in zip(engine.project.tracks,clean['tracks']):
             target.update(remembered)
         selected=clean['selected']

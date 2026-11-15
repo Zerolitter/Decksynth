@@ -203,7 +203,13 @@ def worker(commands,updates):
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
         library=DrumLibraryService(engine,data_directory())
+        if not library.snapshot()['root']:
+            demo_root=os.environ.get('DECKSYNTH_DEMO_KITS_DIR')
+            if demo_root and os.path.isdir(demo_root):
+                library.set_root(demo_root)
         engine.chop_directory=data_directory()
+        from .sample_library import SampleLibrary
+        sample_lib=engine.sample_library=SampleLibrary(data_directory(),engine.rate);sample_lib.scan()
         loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
@@ -239,6 +245,26 @@ def worker(commands,updates):
                     elif cmd=='drum_import':loader.request(*args)
                     elif cmd=='sampler_load_wav':engine.load_sampler_wav(*args)
                     elif cmd=='sampler_clear':engine.clear_sampler(*args)
+                    elif cmd=='add_track':engine.add_track()
+                    elif cmd=='sample_save':
+                        engine.save_sample_to_library(*args)
+                    elif cmd=='sample_library_folder':
+                        role,folder=args
+                        if role=='save':sample_lib.set_save_folder(folder)
+                        elif role=='add':sample_lib.add_load_folder(folder)
+                        elif role=='remove':sample_lib.remove_load_folder(folder)
+                        else:raise ValueError('Unknown library folder action')
+                    elif cmd=='sample_library_scan':sample_lib.scan()
+                    elif cmd=='sample_library_browse':sample_lib.browse(*args)
+                    elif cmd=='sample_library_preview':sample_lib.preview(args)
+                    elif cmd=='sample_library_stop':sample_lib.stop_preview();engine.stop_sample_preview()
+                    elif cmd=='sample_library_load':
+                        track,sampler_id,path=args
+                        if not sample_lib.contains(path):raise ValueError('That sample is not in the library')
+                        engine.load_sampler_wav(track,sampler_id,path)
+                    elif cmd=='remove_track':
+                        if any(k[0]=='freeze' for k in renders if isinstance(k,tuple)):raise ValueError('Wait until the freeze finishes')
+                        engine.remove_track(args)
                     elif cmd=='sampler_chop':engine.chop_sampler(*args)
                     elif cmd=='sampler_view':engine.sampler_view(*args)
                     elif cmd=='sampler_audition':engine.audition_slice(*args)
@@ -390,7 +416,7 @@ def worker(commands,updates):
                         renders['export']=RenderJob('export_wav',engine.project.data(),engine.rate,str(args))
                     elif cmd=='freeze':
                         tr=int(args)
-                        if not 0<=tr<4:raise ValueError('Choose track 1–4')
+                        if not 0<=tr<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
                         if ('freeze',tr) in renders:raise ValueError('Track %d is already freezing'%(tr+1))
                         engine.finish_record()
                         # Freeze holds the whole Song timeline and the Loop, whichever page or mode you are on.
@@ -427,6 +453,8 @@ def worker(commands,updates):
                 except Exception as exc:send(dict(error=str(exc)))
             if not running:break
             library.poll()
+            heard=sample_lib.poll()
+            if heard is not None:library.stop_preview();engine.play_sample_preview(heard)
             for key,job in list(renders.items()):
                 if not job.poll():continue
                 renders.pop(key)
@@ -494,7 +522,7 @@ def worker(commands,updates):
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
-                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
+                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
@@ -507,6 +535,7 @@ def worker(commands,updates):
     finally:
         for job in renders.values():job.cancel()
         if library:library.close()
+        if engine is not None and getattr(engine,'sample_library',None):engine.sample_library.close()
         if loader:loader.close()
         if capture:capture.close()
         if engine is not None and hasattr(engine,'sampler_tasks'):engine.sampler_tasks.close()

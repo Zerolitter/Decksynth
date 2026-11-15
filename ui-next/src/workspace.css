@@ -151,3 +151,11 @@
 .harness-shell .card-partials .spectral-legend{position:static;flex-direction:column;gap:2px;margin-right:6px}
 .harness-shell .card-partials .ds-panel-actions{margin-left:auto;gap:4px}
 .harness-shell.decksynth-shell{grid-template-columns:minmax(0,1fr)}
+/* Sampler editing stage 10: add a track (up to 8). */
+.harness-shell .page-track-add{flex:0 0 44px;width:44px;min-height:44px;display:grid;place-items:center;border-radius:9px;border:1px dashed #4a5056;background:transparent;color:#aeb4ba;cursor:pointer}
+.harness-shell .page-track-add:hover,.harness-shell .page-track-add:focus-visible{border-style:solid;border-color:#8b9196;color:#e6e9eb;background:#202326}
+/* Six to eight tracks: narrower chips (number and the start of the name) so the page tools keep their room. */
+.harness-shell .page-tracks.many{gap:4px}
+.harness-shell .page-tracks.many .page-track{flex:0 1 96px;width:96px;min-width:62px;padding:0 6px;gap:5px}
+.harness-shell .page-tracks.many .page-track-add{flex-basis:44px}
+.harness-shell .page-bar:has(.page-tracks.many) .page-tools{flex-shrink:0}
