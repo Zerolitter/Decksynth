@@ -58,7 +58,7 @@
 .harness-shell .frame-tabs{display:flex;gap:3px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--inset)}
 .harness-shell .frame-tabs button{min-height:36px;min-width:84px;padding:0 10px;border-radius:7px;background:transparent;border:1px solid transparent;
   color:#aebbb9;font-weight:740;font-size:12.5px}
-.harness-shell .frame-tabs button.active{background:#315149;border-color:#5b9a86;color:#b2f4dc}
+.harness-shell .frame-tabs button.active{background:#514631;border-color:#9a835b;color:#f4dbb2}
 .harness-shell .frame-window-actions{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
 .harness-shell .frame-window-actions .fx-spectrum{width:360px;height:34px;flex:none}
 .harness-shell .frame-window-actions .spectral-legend{position:static;flex-direction:column;gap:2px;margin-right:6px}
@@ -112,7 +112,7 @@
 .harness-shell .fx-add-open{flex:1;flex-direction:column;gap:2px;padding:4px}
 .harness-shell .fx-add-open strong{font-size:13px}
 .harness-shell .fx-add-open span{font-size:11px}
-.harness-shell .fx-cards .fx-picker{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border:1.5px solid #5b9a86;border-radius:12px;
+.harness-shell .fx-cards .fx-picker{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border:1.5px solid #9a835b;border-radius:12px;
   padding:8px;box-shadow:0 -12px 32px #000a}
 .harness-shell .fx-picker-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .harness-shell .fx-picker-head span{font-size:11.5px;color:var(--soft)}
@@ -138,7 +138,7 @@
 
 /* ---------- card title bar: power, colour tag, linked-mods badge; folded cards keep them ---------- */
 .ds-panel-power{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--inset);border:1.5px solid #4a5a60;color:#7c8b88}
-.ds-panel-power.on{background:var(--panel-tag,#5fd3a8);border-color:var(--panel-tag,#5fd3a8);color:#0e1517;box-shadow:0 0 10px color-mix(in srgb,var(--panel-tag,#5fd3a8) 60%,transparent)}
+.ds-panel-power.on{background:var(--panel-tag,#d3a75f);border-color:var(--panel-tag,#d3a75f);color:#0e1517;box-shadow:0 0 10px color-mix(in srgb,var(--panel-tag,#d3a75f) 60%,transparent)}
 .ds-panel-tag{width:9px;height:9px;flex:none;border-radius:3px;background:var(--panel-tag)}
 .ds-panel-mods{flex:none;display:flex;align-items:center;gap:3px;padding:2px 5px;border-radius:5px;font-size:10px;font-weight:800;color:var(--text);background:var(--inset);border:1px solid var(--line)}
 .ds-panel-mods i{width:6px;height:6px;flex:none;border-radius:50%}
@@ -165,11 +165,11 @@
 .setting-switch small,.clean-item small{font-size:11.5px;color:var(--soft);line-height:1.35}
 .setting-switch input{appearance:none;width:48px;height:28px;flex:none;border-radius:14px;background:#2a3639;border:1px solid #4a5a60;position:relative;cursor:pointer}
 .setting-switch input::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--soft);transition:transform .15s}
-.setting-switch input:checked{background:#2d6b5a;border-color:#6fd6b4}
+.setting-switch input:checked{background:#6b562d;border-color:#d6b06f}
 .setting-switch input:checked::after{transform:translateX(20px);background:#e6efeb}
 .clean-item{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 10px;border-radius:10px;background:var(--raised);border:1px solid var(--line);color:#dbe6e2;text-align:left}
 .clean-item span{display:flex;flex-direction:column;gap:1px}
-.clean-item:hover{border-color:#5b9a86}
+.clean-item:hover{border-color:#9a835b}
 .clean-item.danger{border-color:#8a4a4a;background:#2c1d1d;color:#ffd6d6}
 .clean-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:#2c1d1d;border:1px solid #c46a6a;color:#ffd6d6;font-size:12.5px}
 .clean-confirm span{flex:1 1 100%}
@@ -232,7 +232,7 @@
 .harness-shell .window-wave{grid-template-columns:minmax(0,1fr) 196px;gap:8px;min-height:0}
 .harness-shell .window-wave .wave-card-svg{min-height:0;border-radius:8px;background:var(--inset);border:1px solid var(--line);box-sizing:border-box;width:100%}
 .harness-shell .window-wave .partial-fine{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:0;overflow:hidden;
-  border-radius:9px;padding:6px 8px;background:var(--inset);border:1px solid color-mix(in srgb,var(--panel-accent,#5fd3a8) 45%,#2c3a3f)}
+  border-radius:9px;padding:6px 8px;background:var(--inset);border:1px solid color-mix(in srgb,var(--panel-accent,#d3a75f) 45%,#2c3a3f)}
 .harness-shell .window-wave .partial-fine p{text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .harness-shell .window-wave{container-type:size}
 @container (max-height:150px){.harness-shell .window-wave .partial-fine p{display:none}}
@@ -282,8 +282,8 @@
 .harness-shell .shape-chips button{min-height:44px;min-width:44px}
 /* Review 2026-11-15 round 2: Partials / Morph pad folded to their title bar; the sound cards wrap into rows instead of scrolling sideways. */
 .harness-shell .frame-window-fold{display:flex;align-items:center;gap:6px;min-width:76px;min-height:44px;padding:0 12px;font:inherit;font-size:12px;font-weight:700;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:#dbe6e2;cursor:pointer}
-.harness-shell .frame-window-fold:hover{background:#2e4145;border-color:#7aaca0}
-.harness-shell .frame-window.is-folded .frame-window-fold{border-color:#5b9a86;color:#b2f4dc}
+.harness-shell .frame-window-fold:hover{background:#2e4145;border-color:#ac9c7a}
+.harness-shell .frame-window.is-folded .frame-window-fold{border-color:#9a835b;color:#f4dbb2}
 .harness-shell .frame-window.is-folded .frame-window-bar{border-bottom:0}
 .harness-shell .frame.frame-sound.sound-folded{grid-template-rows:172px 46px minmax(0,1fr)}
 .harness-shell .frame.sound-folded .frame-rack{height:auto;min-height:0;max-height:none;flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto}

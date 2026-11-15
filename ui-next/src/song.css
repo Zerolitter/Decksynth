@@ -6,7 +6,7 @@
 .harness-shell .song-mode button{display:flex;align-items:center;gap:6px;padding:0 14px;min-height:44px}
 .harness-shell .song-edit{min-height:44px}
 .harness-shell .song-name{width:120px;height:40px;border-radius:8px;border:1px solid #3b3d43;background:#17181b;color:#fff;font:800 14px Inter,system-ui,sans-serif;padding:0 10px}
-.harness-shell .song-name:focus{outline:none;border-color:#f5b85c}
+.harness-shell .song-name:focus{outline:none;border-color:#6de4bb}
 .harness-shell .song-label{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#b9bdc7}
 .harness-shell .song-edit .fx-segment button{min-width:44px;min-height:40px}
 .harness-shell .song-tools{display:flex;gap:4px}
@@ -14,7 +14,7 @@
 .harness-shell .song-tools button:disabled{opacity:.35}
 .harness-shell .song-gap{flex:1}
 .harness-shell .song-readout{min-width:90px;text-align:right;font:800 20px 'JetBrains Mono',ui-monospace,monospace;color:#fff}
-.harness-shell .song-readout b{color:#f5b85c}
+.harness-shell .song-readout b{color:#6de4bb}
 /* lane: which loop plays in the selected section */
 .harness-shell .lane-loop{align-self:center;width:46px;height:44px;border-radius:8px;border:1px solid color-mix(in srgb,var(--track-accent) 50%,#3b3d43);
   background:color-mix(in srgb,var(--track-accent) 14%,#23252a);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
@@ -51,7 +51,7 @@
 .harness-shell .song-stepper span{min-width:64px;text-align:center;font-size:12px;color:#b9bdc7;white-space:nowrap}
 .harness-shell .song-stepper b{font-size:15px;color:#fff}
 .harness-shell .song-view button,.harness-shell .song-row>.fx-segment button{min-height:44px;padding:0 12px}
-.harness-shell .song-readout em{font-style:normal;font-size:12px;font-weight:800;color:#f5b85c;margin-right:8px;letter-spacing:.04em;text-transform:uppercase}
+.harness-shell .song-readout em{font-style:normal;font-size:12px;font-weight:800;color:#6de4bb;margin-right:8px;letter-spacing:.04em;text-transform:uppercase}
 .harness-shell .song-action{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #3b3d43;background:#23252a;color:#e6efec;font-weight:700}
 .harness-shell .song-action:disabled{opacity:.4}
 .harness-shell .bt-name{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13px;color:#fff;white-space:nowrap}
@@ -71,10 +71,10 @@
   display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;padding:3px 4px;font:700 10px 'JetBrains Mono',ui-monospace,monospace;overflow:visible}
 .harness-shell .arr-tick.phrase{border-left-color:#4a4d56;color:#d6d9df}
 .harness-shell .arr-tick.after{background:repeating-linear-gradient(135deg,#16171a 0 6px,#1b1c20 6px 12px);color:#4b5b58}
-.harness-shell .arr-tick.picked{background:color-mix(in srgb,#f5b85c 22%,#18191c);color:#fff}
+.harness-shell .arr-tick.picked{background:color-mix(in srgb,#6de4bb 22%,#18191c);color:#fff}
 .harness-shell .arr-marker{position:absolute;left:3px;bottom:3px;z-index:2;display:flex;align-items:center;gap:3px;padding:2px 6px 2px 4px;border-radius:5px;
-  background:#f5b85c;color:#1a1306;font:800 10.5px Inter,system-ui,sans-serif;font-style:normal;white-space:nowrap;pointer-events:none}
-.harness-shell .arr-end{position:absolute;top:0;bottom:0;width:2px;background:#f5b85c;pointer-events:none}
+  background:#6de4bb;color:#1a1306;font:800 10.5px Inter,system-ui,sans-serif;font-style:normal;white-space:nowrap;pointer-events:none}
+.harness-shell .arr-end{position:absolute;top:0;bottom:0;width:2px;background:#6de4bb;pointer-events:none}
 .harness-shell .arr-lanes{flex:1;min-height:0;display:grid;grid-template-rows:repeat(4,minmax(46px,1fr));gap:5px}
 .harness-shell .arr-lane-row .arr-head{border-radius:9px;border:1px solid #393b42;background:#212227;padding:0 4px 0 0}
 .harness-shell .arr-lane-row.active .arr-head{border-color:color-mix(in srgb,var(--tc) 70%,#393b42);box-shadow:inset 3px 0 0 var(--tc)}
@@ -92,7 +92,7 @@
   border:1px solid color-mix(in srgb,var(--tc) 65%,#000);background:color-mix(in srgb,var(--tc) 24%,#1d1e22);box-shadow:inset 0 0 0 1px #0006;
   display:flex;align-items:stretch;padding:0 4px 0 0}
 .harness-shell .arr-block.empty{background:color-mix(in srgb,var(--tc) 9%,#1d1e22);border-style:dashed}
-.harness-shell .arr-block.picked{border-color:#fff;box-shadow:0 0 0 2px #f5b85c;z-index:3}
+.harness-shell .arr-block.picked{border-color:#fff;box-shadow:0 0 0 2px #6de4bb;z-index:3}
 .harness-shell .arr-block.dragging{opacity:.85;cursor:grabbing;z-index:4}
 .harness-shell .arr-block.live{background:color-mix(in srgb,var(--tc) 34%,#1d1e22)}
 .harness-shell .blk-name{flex:none;align-self:flex-start;margin:3px;min-width:18px;height:18px;padding:0 4px;border-radius:5px;display:grid;place-items:center;
@@ -106,7 +106,7 @@
   .harness-shell .arranger{gap:4px;padding-top:4px}
   .harness-shell .arr-lanes{gap:4px}
 }
-.harness-shell .song-bar .mod-sheet-done{--src:#f5b85c}
+.harness-shell .song-bar .mod-sheet-done{--src:#6de4bb}
 .harness-shell .block-tools .mod-sheet-done{--src:var(--tc)}
 /* the clips sheet only needs its content's height */
 .harness-shell .loop-backdrop{align-items:flex-start}
@@ -117,11 +117,11 @@
 .harness-shell .transport-lcd .loop-bars-trigger{height:44px;min-height:44px;min-width:86px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:0;background:transparent;color:#d8e6e1;font-size:12px;font-weight:800;padding:0 8px}
 .loop-bars-choices{position:fixed;z-index:210;display:flex;flex-direction:column;min-width:100px;padding:4px;background:#191a1d;color:#e5e6e8;border:1px solid #494c54;border-radius:6px;box-shadow:0 8px 24px #0008;color-scheme:dark}
 .loop-bars-choices button{min-width:92px;min-height:44px;padding:0 12px;border:0;border-radius:3px;background:transparent;color:inherit;text-align:left;font:inherit}
-.loop-bars-choices button[aria-selected=true]{background:#303136;color:#f0c875}
+.loop-bars-choices button[aria-selected=true]{background:#303136;color:#83e2c4}
 .loop-bars-choices button:hover{background:#36383e}
-.loop-bars-choices button:focus-visible{outline:2px solid #e7bc6b;outline-offset:-2px}
+.loop-bars-choices button:focus-visible{outline:2px solid #79d9ba;outline-offset:-2px}
 
-.harness-shell[data-page="SONG"]{--accent:#e8b66d;--c-sound:#bac1ca}
+.harness-shell[data-page="SONG"]{--accent:#7bdab9;--c-sound:#bac1ca}
 .harness-shell[data-page="SONG"] .brand-glyph,
 .harness-shell[data-page="SONG"] .transport-pad.play,
 .harness-shell[data-page="SONG"] .transport-utility,
@@ -132,12 +132,12 @@
 }
 .harness-shell[data-page="SONG"] .transport-pad.play.engaged,
 .harness-shell[data-page="SONG"] .metronome-button.active{
-  background:#342c22;border-color:#b28753;color:#f0c788;box-shadow:none
+  background:#24322d;border-color:#5da88c;color:#93e5c9;box-shadow:none
 }
-.harness-shell[data-page="SONG"] .transport-beat strong{color:#f0c788}
-.harness-shell[data-page="SONG"] .transport-beat i{color:#c19d6e}
+.harness-shell[data-page="SONG"] .transport-beat strong{color:#93e5c9}
+.harness-shell[data-page="SONG"] .transport-beat i{color:#77b8a1}
 .harness-shell[data-page="SONG"] .page-tabs{background:#17181b;border-color:#3b3d43}
-.harness-shell[data-page="SONG"] .page-tabs button.active{background:#342c22}
+.harness-shell[data-page="SONG"] .page-tabs button.active{background:#24322d}
 
 .harness-shell .song-page>.timeline{background:#202125;border-color:#3a3c42}
 .harness-shell .song-page .track-row{background:#24262b;border-color:#3a3d44}
@@ -147,18 +147,18 @@
 .harness-shell .song-toolbar{gap:10px}
 .harness-shell .song-toolbar .fx-segment{flex-wrap:nowrap;background:#18191c;border-color:#3b3d43}
 .harness-shell .song-toolbar .fx-segment button{display:flex;align-items:center;justify-content:center;gap:6px;color:#d0d3d9}
-.harness-shell .song-bar .fx-segment button.active{background:#342c22;border-color:#b28753;color:#f5dbb7}
+.harness-shell .song-bar .fx-segment button.active{background:#24322d;border-color:#5da88c;color:#beeedd}
 .harness-shell .song-toolbar .fx-segment button:not(.active):hover,
 .harness-shell .song-toolbar .song-tools button:not(:disabled):hover,
 .harness-shell .song-repeat:hover{background:#303239}
 .harness-shell .song-length{display:flex;align-items:center;gap:8px;white-space:nowrap}
 .harness-shell .song-toolbar .song-stepper button{height:44px}
-.harness-shell .song-toolbar .song-marker{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ebc18a}
+.harness-shell .song-toolbar .song-marker{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#95e0c5}
 .harness-shell .song-repeat{
   width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;
   background:#18191c;border:1px solid #484b53;border-radius:8px;color:#d0d3d9
 }
-.harness-shell .song-repeat[aria-pressed="true"]{background:#342c22;border-color:#b28753;color:#f0c788}
+.harness-shell .song-repeat[aria-pressed="true"]{background:#24322d;border-color:#5da88c;color:#93e5c9}
 
 .harness-shell .song-output.audio-scope{
   display:flex;flex-direction:row;align-items:center;gap:16px;min-height:52px;flex:none;

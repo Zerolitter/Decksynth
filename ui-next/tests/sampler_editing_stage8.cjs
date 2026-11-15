@@ -16,7 +16,8 @@ module.exports=async({p,send,latest,inside,H,OUT,DATA,assert})=>{
   await p.getByRole('radio',{name:'Threshold',exact:true}).click();
   await p.waitForFunction(()=>window.__latest.state.tracks[1].sampler.slices.length===3,null,{timeout:20000});
   // Every slice edge is a tag marker with a 44 px hit zone.
-  for(const n of [1,2,3])await inside(p.getByRole('button',{name:new RegExp('^Slice '+n+' \\d')}),'Slice '+n+' marker');
+  // The markers render a frame after the slices arrive; wait for each before measuring it.
+  for(const n of [1,2,3]){const m=p.getByRole('button',{name:new RegExp('^Slice '+n+' \\d')});await m.waitFor();await p.waitForTimeout(150);await inside(m,'Slice '+n+' marker');}
   // Drag slice 2's start: one undo step.
   const before=(await S()).slices.map(s=>s.slice(0,2));
   const m2=await p.getByRole('button',{name:/^Slice 2 \d/}).boundingBox();

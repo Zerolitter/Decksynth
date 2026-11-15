@@ -21,7 +21,7 @@ type Props = {
   onChain?:(c:FxChain)=>void; armed?:Source|null; source?:Source; live?:Live;
 };
 const CARD_IDS=['sound-tone','rack-envelope','motion-synth','rack-output','sound-filter','sound-unison','sound-character'];
-const TAGS={tone:'#7fd6bb',envelope:'#f2c46d',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
+const TAGS={tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
 /** A row of buttons for a value with a few fixed choices (UI rule: discrete values are buttons). */
 function Choice({label,name,options,value,onPick}:{label:string;name:string;options:{label:string;value:number;aria?:string}[];value:number;onPick:(v:number)=>void}){
   return <div className="fx-choice sound-choice"><span className="fx-choice-label">{label}</span>

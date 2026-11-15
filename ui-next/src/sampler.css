@@ -104,7 +104,7 @@
 .smp-sheet .smp-done{padding:0 14px}
 .drum-rack .drum-import-actions .drum-play-keys{color:var(--pad-accent);border-color:color-mix(in srgb,var(--pad-accent) 60%,var(--line))}
 /* The keyboard sits where messages pop up: on the Sampler page they show in the header's free middle, clear of the tabs, Load WAV and the waveform. */
-.decksynth-shell:has(.sampler-page) .toast{bottom:auto;top:121px;left:396px;right:auto;transform:none;max-width:630px;padding:9px 13px}
+.decksynth-shell:has(.sampler-page) .toast{bottom:auto;top:186px;left:50%;right:auto;transform:translateX(-50%);max-width:630px;padding:9px 13px}
 
 /* Sampler expansion (stage 3): Load WAV, Trim / Chop, slices to pads */
 .sampler-page .drum-device-bar{gap:12px}
@@ -121,7 +121,7 @@
 .smp-wave .smp-slice.odd{fill:color-mix(in srgb,var(--pad-accent) 17%,transparent)}
 .smp-wave .smp-slice.on{fill:color-mix(in srgb,var(--pad-accent) 36%,transparent)}
 .smp-wave .smp-edge.slice{stroke:color-mix(in srgb,var(--pad-accent) 85%,#fff);stroke-width:1.5}
-.smp-wave .smp-marker{stroke:#ffd25e;stroke-width:1.5;stroke-dasharray:4 3}
+.smp-wave .smp-marker{stroke:#70edc8;stroke-width:1.5;stroke-dasharray:4 3}
 .smp-slice-no{position:absolute;top:3px;margin-left:3px;padding:0 4px;border-radius:4px;background:#0b0d0fb0;color:#dfe9e5;font-size:10.5px;font-weight:800;pointer-events:none;font-variant-numeric:tabular-nums}
 .smp-slice-no.on{background:var(--pad-accent);color:#101315}
 .sampler-page .smp-handle.h-slice_start,.sampler-page .smp-handle.h-slice_end{top:50%}
@@ -182,7 +182,7 @@
 .sampler-page .smp-clear-sample:hover{background:#4a2a27;border-color:#a54a43}
 .smp-meter u{position:absolute;top:0;bottom:0;width:2px;background:#ffd36b;opacity:.9;transform:translateX(-1px);pointer-events:none}
 .smp-record-gain{display:flex;align-items:center;gap:12px;min-height:56px}
-.smp-record-gain em{font-style:normal;color:#ffd36b;font-size:13px}
+.smp-record-gain em{font-style:normal;color:#7befcb;font-size:13px}
 
 /* Stage 7: value boxes replace − / + steppers. */
 .smp-chop-params,.smp-record-row{display:flex;align-items:center;gap:8px}
@@ -195,3 +195,34 @@
 .smp-handle.h-slice_start:not(.on) b{background:#0b0d0fd0;color:#dfe9e5}
 .smp-handle.h-slice_start b{left:25px}
 .smp-edge.slice.on{stroke:var(--pad-accent);stroke-width:2}
+
+/* Sample library sheet (stage 11): browses like the sound presets (rule 40: selected is orange). */
+.smp-library{width:min(960px,96vw);max-height:calc(100dvh - 24px);overflow:auto;border-color:#4a4d54}
+.smp-library header h2{font-size:15px}
+.smp-library .lib-count{margin-left:auto;color:var(--soft);font-size:12px}
+.smp-library .lib-icon,.smp-library .smp-done{width:44px;height:44px;display:grid;place-items:center;border-radius:8px;background:#23262b;border:1px solid #3a3d43;color:#d6d9df}
+.smp-library .preset-cats button small{margin-left:6px;font-size:10.5px;color:#9aa2ab}
+.smp-library .lib-grid{grid-template-columns:repeat(4,minmax(0,1fr));min-height:96px;max-height:252px;overflow:auto;align-content:start}
+.smp-library .lib-card{position:relative;padding:0;flex-direction:row;align-items:stretch;min-height:76px;border:1px solid #3a3d43;background:#202327}
+.smp-library .lib-load{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:8px 10px;background:none;border:0;color:inherit;text-align:left}
+.smp-library .lib-load strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smp-library .lib-bars rect{fill:#9aa2ab}
+.smp-library .lib-card.selected .lib-bars rect{fill:var(--accent)}
+.smp-library .lib-bars.empty path{stroke:#4a4d54;stroke-width:1.5}
+.smp-library .lib-play{width:44px;flex:none;display:grid;place-items:center;background:#262a2f;border:0;border-left:1px solid #3a3d43;border-radius:0 10px 10px 0;color:#d6d9df}
+.smp-library .lib-play[aria-pressed=true]{background:#3e3424;color:var(--accent)}
+.smp-library .lib-empty{grid-column:1/-1;color:var(--soft);padding:16px 4px}
+.smp-library .lib-pages{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--soft)}
+.smp-library .lib-pages button{width:44px;height:40px;display:grid;place-items:center;border-radius:8px;background:#23262b;border:1px solid #3a3d43;color:#d6d9df}
+.smp-library .lib-save{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,.7fr) auto;gap:10px;align-items:end;padding:10px;border-radius:10px;background:#1a1c20;border:1px solid #2e3238}
+.smp-library .lib-save label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--soft);font-weight:700}
+.smp-library .lib-save input{height:40px;padding:0 10px;border-radius:8px;border:1px solid #3a3d43;background:#121417;color:#eef0f2;user-select:text}
+.smp-library .lib-save input:focus{outline:none;border-color:#8b9196}
+.smp-library .lib-save-button{height:44px;display:flex;align-items:center;gap:8px;padding:0 16px}
+.smp-library .lib-folders{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--soft)}
+.smp-library .lib-folders>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.smp-library .lib-folders b{width:70px;color:#d6d9df}
+.smp-library .lib-folders button{min-height:44px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;background:#23262b;border:1px solid #3a3d43;color:#d6d9df}
+.smp-library .lib-folder{display:inline-flex;align-items:center;gap:4px;padding:2px 2px 2px 10px;border-radius:16px;background:#23262b;border:1px solid #3a3d43}
+.smp-library .lib-folder button{min-height:40px;width:40px;padding:0;justify-content:center;border:0;background:none}
+.smp-library .lib-error{color:#e78d88;margin:0}

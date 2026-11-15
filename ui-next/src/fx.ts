@@ -243,7 +243,7 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
   velocity_cutoff:{label:'Velocity cutoff',card:'sound-filter',min:-1,max:1},
   character:{label:'Character',card:'sound-character',min:-1,max:1},
 };
-export const SOUND_COLOR='#7fd6bb';
+export const SOUND_COLOR='#ddbd82';
 /** Name, knob label and colour of a link target, for lists and badges. */
 export function targetInfo(t:{module:FxTarget['module'];param:string}){
   if(t.module==='sound')return {name:'Sound',label:SOUND_TARGETS[t.param]?.label??t.param,color:SOUND_COLOR};

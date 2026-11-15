@@ -42,7 +42,8 @@ const sampleKeys=[
  ['← / → on a marker','Nudge it 1% of the view; Shift 10%, Ctrl 0.1%.'],
  ['S / J / Delete','Split at the last tap / join with the next slice / remove the slice\'s start edge.'],
  ['Space / Enter','Play the chosen slice.'],
- ['Right-click / touch-hold','Radial menu: Zoom in / out / Fit whole; in Chop also Split here, Join next, Audition and Clear slices (the sample stays).'],
+ ['Right-click / touch-hold','Radial menu: Zoom in / out / Fit whole; in Chop also Split here, Join next, Audition, Save to library and Clear slices (the sample stays).'],
+ ['Library','The sample library: tap a card to load it (Undo brings the old sample back), ▶ to hear it first. Save the whole sample, its trim or a slice into a category. Saves to and Browses set the folders; they are remembered.'],
  ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];
 function KeyTable({rows}:{rows:string[][]}){

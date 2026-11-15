@@ -12,10 +12,10 @@
 .harness-shell .env-bubble text{fill:#fff;font-size:12px;font-weight:800}
 .harness-shell .env-help{margin:0;font-size:11px;color:var(--soft)}
 .harness-shell button.rack-mini-env{border:1px solid var(--line);cursor:pointer}
-.harness-shell button.rack-mini-env:hover{border-color:#f2c46d}
+.harness-shell button.rack-mini-env:hover{border-color:#7ce3c2}
 /* the editor is open above: the card shows only its knobs, so the graph is never shown twice */
 .harness-shell .frame:has(.frame-window[data-window="sound"][data-view="ENVELOPE"]) .rack-mini-env{display:none}
-.harness-shell .frame:has(.frame-window[data-window="sound"][data-view="ENVELOPE"]) .card-envelope{border-color:#f2c46d}
+.harness-shell .frame:has(.frame-window[data-window="sound"][data-view="ENVELOPE"]) .card-envelope{border-color:#7ce3c2}
 /* on-knob depth: the value bubble above the dial while the ring is dragged */
 .ring-bubble{position:fixed;z-index:200;transform:translate(-50%,-110%);padding:4px 9px;border-radius:8px;background:#0b1113;
   border:1px solid var(--src);color:#fff;font:800 13px/1.2 Inter,system-ui,sans-serif;pointer-events:none;white-space:nowrap}
@@ -30,4 +30,4 @@
 .harness-shell .bipolar.typing span{color:var(--soft);font-weight:800}
 /* macro editor: the link summary uses the whole body now that the copied slider is gone */
 .harness-shell .pe-links.wide{grid-column:1 / -1;overflow:hidden}
-.harness-shell .scope-stat .warn{color:#ffb35c}
+.harness-shell .scope-stat .warn{color:#6eedbe}

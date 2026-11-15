@@ -3,7 +3,7 @@
 :root{
   --app:#101113;--panel:#1b1d21;--panel-hi:#22252a;--raised:#282b30;
   --inset:#101215;--line:#3a3e45;--line-soft:#2e3238;--text:#e5e8ec;
-  --soft:#b7bdc6;--muted:#a2aab4;--accent:#82ddc1;--amber:#e5b674;
+  --soft:#b7bdc6;--muted:#a2aab4;--accent:#ddbd82;--amber:#80d9b9;
   --red:#e78d88;--blue:#9ac0df;--shadow:rgba(0,0,0,.45);
   font-family:"Segoe UI",Inter,"DejaVu Sans",sans-serif;color:var(--text);
   font-synthesis:none;font-size:13px;
@@ -26,11 +26,11 @@ button svg{flex:none}
   box-shadow:inset 0 1px rgba(255,255,255,.06),0 2px 6px rgba(0,0,0,.22)}
 .app-identity{display:flex;align-items:center;gap:9px;min-width:250px}
 .brand-glyph{width:38px;height:38px;display:grid;place-items:center;color:var(--accent);
-  background:linear-gradient(150deg,#2b4142,#1d2b31);border:1px solid #40625a;border-radius:9px;
+  background:linear-gradient(150deg,#2b4142,#1d2b31);border:1px solid #625740;border-radius:9px;
   box-shadow:inset 0 1px rgba(255,255,255,.09),0 3px 7px #101517}
 .brand-names{display:flex;flex-direction:column;gap:3px;white-space:nowrap}
 .brand-names strong{font-size:16px;letter-spacing:.035em;font-weight:850}
-.brand-names strong span{font-size:11px;font-weight:650;color:#83c9bd}
+.brand-names strong span{font-size:11px;font-weight:650;color:#c9b483}
 .brand-names small{font-size:9px;color:#a1b0b9;letter-spacing:.15em;font-weight:700}
 .app-mode-switch{display:flex;align-items:center;padding:3px;background:#10171d;
   border:1px solid #3b4750;border-radius:8px;box-shadow:inset 0 2px 4px #0a1015}
@@ -38,19 +38,19 @@ button svg{flex:none}
   background:transparent;display:flex;align-items:center;justify-content:center;gap:9px;
   text-transform:uppercase;font-size:11px;letter-spacing:.09em;font-weight:850;
   transition:background .12s,color .12s,box-shadow .12s}
-.app-mode-switch button.active{background:linear-gradient(#354b4a,#2c4543);color:#dafbf1;
+.app-mode-switch button.active{background:linear-gradient(#4b4535,#453e2c);color:#dafbf1;
   box-shadow:inset 0 1px rgba(255,255,255,.12),0 2px 5px #080d10}
 .app-mode-switch button:active{transform:translateY(1px)}
 .app-header-right{display:flex;align-items:center;gap:9px;margin-left:auto;min-width:0}
 .device-pill{max-width:205px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   padding:9px 12px;border-radius:5px;background:#141b22;border:1px solid var(--line-soft);
   color:var(--soft);font-size:11px}
-.device-pill.connected{border-color:#41635c;color:#b9e4d6}
+.device-pill.connected{border-color:#635841;color:#e4d4b9}
 .pill-led{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:9px;
   background:#5c717c;box-shadow:0 0 0 2px #2b3a40}
-.device-pill.connected .pill-led{background:var(--accent);box-shadow:0 0 9px #82ddc188}
-.demo-badge{font-size:9px;letter-spacing:.07em;font-weight:800;color:#f0cc99;
-  border:1px solid #8d6747;border-radius:4px;padding:8px;background:#413123}
+.device-pill.connected .pill-led{background:var(--accent);box-shadow:0 0 9px #ddbd8288}
+.demo-badge{font-size:9px;letter-spacing:.07em;font-weight:800;color:#a3e6cf;
+  border:1px solid #4f856f;border-radius:4px;padding:8px;background:#263e34}
 .icon-button,.transport-utility{width:40px;height:40px;display:grid;place-items:center;
   border:1px solid #3b4955;border-radius:6px;color:#b9c6cb;
   background:linear-gradient(160deg,#34404b,#26313a)}
@@ -65,13 +65,13 @@ button svg{flex:none}
   background:linear-gradient(160deg,#354554,#293641);
   box-shadow:inset 0 1px rgba(255,255,255,.1),0 3px 4px rgba(0,0,0,.25);
   transition:transform .09s,box-shadow .09s,background .11s,border-color .11s}
-.transport-pad.play{border-color:#4b6a64}
+.transport-pad.play{border-color:#6a604b}
 .transport-pad.play svg{color:var(--accent)}
 .transport-pad.stop svg{color:#bdcad3}
 .transport-pad.record{background:linear-gradient(#59363a,#492a30);border-color:#9e5356;min-width:128px}
 .transport-pad.record svg{color:#f2aba5}
-.transport-pad.engaged{background:linear-gradient(#405c50,#24443f);border-color:#76c7ac;
-  box-shadow:inset 0 1px rgba(255,255,255,.14),0 0 13px #79dcbf22}
+.transport-pad.engaged{background:linear-gradient(#5c5140,#443b24);border-color:#c7a976;
+  box-shadow:inset 0 1px rgba(255,255,255,.14),0 0 13px #dcb97922}
 .transport-pad.record.engaged{background:linear-gradient(#8f373a,#5e272b);
   box-shadow:0 0 13px #ed797944}
 .transport-pad:hover{filter:brightness(1.1)}
@@ -84,12 +84,12 @@ button svg{flex:none}
 .tempo-display>span,.bars-display>span,.transport-beat>span{font-size:9px;font-weight:800;
   letter-spacing:.08em;color:var(--muted)}
 .tempo-display strong{font-size:28px;letter-spacing:.04em;min-width:61px;text-align:center;
-  font-family:"DejaVu Sans Mono",monospace;color:#ecdfbf;font-weight:700;
-  text-shadow:0 0 15px #cfa55d33}
+  font-family:"DejaVu Sans Mono",monospace;color:#c4e7dc;font-weight:700;
+  text-shadow:0 0 15px #6ac2a533}
 .tempo-adjust{display:flex;flex-direction:column;gap:2px;margin-left:1px}
 .tempo-adjust button{width:25px;height:21px;background:#2a3944;border:1px solid #475760;
   color:#eef4f3;border-radius:3px;font-weight:800}
-.tempo-adjust button:active{background:#52746d}
+.tempo-adjust button:active{background:#746952}
 .bars-display select{min-width:80px;height:37px;color:var(--text);font-size:12px;font-weight:750;
   background:#2b3945;border:1px solid #4c5e69;border-radius:4px;padding:0 5px;cursor:pointer}
 .metronome-button{height:52px;min-width:80px;display:flex;align-items:center;gap:8px;justify-content:center;
@@ -97,15 +97,15 @@ button svg{flex:none}
   font-size:11px;letter-spacing:.06em}
 .metronome-button .button-led,.sync-dot,.state-led{width:7px;height:7px;display:inline-block;background:#5b6972;
   border-radius:50%;box-shadow:inset 0 1px #29323a}
-.metronome-button.active{background:#274138;color:#cbf3dc;border-color:#4d896e}
-.metronome-button.active .button-led,.sync-dot.active{background:#7ce6b5;box-shadow:0 0 10px #73d7ac99}
+.metronome-button.active{background:#413727;color:#f3e0cb;border-color:#89704d}
+.metronome-button.active .button-led,.sync-dot.active{background:#e6ba7c;box-shadow:0 0 10px #d7ae7399}
 .transport-spacer{flex:1;min-width:4px}
 .transport-beat{height:53px;display:flex;align-items:flex-end;justify-content:center;
-  flex-direction:column;gap:1px;padding:0 12px;border:1px solid #34534c;
-  background:linear-gradient(#14241e,#111b18);border-radius:5px}
+  flex-direction:column;gap:1px;padding:0 12px;border:1px solid #534934;
+  background:linear-gradient(#241e14,#1b1711);border-radius:5px}
 .transport-beat strong{font:700 22px/1 "DejaVu Sans Mono",monospace;color:var(--accent);letter-spacing:.09em;
-  text-shadow:0 0 12px #6bd3b34d}
-.transport-beat strong i{font-style:normal;color:#6d9287}
+  text-shadow:0 0 12px #d3ae6b4d}
+.transport-beat strong i{font-style:normal;color:#92856d}
 .workspace{min-height:0;overflow:hidden;padding:10px 13px 9px}
 .song-workspace{display:grid;grid-template-rows:minmax(310px,1fr) minmax(191px,.64fr);gap:9px}
 .sound-workspace{display:grid;grid-template-rows:minmax(290px,1fr) 205px;gap:9px}
@@ -125,10 +125,10 @@ button svg{flex:none}
 .timeline-toolbar-right{display:flex;align-items:center;gap:17px}
 .timeline-state{display:flex;align-items:center;gap:7px;color:#a9bbbe;font-size:10px;
   letter-spacing:.08em;font-weight:900}
-.timeline-state .state-led{background:var(--accent);box-shadow:0 0 9px #78d5bd55}
+.timeline-state .state-led{background:var(--accent);box-shadow:0 0 9px #d5b67855}
 .timeline-state.recording{color:#f3afa6}
 .timeline-state.recording .state-led{background:#e68882;box-shadow:0 0 9px #e6888277;animation:led-throb .9s infinite}
-.measure-readout{font:700 20px "DejaVu Sans Mono",monospace;color:#d6e8e2;letter-spacing:.06em}
+.measure-readout{font:700 20px "DejaVu Sans Mono",monospace;color:#e8e1d6;letter-spacing:.06em}
 .measure-readout span{color:#69847f}
 .tracks{display:grid;grid-template-rows:repeat(4,minmax(45px,1fr));gap:5px;
   flex:1;min-height:0;padding:8px 9px 6px}
@@ -154,7 +154,7 @@ button svg{flex:none}
 .clip-lane{position:relative;height:100%;min-width:0;background:#101922;
   border:1px solid #2a3943;border-radius:4px;overflow:hidden;cursor:pointer}
 .clip-lane.has-notes{background:linear-gradient(90deg,#1b3035,#15232d)}
-.clip-lane.is-selected{border-color:color-mix(in srgb,var(--track-accent) 65%,#385c56)}
+.clip-lane.is-selected{border-color:color-mix(in srgb,var(--track-accent) 65%,#5c5138)}
 .clip-gridlines{position:absolute;inset:0;
   background-image:linear-gradient(to right,rgba(125,154,163,.15) 1px,transparent 1px);pointer-events:none}
 .clip-bar-numbers{position:absolute;inset:6px 0 auto;height:15px;pointer-events:none}
@@ -173,7 +173,7 @@ button svg{flex:none}
   display:flex;align-items:center;gap:7px;color:#687f8a;font-size:10px;white-space:nowrap;
   pointer-events:none}
 .clip-playhead{height:100%;position:absolute;top:0;z-index:5;width:2px;
-  background:#d8f4ef;box-shadow:0 0 9px #90eed099;pointer-events:none}
+  background:#d8f4ef;box-shadow:0 0 9px #eecc9099;pointer-events:none}
 .playhead-cap{display:block;position:absolute;top:0;left:-5px;width:12px;height:9px;
   background:#eafbf6;clip-path:polygon(0 0,100% 0,50% 100%)}
 .clip-status{position:absolute;top:5px;right:6px;z-index:4;
@@ -186,16 +186,16 @@ button svg{flex:none}
 .pattern-panel{display:flex;flex-direction:column;padding:0 10px 5px}
 .pattern-header{height:38px;display:flex;align-items:center;justify-content:space-between;
   border-bottom:1px solid #2f3e45;gap:10px;flex:none}
-.pattern-heading{display:flex;align-items:center;gap:9px;color:#8addc8}
+.pattern-heading{display:flex;align-items:center;gap:9px;color:#ddc18a}
 .pattern-heading strong{font-weight:770;color:var(--text);font-size:13px}
 .pattern-head-right{display:flex;align-items:center;gap:7px;color:var(--soft);
   font-size:10px;font-weight:800;letter-spacing:.05em}
 .pattern-head-right b{margin-left:10px;color:var(--accent);font:750 15px "DejaVu Sans Mono",monospace}
-.pattern-head-right b i{color:#5f7977;font-style:normal}
+.pattern-head-right b i{color:#79725f;font-style:normal}
 .pattern-cols{display:grid;grid-template-columns:144px repeat(16,minmax(0,1fr));gap:3px;
   align-items:center;height:20px;margin:2px 1px 3px;flex:none}
 .pattern-colnum{text-align:center;font:750 9px "DejaVu Sans Mono",monospace;color:#657c89}
-.pattern-colnum.current{color:#f2fcf8;text-shadow:0 0 7px #90e8c0}
+.pattern-colnum.current{color:#f2fcf8;text-shadow:0 0 7px #e8c390}
 .pattern-corner{font-size:9px;color:#8195a1;font-weight:750;letter-spacing:.05em}
 .pattern-rows{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0}
 .pattern-row{display:grid;grid-template-columns:144px repeat(16,minmax(0,1fr));gap:3px;
@@ -209,14 +209,14 @@ button svg{flex:none}
   border:1px solid #2b3b45;border-radius:4px;overflow:hidden}
 .pattern-pad{height:60%;width:70%;border-radius:2px;background:#29343c;transition:background .09s,box-shadow .09s,transform .09s}
 .pattern-step.note-on .pattern-pad{background:color-mix(in srgb,var(--track-accent) 70%,#172631);
-  box-shadow:inset 0 1px #bddbd44a}
+  box-shadow:inset 0 1px #dbd1bd4a}
 .pattern-step.note-held .pattern-pad{background:color-mix(in srgb,var(--track-accent) 27%,#1b282f)}
-.pattern-step.is-current{border-color:#bdedd4;background:#30453e;box-shadow:0 0 9px #7adbbd40;
+.pattern-step.is-current{border-color:#edd8bd;background:#453d30;box-shadow:0 0 9px #dbb87a40;
   z-index:2;animation:step-flash .2s ease-out}
-.pattern-step.is-current .pattern-pad{background:#c5f5df;transform:scale(1.07);
-  box-shadow:0 0 15px #c4f8dc98}
+.pattern-step.is-current .pattern-pad{background:#f5e1c5;transform:scale(1.07);
+  box-shadow:0 0 15px #f8e1c498}
 .step-scan{position:absolute;top:0;left:0;right:0;height:2px;background:#d2fff0;
-  box-shadow:0 0 7px #98ecca}
+  box-shadow:0 0 7px #eccb98}
 .pattern-footer{height:23px;display:flex;align-items:center;gap:15px;color:#7d949c;
   font-size:9px;flex:none}
 .pattern-footer span{display:flex;align-items:center;gap:6px}
@@ -224,12 +224,12 @@ button svg{flex:none}
 .audio-scope{display:flex;flex-direction:column}
 .scope-top{flex:none;height:38px;padding:0 12px;display:flex;align-items:center;
   justify-content:space-between;border-bottom:1px solid #31404a;gap:7px}
-.scope-title{display:flex;align-items:center;gap:7px;color:#85decd}
+.scope-title{display:flex;align-items:center;gap:7px;color:#dec285}
 .scope-title span{font-size:9px;font-weight:800;letter-spacing:.07em}
 .scope-title strong{color:var(--text);font-size:12px}
 .scope-stat{display:flex;align-items:center;gap:9px;color:#8fa4ac;font-size:9px}
 .scope-stat>span{display:flex;align-items:center;gap:3px;white-space:nowrap}
-.preview-label{font-size:8px!important;color:#d9b986}
+.preview-label{font-size:8px!important;color:#8fd0ba}
 .scope-middle{display:flex;gap:9px;padding:7px 10px;flex:1;min-height:0}
 .scope-canvas{width:100%;height:100%;flex:1;min-width:0;border:1px solid #27414b;
   border-radius:4px;background:#0a121a}
@@ -245,17 +245,17 @@ button svg{flex:none}
 .scope-footer{flex:none;height:23px;padding:0 10px 5px;display:flex;align-items:center;
   justify-content:space-between;color:#708a96;font-size:9px;letter-spacing:.06em}
 .scope-footer>div{display:flex;gap:14px}
-.scope-footer strong{color:#c6e3df}
+.scope-footer strong{color:#e3dbc6}
 .loading-workspace{display:flex;align-items:center;justify-content:center;flex-direction:column;
-  gap:11px;color:#96c5b6}
+  gap:11px;color:#c5b496}
 .sound-lab{display:flex;flex-direction:column}
 .sound-lab-head{height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;
   border-bottom:1px solid #34404a;padding:0 12px}
 .sound-lab-head h2{font-size:16px;margin:4px 0 0;font-weight:800}
-.sound-lab-head h2 span{color:#688780;margin:0 4px}
-.sound-lab-head h2 strong{color:#a7dfcc;font-weight:700}
+.sound-lab-head h2 span{color:#877d68;margin:0 4px}
+.sound-lab-head h2 strong{color:#dfcaa7;font-weight:700}
 .sound-save{height:37px;display:flex;gap:8px;align-items:center;
-  border:1px solid #3e675a;color:#b2e4d0;background:#2b403c;
+  border:1px solid #67583e;color:#e4d0b2;background:#40392b;
   padding:0 11px;border-radius:5px;font-size:10px;font-weight:800}
 .sound-save:active{transform:translateY(1px)}
 .sound-lab-body{display:grid;grid-template-columns:174px minmax(0,1fr);
@@ -271,14 +271,14 @@ button svg{flex:none}
   min-width:0;flex:none}
 .patch-row:hover{background:#293945}
 .patch-row.selected{background:#293f40;color:#e3fff3;box-shadow:inset 3px 0 var(--accent)}
-.patch-icon{color:#88bbaa;display:grid;place-items:center;flex:none}
+.patch-icon{color:#bba888;display:grid;place-items:center;flex:none}
 .patch-row>span:nth-child(2){min-width:0;display:flex;flex-direction:column;gap:1px}
 .patch-row strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .patch-row small{font-size:8px;color:#85a0a9;letter-spacing:.08em}
-.patch-active{color:#8bdac1;margin-left:auto;flex:none}
+.patch-active{color:#dabe8b;margin-left:auto;flex:none}
 .patch-note{margin-top:auto;display:flex;flex-direction:column;padding:10px;gap:4px;
   border-top:1px solid #31434c;color:#90aab2;font-size:9px;line-height:1.3}
-.patch-note strong{color:#bfe4d8}
+.patch-note strong{color:#e4d7bf}
 .spectral-card{display:flex;flex-direction:column;background:#141d26;
   border:1px solid #364853;border-radius:4px;overflow:hidden;min-width:0;min-height:0}
 .spectral-head{flex:none;display:flex;align-items:center;justify-content:space-between;
@@ -286,7 +286,7 @@ button svg{flex:none}
 .spectral-head h3{font-size:13px;margin:2px 0 0}
 .spectral-selected{display:flex;align-items:center;gap:8px}
 .spectral-selected span{font-size:9px;color:#8fa8b2}
-.spectral-selected strong{color:#d3e6df;font:750 22px "DejaVu Sans Mono",monospace}
+.spectral-selected strong{color:#e6dfd3;font:750 22px "DejaVu Sans Mono",monospace}
 .harmonic-spectrum{flex:1;min-height:115px;max-height:180px;position:relative;
   display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;
   background:#0d1620;padding:8px 6px 7px;touch-action:none;user-select:none}
@@ -296,21 +296,21 @@ button svg{flex:none}
 .harmonic-bar{position:relative;border:1px solid transparent;min-width:0;
   background:transparent;color:#9dafb7;display:flex;flex-direction:column;
   align-items:center;justify-content:space-between;padding:1px 1px 0;cursor:ns-resize}
-.harmonic-bar.current{border-color:#5f9783;border-radius:3px;background:#1e3434}
+.harmonic-bar.current{border-color:#97825f;border-radius:3px;background:#342f1e}
 .harmonic-bar .bar-index{font:750 9px "DejaVu Sans Mono",monospace;z-index:2}
 .bar-line{position:absolute;top:22px;bottom:16px;width:52%;display:flex;align-items:flex-end;
   background:var(--raised);border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
 .bar-line span{width:100%;height:var(--partial);background:linear-gradient(0deg,
   color-mix(in srgb,var(--partial-color) 54%,#172333),var(--partial-color));
-  border-top:2px solid #bceee2;box-shadow:0 -1px 9px #89d8c835;transition:height .07s}
-.bar-value{font:650 9px "DejaVu Sans Mono",monospace;color:#b6d5cf;z-index:2}
+  border-top:2px solid #eedebc;box-shadow:0 -1px 9px #d8bf8935;transition:height .07s}
+.bar-value{font:650 9px "DejaVu Sans Mono",monospace;color:#d5cbb6;z-index:2}
 .shape-selector{flex:none;display:flex;align-items:center;gap:7px;padding:6px 8px;
   border-top:1px solid #2f424b;min-height:39px}
 .shape-selector>span{font-size:9px;color:#7f9aa5;font-weight:800;white-space:nowrap}
 .shape-buttons{display:flex;flex:1;gap:4px;min-width:0}
 .shape-buttons button{min-width:0;flex:1;height:27px;border:1px solid #3a5259;
   background:#26353f;color:#abc2c6;font-size:9px;font-weight:700;border-radius:3px}
-.shape-buttons button:hover,.shape-buttons button.selected{background:#3b5851;border-color:#8bd7ba;color:#f0fff7}
+.shape-buttons button:hover,.shape-buttons button.selected{background:#584e3b;border-color:#d7ba8b;color:#f0fff7}
 .shape-buttons button:active{transform:translateY(1px)}
 .spectral-footer{display:grid;grid-template-columns:minmax(0,1fr) 122px;
   gap:5px;height:82px;padding:5px 8px;background:#1d2a32;border-top:1px solid #344651}
@@ -326,10 +326,10 @@ button svg{flex:none}
 .rack-heading{height:34px;display:flex;align-items:center;justify-content:space-between;
   padding:0 10px;background:#222c36;border-bottom:1px solid #3b4a56;flex:none}
 .rack-heading>div{display:flex;align-items:center;gap:8px;font-size:12px}
-.rack-status-led{display:inline-block;width:7px;height:7px;border-radius:50%;box-shadow:0 0 8px #92eecba0}
+.rack-status-led{display:inline-block;width:7px;height:7px;border-radius:50%;box-shadow:0 0 8px #eecb92a0}
 .rack-divider{color:#677e85}
 .rack-track-label{color:#9db7b6}
-.rack-heading>button{height:28px;background:transparent;border:0;color:#add5c5;
+.rack-heading>button{height:28px;background:transparent;border:0;color:#d5c5ad;
   font-size:9px;font-weight:800;letter-spacing:.07em;display:flex;align-items:center;gap:4px}
 .rack-heading>button:hover{color:white}
 .rack-card-row{display:flex;gap:5px;min-height:0;flex:1;padding:6px 8px}
@@ -361,9 +361,9 @@ button svg{flex:none}
   color:#bbd2cf;border-radius:4px;font-size:10px;font-weight:800}
 .rack-mute.on{background:#60373b;border-color:#9f6468;color:#fff0ed}
 .mini-graph-btn{display:flex;align-items:center;border:1px solid #35525a;
-  border-radius:4px;width:100%;height:55px;background:#0d171e;padding:2px;gap:1px;color:#a0d6c6}
+  border-radius:4px;width:100%;height:55px;background:#0d171e;padding:2px;gap:1px;color:#d6c3a0}
 .mini-graph-btn .env-graph{width:100%;height:47px}
-.mini-graph-btn:hover{border-color:#80cbb1}
+.mini-graph-btn:hover{border-color:#cbaf80}
 .env-summary .knob-target{width:41px;height:41px}
 .parameter-knob{display:flex;align-items:center;flex-direction:column;
   justify-content:flex-start;min-width:58px;gap:0;position:relative}
@@ -374,10 +374,10 @@ button svg{flex:none}
 .knob-svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 3px 3px #070e13)}
 .knob-track{stroke:#45545f;stroke-width:3.7;fill:none;stroke-linecap:round}
 .knob-progress{stroke-width:3.7;fill:none;stroke-linecap:round;
-  filter:drop-shadow(0 0 3px #80d9bb80)}
+  filter:drop-shadow(0 0 3px #d9b88080)}
 .knob-face{fill:#303942;stroke:#10151a;stroke-width:1.6}
 .knob-indicator{stroke-width:2.5;stroke-linecap:round}
-.knob-value{color:#d2e4e3;font:700 10px "DejaVu Sans Mono",monospace;
+.knob-value{color:#e4dfd2;font:700 10px "DejaVu Sans Mono",monospace;
   padding:3px 4px;border:1px solid transparent;background:transparent;white-space:nowrap;
   border-radius:3px}
 .knob-value:hover{border-color:#657f7a;background:#243840}
@@ -386,28 +386,28 @@ button svg{flex:none}
   border:1px solid var(--accent);border-radius:3px}
 .float-shade,.modal-screen{position:fixed;inset:0;background:#060a0ebd;z-index:100;
   display:grid;place-items:center;padding:20px;backdrop-filter:blur(2px)}
-.floating-envelope,.settings-dialog{width:min(750px,95vw);background:#1b252d;border:1px solid #5b7974;
+.floating-envelope,.settings-dialog{width:min(750px,95vw);background:#1b252d;border:1px solid #79705b;
   border-radius:9px;box-shadow:0 15px 50px #030607;display:flex;flex-direction:column;padding:13px;gap:12px}
 .floating-envelope>header,.settings-dialog>header{display:flex;align-items:center;justify-content:space-between}
 .floating-envelope h3,.settings-dialog h2{margin:4px 0;font-size:19px}
 .floating-envelope>.env-graph{width:100%;height:165px;background:#101c24;border:1px solid #354b51;border-radius:5px}
 .float-knobs{display:flex;justify-content:space-evenly;gap:10px}
 .floating-envelope p,.settings-dialog p{color:#a7bec0;font-size:12px;line-height:1.55}
-.close-float,.modal-close{height:37px;border:1px solid #48605f;color:#d6eee7;
+.close-float,.modal-close{height:37px;border:1px solid #605a48;color:#eee6d6;
   background:#273c43;border-radius:5px;padding:0 12px}
 .setting-field{display:flex;flex-direction:column;gap:10px}
 .setting-field>span{display:flex;align-items:center;gap:8px;color:#9db6b7;
   font-size:10px;letter-spacing:.06em;font-weight:800}
 .setting-field select{min-height:50px;padding:0 14px;background:#263740;
-  color:#f0f4f5;border:1px solid #52706b;border-radius:6px;font-size:14px}
+  color:#f0f4f5;border:1px solid #706752;border-radius:6px;font-size:14px}
 .panic-action{height:46px;border:1px solid #bd7877;color:#f7babb;background:#59353b;
   border-radius:5px;font-size:12px;font-weight:800}
 .app-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:0 14px;background:#1b242c;border-top:1px solid #36444d}
 .foot-left,.foot-right{display:flex;align-items:center;gap:11px;min-width:0}
 .footer-brand{font-size:9px;font-weight:850;letter-spacing:.09em;color:#78948f}
-.footer-status{font-size:9px;color:#a6d2bc;border:1px solid #36594a;border-radius:3px;
-  padding:3px 6px;background:#1b3028;letter-spacing:.08em}
+.footer-status{font-size:9px;color:#d2bfa6;border:1px solid #594b36;border-radius:3px;
+  padding:3px 6px;background:#30281b;letter-spacing:.08em}
 .footer-status.error{color:#f7c6c4;border-color:#965b5d;background:#482b32}
 .foot-detail{font-size:10px;color:#93adb3}
 .foot-detail b{padding:0 5px;color:#607b82}
@@ -417,7 +417,7 @@ button svg{flex:none}
 .foot-right button:hover{color:#e2fff1;background:#2a3a40}
 .toast{position:fixed;left:50%;bottom:53px;transform:translateX(-50%);
   z-index:120;display:flex;align-items:center;gap:14px;max-width:85vw;
-  background:#1d2f34;border:1px solid #70938e;border-radius:6px;
+  background:#1d2f34;border:1px solid #938970;border-radius:6px;
   color:#dcf9ed;padding:11px 13px;font-size:12px;box-shadow:0 6px 25px #070e13}
 .toast button{background:transparent;border:0;color:#c3efdf}
 @keyframes led-throb{50%{opacity:.33;box-shadow:0 0 2px #e6888277}}

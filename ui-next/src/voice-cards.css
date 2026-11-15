@@ -1,7 +1,7 @@
 /* Filter, Unison and Character cards on the Sound rack (patch 24). */
 .harness-shell .sound-choice{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 4px}
 .harness-shell .sound-choice .fx-choice-label{font-size:10.5px;font-weight:700;color:var(--soft);text-align:center}
-.harness-shell .sound-choice .fx-segment{flex-wrap:nowrap;padding:2px;gap:2px;--fx-color:var(--track-accent,#5fd3a8)}
+.harness-shell .sound-choice .fx-segment{flex-wrap:nowrap;padding:2px;gap:2px;--fx-color:var(--track-accent,#d3a75f)}
 .harness-shell .sound-choice .fx-segment button{flex:0 0 auto;min-width:40px;min-height:40px;padding:0 6px;font-size:12px;font-weight:800}
 .harness-shell .rack-knobs.is-off .sound-knob-cell{opacity:.45}
 /* Audio gate: step strip on the card and its sheet */

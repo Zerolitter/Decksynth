@@ -576,6 +576,7 @@ function App() {
         onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}/>
       :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
         runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
+        library={snapshot?.sample_library} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}
         onLoadWav={async()=>{if(isPreview||!api){setToast('Open the native audio app to load a WAV');return;}
           const id=track.sampler?.id,tr=selected;const filepath=await api.chooseFile('open','sample');
           if(filepath&&id)command('sampler_load_wav',[tr,id,filepath]);}}

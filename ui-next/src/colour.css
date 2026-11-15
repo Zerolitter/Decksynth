@@ -2,12 +2,12 @@
    One palette, defined here only. A section uses the same colour on its tab, its edge and its active state. */
 :root{
   /* pages */
-  --c-song:#f5b85c; --c-sound:#82ddc1; --c-fx:#b99af5; --c-perform:#5cc8f5;
+  --c-song:#6de4bb; --c-sound:#ddbd82; --c-fx:#b99af5; --c-perform:#5cc8f5;
   /* Perform modes */
-  --c-seq:#5cc8f5; --c-arp:#ffa25c; --c-chord:#f07cc0;
+  --c-seq:#5cc8f5; --c-arp:#6eedb8; --c-chord:#f07cc0;
   /* tools */
   --t-mutate:#e47cf5; --t-reset:#9fb4c8; --t-double:#6fa8ff; --t-more:#c3cfd6; --t-nudge:#4fd1e8;
-  --t-oct:#f5d04f; --t-dice:#ff8f5c; --t-library:#ffc24d; --t-scale:#7ee0a0; --t-midi:#a7b4ff; --t-seq:var(--c-seq);
+  --t-oct:#61e3bf; --t-dice:#ff8f5c; --t-library:#61ebbe; --t-scale:#e0b07e; --t-midi:#a7b4ff; --t-seq:var(--c-seq);
 }
 
 /* ---------- page tabs ---------- */
@@ -36,7 +36,7 @@
 .harness-shell .pf .pf-grid-head span.live{color:var(--mode)}
 .harness-shell .pf .pf-row.root .pf-row-note{color:var(--mode)}
 .harness-shell .pf .pf-note{background:linear-gradient(180deg,color-mix(in srgb,var(--c-seq) 80%,#fff),var(--c-seq));box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--c-seq) 60%,#000)}
-.harness-shell .pf .pf-note.accent{background:linear-gradient(180deg,#ffd98a,#e9ad4f);box-shadow:inset 0 -2px 0 #a8742a}
+.harness-shell .pf .pf-note.accent{background:linear-gradient(180deg,#97f2d5,#60d8af);box-shadow:inset 0 -2px 0 #389a78}
 .harness-shell .pf .pf-arp-step.active{background:color-mix(in srgb,var(--c-arp) 30%,#172124);border-color:var(--c-arp);
   box-shadow:0 0 14px color-mix(in srgb,var(--c-arp) 40%,transparent)}
 .harness-shell .pf .pf-arp-step u{background:color-mix(in srgb,var(--c-arp) 20%,transparent)}
@@ -70,11 +70,11 @@
 .harness-shell .pf-white.chord-root::after,.harness-shell .pf-black.chord-root::after{content:'';position:absolute;left:50%;bottom:26px;width:10px;height:10px;
   margin-left:-5px;border-radius:50%;background:var(--c-chord);box-shadow:0 0 6px var(--c-chord);pointer-events:none}
 .harness-shell .pf-black.chord-root::after{bottom:10px}
-.harness-shell .pf-white.held{background:linear-gradient(180deg,#a5e9d3,#c8f5e6 80%,#93d6c0)}
-.harness-shell .pf-black.held{background:linear-gradient(180deg,#2f6b5c,#3f8a76)}
-.harness-shell .pf-white.sound,.harness-shell .pf-black.sound{outline:3px solid #f2c46d;outline-offset:-3px}
-.harness-shell .pf-white.down{background:linear-gradient(180deg,#78d6b8,#9ee6cf 80%,#6cc6aa);box-shadow:inset 0 -2px 0 #4e9b83;z-index:1}
-.harness-shell .pf-black.down{background:linear-gradient(180deg,#4fae94,#6fd0b4);box-shadow:inset 0 -2px 0 #2b6a59;z-index:3}
+.harness-shell .pf-white.held{background:linear-gradient(180deg,#e9d0a5,#f5e4c8 80%,#d6be93)}
+.harness-shell .pf-black.held{background:linear-gradient(180deg,#6b572f,#8a703f)}
+.harness-shell .pf-white.sound,.harness-shell .pf-black.sound{outline:3px solid #7ce3c2;outline-offset:-3px}
+.harness-shell .pf-white.down{background:linear-gradient(180deg,#d6b478,#e6cc9e 80%,#c6a66c);box-shadow:inset 0 -2px 0 #9b7f4e;z-index:1}
+.harness-shell .pf-black.down{background:linear-gradient(180deg,#ae8d4f,#d0ae6f);box-shadow:inset 0 -2px 0 #6a552b;z-index:3}
 
 @keyframes c-flash{0%{filter:brightness(1.8);transform:scale(.96)}100%{filter:none;transform:none}}
 @keyframes c-pulse{0%,100%{box-shadow:0 0 4px color-mix(in srgb,var(--mode) 30%,transparent)}50%{box-shadow:0 0 16px color-mix(in srgb,var(--mode) 70%,transparent)}}

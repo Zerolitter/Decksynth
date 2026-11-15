@@ -6,7 +6,7 @@ export type Source = {kind:'macro'|'mod',index:number};
 export type Live = {partials?:number[]|null;gate?:import('../fx').GateRuntime|null;params:number[],mods:number[],phases?:number[],/** Morph pad puck x, y and pad mix */puck?:number[],/** linked Sound knobs, where they are now */sound?:Record<string,number>,
   /** compressor gain reduction (dB) and resonator string notes */comp?:number,strings?:number[]};
 export const MACRO_COLORS=['#f2c46d','#f08a5d','#e06c9f','#b38cf0','#7aa7f5','#5fd3c8','#8fd36a','#d9d36a'];
-export const MOD_COLORS=['#5fd3a8','#6cb6f0','#f08ab0','#f2a65a','#c79df5','#e5d75a','#7ee0e8','#f27c7c'];
+export const MOD_COLORS=['#f2a65a','#6cb6f0','#f08ab0','#5fd3a8','#c79df5','#e5d75a','#7ee0e8','#f27c7c'];
 /** Beats per cycle, by saved rate number (8 and 16 bars appended 15 Nov). */
 export const RATE_BEATS=[16,8,4,2,1,.5,.25,32,64];
 export const SHAPE_LABEL:Record<ModShape,string>={sine:'Sine',triangle:'Triangle',saw:'Saw down',ramp:'Ramp up',square:'Square',

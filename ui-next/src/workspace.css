@@ -5,7 +5,7 @@
 .harness-shell .page-tabs{display:flex;gap:4px;padding:3px;border:1px solid var(--line);background:var(--inset);border-radius:10px;flex:0 0 auto}
 .harness-shell .page-tabs button{min-width:80px;min-height:44px;padding:0 10px;display:flex;align-items:center;justify-content:center;gap:6px;
   background:transparent;border:1px solid transparent;border-radius:8px;color:#aebbb9;font-weight:760;letter-spacing:.3px}
-.harness-shell .page-tabs button.active{background:#315149;border-color:#5b9a86;color:#b2f4dc}
+.harness-shell .page-tabs button.active{background:#514631;border-color:#9a835b;color:#f4dbb2}
 .harness-shell .page-tracks{flex:0 1 auto;min-width:0;display:flex;gap:5px}
 .harness-shell .page-track{flex:0 1 124px;width:124px;min-width:84px;min-height:44px;display:flex;align-items:center;gap:7px;padding:0 8px;border-radius:9px;
   background:var(--panel);border:1px solid #2f3e43;color:#b9c7c3;text-align:left}
@@ -39,7 +39,7 @@
 .ds-panel-bar{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 4px 0 12px;border-bottom:1px solid var(--line);
   user-select:none;cursor:default;touch-action:manipulation}
 .ds-panel.folded .ds-panel-bar{border-bottom:0}
-.ds-panel-icon{display:grid;place-items:center;color:var(--panel-accent,#7fd6bb)}
+.ds-panel-icon{display:grid;place-items:center;color:var(--panel-accent,#d6b77f)}
 .ds-panel-title{margin:0;font-size:12.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#dbe6e2;white-space:nowrap}
 .ds-panel-summary{min-width:0;font-size:11.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ds-panel-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
@@ -48,7 +48,7 @@
 .ds-panel-fold svg{transition:transform .15s}
 .ds-panel.folded .ds-panel-fold svg{transform:rotate(-90deg)}
 .ds-panel-body{min-height:0;min-width:0;padding:8px}
-.panel-action{min-height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;gap:6px;background:#22302f;border:1px solid #4a6a62;color:#d6efe6;font-weight:700;font-size:12px}
+.panel-action{min-height:36px;padding:0 12px;border-radius:8px;display:flex;align-items:center;gap:6px;background:#302c22;border:1px solid #6a5f4a;color:#efe6d6;font-weight:700;font-size:12px}
 
 /* ---------- SONG page: lanes fill the screen ---------- */
 .harness-shell .song-page{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
@@ -109,14 +109,14 @@
 /* Partials: shape chips live in the title row, the legend sits on the bars */
 .harness-shell .shape-chips{display:flex;gap:3px}
 .harness-shell .shape-chips button{min-height:36px;padding:0 7px;border-radius:7px;background:var(--raised);border:1px solid #3a4f55;color:#bcd0ca;font-size:10.5px;font-weight:760;letter-spacing:.2px}
-.harness-shell .shape-chips button.selected{background:#3b5851;border-color:#8bd7ba;color:#f0fff7}
+.harness-shell .shape-chips button.selected{background:#584e3b;border-color:#d7ba8b;color:#f0fff7}
 .harness-shell .card-partials .ds-panel-title{margin-right:4px}
 .harness-shell .card-partials .ds-panel-actions{margin-left:auto}
 .harness-shell .card-partials .harmonic-spectrum{height:212px;min-height:0;max-height:none;border-radius:8px;padding:6px 4px 4px}
 .harness-shell .card-partials .bar-line{top:18px;bottom:15px}
 .harness-shell .spectral-legend{position:absolute;right:8px;top:4px;z-index:3;display:flex;gap:10px;font-size:10.5px;color:var(--soft);pointer-events:none}
 .harness-shell .spectral-legend span{display:flex;align-items:center;gap:4px}
-.harness-shell .legend-bar{width:8px;height:10px;border-radius:2px;background:var(--panel-accent,#7fd6bb);opacity:.75}
+.harness-shell .legend-bar{width:8px;height:10px;border-radius:2px;background:var(--panel-accent,#d6b77f);opacity:.75}
 .harness-shell .legend-line{width:12px;height:3px;border-radius:2px;background:#fff;box-shadow:0 0 6px #fff}
 .harness-shell .card-partials .harmonic-bar{padding-top:12px}
 /* The heard-partial line jumps with each engine update (10 a second) and moves by transform on its own layer.

@@ -97,6 +97,7 @@ export type DeckUpdate = {
   pattern_library?:{roles:Record<string,number>;ready:Record<string,boolean>;preview:{id:string;track:number;step:number}|null};
   midi_learn?:{track:number;module:string;param:string}|null;
   drum_racks?: (DrumRuntime|null)[];
+  sample_library?: import('./components/SampleLibrary').SampleLibraryState | null;
   samplers?: (SamplerRuntime|null)[];
   /** Recording into a Sampler: the open input, its level, and the take. */
   sampler_record?: SamplerRecord;
@@ -128,7 +129,7 @@ export type DeckApi = {
   chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder'): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }
-export const TRACK_COLORS = ['#78d8bf','#d7b67c','#ad9ce6','#8baddf','#e59a7a','#6fc6d8','#d68fc0','#a9b4c2'] as const;
+export const TRACK_COLORS = ['#d7b67c','#78d8bf','#ad9ce6','#8baddf','#e59a7a','#6fc6d8','#d68fc0','#a9b4c2'] as const;
 /** Tracks can be added up to 8 and removed down to 4 (Sampler editing stage 10). */
 export const MIN_TRACKS = 4, MAX_TRACKS = 8;
 export const SONG_TRACK_COLORS = ['#a1b9d4', TRACK_COLORS[1], TRACK_COLORS[2], '#8193ab', TRACK_COLORS[4], TRACK_COLORS[5], TRACK_COLORS[6], TRACK_COLORS[7]] as const;

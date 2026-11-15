@@ -27,7 +27,7 @@
   box-shadow: inset 0 2px 8px #0006,0 0 0 1px #ffffff08;
 }
 .decksynth-shell .transport-pad.play.engaged{
-  box-shadow: inset 0 1px 0 #e6fff522,0 0 16px #80dabb25;
+  box-shadow: inset 0 1px 0 #e6fff522,0 0 16px #dab98025;
 }
 .decksynth-shell .transport-pad.record.engaged {
   border-color: #f2b3b7;
@@ -56,11 +56,11 @@
   font-size:11px;color:#dfebe5;letter-spacing:.08px;
 }
 .decksynth-shell .hardware-sequencer .pattern-head-right b{
-  background:#0e1718;border:1px solid #3b5952;padding:3px 8px;border-radius:5px;
+  background:#0e1718;border:1px solid #594f3b;padding:3px 8px;border-radius:5px;
   font:750 15px ui-monospace,monospace;
 }
 .decksynth-shell .hardware-sequencer .sync-dot.active {
-  box-shadow:0 0 9px #87dcc4aa;
+  box-shadow:0 0 9px #dcbf87aa;
 }
 .decksynth-shell .pattern-focus-chips{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
@@ -74,7 +74,7 @@
   transition: background 100ms,border-color 100ms;
 }
 .decksynth-shell .pattern-focus-chip.selected{
-  background:#2a3b3a;border-color:var(--step-accent);color:#eef5ef;
+  background:#3b372a;border-color:var(--step-accent);color:#eef5ef;
 }
 .decksynth-shell .pattern-focus-dot{
   width:6px;height:9px;background:var(--step-accent);
@@ -131,7 +131,7 @@
 .decksynth-shell .step-hardware-pad.inspected{outline:1px solid #ccdfd8;outline-offset:-3px}
 .decksynth-shell .step-hardware-pad.is-live{
   border-color:#f2fbf2;
-  box-shadow:inset 0 1px 0 #ffffff2c,0 0 0 1px #c4eee6aa,0 0 12px var(--step-accent);
+  box-shadow:inset 0 1px 0 #ffffff2c,0 0 0 1px #eee1c4aa,0 0 12px var(--step-accent);
   animation: deckStepPulse 380ms ease-out;
 }
 .decksynth-shell .step-hardware-pad.is-live .step-pad-number{color:#fafff9;text-shadow:0 0 7px #ffffffb0}
@@ -155,11 +155,11 @@
   transition:filter 120ms ease,transform 110ms ease;
 }
 .decksynth-shell .tactile-knob .knob-target:hover .knob-svg{
-  filter: drop-shadow(0 2px 4px #0009) drop-shadow(0 0 4px #8dcdbb4c);
+  filter: drop-shadow(0 2px 4px #0009) drop-shadow(0 0 4px #cdb78d4c);
 }
 .decksynth-shell .tactile-knob.is-engaged .knob-target{
   transform:scale(1.06);
-  filter:drop-shadow(0 0 6px #a0ebda58);
+  filter:drop-shadow(0 0 6px #ebd3a058);
 }
 .decksynth-shell .tactile-knob .knob-face{fill:none}
 .decksynth-shell .tactile-knob .knob-svg{overflow:visible}
@@ -167,9 +167,9 @@
   position:absolute;left:50%;bottom:calc(100% - 3px);
   z-index:21;pointer-events:none;transform:translateX(-50%);
   min-width:76px;max-width:130px;
-  border:1px solid #7fc6b6;background:#0c1519ef;
-  box-shadow:0 7px 16px #000a,0 0 0 1px #a8e2d120;
-  color:#b6d7cf;border-radius:6px;padding:5px 9px;
+  border:1px solid #c6af7f;background:#0c1519ef;
+  box-shadow:0 7px 16px #000a,0 0 0 1px #e2cea820;
+  color:#d7ccb6;border-radius:6px;padding:5px 9px;
   display:flex;flex-direction:column;align-items:center;
   font-size:9px;font-weight:700;white-space:nowrap;
 }
@@ -180,7 +180,7 @@
 
 /* Live audio monitor: only show illumination when PCM data exists. */
 .decksynth-shell .audio-scope{
-  border-color:#466360;
+  border-color:#635b46;
   background:linear-gradient(#212e31,#152126);
 }
 .decksynth-shell .scope-top{
@@ -190,7 +190,7 @@
   background:repeating-linear-gradient(90deg,#0c1518,#0c1518 8px,#101d20 8px,#101d20 16px);
 }
 .decksynth-shell .scope-meter-leds span.lit{
-  box-shadow:0 0 6px #a3e6c266;background:linear-gradient(#c1f8d7,#62cda6);
+  box-shadow:0 0 6px #e6c8a366;background:linear-gradient(#f8dec1,#cda462);
 }
 .decksynth-shell .scope-footer strong{font-variant-numeric:tabular-nums}
 
