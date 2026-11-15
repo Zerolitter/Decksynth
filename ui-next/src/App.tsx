@@ -31,6 +31,7 @@ import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup }
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import {Help} from './components/Help';
+import { ValueBox } from './components/ValueBox';
 import { PageBar, PageTabs, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
@@ -453,11 +454,9 @@ function App() {
       </div>
       <div className="transport-lcd" role="group" aria-label="Tempo, loop and position">
       <div className="tempo-display" aria-label="Tempo">
-        <span>BPM</span><strong>{Math.round(project?.bpm??120)}</strong>
-        <div className="tempo-adjust">
-          <button title="Tempo −5 BPM" onClick={()=>command('tempo',clamp((project?.bpm??120)-5,30,240))}>−</button>
-          <button title="Tempo +5 BPM" onClick={()=>command('tempo',clamp((project?.bpm??120)+5,30,240))}>+</button>
-        </div>
+        <ValueBox label="BPM" className="tempo-vbox" value={Math.round((project?.bpm??120)*10)/10} min={30} max={240} step={1} coarse={10} fine={.1}
+          format={n=>Number.isInteger(n)?String(n):n.toFixed(1)} onChange={n=>command('tempo',clamp(n,30,240))}
+          title="Tempo: click, then scroll (Shift ±10, Ctrl ±0.1) · two slow clicks to type · touch: hold and drag"/>
       </div>
       <div className="bars-display">
         <LoopBars value={project?.bars??4} onChange={bars=>command('bars',bars)}/>

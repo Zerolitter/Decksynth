@@ -18,9 +18,9 @@ module.exports=async({p,send,latest,inside,H,OUT,assert})=>{
   // Open, check the input and the controls, arm, play.
   await open.click();await sheet.waitFor();
   await p.waitForFunction(()=>window.__latest?.sampler_record?.input==='Test input');
-  for(const [loc,what] of [[sheet.getByRole('radio',{name:/Test input/}),'Input'],[sheet.getByRole('button',{name:'Threshold up'}),'Threshold up'],
-    [sheet.getByRole('button',{name:'Longer'}),'Longer'],[sheet.getByRole('button',{name:'Record now'}),'Record now'],[sheet.getByRole('button',{name:'Arm'}),'Arm'],[sheet.getByRole('button',{name:'Done'}),'Done']])await inside(loc,what);
-  await sheet.getByRole('button',{name:'Threshold up'}).click();
+  for(const [loc,what] of [[sheet.getByRole('radio',{name:/Test input/}),'Input'],[sheet.getByRole('spinbutton',{name:'Threshold'}),'Threshold'],
+    [sheet.getByRole('spinbutton',{name:'Longest'}),'Longest'],[sheet.getByRole('button',{name:'Record now'}),'Record now'],[sheet.getByRole('button',{name:'Arm'}),'Arm'],[sheet.getByRole('button',{name:'Done'}),'Done']])await inside(loc,what);
+  await sheet.getByRole('spinbutton',{name:'Threshold'}).click();for(let i=0;i<3;i++)await p.keyboard.press('ArrowUp');
   await p.waitForFunction(()=>window.__latest.sampler_record.threshold===-37);
   await sheet.getByRole('button',{name:'Arm'}).click();
   await p.waitForFunction(()=>window.__latest.sampler_record.state==='armed');

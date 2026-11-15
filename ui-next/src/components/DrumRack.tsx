@@ -18,8 +18,8 @@ type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Tra
   onPlayOnKeys?:(pad:number)=>void};
 
 /** The shared knob previews locally (and reports the live value with onDraft); only the end of its gesture reaches the worker. */
-export function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,format,onCommit,onDraft}:{
-  id:string;name:string;value:number;min:number;max:number;step:number;suffix?:string;precision?:number;description:string;format?:(n:number)=>string;
+export function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,format,onCommit,onDraft,defaultValue}:{
+  defaultValue?:number;id:string;name:string;value:number;min:number;max:number;step:number;suffix?:string;precision?:number;description:string;format?:(n:number)=>string;
   onCommit:(value:number)=>void;onDraft?:(value:number)=>void;
 }) {
   const [draft,setDraft]=useState(value);
@@ -48,7 +48,7 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
     // Exact numeric entry commits on Enter and then unmounts its input, so neither keyup nor blur reaches this wrapper.
     onKeyDownCapture={e=>{if(e.key==='Enter')setTimeout(finish,0);}}
     onBlur={()=>{if(!pointer.current)setTimeout(finish,0);}}>
-    <Knob contextArea="drum" id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)" format={format}
+    <Knob contextArea="drum" id={id} name={name} value={draft} min={min} max={max} step={step} suffix={suffix} precision={precision} description={description} accent="var(--pad-accent)" format={format} defaultValue={defaultValue}
       onChange={next=>{latest.current=next;dirty.current=next!==original.current;setDraft(next);draftRef.current?.(next);}}/>
   </div>;
 }
@@ -198,9 +198,9 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
         </div>
         {live?.error?<p className="drum-source-error" title={live.error} role="status">{live.error}</p>:null}
         <div className="drum-pad-controls" key={selected}>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-gain`} name="Gain" value={pad.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Pad gain; applied to the next note" onCommit={n=>edit('gain',n)}/>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-velocity`} name="Velocity" value={pad.velocity} min={0} max={2} step={.01} suffix="×" precision={2} description="Velocity response curve: 0 is fixed level, 1 is linear, 2 makes soft notes quieter" onCommit={n=>edit('velocity',n)}/>
-          <CommittedKnob id={`drum-${trackIndex}-${selected}-tune`} name="Tune" value={pad.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Pitch in semitones; envelope times and EQ stay where you set them" onDraft={draft('tune')} onCommit={n=>edit('tune',n)}/>
+          <CommittedKnob id={`drum-${trackIndex}-${selected}-gain`} defaultValue={1} name="Gain" value={pad.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Pad gain; applied to the next note" onCommit={n=>edit('gain',n)}/>
+          <CommittedKnob id={`drum-${trackIndex}-${selected}-velocity`} defaultValue={1} name="Velocity" value={pad.velocity} min={0} max={2} step={.01} suffix="×" precision={2} description="Velocity response curve: 0 is fixed level, 1 is linear, 2 makes soft notes quieter" onCommit={n=>edit('velocity',n)}/>
+          <CommittedKnob id={`drum-${trackIndex}-${selected}-tune`} defaultValue={0} name="Tune" value={pad.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Pitch in semitones; envelope times and EQ stay where you set them" onDraft={draft('tune')} onCommit={n=>edit('tune',n)}/>
           {knob('pan','Pan',-100,100,1,'',0,'Place the pad left or right (C is the middle)',100,panText)}
           <div className="drum-pad-switches">
             <button type="button" aria-pressed={pad.mute} onClick={()=>edit('mute',!pad.mute)}>Mute</button>

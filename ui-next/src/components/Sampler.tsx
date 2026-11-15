@@ -3,8 +3,9 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Minus, Plus, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
+import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
 import { CommittedKnob } from './DrumRack';
+import { ValueBox, parseNote } from './ValueBox';
 import { EnvEditor, type Env } from './EnvEditor';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
 import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode } from '../types';
@@ -134,25 +135,11 @@ function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit 
 }
 
 const fmtS = (s: number) => s < 10 ? s.toFixed(2) + ' s' : s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
-const THRESH = [-60, -54, -48, -42, -36, -30, -24, -18, -12, -6];
-const GAPS = [20, 40, 80, 150, 300, 600, 1000];
-const COUNTS = [2, 4, 8, 12, 16, 24, 32, 48, 64];
 const BEATS: [number, string][] = [[.25, '1/16'], [.5, '1/8'], [1, '1/4'], [2, '1/2'], [4, 'Bar']];
+const dB = (n: number) => (Number.isInteger(n) ? n : n.toFixed(1)) + ' dB';
+const bpmText = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(1);
 type ChopMode = 'threshold' | 'regions' | 'bpm';
 type ChopSettings = { mode: ChopMode; threshold: number; min_ms: number; count: number; bpm: number; beats: number };
-
-/** −/+ through a list of values (or by 1 with no list). */
-function Stepper({ label, value, text, list, min, max, onChange }: { label: string; value: number; text: string; list?: number[]; min?: number; max?: number; onChange(n: number): void }) {
-  const at = list ? list.indexOf(value) : -1;
-  const down = list ? (at > 0 ? list[at - 1] : null) : value > (min ?? -Infinity) ? value - 1 : null;
-  const up = list ? (at >= 0 && at < list.length - 1 ? list[at + 1] : null) : value < (max ?? Infinity) ? value + 1 : null;
-  return <div className="smp-stepper" role="group" aria-label={label}>
-    <span>{label}</span>
-    <button type="button" aria-label={label + ' down'} disabled={down === null} onClick={() => down !== null && onChange(down)}><Minus size={15} /></button>
-    <strong aria-live="polite">{text}</strong>
-    <button type="button" aria-label={label + ' up'} disabled={up === null} onClick={() => up !== null && onChange(up)}><Plus size={15} /></button>
-  </div>;
-}
 
 /** Chop tools, one row under the waveform: how to find slices, then Split / Join / Clear, Zoom and To pads. */
 function ChopBar({ spec, runtime, settings, onSettings, selected, marker, zoomed, onChop, onZoom, onSend }: {
@@ -173,12 +160,14 @@ function ChopBar({ spec, runtime, settings, onSettings, selected, marker, zoomed
     </div>
     <div className="smp-chop-params">
       {settings.mode === 'threshold' ? <>
-        <Stepper label="Level" value={settings.threshold} text={settings.threshold + ' dB'} list={THRESH} onChange={n => set({ threshold: n })} />
-        <Stepper label="Min" value={settings.min_ms} text={settings.min_ms + ' ms'} list={GAPS} onChange={n => set({ min_ms: n })} />
+        <ValueBox label="Level" value={settings.threshold} min={-60} max={-3} step={1} coarse={6} fine={.5} format={dB} onChange={n => set({ threshold: n })}
+          title="Level: a slice starts where the sound rises above this. Click, then scroll (Shift big, Ctrl fine) · two slow clicks to type" />
+        <ValueBox label="Min" value={settings.min_ms} min={10} max={2000} step={10} coarse={100} fine={1} format={n => Math.round(n) + ' ms'} onChange={n => set({ min_ms: n })}
+          title="Min: the shortest slice; hits closer than this keep the stronger one" />
       </> : settings.mode === 'regions' ?
-        <Stepper label="Slices" value={settings.count} text={String(settings.count)} list={COUNTS} onChange={n => set({ count: n })} />
+        <ValueBox label="Slices" value={settings.count} min={2} max={64} step={1} coarse={8} fine={1} onChange={n => set({ count: n })} />
         : <>
-          <Stepper label="BPM" value={settings.bpm} text={String(settings.bpm)} min={40} max={300} onChange={n => set({ bpm: n })} />
+          <ValueBox label="BPM" value={settings.bpm} min={40} max={300} step={1} coarse={10} fine={.1} format={bpmText} onChange={n => set({ bpm: n })} />
           <div className="smp-seg" role="radiogroup" aria-label="Slice length">
             {BEATS.map(([b, label]) => <button key={b} type="button" role="radio" aria-checked={settings.beats === b} onClick={() => set({ beats: b })}>{label}</button>)}
           </div>
@@ -320,7 +309,7 @@ function AmpCard({ spec, id, onEdit }: { spec: SamplerSpec; id: string; onEdit: 
   }, [onEdit]);
   const shown = { ...env, ...draft };
   const knob = (key: keyof Env, name: string, max: number, description: string) =>
-    <CommittedKnob id={id + '-' + key} name={name} value={spec[key]} min={0} max={max} step={key === 'sustain' ? .01 : .001}
+    <CommittedKnob id={id + '-' + key} defaultValue={AMP_DEFAULTS[key]} name={name} value={spec[key]} min={0} max={max} step={key === 'sustain' ? .01 : .001}
       suffix={key === 'sustain' ? '%' : 's'} precision={key === 'sustain' ? 0 : 3} description={description}
       format={key === 'sustain' ? n => Math.round(n * 100) + '%' : n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'}
       onCommit={n => onEdit(key, n)} />;
@@ -342,6 +331,8 @@ function AmpCard({ spec, id, onEdit }: { spec: SamplerSpec; id: string; onEdit: 
     </div>
   </section>;
 }
+
+const AMP_DEFAULTS: Record<keyof Env, number> = { attack: 0, decay: 0, sustain: 1, release: .25 };
 
 type PadChoice = { track: number; kit: string; pad: number; name: string; family: DrumKind };
 
@@ -432,10 +423,10 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             <button type="button" className="smp-toggle" aria-pressed={!!spec.reverse} title="Play backwards" onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} />Reverse</button>
           </div>
           <div className="smp-knobs two">
-            <CommittedKnob id={id + '-glide'} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
+            <CommittedKnob id={id + '-glide'} defaultValue={0} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
               description="Mono only: slide from the held note to the next one" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('glide', n)} />
-            <CommittedKnob id={id + '-gain'} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onCommit={n => onEdit('gain', n)} />
-            <CommittedKnob id={id + '-velocity'} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
+            <CommittedKnob id={id + '-gain'} defaultValue={1} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onCommit={n => onEdit('gain', n)} />
+            <CommittedKnob id={id + '-velocity'} defaultValue={1} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
               description="How much softer soft notes are: 0 is fixed level, 1 is linear" onCommit={n => onEdit('velocity', n)} />
             <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
           </div>
@@ -452,18 +443,17 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             <button type="button" className="smp-detect" title="Find each slice's pitch again" disabled={runtime?.busy?.includes('roots')}
               onClick={() => send('sampler_slice_roots', [trackIndex, spec.id])}><ScanSearch size={16} />{runtime?.busy?.includes('roots') ? 'Finding…' : 'Detect'}</button>
           </div> : <div className="smp-root" role="group" aria-label={spec.keymap === 'slices' ? 'First slice key' : 'Root note'}>
-            <span>{spec.keymap === 'slices' ? 'Slice 1 on' : 'Root'}</span>
-            <button type="button" aria-label={(spec.keymap === 'slices' ? 'First slice key' : 'Root note') + ' down'} disabled={spec.root <= 0} onClick={() => onEdit('root', spec.root - 1)}><Minus size={16} /></button>
-            <strong aria-live="polite">{noteName(spec.root)}</strong>
-            <button type="button" aria-label={(spec.keymap === 'slices' ? 'First slice key' : 'Root note') + ' up'} disabled={spec.root >= 127} onClick={() => onEdit('root', spec.root + 1)}><Plus size={16} /></button>
+            <ValueBox label={spec.keymap === 'slices' ? 'Slice 1 on' : 'Root'} value={spec.root} min={0} max={127} step={1} coarse={12} fine={1}
+              format={noteName} parse={parseNote} onChange={n => onEdit('root', n)}
+              title="Click, then scroll: a semitone (Shift: an octave) · two slow clicks to type a note like C4 or a number" />
             {spec.keymap !== 'slices' ? <button type="button" className="smp-detect" title="Find the note the sample sounds at" onClick={onDetect}><ScanSearch size={16} />Detect</button> : null}
           </div>}
           <div className="smp-knobs two">
-            <CommittedKnob id={id + '-tune'} name="Tune" value={spec.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Shift every key by semitones" onCommit={n => onEdit('tune', n)} />
-            <CommittedKnob id={id + '-fine'} name="Fine" value={spec.fine} min={-100} max={100} step={1} suffix="ct" precision={0} description="Fine tuning in cents" onCommit={n => onEdit('fine', n)} />
-            <CommittedKnob id={id + '-p_env'} name="Pitch env" value={spec.p_env ?? 0} min={-24} max={24} step={.1} suffix="st" precision={1}
+            <CommittedKnob id={id + '-tune'} defaultValue={0} name="Tune" value={spec.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Shift every key by semitones" onCommit={n => onEdit('tune', n)} />
+            <CommittedKnob id={id + '-fine'} defaultValue={0} name="Fine" value={spec.fine} min={-100} max={100} step={1} suffix="ct" precision={0} description="Fine tuning in cents" onCommit={n => onEdit('fine', n)} />
+            <CommittedKnob id={id + '-p_env'} defaultValue={0} name="Pitch env" value={spec.p_env ?? 0} min={-24} max={24} step={.1} suffix="st" precision={1}
               description="Each note starts this many semitones away and settles to its pitch" format={n => Math.abs(n) < .05 ? 'Off' : (n > 0 ? '+' : '') + n.toFixed(1) + ' st'} onCommit={n => onEdit('p_env', n)} />
-            <CommittedKnob id={id + '-p_decay'} name="Env time" value={spec.p_decay ?? .15} min={0} max={3} step={.001} suffix="s" precision={3}
+            <CommittedKnob id={id + '-p_decay'} defaultValue={0.15} name="Env time" value={spec.p_decay ?? .15} min={0} max={3} step={.001} suffix="s" precision={3}
               description="How long the pitch envelope takes to settle" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('p_decay', n)} />
           </div>
         </section>
@@ -473,17 +463,17 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             {FILTERS.map(([f, label, title]) => <button key={f} type="button" role="radio" aria-checked={(spec.filter ?? 'off') === f} title={title} onClick={() => onEdit('filter', f)}>{label}</button>)}
           </div>
           <div className="smp-knobs two">
-            <CommittedKnob id={id + '-cutoff'} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
+            <CommittedKnob id={id + '-cutoff'} defaultValue={Math.log2(100)} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
               description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
-            <CommittedKnob id={id + '-resonance'} name="Resonance" value={spec.resonance ?? .2} min={0} max={1} step={.01} suffix="%" precision={0}
+            <CommittedKnob id={id + '-resonance'} defaultValue={0.2} name="Resonance" value={spec.resonance ?? .2} min={0} max={1} step={.01} suffix="%" precision={0}
               description="A peak at the cutoff" format={n => Math.round(n * 100) + '%'} onCommit={n => onEdit('resonance', n)} />
-            <CommittedKnob id={id + '-f_env'} name="Env" value={spec.f_env ?? 0} min={-1} max={1} step={.01} suffix="%" precision={0}
+            <CommittedKnob id={id + '-f_env'} defaultValue={0} name="Env" value={spec.f_env ?? 0} min={-1} max={1} step={.01} suffix="%" precision={0}
               description="How far the filter's envelope moves the cutoff (100% is five octaves)" format={n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%'} onCommit={n => onEdit('f_env', n)} />
-            <CommittedKnob id={id + '-f_velocity'} name="Velocity" value={spec.f_velocity ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
+            <CommittedKnob id={id + '-f_velocity'} defaultValue={0} name="Velocity" value={spec.f_velocity ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
               description="Soft notes are darker: up to four octaves lower" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onCommit={n => onEdit('f_velocity', n)} />
-            <CommittedKnob id={id + '-f_attack'} name="Attack" value={spec.f_attack ?? 0} min={0} max={3} step={.001} suffix="s" precision={3}
+            <CommittedKnob id={id + '-f_attack'} defaultValue={0} name="Attack" value={spec.f_attack ?? 0} min={0} max={3} step={.001} suffix="s" precision={3}
               description="Time for the filter envelope to rise" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_attack', n)} />
-            <CommittedKnob id={id + '-f_decay'} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
+            <CommittedKnob id={id + '-f_decay'} defaultValue={0.3} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
               description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_decay', n)} />
           </div>
         </section>
@@ -498,6 +488,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
 }
 
 const LENGTHS = [10, 20, 30, 60, 120, 300, 600];
+const parseClock = (t: string) => { const m = /^(\d+):(\d{1,2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) : Number.isFinite(Number(t)) ? Number(t) : null; };
 const clock = (s: number) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
 /** Record the piano (or any input) into this Sampler: pick the input, watch its level, arm, play. The take goes into Chop. */
@@ -558,14 +549,10 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
         <em>{peak > -90 && peak < -18 && !busy ? 'Quiet input: raise Input gain' : peak >= -0.5 ? 'Clipping: lower Input gain' : ''}</em>
       </div>
       <div className="smp-record-row">
-        <span>Threshold</span>
-        <button type="button" aria-label="Threshold down" disabled={threshold <= -60} onClick={() => setThreshold(t => Math.max(-60, t - 3))}><Minus size={16} /></button>
-        <strong aria-live="polite">{threshold} dB</strong>
-        <button type="button" aria-label="Threshold up" disabled={threshold >= -6} onClick={() => setThreshold(t => Math.min(-6, t + 3))}><Plus size={16} /></button>
-        <span>Longest</span>
-        <button type="button" aria-label="Shorter" disabled={length <= LENGTHS[0] || busy} onClick={() => setLength(l => LENGTHS[Math.max(0, LENGTHS.indexOf(l) - 1)])}><Minus size={16} /></button>
-        <strong aria-live="polite">{clock(length)}</strong>
-        <button type="button" aria-label="Longer" disabled={length >= LENGTHS[LENGTHS.length - 1] || busy} onClick={() => setLength(l => LENGTHS[Math.min(LENGTHS.length - 1, LENGTHS.indexOf(l) + 1)])}><Plus size={16} /></button>
+        <ValueBox label="Threshold" value={threshold} min={-60} max={-6} step={1} coarse={6} fine={.5} format={dB} onChange={setThreshold}
+          title="Arm starts the take when the level passes this. Click, then scroll (Shift big, Ctrl fine) · two slow clicks to type" />
+        <ValueBox label="Longest" value={length} list={LENGTHS} format={clock} disabled={busy} onChange={setLength} parse={parseClock}
+          title="The take stops by itself at this length" />
       </div>
       <p role="status" className={'smp-record-words ' + state}>{words}</p>
       <footer>
@@ -611,9 +598,7 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
       <div className="smp-root" role="group" aria-label="Root note">
         <span>Root note</span>
         <button type="button" aria-pressed={root === null} onClick={() => setRoot(null)} title="Find the note the sample sounds at; C4 when it has no clear pitch">Detect</button>
-        <button type="button" aria-label="Root note down" onClick={() => setRoot(r => Math.max(0, (r ?? 60) - 1))}><Minus size={16} /></button>
-        <strong>{root === null ? 'Auto' : noteName(root)}</strong>
-        <button type="button" aria-label="Root note up" onClick={() => setRoot(r => Math.min(127, (r ?? 60) + 1))}><Plus size={16} /></button>
+        <ValueBox label="Root" hideLabel value={root ?? 60} min={0} max={127} step={1} coarse={12} fine={1} format={n => root === null ? 'Auto' : noteName(n)} parse={parseNote} onChange={setRoot} />
       </div>
       <footer><button type="button" className="smp-make" onClick={() => onMake(target, root)}><KeyboardMusic size={18} />Make Sampler on track {target + 1}</button></footer>
     </div>

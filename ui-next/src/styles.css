@@ -451,3 +451,9 @@ button svg{flex:none}
    Only real text fields select. */
 html,body,#root{-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;user-select:text}
+
+/* No green outlines on value boxes (Sir, 15 Nov evening): knob readouts get neutral charcoal edges,
+   a light grey edge on hover or focus. */
+html body .knob-value{border-color:#3a3d41}
+html body .knob-value:hover,html body .knob-value:focus-visible{border-color:#6b7076;outline:none}
+html body .knob-entry{border-color:#6b7076;outline-color:#a7adb3}

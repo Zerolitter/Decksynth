@@ -23,18 +23,22 @@ type Props = {
   modValue?: number|null; modColor?: string;
   /** Optional text for the value (e.g. a rate name for a stepped knob). */
   format?: (n:number)=>string;
+  /** What a double-click (or double-tap) resets to. Without it the factory / preset default is used. */
+  defaultValue?: number;
 };
 
 export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',accent='var(--accent)',
-  precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format}:Props) {
+  precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format,defaultValue}:Props) {
   const area=useContextArea(),midi=useMidiLearn(),cc=midi?.cc(id)??null;
   const gesture=useRef(false);
+  const lastTap=useRef<{t:number;x:number;y:number}|null>(null);
+  const resetTarget=():number|undefined=>{if(defaultValue!==undefined)return defaultValue;const control=knobControl(id,Number(id.split('-')[0]));return control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);};
   const beginGesture=()=>{if(!gesture.current){midi?.gesture(id,'begin');gesture.current=true;}};
   const endGesture=(cancel=false)=>{if(gesture.current){midi?.gesture(id,cancel?'cancel':'end');gesture.current=false;}};
   const commitChange=(n:number)=>{beginGesture();onChangeRef.current(n);endGesture();};
   const learnHold=useRef<{x:number;y:number;timer:ReturnType<typeof setTimeout>}|null>(null);
   const clearLearnHold=()=>{if(learnHold.current)clearTimeout(learnHold.current.timer);learnHold.current=null;};
-  const context=useContextTarget(()=>{const control=knobControl(id,Number(id.split('-')[0])),factory=control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);return {area:contextArea??area??(control&&control.module!=='sound'&&control.module!=='macro'?'fx':'sound'),kind:'parameter',label:name,cancel:()=>{clearLearnHold();drag.current?.cancel();},caps:{value:()=>setEditing(true),...(factory!==undefined?{reset:()=>commitChange(factory)}:{}),...(midi?.canLearn(id)?{automation:()=>midi.automation(id),modulation:()=>midi.modulation(id),midi:()=>midi.learn(id)}:{}),open:()=>document.querySelector<HTMLElement>('[data-param="'+id+'"]')?.scrollIntoView({block:'nearest',inline:'nearest'})}};});
+  const context=useContextTarget(()=>{const control=knobControl(id,Number(id.split('-')[0])),factory=control&&control.module!=='sound'?FX_MODULES[control.module as FxModuleId]?.params.find(p=>p.key===control.param)?.init:midi?.defaultValue(id);return {area:contextArea??area??(control&&control.module!=='sound'&&control.module!=='macro'?'fx':'sound'),kind:'parameter',label:name,cancel:()=>{clearLearnHold();drag.current?.cancel();},caps:{value:()=>setEditing(true),...((defaultValue??factory)!==undefined?{reset:()=>commitChange((defaultValue??factory) as number)}:{}),...(midi?.canLearn(id)?{automation:()=>midi.automation(id),modulation:()=>midi.modulation(id),midi:()=>midi.learn(id)}:{}),open:()=>document.querySelector<HTMLElement>('[data-param="'+id+'"]')?.scrollIntoView({block:'nearest',inline:'nearest'})}};});
   const gradientId = useId().replace(/:/g,'');
   const drag = useRef<RelativeDragHandle|null>(null);
   const dragging = useRef(false);
@@ -76,6 +80,13 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
   const onPointerDown=(e:React.PointerEvent<HTMLDivElement>)=>{
     if(editing||e.button!==0)return;
     clearLearnHold();
+    // Two quick clicks (or taps) reset to the default (UI-RULES 35).
+    const now=performance.now(),last=lastTap.current;lastTap.current={t:now,x:e.clientX,y:e.clientY};
+    if(last&&now-last.t<330&&Math.hypot(e.clientX-last.x,e.clientY-last.y)<14){
+      lastTap.current=null;const d=resetTarget();
+      if(d!==undefined){e.preventDefault();drag.current?.cancel();const n=knobQuantize(d,min,max,step);latest.current=n;setLocal(n);commitChange(n);reveal();hideLater();}
+      return;
+    }
     if(midi?.canLearn(id)){
       const x=e.clientX,y=e.clientY;
       learnHold.current={x,y,timer:setTimeout(()=>{if(!dragging.current){drag.current?.cancel();midi.open(id,x,y);}learnHold.current=null;},750)};

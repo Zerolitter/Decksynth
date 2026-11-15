@@ -304,3 +304,10 @@
 .perf-factory-row button{min-height:40px;padding:0 16px;border-radius:8px;background:#2a4a44;border:1px solid #5fd3a8;color:#eafff6;font-weight:800}
 .fx-card-module .fx-segment{flex-wrap:nowrap}
 .fx-card-module .fx-segment button{min-width:0;padding:0 2px;font-size:11.5px}
+
+/* Top-bar tempo as a value box (UI-RULES 36): looks like the LCD, scroll or drag to change, two slow clicks to type. */
+.transport-lcd .tempo-vbox{min-height:44px;height:44px;padding:0 20px 0 0;border:0;background:transparent;gap:6px}
+.transport-lcd .tempo-vbox .vbox-label{font-size:9.5px;color:#939aa3}
+.transport-lcd .tempo-vbox .vbox-value{font:800 19px ui-monospace,monospace;color:#e9f6f1;min-width:44px}
+.transport-lcd .tempo-vbox.armed{background:#26282b}
+.transport-lcd .tempo-vbox .vbox-input{width:6ch;font:800 17px ui-monospace,monospace}

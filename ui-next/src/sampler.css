@@ -183,3 +183,8 @@
 .smp-meter u{position:absolute;top:0;bottom:0;width:2px;background:#ffd36b;opacity:.9;transform:translateX(-1px);pointer-events:none}
 .smp-record-gain{display:flex;align-items:center;gap:12px;min-height:56px}
 .smp-record-gain em{font-style:normal;color:#ffd36b;font-size:13px}
+
+/* Stage 7: value boxes replace − / + steppers. */
+.smp-chop-params,.smp-record-row{display:flex;align-items:center;gap:8px}
+.smp-root .vbox{min-width:92px}
+.smp-record-row .vbox{min-width:150px}
