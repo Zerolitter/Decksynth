@@ -452,8 +452,10 @@ button svg{flex:none}
 html,body,#root{-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;user-select:text}
 
-/* No green outlines on value boxes (Sir, 15 Nov evening): knob readouts get neutral charcoal edges,
-   a light grey edge on hover or focus. */
-html body .knob-value{border-color:#3a3d41}
-html body .knob-value:hover,html body .knob-value:focus-visible{border-color:#6b7076;outline:none}
-html body .knob-entry{border-color:#6b7076;outline-color:#a7adb3}
+/* No green outlines on value boxes (Sir, 15 Nov evening; UI-RULES 39): knob readouts and the live value bubble get
+   neutral charcoal edges, a light grey edge on hover or focus. !important because several older sheets set teal edges
+   with deeper selectors. */
+.knob-value{border-color:#3a3d41!important}
+.knob-value:hover,.knob-value:focus-visible{border-color:#6b7076!important;background-color:#26282b!important;outline:none}
+.knob-entry{border-color:#6b7076!important;outline-color:#a7adb3!important}
+.knob-live-value{border-color:#5a5f65!important;box-shadow:0 6px 18px #0008!important;color:#d9dde0!important}

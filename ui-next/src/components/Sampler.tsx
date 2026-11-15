@@ -27,110 +27,253 @@ const MODES: [SamplerMode, string, string][] = [
 export const familyColor = (family?: string) => DRUM_KINDS[(family as DrumKind) in DRUM_KINDS ? family as DrumKind : 'other'].color;
 
 type Edit = (key: string, value: unknown) => void;
-type Handle = 'start' | 'end' | 'loop_start' | 'loop_end' | 'slice_start' | 'slice_end';
-type Values = Record<Handle, number>;
-const MIN_SLICE = .0005;
+type TrimKey = 'start' | 'end' | 'loop_start' | 'loop_end';
+type Target = { kind: 'trim'; key: TrimKey } | { kind: 'slice'; i: number; edge: 0 | 1 };
+const MIN_SLICE = .0005, MIN_VIEW = .0005;
 const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+/** A view [a, b] inside 0..1, at least MIN_VIEW wide; the whole sample when it is (nearly) all of it. */
+const fitView = (a: number, b: number): [number, number] => {
+  const s = Math.min(1, Math.max(MIN_VIEW, b - a)); if (s >= .999) return [0, 1];
+  const lo = Math.max(0, Math.min(1 - s, a)); return [lo, lo + s];
+};
 
-/** The waveform. Trim: Start/End and the loop. Chop: the slices; tap one to hear it and choose it, drag its edges.
-    Every handle has a 44 px hit zone; one drag is one undo step. The view can be zoomed (Chop's Zoom). */
-function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit }: {
+/** The waveform editor (UI-RULES 32, 33). Trim: Start / End and the loop as tag markers. Chop: every slice edge is a tag
+    marker you drag (a shared edge moves both slices); tap a slice to hear it and choose it, double-click to split there.
+    Works like the MIDI editor: wheel scrolls, Ctrl+wheel zooms at the pointer, middle-drag (or a one-finger drag when zoomed)
+    pans, two fingers pinch. Keys: F fit, Z zoom to the slice, + / − zoom, ← / → previous / next slice, S split, J join,
+    Delete removes the slice's start edge, Space / Enter plays it. Every handle has a 44 px hit zone; one drag is one undo step. */
+function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit, onView, onChop, onAudition }: {
   spec: SamplerSpec; runtime?: SamplerRuntime | null; mode: 'trim' | 'chop'; selected: number; marker: number | null;
-  onSelect(index: number, at: number): void; onEdit: Edit;
+  onSelect(index: number, at: number): void; onEdit: Edit; onView(a: number, b: number): void;
+  onChop(mode: string, options?: Record<string, unknown>): void; onAudition(index: number): void;
 }) {
   const slices = spec.slices ?? [];
-  const sel = slices[selected];
-  const base = (): Values => ({ start: spec.start, end: spec.end, loop_start: spec.loop_start, loop_end: spec.loop_end,
-    slice_start: sel?.[0] ?? 0, slice_end: sel?.[1] ?? 1 });
-  const [draft, setDraft] = useState<Partial<Values> | null>(null);
-  const drag = useRef<{ key: Handle; left: number; width: number; values: Values } | null>(null);
-  const v = { ...base(), ...draft };
+  const trim0 = (): Record<TrimKey, number> => ({ start: spec.start, end: spec.end, loop_start: spec.loop_start, loop_end: spec.loop_end });
+  const [trimDraft, setTrimDraft] = useState<Partial<Record<TrimKey, number>> | null>(null);
+  const [sliceDraft, setSliceDraft] = useState<number[][] | null>(null);
+  const [localView, setLocalView] = useState<[number, number] | null>(null);
+  const shell = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ target: Target; left: number; width: number; trim: Record<TrimKey, number>; slices: number[][]; x: number; moved: boolean } | null>(null);
+  const pan = useRef<{ id: number; x: number; a: number; b: number; moved: boolean; tap: boolean } | null>(null);
+  const touches = useRef(new Map<number, number>());
+  const pinch = useRef<{ dist: number; mid: number; a: number; b: number } | null>(null);
+  const sendView = useRef<{ timer?: number; next?: [number, number] }>({});
+  const t = { ...trim0(), ...trimDraft };
+  const shown = sliceDraft ?? slices;
   const looping = spec.mode === 'loop' && mode === 'trim';
-  const [va, vb] = runtime?.view ?? [0, 1];
+  const pv = runtime?.view ?? [0, 1];
+  useEffect(() => { setLocalView(null); }, [pv[0], pv[1]]);
+  useEffect(() => () => window.clearTimeout(sendView.current.timer), []);
+  const [va, vb] = localView ?? pv;
   const span = Math.max(1e-6, vb - va);
   const x = (u: number) => (u - va) / span;                    // 0..1 across the window
   const pct = (u: number) => (x(u) * 100) + '%';
   const visible = (u: number) => u >= va - 1e-9 && u <= vb + 1e-9;
   const peaks = (runtime?.peaks ?? []).filter(p => p.length >= 2);
-  const limit = (key: Handle, at: number, s: Values): Partial<Values> => {
-    const r = (n: number) => Math.round(n * 1e5) / 1e5;
-    if (key === 'start') return { start: r(Math.min(at, s.end - .002)) };
-    if (key === 'end') return { end: r(Math.max(at, s.start + .002)) };
-    if (key === 'loop_start') return { loop_start: r(Math.max(s.start, Math.min(at, s.loop_end - .002))) };
-    if (key === 'loop_end') return { loop_end: r(Math.min(s.end, Math.max(at, s.loop_start + .002))) };
-    const lo = selected > 0 ? slices[selected - 1][1] : 0, hi = selected < slices.length - 1 ? slices[selected + 1][0] : 1;
-    if (key === 'slice_start') return { slice_start: r6(Math.max(lo, Math.min(at, s.slice_end - MIN_SLICE))) };
-    return { slice_end: r6(Math.min(hi, Math.max(at, s.slice_start + MIN_SLICE))) };
+  const secs = runtime?.seconds ?? 0, ms = (u: number) => Math.round(u * secs * 1000);
+  const toU = (clientX: number, left = shell.current?.getBoundingClientRect().left ?? 0, width = shell.current?.getBoundingClientRect().width ?? 1) =>
+    Math.max(0, Math.min(1, va + (clientX - left) / Math.max(1, width) * span));
+
+  /** Moves the view now (drawn at once, old peaks stretched) and asks for new peaks at most every 60 ms. */
+  const view = (a: number, b: number) => {
+    const v = fitView(a, b); setLocalView(v); sendView.current.next = v;
+    if (sendView.current.timer === undefined) sendView.current.timer = window.setTimeout(() => {
+      sendView.current.timer = undefined; const n = sendView.current.next; if (n) onView(n[0], n[1]);
+    }, 60);
   };
-  const toU = (clientX: number, left: number, width: number) => Math.max(0, Math.min(1, va + (clientX - left) / width * span));
-  const commit = (values: Values) => {
-    if (values.slice_start !== base().slice_start || values.slice_end !== base().slice_end) {
-      const next = slices.map((p, i) => i === selected ? [values.slice_start, values.slice_end, ...p.slice(2)] : p);
-      onEdit('slices', next); return;
+  const zoomAt = (u: number, factor: number) => { const s = Math.min(1, span * factor); const a = u - (u - va) * (s / span); view(a, a + s); };
+  const zoomTo = () => {
+    const sel = shown[selected];
+    if (sel) { const pad = Math.max((sel[1] - sel[0]) * .15, .001); view(sel[0] - pad, sel[1] + pad); }
+    else if (marker !== null) view(marker - .04, marker + .04);
+  };
+
+  // Wheel: scroll time; Ctrl+wheel: zoom around the pointer (as in the MIDI editor).
+  useEffect(() => {
+    const el = shell.current; if (!el) return;
+    const wheel = (e: WheelEvent) => {
+      const d = e.deltaY || e.deltaX; if (!d) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      if (e.ctrlKey || e.metaKey) zoomAt(toU(e.clientX, r.left, r.width), d < 0 ? .8 : 1.25);
+      else if (span < .999) { const step = Math.sign(d) * span * (e.shiftKey ? .5 : .12); view(va + step, vb + step); }
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  });
+
+  const limits = (target: Target, s: Record<TrimKey, number>, list: number[][]): [number, number] => {
+    if (target.kind === 'trim') {
+      const k = target.key;
+      return k === 'start' ? [0, s.end - .002] : k === 'end' ? [s.start + .002, 1]
+        : k === 'loop_start' ? [s.start, s.loop_end - .002] : [s.loop_start + .002, s.end];
     }
-    const keys: Handle[] = ['start', 'end', 'loop_start', 'loop_end'];
-    const changed: Record<string, number> = Object.fromEntries(keys.filter(k => values[k] !== spec[k as 'start']).map(k => [k, values[k]]));
+    const { i, edge } = target, n = list.length;
+    if (edge === 0) {
+      const joined = i > 0 && near(list[i - 1][1], list[i][0]);
+      return [i === 0 ? 0 : joined ? list[i - 1][0] + MIN_SLICE : list[i - 1][1], list[i][1] - MIN_SLICE];
+    }
+    const joined = i < n - 1 && near(list[i + 1][0], list[i][1]);
+    return [list[i][0] + MIN_SLICE, i === n - 1 ? 1 : joined ? list[i + 1][1] - MIN_SLICE : list[i + 1][0]];
+  };
+  /** Puts an edge at u (clamped) and returns the new trim values and slices. A shared slice edge moves both slices. */
+  const place = (target: Target, u: number, s: Record<TrimKey, number>, list: number[][]) => {
+    const [lo, hi] = limits(target, s, list); const at = Math.max(lo, Math.min(hi, u));
+    if (target.kind === 'trim') return { trim: { ...s, [target.key]: Math.round(at * 1e5) / 1e5 }, slices: list };
+    const { i, edge } = target, v = r6(at), next = list.map(p => [...p]);
+    if (edge === 0) { if (i > 0 && near(list[i - 1][1], list[i][0])) next[i - 1][1] = v; next[i][0] = v; }
+    else { if (i < list.length - 1 && near(list[i + 1][0], list[i][1])) next[i + 1][0] = v; next[i][1] = v; }
+    return { trim: s, slices: next };
+  };
+  const commit = (trim: Record<TrimKey, number>, list: number[][]) => {
+    if (list !== slices && list.some((p, i) => p[0] !== slices[i][0] || p[1] !== slices[i][1])) { onEdit('slices', list); return; }
+    const base = trim0(); const changed: Record<string, number> = {};
+    (Object.keys(base) as TrimKey[]).forEach(k => { if (trim[k] !== base[k]) changed[k] = trim[k]; });
     // Start and End also keep the loop inside them.
-    if ('start' in changed && values.loop_start < values.start) changed.loop_start = values.start;
-    if ('end' in changed && values.loop_end > values.end) changed.loop_end = values.end;
+    if ('start' in changed && trim.loop_start < trim.start) changed.loop_start = trim.start;
+    if ('end' in changed && trim.loop_end > trim.end) changed.loop_end = trim.end;
     if (Object.keys(changed).length) onEdit('patch', changed);
   };
-  const begin = (key: Handle) => (e: React.PointerEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    const box = e.currentTarget.parentElement!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { key, left: box.left, width: box.width, values: base() };
+  const handleDown = (target: Target) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); shell.current?.focus({ preventScroll: true });
+    const box = shell.current!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { target, left: box.left, width: box.width, trim: trim0(), slices: slices.map(p => [...p]), x: e.clientX, moved: false };
   };
-  const move = (e: React.PointerEvent) => {
+  const handleMove = (e: React.PointerEvent) => {
     const d = drag.current; if (!d) return;
-    const next = limit(d.key, toU(e.clientX, d.left, d.width), d.values);
-    d.values = { ...d.values, ...next }; setDraft({ ...next });
+    if (!d.moved && Math.abs(e.clientX - d.x) < 3) return;
+    d.moved = true;
+    const next = place(d.target, toU(e.clientX, d.left, d.width), trim0(), slices.map(p => [...p]));
+    d.trim = next.trim; d.slices = next.slices;
+    if (d.target.kind === 'trim') setTrimDraft({ ...next.trim }); else setSliceDraft(next.slices);
   };
-  const end = (ok: boolean) => () => {
-    const d = drag.current; drag.current = null; setDraft(null);
-    if (d && ok) commit(d.values);
+  const handleUp = (ok: boolean) => (e: React.PointerEvent) => {
+    const d = drag.current; drag.current = null; setTrimDraft(null); setSliceDraft(null);
+    if (!d) return;
+    if (d.moved && ok) commit(d.trim, d.slices);
+    else if (!d.moved && ok && mode === 'chop') { const at = toU(e.clientX); onSelect(slices.findIndex(([a, b]) => at >= a && at < b), at); }
   };
-  const handle = (key: Handle, label: string, tag = true) => visible(v[key]) ? <button key={key} type="button" className={'smp-handle h-' + key}
-    style={{ left: pct(v[key]) }} aria-label={label + ' ' + (Math.round(v[key] * 1000) / 10) + '%'}
-    onPointerDown={begin(key)} onPointerMove={move} onPointerUp={end(true)} onPointerCancel={end(false)}
-    onKeyDown={e => {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault();
-      const s = base(); commit({ ...s, ...limit(key, s[key] + (e.key === 'ArrowLeft' ? -.01 : .01) * span, s) });
-    }}><i />{tag ? <b>{label}</b> : null}</button> : null;
-  const secs = runtime?.seconds ?? 0, ms = (u: number) => Math.round(u * secs * 1000);
-  const tap = (e: React.PointerEvent<HTMLElement>) => {
-    if (mode !== 'chop' || e.button !== 0) return;
-    const box = (e.currentTarget.closest('.smp-wave-shell') as HTMLElement).getBoundingClientRect();
-    const at = toU(e.clientX, box.left, box.width);
-    onSelect(slices.findIndex(([a, b]) => at >= a && at < b), at);
+  const nudge = (target: Target, dir: number, e: React.KeyboardEvent) => {
+    const step = span * (e.shiftKey ? .1 : e.ctrlKey ? .001 : .01) * dir;
+    const now = target.kind === 'trim' ? trim0()[target.key] : slices[target.i][target.edge];
+    const next = place(target, now + step, trim0(), slices.map(p => [...p])); commit(next.trim, next.slices);
   };
-  const W = 512;
+  const handle = (target: Target, label: string, at: number, cls: string, tag: string | null) => visible(at) ?
+    <button key={label} type="button" className={'smp-handle ' + cls} style={{ left: pct(at) }}
+      aria-label={label + ' ' + (Math.round(at * 1000) / 10) + '%'}
+      onPointerDown={handleDown(target)} onPointerMove={handleMove} onPointerUp={handleUp(true)} onPointerCancel={handleUp(false)}
+      onKeyDown={e => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation();
+        nudge(target, e.key === 'ArrowLeft' ? -1 : 1, e);
+      }}><i />{tag !== null ? <b>{tag}</b> : null}</button> : null;
+
+  // The waveform itself: tap selects (Chop), drag pans when zoomed, middle-drag pans, two fingers pinch.
+  const down = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    shell.current?.focus({ preventScroll: true });
+    if (e.pointerType === 'touch') {
+      touches.current.set(e.pointerId, e.clientX);
+      if (touches.current.size === 2) {
+        const [p1, p2] = [...touches.current.values()]; pan.current = null;
+        pinch.current = { dist: Math.max(20, Math.abs(p2 - p1)), mid: toU((p1 + p2) / 2), a: va, b: vb };
+        return;
+      }
+    }
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pan.current = { id: e.pointerId, x: e.clientX, a: va, b: vb, moved: false, tap: e.button === 0 };
+    if (e.button === 1) e.preventDefault();
+  };
+  const moveShell = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) touches.current.set(e.pointerId, e.clientX);
+    const pz = pinch.current;
+    if (pz && touches.current.size >= 2) {
+      const [p1, p2] = [...touches.current.values()]; const s = Math.min(1, (pz.b - pz.a) * pz.dist / Math.max(20, Math.abs(p2 - p1)));
+      const r = shell.current!.getBoundingClientRect(); const f = ((p1 + p2) / 2 - r.left) / r.width;
+      view(pz.mid - f * s, pz.mid - f * s + s); return;
+    }
+    const p = pan.current; if (!p || p.id !== e.pointerId) return;
+    if (!p.moved && Math.abs(e.clientX - p.x) < 6) return;
+    if (p.b - p.a >= .999) { if (!p.tap) p.moved = true; return; }   // nothing to pan when the whole sample shows
+    p.moved = true;
+    const w = shell.current!.getBoundingClientRect().width; const du = (p.x - e.clientX) / w * (p.b - p.a);
+    view(p.a + du, p.b + du);
+  };
+  const upShell = (e: React.PointerEvent<HTMLDivElement>) => {
+    touches.current.delete(e.pointerId); if (touches.current.size < 2) pinch.current = null;
+    const p = pan.current; if (!p || p.id !== e.pointerId) return; pan.current = null;
+    if (!p.moved && p.tap && mode === 'chop') { const at = toU(e.clientX); onSelect(slices.findIndex(([a, b]) => at >= a && at < b), at); }
+  };
+  const key = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;   // a focused handle nudges
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key, sel = slices[selected];
+    if (k === 'f') view(0, 1);
+    else if (k === 'z') zoomTo();
+    else if (k === '+' || k === '=') zoomAt(marker ?? (va + vb) / 2, .5);
+    else if (k === '-' || k === '_') zoomAt(marker ?? (va + vb) / 2, 2);
+    else if (mode === 'chop' && (k === 'ArrowLeft' || k === 'ArrowRight') && slices.length) {
+      const i = Math.max(0, Math.min(slices.length - 1, selected < 0 ? 0 : selected + (k === 'ArrowLeft' ? -1 : 1)));
+      onSelect(i, slices[i][0]);
+      if (!visible(slices[i][0]) || !visible(slices[i][1])) { const w = span; view(slices[i][0] - w * .1, slices[i][0] + w * .9); }
+    }
+    else if (mode === 'chop' && k === 's' && sel && marker !== null && marker > sel[0] + MIN_SLICE && marker < sel[1] - MIN_SLICE) onChop('split', { index: selected, at: marker });
+    else if (mode === 'chop' && k === 'j' && sel && selected < slices.length - 1) onChop('join', { index: selected });
+    else if (mode === 'chop' && (k === 'Delete' || k === 'Backspace') && sel && slices.length > 1) {
+      if (selected > 0) { onChop('join', { index: selected - 1 }); onSelect(selected - 1, slices[selected - 1][0]); } else onChop('join', { index: 0 });
+    }
+    else if (mode === 'chop' && (k === ' ' || k === 'Enter') && sel) onAudition(selected);
+    else return;
+    e.preventDefault(); e.stopPropagation();
+  };
+  const doubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mode !== 'chop' || (e.target as HTMLElement).closest('.smp-handle')) return;
+    const at = toU(e.clientX), i = slices.findIndex(([a, b]) => at >= a && at < b);
+    if (i >= 0 && at > slices[i][0] + MIN_SLICE && at < slices[i][1] - MIN_SLICE) onChop('split', { index: i, at: r6(at) });
+  };
+
+  const W = 512, pspan = Math.max(1e-6, pv[1] - pv[0]);
+  const sel = shown[selected];
   return <div className={'smp-window' + (mode === 'chop' ? ' chop' : '')} data-testid="sampler-window">
-    <div className="smp-wave-shell" onPointerDown={tap}>
+    <div ref={shell} className="smp-wave-shell" tabIndex={0} aria-label="Sample editor: wheel scrolls, Ctrl+wheel zooms, F fits"
+      onPointerDown={down} onPointerMove={moveShell} onPointerUp={upShell} onPointerCancel={upShell} onKeyDown={key} onDoubleClick={doubleClick}
+      onAuxClick={e => e.preventDefault()}>
       {peaks.length ? <svg className="smp-wave" viewBox={'0 0 ' + W + ' 120'} preserveAspectRatio="none" role="img" aria-label="The sample's waveform">
-        {mode === 'chop' ? slices.map(([a, b], i) => <rect key={'s' + i} className={'smp-slice' + (i % 2 ? ' odd' : '') + (i === selected ? ' on' : '')}
-          x={x(i === selected ? v.slice_start : a) * W} y={0} width={Math.max(.5, (x(i === selected ? v.slice_end : b) - x(i === selected ? v.slice_start : a)) * W)} height={120} />) : null}
+        {mode === 'chop' ? shown.map(([a, b], i) => <rect key={'s' + i} className={'smp-slice' + (i % 2 ? ' odd' : '') + (i === selected ? ' on' : '')}
+          x={x(a) * W} y={0} width={Math.max(.5, (x(b) - x(a)) * W)} height={120} />) : null}
         <path d="M0 60H512" className="smp-zero" />
-        {peaks.map((p, i) => <line key={i} x1={(i + .5) * W / peaks.length} x2={(i + .5) * W / peaks.length}
-          y1={60 - Math.max(-1, Math.min(1, p[1])) * 56} y2={60 - Math.max(-1, Math.min(1, p[0])) * 56} strokeWidth={Math.max(1, W / peaks.length * .75)} />)}
+        {peaks.map((p, i) => { const u = pv[0] + (i + .5) / peaks.length * pspan, px = x(u) * W;
+          return px < -2 || px > W + 2 ? null : <line key={i} x1={px} x2={px}
+            y1={60 - Math.max(-1, Math.min(1, p[1])) * 56} y2={60 - Math.max(-1, Math.min(1, p[0])) * 56} strokeWidth={Math.max(1, W / peaks.length * .75 * pspan / span)} />; })}
         {mode === 'trim' ? <>
-          <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(v.start) * W)} height={120} />
-          <rect className="smp-cut" x={x(v.end) * W} y={0} width={Math.max(0, (1 - x(v.end)) * W)} height={120} />
-          {looping ? <rect className="smp-loop" x={x(v.loop_start) * W} y={0} width={(x(v.loop_end) - x(v.loop_start)) * W} height={120} /> : null}
-          {(['start', 'end'] as const).map(k => <line key={k} className="smp-edge" x1={x(v[k]) * W} x2={x(v[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
-          {looping ? (['loop_start', 'loop_end'] as const).map(k => <line key={k} className="smp-edge loop" x1={x(v[k]) * W} x2={x(v[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />) : null}
+          <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(t.start) * W)} height={120} />
+          <rect className="smp-cut" x={x(t.end) * W} y={0} width={Math.max(0, (1 - x(t.end)) * W)} height={120} />
+          {looping ? <rect className="smp-loop" x={x(t.loop_start) * W} y={0} width={(x(t.loop_end) - x(t.loop_start)) * W} height={120} /> : null}
+          {(['start', 'end'] as const).map(k => <line key={k} className="smp-edge" x1={x(t[k]) * W} x2={x(t[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+          {looping ? (['loop_start', 'loop_end'] as const).map(k => <line key={k} className="smp-edge loop" x1={x(t[k]) * W} x2={x(t[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />) : null}
         </> : <>
-          {slices.map(([a], i) => <line key={'e' + i} className="smp-edge slice" x1={x(i === selected ? v.slice_start : a) * W} x2={x(i === selected ? v.slice_start : a) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+          {shown.map(([a], i) => <line key={'e' + i} className={'smp-edge slice' + (i === selected ? ' on' : '')} x1={x(a) * W} x2={x(a) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+          {sel ? <line className="smp-edge slice on" x1={x(sel[1]) * W} x2={x(sel[1]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
           {marker !== null && visible(marker) ? <line className="smp-marker" x1={x(marker) * W} x2={x(marker) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
           {runtime?.audition ? <line className="smp-playhead" x1={x(runtime.audition.at) * W} x2={x(runtime.audition.at) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
         </>}
         {(runtime?.playing ?? []).map((at, i) => <line key={'p' + i} className="smp-playhead" x1={x(at) * W} x2={x(at) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
       </svg> : null}
-      {mode === 'chop' ? slices.map(([a, b], i) => visible(a) && x(b) - x(a) > .018 ? <span key={'n' + i} className={'smp-slice-no' + (i === selected ? ' on' : '')}
-        style={{ left: pct(a) }} aria-hidden="true">{i + 1}</span> : null) : null}
-      {peaks.length && mode === 'trim' ? <>{handle('start', 'Start')}{handle('end', 'End')}{looping ? <>{handle('loop_start', 'Loop')}{handle('loop_end', 'Loop end')}</> : null}</> : null}
-      {peaks.length && mode === 'chop' && sel ? <>{handle('slice_start', 'Slice ' + (selected + 1), x(v.slice_end) - x(v.slice_start) > .09)}{handle('slice_end', 'Slice ' + (selected + 1) + ' end', false)}</> : null}
+      {peaks.length && mode === 'trim' ? <>
+        {handle({ kind: 'trim', key: 'start' }, 'Start', t.start, 'h-start', 'Start')}
+        {handle({ kind: 'trim', key: 'end' }, 'End', t.end, 'h-end', 'End')}
+        {looping ? <>{handle({ kind: 'trim', key: 'loop_start' }, 'Loop', t.loop_start, 'h-loop_start', 'Loop')}
+          {handle({ kind: 'trim', key: 'loop_end' }, 'Loop end', t.loop_end, 'h-loop_end', 'Loop end')}</> : null}
+      </> : null}
+      {peaks.length && mode === 'chop' ? <>
+        {shown.map(([a, b], i) => handle({ kind: 'slice', i, edge: 0 }, 'Slice ' + (i + 1), a, 'h-slice_start' + (i === selected ? ' on' : ''),
+          i === selected || x(Math.min(b, shown[i + 1]?.[0] ?? b)) - x(a) > .022 ? String(i + 1) : null))}
+        {sel && !(selected < shown.length - 1 && near(shown[selected + 1][0], sel[1]))
+          ? handle({ kind: 'slice', i: selected, edge: 1 }, 'Slice ' + (selected + 1) + ' end', sel[1], 'h-slice_end on', null) : null}
+      </> : null}
     </div>
-    {mode === 'trim' ? <span className="smp-caption">{secs ? 'Plays ' + ms(v.start) + '–' + ms(v.end) + ' ms' + (looping ? ' · loops ' + ms(v.loop_start) + '–' + ms(v.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : ''}</span> : null}
+    <span className="smp-caption">{secs ? (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
+      + (vb - va < .999 ? (mode === 'trim' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
   </div>;
 }
 
@@ -371,7 +514,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const apply = (s: ChopSettings) => chop(s.mode, s.mode === 'threshold' ? { threshold: s.threshold, min_ms: s.min_ms }
     : s.mode === 'regions' ? { count: s.count } : { bpm: s.bpm, beats: s.beats });
   const setView = (a: number, b: number) => send('sampler_view', [trackIndex, spec.id, Math.max(0, a), Math.min(1, b)]);
-  const toMode = (m: 'trim' | 'chop') => { if (m === 'trim' && zoomed) setView(0, 1); setMode(m); };
+  const toMode = (m: 'trim' | 'chop') => setMode(m);   // the zoom stays: F (or Fit) shows the whole sample
   return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><KeyboardMusic size={21} /><h1>Sampler</h1><span>Track {trackIndex + 1}</span></div>
@@ -398,6 +541,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
         : <p>Load a WAV (a bounce, a recording, up to 10 minutes), or load a kit on a Drum Rack track and pick a pad here.</p>}
     </div> : <>
       <SampleWindow spec={spec} runtime={runtime} mode={mode} selected={sel} marker={marker} onEdit={onEdit}
+        onView={setView} onChop={(m, o) => { chop(m, o); }} onAudition={i => send('sampler_audition', [trackIndex, spec.id, i])}
         onSelect={(i, at) => { setSelected(i); setMarker(at); if (i >= 0) send('sampler_audition', [trackIndex, spec.id, i]); }} />
       {mode === 'chop' ? <ChopBar spec={spec} runtime={runtime} settings={settings} selected={sel} marker={marker} zoomed={zoomed}
         onSettings={(s, now) => { setSettings(s); if (now) { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => apply(s), 250); } }}

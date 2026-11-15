@@ -30,7 +30,9 @@ module.exports=async({p,send,latest,inside,H,OUT,DATA,assert})=>{
   const page=p.locator('.sampler-page');
   assert.equal(await page.getByRole('button',{name:/ (up|down)$/}).count(),0,'no − / + steppers on the Sampler');
   const root=page.getByRole('spinbutton',{name:'Root'});await inside(root,'Root box');
-  const r0=(await latest()).state.tracks[1].sampler.root;
+  // The root can still settle after READY (a detected root lands a snapshot later): start from what the box shows.
+  await settle();const r0=Number(await root.getAttribute('aria-valuenow'));
+  await p.waitForFunction(r=>window.__latest.state.tracks[1].sampler.root===r,r0);
   await root.click();await root.hover();await p.mouse.wheel(0,-100);await settle();
   await p.waitForFunction(r=>window.__latest.state.tracks[1].sampler.root===r+1,r0);
   await p.keyboard.down('Shift');await p.mouse.wheel(0,-100);await p.keyboard.up('Shift');await settle();

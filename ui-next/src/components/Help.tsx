@@ -31,6 +31,18 @@ const noteKeys=[
  ['Fit','Frame selected notes, or all notes when none are selected.'],
  ['Right-click / touch-hold / Shift+F10','Open contextual commands for the current target.'],
 ];
+const sampleKeys=[
+ ['Wheel / Shift+wheel','Scroll the waveform (when zoomed); Shift scrolls further.'],
+ ['Ctrl+wheel','Zoom in or out around the pointer.'],
+ ['Middle drag / drag when zoomed','Pan the waveform. On touch: one finger pans, two fingers pinch to zoom.'],
+ ['F / Z / + / −','Fit the whole sample / zoom to the chosen slice / zoom in / zoom out.'],
+ ['Tap · double-click','Choose and hear a slice · split the slice where you double-click.'],
+ ['Drag a tag marker','Move Start, End, Loop, Loop end or a slice edge. A shared slice edge moves both slices.'],
+ ['← / → on the waveform','Previous / next slice (and hear it).'],
+ ['← / → on a marker','Nudge it 1% of the view; Shift 10%, Ctrl 0.1%.'],
+ ['S / J / Delete','Split at the last tap / join with the next slice / remove the slice\'s start edge.'],
+ ['Space / Enter','Play the chosen slice.'],
+];
 function KeyTable({rows}:{rows:string[][]}){
  return <table><tbody>{rows.map(([key,action])=><tr key={key}><th scope="row">{key}</th><td>{action}</td></tr>)}</tbody></table>;
 }
@@ -77,6 +89,8 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
    <h3 ref={notes}>Note editing</h3>
    <KeyTable rows={noteKeys}/>
    <p>The cursor follows a grid click or ruler position. Paste preserves pitch and relative timing; incompatible timing, collisions or out-of-range placements are rejected. Recording must finish before note edits. Selection, the edit cursor and the playback line are separate states.</p>
+   <h3>Sample editor (Sampler waveform)</h3>
+   <KeyTable rows={sampleKeys}/>
   </div>
  </section>;
 }

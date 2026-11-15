@@ -188,3 +188,10 @@
 .smp-chop-params,.smp-record-row{display:flex;align-items:center;gap:8px}
 .smp-root .vbox{min-width:92px}
 .smp-record-row .vbox{min-width:150px}
+
+/* Stage 8: the waveform editor. Every slice edge is a tag marker; the shell takes focus for its keys. */
+.smp-wave-shell:focus{outline:none}
+.smp-wave-shell:focus-visible{box-shadow:0 0 0 1px #a7adb3}
+.smp-handle.h-slice_start:not(.on) b{background:#0b0d0fd0;color:#dfe9e5}
+.smp-handle.h-slice_start b{left:25px}
+.smp-edge.slice.on{stroke:var(--pad-accent);stroke-width:2}
