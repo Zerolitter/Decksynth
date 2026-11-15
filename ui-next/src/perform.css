@@ -305,3 +305,20 @@
 .harness-shell .pf-bar>.pf-btn.on{color:#fff}
 .harness-shell .pf-bar .pf-group-label{padding-left:4px}
 .harness-shell .pf-lane-arp .pf-bar>.pf-btn{width:auto;padding:0 12px}
+/* Clip notes in the Perform editor (review 2026-11-15): SONG → Edit notes opens the open clip here. */
+.harness-shell .pf-transfers .pf-clip-link{position:relative;padding:0 5px;border:1px solid #4a5d63;border-radius:5px;background:#1d282b;color:var(--c-song,#e8b65a);font:inherit;font-weight:700;line-height:14px}
+.harness-shell .pf-transfers .pf-clip-link::after{content:"";position:absolute;inset:-15px -8px}
+.harness-shell .pf-transfers .pf-clip-link.on{background:#3a2f1a;border-color:var(--c-song,#e8b65a)}
+.harness-shell .pf-clip-bar{justify-content:space-between;border-color:color-mix(in srgb,var(--c-song,#e8b65a) 55%,#2b393e)}
+.harness-shell .pf-clip-bar .pf-clip-title{font-size:12px;color:#d6e3df;white-space:nowrap}
+.harness-shell .pf-clip-bar .pf-clip-title b{color:var(--c-song,#e8b65a)}
+.harness-shell .pf-clip-bar .pf-clip-hint{flex:1;min-width:0;font-size:11px;color:#b7c8c3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.harness-shell .pf-clip-bar .pf-clip-back{min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #3a4b51;border-radius:8px;background:#1d282b;color:#d6e3df;font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
+/* 15 Nov round 3: keys octave in the Arp / Chord bar (C3 -> C5 at +2), and the SEQ steps list. */
+.harness-shell .pf-head-tools .pf-transpose button{min-width:44px;min-height:44px;padding:0}
+.harness-shell .pf-transpose>span{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;line-height:1.05;color:#aebbb9}
+.harness-shell .pf-transpose>span small{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.harness-shell .pf-transpose>span b{font-size:15px;color:#e6fff6}
+.harness-shell .pf-transpose>span.on b{color:var(--c-arp,#f0b35a)}
+.harness-shell .pf-bar .pf-seg .pf-steps-list{display:flex;align-items:center;gap:5px;min-width:104px;min-height:44px;padding:0 10px;font-weight:700}
+.harness-shell .pf-steps-list b{font-size:14px;color:#e6fff6}

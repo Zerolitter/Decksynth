@@ -37,10 +37,10 @@ class DrumEngine:
         if sample is None:return
         pos = self._preview_cursor
         end = min(sample.frames, self.rate*5)  # no unbounded audition playback
-        fade = max(1, int(self.rate*.012))
+        fade = max(1, int(self.rate*.012)); level = getattr(sample, 'gain', .34)
         for i in range(frames):
             if pos >= end:break
-            gain = .34*min(1.,pos/max(1,self.rate*.001), (end-pos)/fade)
+            gain = level*min(1.,pos/max(1,self.rate*.001), (end-pos)/fade)
             value = sample.data[pos]*gain
             left[i] += value
             if right is not None:right[i] += value
@@ -62,18 +62,17 @@ class DrumEngine:
         t = self.project.tracks[tr]
         if device_kind(t) == kind: return
         kit = validate_kit(t['drum_rack']) if 'drum_rack' in t else new_kit()
+        if kind == 'sampler':
+            from .sampler import new_sampler, validate_sampler
+            spec = validate_sampler(t['sampler']) if 'sampler' in t else new_sampler()
         self.snapshot()
-        for key, (_, _, owner) in list(self.pending.items()):
-            if owner == tr: self.close_note(key)
-        self.synths[tr].panic(); self.drums[tr].panic(); self.drum_gate_keys[tr].clear()
-        self.scheduled_live = [event for event in self.scheduled_live if event[1] != tr]
-        self.drum_keys = {key: owner for key, owner in self.drum_keys.items() if owner != tr}
-        if tr == self.selected:
-            self.perform_held.reset(); self.live_note_map.clear(); self.down.clear()
+        self._clear_track_notes(tr)
         t['device'] = kind
         if kind == 'drum_rack': t['drum_rack'] = kit
+        if kind == 'sampler': t['sampler'] = spec
         self.drum_epoch += 1
         self.drums[tr].configure(t.get('drum_rack') if kind == 'drum_rack' else None)
+        self.samplers[tr].configure(t.get('sampler') if kind == 'sampler' else None)
 
     def drum_target(self, track, kit_id, pad=None):
         tr = track_index(track); t = self.project.tracks[tr]
@@ -85,7 +84,7 @@ class DrumEngine:
 
     def edit_drum_pad(self, track, kit_id, pad, key, value):
         kit = self.drum_target(track, kit_id, pad)
-        if key not in ('gain', 'velocity', 'tune', 'mute', 'solo', 'choke', 'name'):
+        if key not in ('gain', 'velocity', 'tune', 'mute', 'solo', 'choke', 'name', 'shape'):
             raise ValueError('Unknown drum pad parameter')
         candidate = copy.deepcopy(kit); candidate['pads'][pad][key] = value
         clean = validate_kit(candidate)
@@ -143,7 +142,7 @@ class DrumEngine:
         self.snapshot()
         for key, (_, _, owner) in list(self.pending.items()):
             if owner == tr: self.close_note(key)
-        self.synths[tr].panic(); self.drums[tr].panic()
+        self.synths[tr].panic(); self.drums[tr].panic(); self.samplers[tr].configure(None)
         self.scheduled_live = [event for event in self.scheduled_live if event[1] != tr]
         self.drum_keys = {key: owner for key, owner in self.drum_keys.items() if owner != tr}
         t = self.project.tracks[tr]; t['device'] = 'drum_rack'; t['drum_rack'] = kit
@@ -176,7 +175,11 @@ class DrumEngine:
     def drum_note(self, track, kit_id, pad, velocity):
         kit = self.drum_target(track, kit_id, pad)
         if type(velocity) is not int or not 1 <= velocity <= 127: raise ValueError('Velocity must be 1–127')
+        self.first_note()  # REC waiting for the first note starts on a pad too
         hit = self.voice_on(track, kit['pads'][pad]['note'], velocity, ('touch', kit_id, pad))
+        if track == self.selected and self.project.performance['seq']['recording']:
+            self.step_record([kit['pads'][pad]['note']], velocity)
+            return hit
         if hit and self.recording:
             sample = self.drums[track].samples[pad]
             duration = min(self.project.beats, max(1/self.fpb, sample.frames/self.rate*self.project.bpm/60))
@@ -198,6 +201,7 @@ class DrumEngine:
             return True
         tr = self.selected; t = self.project.tracks[tr]
         if device_kind(t) != 'drum_rack': return False
+        if off: self.down.discard(key)
         channel = self.project.performance['scale']['input_channel']
         if channel and key[0] != channel-1: return True
         if kind == 0x90 and value:
@@ -208,14 +212,19 @@ class DrumEngine:
             self.close_note(pending)
             if self.voice_on(tr, note, value, ('live', key[0], note, note)):
                 self.drum_keys[key] = tr; self.down.add(key)
-                if self.recording: self.pending[pending] = (self.frame, value, tr)
+                if self.capturing_song(): self.pending[pending] = (self.frame, value, tr)
+            # Step rec writes the pad into the open pattern, also for an empty pad or a silent sample.
+            if self.project.performance['seq']['recording']:
+                self.down.add(key); self.step_record([note], value)
             return True
         if kind == 0xb0 and note in (120, 123): self.panic()
         return True  # Pitch, sustain and scale/chord transforms do not affect one-shots.
 
     def voice_off(self, track, note, token=None):
-        if device_kind(self.project.tracks[track]) == 'drum_rack':
+        kind = device_kind(self.project.tracks[track])
+        if kind == 'drum_rack':
             self.drum_gate_keys[track].discard(token);self.drums[track].off(note,token)
+        elif kind == 'sampler': self.samplers[track].off(note, token)
         else: self.synths[track].off(note, token)
 
     def drum_state(self):

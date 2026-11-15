@@ -1,9 +1,9 @@
 import {ContextWheelProvider,ContextAreaScope} from './components/ContextWheel';
-import {NoteEditor} from './components/NoteEditor';
 import {expectedWithEvents,type NoteTarget} from './note-ops';
 import {PanelScope} from './components/Panel';
 import {InstrumentSwitcher} from './components/InstrumentSwitcher';
 import {AutomationEditor} from './components/AutomationEditor';
+import {FreezeSheet} from './components/Freeze';
 import type {ControlTarget} from './parameter-registry';
 import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SetStat
 import {
   AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
   FolderOpen, Pause, Play, Redo2,
-  RotateCcw, Save, Settings as SettingsIcon, Square,
+  RotateCcw, Save, Settings as SettingsIcon, Snowflake, Square,
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
@@ -23,6 +23,8 @@ import { AudioScope } from './components/AudioScope';
 import { SoundWindow } from './components/SoundLab';
 import { SoundCards } from './components/Rack';
 import { DrumRack } from './components/DrumRack';
+import { SamplerPage, PlayOnKeysSheet, padChoices } from './components/Sampler';
+import { drumKind, padLabel } from './drum-kinds';
 import { ModBand } from './components/ModBand';
 import type { Source } from './components/ModParts';
 import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
@@ -89,6 +91,14 @@ function App() {
   const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
   const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
   const [fileMenu,setFileMenu]=useState(false);
+  const [freezeOpen,setFreezeOpen]=useState(false);
+  const freezeRef=useRef<HTMLDivElement>(null);
+  // The Freeze sheet closes with Done, Esc, its own button, or a tap anywhere else.
+  useEffect(()=>{if(!freezeOpen)return;
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();setFreezeOpen(false);}};
+    const away=(e:PointerEvent)=>{if(!freezeRef.current?.contains(e.target as Node))setFreezeOpen(false);};
+    window.addEventListener('keydown',key);window.addEventListener('pointerdown',away);
+    return()=>{window.removeEventListener('keydown',key);window.removeEventListener('pointerdown',away);};},[freezeOpen]);
   const [dialog,setDialog]=useState<Dialog>(null);
   const [helpSection,setHelpSection]=useState<'guide'|'notes'>('guide');
   const helpOrigin=useRef<HTMLElement|null>(null);
@@ -105,17 +115,25 @@ function App() {
   const [songZoom,setSongZoom]=useState(16);
   const [songStart,setSongStart]=useState(0);
   const [songSel,setSongSel]=useState<SongSel>(null);
-  const [noteEditorTrack,setNoteEditorTrack]=useState<number|null>(null);
-  const closeNoteEditor=useCallback(()=>setNoteEditorTrack(null),[]);
+  // SONG → Edit notes opens the selected track's open clip in the Perform note editor (one editor, not a second copy).
+  const [performClip,setPerformClip]=useState(false);
+  // Partials / Morph pad can be folded away (remembered): the sound cards then wrap over the freed room.
+  const [soundFolded,setSoundFolded]=useState(()=>{try{return localStorage.getItem('decksynth.soundFolded')==='1';}catch{return false;}});
+  const foldSound=(v:boolean)=>{setSoundFolded(v);try{localStorage.setItem('decksynth.soundFolded',v?'1':'0');}catch{/* optional */}};
+  // The FX tab's Morph pad folds the same way, remembered on its own.
+  const [fxFolded,setFxFolded]=useState(()=>{try{return localStorage.getItem('decksynth.fxFolded')==='1';}catch{return false;}});
+  const foldFx=(v:boolean)=>{setFxFolded(v);try{localStorage.setItem('decksynth.fxFolded',v?'1':'0');}catch{/* optional */}};
+  const openClipNotes=(index:number)=>{command('select',index);setPerformClip(true);setPage('PERFORM');};
   const [clipSheet,setClipSheet]=useState<number|null>(null);
   const [toast,setToast]=useState('');
   const [bridgeStatus,setBridgeStatus]=useState(api?'CONNECTING':'PREVIEW');
   const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
+  const [keysSheet,setKeysSheet]=useState<{track:number;pad:number}|null>(null);
   const pendingKit=useRef<{track:number;id:string}|null>(null);
   const pendingSwap=useRef<{track:number;id:string;pad:number;source:string|null}|null>(null);
-  useEffect(()=>{setKitBrowserTrack(null);setNoteEditorTrack(t=>t!==null&&t!==selected?null:t);},[selected]);
+  useEffect(()=>{setKitBrowserTrack(null);},[selected]);
   // Only return to the pads AFTER the native worker has committed the complete
   // kit/sample. A failed load leaves the browser and existing sound untouched.
   useEffect(()=>{
@@ -200,6 +218,8 @@ function App() {
     return()=>window.clearTimeout(id);
   },[toast]);
 
+  // Count-in settings live in the UI; the engine gets them whenever it (re)connects or they change.
+  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('record_options',[settings.countIn?4:0,!!settings.recWait]);},[settings.countIn,settings.recWait,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const command=useCallback((cmd:string,args:unknown=null)=>{
     if(cmd==='undo')window.dispatchEvent(new Event('decksynth-undo'));
     if(api && !isPreview){api.send(cmd,args);return;}
@@ -354,7 +374,7 @@ function App() {
           owner.notes.forEach(note=>{
             const i=Math.round(note.start/beat)%existing.length;
             if(existing.steps[i].length<8)existing.steps[i].push({
-              note:note.note,velocity:note.velocity,tie:Math.min(8,Math.max(1,Math.round(note.duration/beat)))});
+              note:note.note,velocity:note.velocity,tie:Math.min(32,Math.max(1,Math.round(note.duration/beat)))});
           });
           seq.length=existing.length;seq.division=existing.division;
           seq.gate=existing.gate;seq.swing=existing.swing;
@@ -410,7 +430,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,noteEditorTrack,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell" data-page={page}>
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><main className="decksynth-shell harness-shell" data-page={page}>
     <header className="app-header transport" aria-label="Music transport">
       <span className="brand-glyph" title="Decksynth"><AudioWaveform size={22} strokeWidth={1.65}/></span>
       <div className="transport-actions">
@@ -422,10 +442,14 @@ function App() {
         <button type="button" className="transport-pad stop" onClick={()=>command('stop')} aria-label="Stop">
           <Square size={17} fill="currentColor"/><span>STOP</span>
         </button>
-        <button type="button" className={'transport-pad record'+(snapshot?.recording?' engaged':'')}
-          onClick={()=>command('record')} aria-label={snapshot?.recording?'Finish take':'Record'}>
-          <CircleDot size={20}/><span>{snapshot?.recording?'FINISH':'REC'}</span>
-        </button>
+        {(()=>{const c=snapshot?.count_in;
+          const face=snapshot?.recording?'FINISH':c?.state==='count'?String(c.beat):c?.state==='armed'?'ARMED':'REC';
+          return <button type="button" className={'transport-pad record'+(snapshot?.recording?' engaged':'')+(c?' counting '+c.state:'')}
+            data-testid="rec-button" data-count={c?.state==='count'?c.beat:undefined}
+            onClick={()=>command('record')} aria-label={snapshot?.recording?'Finish take':c?'Cancel record':'Record'}
+            title={c?.state==='armed'?'Waiting for your first note · tap to cancel':c?.state==='count'?'Counting in · tap to cancel':undefined}>
+            <CircleDot size={20}/><span>{face}</span>
+          </button>;})()}
       </div>
       <div className="transport-lcd" role="group" aria-label="Tempo, loop and position">
       <div className="tempo-display" aria-label="Tempo">
@@ -451,6 +475,13 @@ function App() {
       {page==='SONG'&&!!track?.notes.length?<button className="transport-utility" title="Quantize selected track" aria-label="Quantize"
         onClick={()=>command('quantize')}><Redo2 size={18}/></button>:null}
       <PageTabs page={page} onPage={setPage}/>
+      {project?(()=>{const n=(snapshot?.freeze??[]).filter(f=>f.state==='frozen'||f.state==='rendering').length;
+        return <div className="freeze-top" ref={freezeRef}>
+          <button type="button" className={'icon-button'+(n?' is-on':'')} aria-label="Freeze tracks" aria-expanded={freezeOpen}
+            title="Freeze: play tracks as audio to save CPU" onClick={()=>setFreezeOpen(v=>!v)}><Snowflake size={19}/>{n?<span className="ft-count">{n}</span>:null}</button>
+          {freezeOpen?<FreezeSheet tracks={project.tracks} infos={snapshot?.freeze} colors={TRACK_COLORS}
+            onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)} onClose={()=>setFreezeOpen(false)}/>:null}
+        </div>;})():null}
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
         :<div className={'device-pill'+(snapshot?.connected?' connected':'')} title={renderMIDI(snapshot?.connected||null)}>
@@ -473,22 +504,20 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
     </header>
 
-    {noteEditorTrack!==null&&project&&noteEditorTrack===selected?<NoteEditor scale={project.performance.scale} target={{kind:'clip',track:noteEditorTrack,clip:clipsOf(project).open[noteEditorTrack],bars:project.bars,device:project.tracks[noteEditorTrack].device??'synth'}} notes={project.tracks[noteEditorTrack].notes} expected={project.tracks[noteEditorTrack].notes} span={project.bars*4} beat={editorClock?.beat??playhead} playing={editorClock?.playing??false} recording={snapshot?.recording??false} send={command} close={closeNoteEditor}/>:null}
-    {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
+    {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} beat={project.song?.on?songBeat:playhead} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      {page!=='SONG'&&<PageBar onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
+      {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} tracks={project.tracks} selected={selected}
         onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
-          {track.device!=='drum_rack'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
+          {(track.device??'synth')==='synth'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
             {(['A','B'] as const).map(slot=><button key={slot} type="button" aria-label={'Compare sound '+slot} aria-pressed={(track.sound_ab?.active??'A')===slot} onClick={()=>command('sound_ab',[selected,slot])}>{slot}</button>)}
             <button type="button" aria-label="Copy sound to other slot" title="Copy to other slot" onClick={()=>command('sound_ab',[selected,'copy'])}>{track.sound_ab?.active==='B'?'B → A':'A → B'}</button>
-            <button type="button" aria-label="Sound undo" title="Undo one knob gesture" disabled={!(snapshot?.sound_undo?.[selected])} onClick={()=>command('sound_undo',selected)}><RotateCcw size={16}/></button>
-            <button type="button" aria-label="Edit automation" aria-pressed={snapshot?.automation_arm??false} onClick={()=>setAutomationEdit(null)}>Auto</button>
+            <button type="button" aria-label="Edit automation" aria-pressed={automationEdit!==undefined} onClick={()=>setAutomationEdit(automationEdit===undefined?null:undefined)}>Auto</button>
           </div>:null}
           <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
           {track.device==='drum_rack'?<button type="button" className="instrument-kit-browser" aria-label="Browse drum kits" aria-expanded={kitBrowserTrack===selected} title={track.drum_rack?.name??'Choose a kit folder'} onClick={()=>setKitBrowserTrack(kitBrowserTrack===selected?null:selected)}><FolderOpen size={17}/><span><small>Kits</small><strong>{track.drum_rack?.name??'Choose kit folder'}</strong></span></button>:null}
-          {track.device!=='drum_rack'?<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
+          {(track.device??'synth')==='synth'?<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
           <button type="button" className="page-tool-icon" aria-label="Save patch" title="Save patch"
             onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
         </>:page==='PERFORM'?<PerformTools
@@ -506,16 +535,18 @@ function App() {
             {bar}
             <Arranger project={project} song={song} selected={selected} zoom={songZoom} start={songStart} sel={songSel} onSel={setSongSel}
               onSong={s=>command('song',s)} playing={snapshot?.playing??false} songBeat={songBeat}
-              onSelect={index=>command('select',index)} onMute={(idx,next)=>command('track',[idx,'mute',next])} onClips={t=>setClipSheet(t)}/>
+              onSelect={index=>command('select',index)} onMute={(idx,next)=>command('track',[idx,'mute',next])} onClips={t=>setClipSheet(t)}
+              freeze={snapshot?.freeze} onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)}/>
           </section>
           :<Timeline project={project} selected={selected} beat={playhead} songBeat={songBeat} playing={snapshot?.playing??false}
             recording={snapshot?.recording??false} header={bar}
             loops={project.tracks.map((_,t)=>{const k=clipsOf(project).open[t];
               return {label:CLIP_NAMES[k],sub:'clip',aria:'Clips of track '+(t+1)+': clip '+CLIP_NAMES[k]+' is open',title:'Open, copy or clear this track\'s clips'};})}
             onLoops={t=>setClipSheet(t)}
+            freeze={snapshot?.freeze} onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)}
             onSelect={index=>command('select',index)}
             onMute={(idx,next)=>command('track',[idx,'mute',next])}
-            onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])} onOpenNotes={index=>{command('select',index);setNoteEditorTrack(index);}}
+            onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])} onOpenNotes={openClipNotes}
             onOpenSound={index=>{command('select',index);setPage('SOUND');}}/>;
         })()}
         {clipSheet!==null?<ClipSheet project={project} song={song} track={clipSheet}
@@ -527,15 +558,12 @@ function App() {
       </div>
       :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
         runtime={snapshot?.drum_racks?.[selected]??undefined}
-        steps={pad=>{
-          const clip=clipsOf(project).open[selected];
-          const {playing:running,beat}=clipPlayback(project,selected,songBeat,playhead,!!snapshot?.playing);
-          return <DrumSteps track={selected} clip={clip} bars={project.bars} kitId={track.drum_rack?.id??''} pad={pad} notes={track.notes}
-            playing={running} beat={beat} recording={!!snapshot?.recording||project.performance.seq.recording}
+        steps={pad=><DrumSteps track={selected} kitId={track.drum_rack?.id??''} pad={pad} seq={project.performance.seq} patterns={project.performance.patterns}
+            playing={snapshot?.playing??false} beat={playhead} recording={!!snapshot?.recording} recStep={snapshot?.rec_step??0}
             onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])}
             onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])}
-            onUndo={()=>command('undo')}/>;
-        }}
+            onSeq={(key,value)=>command('perform_set',['seq',key,value])}
+            onUndo={()=>command('undo')}/>}
         onNote={(pad,velocity)=>{if(track.drum_rack)command('drum_note',[selected,track.drum_rack.id,pad,velocity]);}}
         onEdit={(pad,key,value)=>{if(track.drum_rack)command('drum_edit',[selected,track.drum_rack.id,pad,key,value]);}}
         onImport={importDrum} browserOpen={kitBrowserTrack===selected} onBrowserOpen={open=>{if(!open)command('drum_preview_stop');setKitBrowserTrack(open?selected:null);}} library={snapshot?.drum_library}
@@ -544,8 +572,19 @@ function App() {
         onPreviewSample={(folder,index)=>command('drum_preview_sample',[folder,index])}
         onStopPreview={()=>command('drum_preview_stop')}
         onReplaceSample={(folder,index,pad)=>{if(track.drum_rack){pendingSwap.current={track:selected,id:track.drum_rack.id,pad,source:track.drum_rack.pads[pad].source?.path??null};command('drum_replace_sample',[selected,track.drum_rack.id,pad,folder,index]);}}}
-        onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}/>
-      :page==='SOUND'||page==='FX'?<ContextAreaScope area={page==='FX'?'fx':'sound'}><PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()}>
+        onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}
+        onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}/>
+      :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
+        runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
+        onLoadWav={async()=>{if(isPreview||!api){setToast('Open the native audio app to load a WAV');return;}
+          const id=track.sampler?.id,tr=selected;const filepath=await api.chooseFile('open','sample');
+          if(filepath&&id)command('sampler_load_wav',[tr,id,filepath]);}}
+        send={(cmd,args)=>command(cmd,args)}
+        onEdit={(key,value)=>{if(track.sampler)command('sampler_edit',[selected,track.sampler.id,key,value]);}}
+        onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
+        onMake={p=>command('sampler_make',[p.track,p.kit,p.pad,selected,null,p.family])}
+        onMidi={(s,a,b)=>command('midi',[s,a,b])}/>
+      :page==='SOUND'||page==='FX'?<ContextAreaScope area={page==='FX'?'fx':'sound'}><PanelScope scope={'track:'+selected}><div className={'frame frame-'+page.toLowerCase()+(page==='SOUND'&&soundFolded?' sound-folded':'')+(page==='FX'&&fxFolded?' fx-folded':'')}>
         <ModBand key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
           live={snapshot?.meter?.fx_live} edit={edit} onEdit={setEdit} armed={armed}
           onLink={setArmed}/>
@@ -553,11 +592,11 @@ function App() {
           <SoundWindow track={track} selected={selected} onParam={(name,index,val)=>onParam(name,index,val)}
             onShape={name=>command('spectral_seed',[selected,name])}
             chain={track.fx} onChain={chain=>command('fx',[selected,chain])}
-            live={snapshot?.meter?.fx_live} bpm={project.bpm}/>
+            live={snapshot?.meter?.fx_live} bpm={project.bpm} folded={soundFolded} onFold={foldSound}/>
           <SoundCards key={selected} track={track} selected={selected} onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} autoFold={!settings.noAutoFold}
             onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={snapshot?.meter?.fx_live}/>
         </>:<>
-          <FxWindow chain={track.fx} onChange={chain=>command('fx',[selected,chain])} live={snapshot?.meter?.fx_live} bpm={project.bpm}/>
+          <FxWindow chain={track.fx} onChange={chain=>command('fx',[selected,chain])} live={snapshot?.meter?.fx_live} bpm={project.bpm} folded={fxFolded} onFold={foldFx}/>
           <FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
             onReorder={ids=>command('fx_reorder',[selected,ids])}
             live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
@@ -566,6 +605,7 @@ function App() {
       </div></PanelScope></ContextAreaScope>
       :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
           transfer={{clip:clipsOf(project).open[selected],bars:project.bars}}
+          clipEdit={performClip} onClipEdit={setPerformClip} clipBeat={editorClock?.beat??playhead} clipPlaying={editorClock?.playing??false}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
           onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
@@ -579,6 +619,10 @@ function App() {
     </>:<div className="workspace loading-workspace"><AudioWaveform size={40}/><p>Connecting to the Decksynth audio engine…</p></div>}
     </div>
 
+    {keysSheet&&project?.tracks[keysSheet.track]?.drum_rack?(()=>{const kit=project.tracks[keysSheet.track].drum_rack!,p=kit.pads[keysSheet.pad];
+      return <PlayOnKeysSheet padName={padLabel(p.name,kit.name)} family={drumKind(p.name,p.source?.path)} sourceTrack={keysSheet.track} tracks={project.tracks}
+        onClose={()=>setKeysSheet(null)}
+        onMake={(target,root)=>{command('sampler_make',[keysSheet.track,kit.id,keysSheet.pad,target,root,drumKind(p.name,p.source?.path)]);setKeysSheet(null);}}/>;})():null}
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}

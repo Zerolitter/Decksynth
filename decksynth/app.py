@@ -199,7 +199,7 @@ class App(TouchViews):
         self.bpm.set(str(target))
         self.send('tempo',target)
     def cycle_bars(self):
-        order=(1,2,4,8)
+        order=(1,2,4,8,16,32)
         try:current=int(self.bars.get())
         except ValueError:current=4
         nxt=order[(order.index(current)+1)%len(order)] if current in order else 4

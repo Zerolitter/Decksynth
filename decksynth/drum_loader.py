@@ -21,6 +21,9 @@ class DrumLoader:
             self.capacity.release(); raise
         future.add_done_callback(lambda _: self.capacity.release())
         self.jobs[tr, pad] = (future, kit_id, epoch, restore, source, name)
+        if pad == 'sampler':
+            self.engine.samplers[tr].loading = True; self.engine.samplers[tr].error = None
+            return
         self.engine.drums[tr].loading[pad] = True
         self.engine.drums[tr].errors[pad] = None
 
@@ -34,12 +37,20 @@ class DrumLoader:
             # Already-running jobs finish privately; their stale results have no commit path.
             self.jobs.clear(); self.epoch = self.engine.drum_epoch; self._restore_needed = True
             for rack in self.engine.drums: rack.loading[:] = [False]*16
+            for sampler in self.engine.samplers: sampler.loading = False
 
     def poll(self):
         self._sync_epoch()
         if self._restore_needed:
             self._restore_needed = False
             for tr, t in enumerate(self.engine.project.tracks):
+                if device_kind(t) == 'sampler':
+                    spec = t['sampler']; sampler = self.engine.samplers[tr]
+                    # Made from a pad, the sample is usually in memory already.
+                    if spec['source'] is not None and sampler.raw is None and (tr, 'sampler') not in self.jobs:
+                        try: self._submit(tr, spec['id'], 'sampler', spec['source']['path'], spec['source']['sha256'], True, spec['source'])
+                        except ValueError as exc: sampler.missing(exc)
+                    continue
                 if device_kind(t) != 'drum_rack': continue
                 kit = t['drum_rack']
                 for pad, p in enumerate(kit['pads']):
@@ -52,6 +63,12 @@ class DrumLoader:
             if not future.done(): continue
             del self.jobs[tr, pad]
             if epoch != self.engine.drum_epoch: continue
+            if pad == 'sampler':
+                sampler = self.engine.samplers[tr]; sampler.loading = False
+                try: self.engine.commit_sampler_sample(tr, kit_id, future.result(), epoch)
+                except (OSError, ValueError) as exc:
+                    sampler.missing(exc); errors.append('Sampler on track %d: %s' % (tr+1, exc))
+                continue
             try:
                 self.engine.commit_drum_sample(tr, kit_id, pad, future.result(), epoch, restore, source, name)
             except (OSError, ValueError) as exc:

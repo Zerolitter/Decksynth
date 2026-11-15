@@ -183,3 +183,6 @@
   .harness-shell .song-toolbar .fx-segment button{padding-inline:8px}
   .harness-shell .song-toolbar .song-marker{max-width:64px}
 }
+/* 15 Nov round 3: a grid of choices for long lists (SEQ steps 4-256). */
+.loop-bars-choices.is-grid{display:grid;grid-template-columns:repeat(var(--cols,4),92px);gap:2px}
+.loop-bars-choices.is-grid button{text-align:center;min-width:0}

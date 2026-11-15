@@ -9,8 +9,14 @@ from pathlib import Path
 import struct
 from . import song as songs
 from .devices import device_kind
+# Clip loop lengths in bars (Sir, 15 Nov: up to 32).
+BAR_CHOICES=(1,2,4,8,16,32)
 from .drum_rack import validate_kit
 from .drum_engine import DrumEngine
+from .freeze_engine import FreezeEngine
+from .freeze import validate_freeze
+from .sampler_engine import SamplerEngine
+from .sampler import validate_sampler
 from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
 from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
@@ -19,7 +25,7 @@ from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
-                      mutate_pattern, song_from_pattern, pattern_from_song, chord_notes,
+                      mutate_pattern, song_from_pattern, pattern_from_song, chord_notes, clip_to_pattern, MAX_STEPS,
                       velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS,
                       reconcile_pattern_timing, STRUM_SYNC, arp_view)
 
@@ -132,7 +138,7 @@ class Project:
     def load(cls,path):
         try:
             d=json.loads(Path(path).read_text()); p=cls()
-            assert d['version']==1 and 30<=d['bpm']<=240 and d['bars'] in (1,2,4,8)
+            assert d['version']==1 and 30<=d['bpm']<=240 and d['bars'] in BAR_CHOICES
             assert isinstance(d['metronome'],bool) and len(d['tracks'])==4
             for t in d['tracks']:
                 assert isinstance(t['name'],str) and len(t['name'])<=100
@@ -141,11 +147,17 @@ class Project:
                 kind=device_kind(t)
                 if 'drum_rack' in t:t['drum_rack']=validate_kit(t['drum_rack'])
                 if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
+                if 'sampler' in t:t['sampler']=validate_sampler(t['sampler'])
+                if kind=='sampler' and 'sampler' not in t:raise ValueError('Sampler is missing')
                 validate_instrument(t['instrument'])
                 from .workflow import validate_ab,validate_automation
                 if 'sound_ab' in t:t['sound_ab']=validate_ab(t['sound_ab'])
                 if 'automation' in t:t['automation']=validate_automation(t['automation'])
                 if 'fx' in t:t['fx']=validate_fx(t['fx'])
+                if 'freeze' in t:t['freeze']=validate_freeze(t['freeze'])
+                if 'freeze_loop' in t:
+                    t['freeze_loop']=validate_freeze(t['freeze_loop'])
+                    if 'freeze' not in t or t['freeze_loop']['mode']!='loop' or t['freeze']['mode']!='song':raise ValueError('Invalid frozen track pair')
                 assert len(t['notes'])<=100000
                 for n in t['notes']:
                     assert 0<=n['start']<d['bars']*4 and 0<n['duration']<=d['bars']*4
@@ -544,12 +556,16 @@ from .workflow import WorkflowEngine
 from .note_edit import NoteEditEngine
 from .pattern_catalog import PatternCatalogEngine
 
-class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine):
+class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine,FreezeEngine,SamplerEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
         self.selected=0; self.playing=False; self.recording=False; self.frame=0
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
+        self.transfer_report=None
+        # Count-in (Settings): beats of click before a take, and whether REC waits for the first note.
+        self.count_in_beats=0; self.rec_wait=False
+        self.rec_armed=None; self.count_end=None; self.count_start=0; self.count_track=0; self.count_early=[]
         self.perform_held=HeldNotes(); self.live_note_map={}; self.mutation_sessions={}; self.arp_anchor_beat=0.
         self.arp_paused=False; self.arp_resume_phase=0
         self.scheduled_live=[]; self.absolute_frame=0
@@ -559,6 +575,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.midi_learn=None
         self.init_workflow()
         self.init_drums()
+        self.init_samplers()
+        self.init_freeze()
         self.configure()
     def configure(self):
         self.stop_pattern_preview()
@@ -566,6 +584,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
         for t,fx in zip(self.project.tracks,self.fx): fx.configure(t.get('fx'))
         self.configure_drums()
+        self.configure_samplers()
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
         clean=validate_fx(chain);self.record_fx_changes(track,self.project.tracks[track].get('fx') or default_fx(),clean); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
@@ -662,7 +681,19 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         if pattern_address is not None:
             data['_pattern_edit']=dict(address=pattern_address,after=copy.deepcopy(after_pattern),
                                        seed_after=seed_after,mode_after=mode_after)
+        data['_seq']=self.next_edit_seq()
         self.history.append(data);self.history=self.history[-20:]
+    def next_edit_seq(self):
+        self._edit_seq=getattr(self,'_edit_seq',0)+1;return self._edit_seq
+    def undo_any(self):
+        """The top-bar Undo: undo the newest edit, whether a project edit or a Sound knob gesture."""
+        best=None
+        for tr in range(len(self.project.tracks)):
+            h=self.patch_history(tr) if hasattr(self,'patch_history') else []
+            if h and (best is None or h[-1].get('seq',0)>best[1]):best=(tr,h[-1].get('seq',0))
+        project_seq=self.history[-1].get('_seq',0) if self.history else -1
+        if best is not None and best[1]>project_seq:return self.sound_undo(best[0])
+        return self.undo()
     def undo(self):
         if not self.history:return
         data=self.history[-1]
@@ -705,6 +736,46 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         if not self.playing: self.frame=0
         self.playing=True; self.recording=True; self.record_start=self.frame
         self.record_end=self.frame+round(self.project.beats*self.fpb)
+    def set_record_options(self,count_in,wait):
+        """Settings: count_in 0 or 4 beats of click before a take; wait=True arms REC until the first note."""
+        if count_in not in (0,4) or type(wait) is not bool:raise ValueError('Count-in is off or 4 beats; wait is on or off')
+        self.count_in_beats=count_in; self.rec_wait=wait
+    def record_button(self):
+        """REC: finish a take; cancel an armed or counting REC; or start one. From a stopped transport,
+        REC counts in (4 clicks) and/or waits for the first note, as set in Settings. While the loop
+        is already playing the take starts at once, as before."""
+        if self.recording:return self.finish_record()
+        if self.rec_armed is not None or self.count_end is not None:return self.cancel_count()
+        track=self.selected
+        if self.playing or not (self.count_in_beats or self.rec_wait):return self.record(track)
+        if self.rec_wait:self.rec_armed=track
+        else:self.start_count(track)
+    def start_count(self,track):
+        self.rec_armed=None; self.count_track=track; self.count_early=[]
+        self.count_start=self.absolute_frame; self.count_end=self.absolute_frame+round(self.count_in_beats*self.fpb)
+    def cancel_count(self):
+        self.rec_armed=None; self.count_end=None; self.count_early=[]
+    def first_note(self):
+        """A note from the UI keys, a chord pad, a drum pad or external MIDI while REC waits for it:
+        with a count-in it starts the count (that note is not recorded); without, the take starts now
+        and the note is its first event."""
+        if self.rec_armed is None:return
+        track=self.rec_armed
+        if self.count_in_beats:self.start_count(track)
+        else:self.rec_armed=None; self.record(track)
+    def count_state(self):
+        if self.count_end is not None:
+            left=max(1,math.ceil((self.count_end-self.absolute_frame)/self.fpb-1e-9))
+            return dict(state='count',beat=self.count_in_beats-left+1,of=self.count_in_beats)
+        if self.rec_armed is not None:return dict(state='armed',count=self.count_in_beats)
+        return None
+    def _count_done(self):
+        track=self.count_track; early=self.count_early
+        self.count_end=None; self.count_early=[]
+        self.record(track)
+        # A key hit just before the downbeat (the last 1/8 beat of the count) and still held counts as on beat 1.
+        for key,velocity,tr in early:
+            if key[:2] in self.down:self.pending[key]=(0,velocity,tr)
     def quantize(self,track):
         self.snapshot(); self.stop(); self.project.quantize(track)
     def set_song(self,song):
@@ -715,7 +786,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
     def release_loops(self):
         """Let go of the loop and song notes still sounding (their note-offs won't come any more)."""
         for i,s in enumerate(self.synths):
-            s.cancel_sources(('loop',))
+            s.cancel_sources(('loop',)); self.samplers[i].cancel_sources(('loop',))
             self.drum_gate_keys[i]={k for k in self.drum_gate_keys[i] if not (isinstance(k,tuple) and k[0]=='loop')}
     def clip_action(self,track,action,clip=None,source=None):
         """Loops per track: open one for editing, copy one into another slot, or clear one."""
@@ -730,7 +801,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             if clip!=opened and not (self.playing and p.song['on']):
                 # Loop mode: the old loop's notes won't get their note-offs any more, so release them now.
                 # (A playing song picks clips from the timeline, so opening one changes nothing you hear.)
-                self.synths[track].cancel_sources(('loop',))
+                self.synths[track].cancel_sources(('loop',)); self.samplers[track].cancel_sources(('loop',))
                 self.drum_gate_keys[track]={k for k in self.drum_gate_keys[track] if not (isinstance(k,tuple) and k[0]=='loop')}
             if clip!=opened:
                 slots[opened]=t['notes']; t['notes']=slots[clip]; slots[clip]=[]; p.clips['open'][track]=clip
@@ -749,7 +820,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         m=songs.marker_at(song,bar)
         return dict(bar=bar,length=song['length'],marker=m,name=None if m is None else song['markers'][m]['name'])
     def set_bars(self,bars):
-        if bars not in (1,2,4,8):raise ValueError('Loop length must be 1, 2, 4 or 8 bars')
+        if bars not in BAR_CHOICES:raise ValueError('Loop length must be 1, 2, 4, 8, 16 or 32 bars')
         self.snapshot(); self.stop(); self.project.bars=bars
         for t in self.project.tracks:
             for n in t['notes']:
@@ -759,6 +830,11 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 for n in clip:
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
+        if device_kind(self.project.tracks[track])=='sampler':
+            empty=not any(v.active for v in self.samplers[track].voices)
+            hit=False if self.project.tracks[track]['mute'] else self.samplers[track].on(note,velocity,token)
+            if hit:self.fx[track].retrigger(self.absolute_frame if self._event_frame is None else self._event_frame,empty)
+            return hit
         if device_kind(self.project.tracks[track])=='drum_rack':
             empty=not self.drum_gate_keys[track]
             hit=False if self.project.tracks[track]['mute'] else self.drums[track].on(note,velocity,token)
@@ -788,6 +864,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             s=self.synths[self.selected]
             self.drum_gate_keys[self.selected]={k for k in self.drum_gate_keys[self.selected] if not (isinstance(k,tuple) and k[0] in ('live','editor'))}
             s.cancel_sources(('live','perf_seq','perf_arp','editor'),cut=('live',))
+            self.samplers[self.selected].cancel_sources(('live','perf_seq','perf_arp','editor')); self.samplers[self.selected].pedal(False)
             s.pedal(False); s.bend=1.; self.down.clear(); self.capture_sustain.clear()
             self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear(); self.selected=track
     def close_note(self,key,at=None):
@@ -804,16 +881,19 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.stop_sample_preview()
         self.stop_pattern_preview()
         self.cancel_sound_gesture();self.automation_arm=False
+        self.cancel_count()
         self.finish_record(); self.down.clear(); self.capture_sustain.clear(); self.playing=False; self.frame=0
         self.project.performance['seq']['recording']=False
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
+        for sampler in self.samplers:sampler.panic()
         for fx in self.fx:fx.clear_gate_events()
         for keys in self.drum_gate_keys:keys.clear()
-        self.drum_keys.clear()
+        self.drum_keys.clear(); self.freeze_ring.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
         for synth in self.synths:synth.cancel_sources((prefix,))
+        for sampler in self.samplers:sampler.cancel_sources((prefix,))
 
     def perform_set(self,section,key,value):
         """Validated UI parameter changes; does not erase recorded song notes."""
@@ -852,6 +932,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 for token in list(synth.voices):
                     if isinstance(token,tuple) and str(token[0]).startswith('perf_'):
                         synth.off(0,token)
+            for sampler in self.samplers:sampler.cancel_sources(('perf_seq','perf_arp'))
         return state[section][key]
 
     def perform_step(self,index,notes,replace=True):
@@ -908,26 +989,9 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             notes=actual['notes']
             if not notes:raise ValueError('The source clip is empty')
             if seq['transpose']:raise ValueError('Set pattern Transpose to 0 before an exact Song to Pattern copy')
-            counts={};ratios=[]
-            for n in notes:
-                step=n['start']/unit
-                if not math.isclose(step,round(step),abs_tol=1e-7):
-                    raise ValueError('Clip timing does not fit this pattern division; no notes were quantized')
-                if not 0<=round(step)<pattern['length']:
-                    raise ValueError('Clip notes exceed this pattern length')
-                ratios.append(n['duration']/unit)
-                counts[round(step)]=counts.get(round(step),0)+1
-                if counts[round(step)]>8:raise ValueError('A pattern step holds at most 8 notes; no notes were dropped')
-            # Reuse the converter, choosing an existing-model gate/tie representation
-            # which preserves every source duration instead of rounding or truncating it.
-            gates=[.8]+sorted({ratios[0]/tie for tie in range(1,9) if .1<=ratios[0]/tie<=.9},key=lambda g:abs(g-.8))
-            gate=next((g for g in gates if all(1<=round(r/g)<=8 and math.isclose(r/g,round(r/g),abs_tol=1e-7) for r in ratios)),None)
-            if gate is None:raise ValueError('Clip note lengths cannot share this pattern gate and tie range; no notes were changed')
-            captured=pattern_from_song(notes,self.project.bars,pattern['division'],pattern['length']);captured['gate']=gate
-            offsets={}
-            for n,ratio in zip(notes,ratios):
-                step=round(n['start']/unit);index=offsets.get(step,0);offsets[step]=index+1
-                captured['steps'][step][index]['tie']=round(ratio/gate)
+            # A live take is snapped to the pattern's grid and the pattern takes the clip's length
+            # (15 Nov: the strict copy refused every arp/chord take and every clip longer than the pattern).
+            captured,self.transfer_report=clip_to_pattern(notes,self.project.beats,pattern['division'],1/self.fpb)
             return captured
         else:
             if not any(pattern['steps']):raise ValueError('The source pattern is empty')
@@ -969,9 +1033,14 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                          self.project.bars,seq['division'],seq['length'])
         elif action=='commit_song':
             if value not in ('add','replace'):raise ValueError('Choose add or replace')
-            notes=song_from_pattern(pattern,self.project.bars,seq['transpose'],fill=True)
+            # The clip gets what the sequencer plays: swing, gate and spice included, not the bare grid.
+            notes=song_from_pattern(pattern,self.project.bars,seq['transpose'],fill=True,
+                                    feel=dict(spice=seq['spice'],spice_seed=seq['spice_seed']))
             if len(notes)>100000:raise ValueError('Too many MIDI notes')
             song_notes=notes;seq['recording']=False
+            # The clip now holds the pattern. Leaving SEQ running would play it a second time on top of
+            # the clip, so sending hands playback over to the Song (Undo turns SEQ back on).
+            seq['enabled']=False
         elif action=='paste_pattern':
             if type(value) is not str or value.count(':')!=1:raise ValueError('Paste needs a bank:pattern address')
             source_addr=slot_key(*value.split(':'))
@@ -983,7 +1052,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             state['patterns'][addr]=step_change(pattern,0,[],True)
             for step in state['patterns'][addr]['steps']:step.clear()
         elif action=='double':
-            if pattern['length']*2>64:raise ValueError('Maximum 64 sequence steps')
+            if pattern['length']*2>MAX_STEPS:raise ValueError('Maximum %d sequence steps'%MAX_STEPS)
             doubled=change_pattern_length(pattern,pattern['length']*2)
             doubled['steps'][pattern['length']:]=copy.deepcopy(pattern['steps'])
             state['patterns'][addr]=doubled; seq['length']=doubled['length']
@@ -1120,6 +1189,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         instead of expanding the key through chord mode and the scale."""
         channel=self.project.performance['scale']['input_channel']
         if (status&0xf0)==0xb0 and (not channel or (status&15)==channel-1) and self.controller_cc(status&15,note,value):return
+        if (status&0xf0)==0x90 and value and (not channel or (status&15)==channel-1):self.first_note()
         if self.drum_midi(status,note,value):return
         kind=status&0xf0; ch=status&15; s=self.synths[self.selected]; key=(ch,note)
         explicit=notes is not None
@@ -1133,7 +1203,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             for k in list(self.pending):
                 if k[:2]==key:self.close_note(k)
             for old in self.live_note_map.pop(key,[]):
-                s.off(old,('live',ch,note,old))
+                self.voice_off(self.selected,old,('live',ch,note,old))
             self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key]
             if notes is None:notes=chord_notes(state,note,value)
             velocity=velocity_transform(value,state['scale']['velocity_curve'])
@@ -1145,8 +1215,10 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 # The Arpeggiator starts with the first held key, even without a song clip. A key also ends a pause.
                 if self.arp_paused:self.arp_paused=False; fresh=True
                 self.live_note_map[key]=[]
-                if not self.playing:self.frame=0
-                self.playing=True
+                # During a count-in the arp waits for beat 1 of the take.
+                if self.count_end is None:
+                    if not self.playing:self.frame=0
+                    self.playing=True
                 # A new phrase (or every key with Retrigger) starts on the pattern's first step.
                 if fresh or state['arp']['retrigger']:self.arp_anchor_beat=self.beat
             else:
@@ -1165,34 +1237,22 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         self.scheduled_live.append((self.absolute_frame+delay,self.selected,pitch,velocity,key,token))
                     else:
                         self.voice_on(self.selected,pitch,velocity,token)
-                        if self.recording:self.pending[(ch,note,pitch)]=(self.frame,velocity,self.selected)
-            if state['seq']['recording']:
-                pattern=current_pattern(state)
-                emitted=[dict(note=n,velocity=velocity,tie=1) for n in notes[:8]]
-                # Keys pressed together (within 80 ms, earlier ones still held) form one chord on one step.
-                last=self.rec_last
-                chord=(last is not None and len(self.down)>1 and
-                       self.absolute_frame-last[0]<=.08*self.rate and last[1]<pattern['length'])
-                if chord:
-                    self.perform_step(last[1],emitted,False)
-                    self.rec_last=(self.absolute_frame,last[1])
-                else:
-                    step=self.rec_step%pattern['length']
-                    self.perform_step(step,emitted,not state['seq']['overdub'])
-                    self.rec_last=(self.absolute_frame,step)
-                    self.rec_step=(step+1)%pattern['length']
+                        if self.capturing_song():self.pending[(ch,note,pitch)]=(self.frame,velocity,self.selected)
+                        elif self.count_end is not None and self.count_end-self.absolute_frame<=self.fpb/8:
+                            self.count_early.append(((ch,note,pitch),velocity,self.selected))
+            if state['seq']['recording']:self.step_record(notes,velocity)
         elif kind==0x80 or (kind==0x90 and value==0):
             self.down.discard(key)
             if state['arp']['enabled'] and not self.perform_held.hold:self.release_performance('perf_arp')
             self.perform_held.off(key)
             self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key]
             for pitch in self.live_note_map.pop(key,[]):
-                s.off(pitch,('live',ch,note,pitch))
+                self.voice_off(self.selected,pitch,('live',ch,note,pitch))
             if ch not in self.capture_sustain:
                 for k in list(self.pending):
                     if k[:2]==key:self.close_note(k)
         elif kind==0xb0 and note==64:
-            s.pedal(value>=64)
+            s.pedal(value>=64); self.samplers[self.selected].pedal(value>=64)
             if value>=64:self.capture_sustain.add(ch)
             else:
                 self.capture_sustain.discard(ch)
@@ -1204,14 +1264,36 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # Channel/poly-aftertouch mapped to expressive synth modulation.
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
+    def step_record(self,notes,velocity):
+        """Step rec: a key (synth) or pad (Drum Rack) writes the step under the rec cursor of the open
+        SEQ pattern, then the cursor moves on. Keys pressed together (within 80 ms, earlier ones still
+        held) form one chord on one step. The song clip is never written by step rec."""
+        state=self.project.performance;pattern=current_pattern(state)
+        emitted=[dict(note=n,velocity=velocity,tie=1) for n in notes[:8]]
+        last=self.rec_last
+        chord=(last is not None and len(self.down)>1 and
+               self.absolute_frame-last[0]<=.08*self.rate and last[1]<pattern['length'])
+        if chord:
+            self.perform_step(last[1],emitted,False)
+            self.rec_last=(self.absolute_frame,last[1])
+        else:
+            step=self.rec_step%pattern['length']
+            self.perform_step(step,emitted,not state['seq']['overdub'])
+            self.rec_last=(self.absolute_frame,step)
+            self.rec_step=(step+1)%pattern['length']
+    def capturing_song(self):
+        """Song REC captures live keys, except while step rec owns the keys for the pattern."""
+        return self.recording and not self.project.performance['seq']['recording']
     def panic(self):
         self.stop_sample_preview()
         self.stop_pattern_preview()
         self.midi_learn=None
+        self.cancel_count()
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
         self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
+        for sampler in self.samplers:sampler.panic()
         self.drum_keys.clear()
         for fx in self.fx:fx.clear_gate_events(reset_origin=False)
         for keys in self.drum_gate_keys:keys.clear()
@@ -1225,6 +1307,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         while remaining:
             n=self.automation_block(min(remaining,128))
             if self.recording:n=min(n,max(1,self.record_end-self.frame))
+            if self.count_end is not None:n=min(n,max(1,self.count_end-self.absolute_frame))
             events={0:[]}; start=self.frame; end=start+n
             abs_start=self.absolute_frame; abs_end=abs_start+n
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
@@ -1250,15 +1333,27 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             self.scheduled_live=waiting
             for offset,action,tr,pitch,velocity,token in self.preview_events(abs_start,abs_end):
                 events.setdefault(offset,[]).append((5,action,tr,pitch,velocity,token))
+            # Frozen tracks play their audio file instead of their notes, synth and FX (freeze_engine.py).
+            freeze_mode='song' if self.project.song['on'] and not self.recording else 'loop'
+            frozen=[self.frozen_active(tr,freeze_mode) for tr in range(4)]
+            for tr,on in enumerate(frozen):
+                if on and not self._frozen_on[tr]:
+                    # Song and loop notes started live would never get their note-off now: let them go.
+                    # Keys, arp and chords played live on the track keep sounding.
+                    self.synths[tr].cancel_sources(('loop',));self.drums[tr].cancel_source('loop');self.samplers[tr].cancel_sources(('loop',))
+                self._frozen_on[tr]=on
+            if self.playing:self.freeze_ring.clear()
             if self.playing:
                 loop=self.project.beats*self.fpb
                 song=self.project.song if self.project.song['on'] and not self.recording else None
                 # A song that doesn't loop stops after its last bar: the transport rewinds and the
                 # notes still sounding are released (not cut), so the ending rings out.
                 if song and not song['loop'] and start>=round(song['length']*4*self.fpb):
+                    # Frozen tracks ring out from where the transport stopped (their file holds the tail).
+                    self.freeze_ring={tr:start for tr in range(4) if frozen[tr]}
                     self.playing=False; self.frame=0; start=0; end=n; self.release_loops()
                 for tr,t in enumerate(self.project.tracks if self.playing else []):
-                    if t['mute']:continue
+                    if t['mute'] or frozen[tr]:continue
                     if song:
                         # Timeline: each bar plays the bar of its block's clip that lines up with the grid.
                         for beat,action,key,bar,note in songs.song_events(song,lambda k:self.project.clip_notes(tr,k),tr,
@@ -1274,7 +1369,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                                 if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
-                if self.playing and not self.project.tracks[self.selected]['mute']:
+                if self.playing and not self.freeze_render and not self.project.tracks[self.selected]['mute']:
                     generated=schedule_notes(self.project.performance,[] if self.arp_paused else self.perform_held.held(),
                                              start,end,self.fpb,velocities=self.perform_held.velocities(),
                                              arp_anchor=self.arp_anchor_beat*self.fpb)
@@ -1284,8 +1379,18 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 if self.playing and self.project.metronome:
                     b=math.ceil(start/self.fpb); tick=round(b*self.fpb)
                     if start<=tick<end:events.setdefault(tick-start,[]).append((2,b))
+            if self.count_end is not None:
+                # Count-in clicks on the audio clock (the transport is still stopped); beat 1 is accented.
+                k=max(0,math.ceil((abs_start-self.count_start)/self.fpb-1e-9))
+                while True:
+                    tick=self.count_start+round(k*self.fpb)
+                    if tick>=abs_end or tick>=self.count_end:break
+                    if tick>=abs_start:events.setdefault(tick-abs_start,[]).append((2,0 if k==0 else k))
+                    k+=1
             offsets=sorted(set(events)|{n})
-            track_audio=[[] for _ in self.synths]; click=[]
+            track_audio=[[] for _ in self.synths]; click=[]; live_frozen=[False]*4
+            # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
+            drum_right=[[] if stereo and device_kind(t)=='drum_rack' else None for t in self.project.tracks]
             for pos,nextpos in zip(offsets,offsets[1:]):
                 self._event_frame=abs_start+pos
                 for event in sorted(events[pos],key=lambda x:x[0]):
@@ -1318,8 +1423,18 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     else:self.voice_off(tr,note['note'],token)
                 count=nextpos-pos
                 for tr,(buf,s) in enumerate(zip(track_audio,self.synths)):
+                    if frozen[tr]:
+                        if not self._freeze_live(tr,s):
+                            buf.extend([0.]*count)
+                            if drum_right[tr] is not None:drum_right[tr].extend([0.]*count)
+                            continue
+                        live_frozen[tr]=True
                     part=s.render(count)
-                    if device_kind(self.project.tracks[tr])=='drum_rack':self.drums[tr].render_into(part,count)
+                    if device_kind(self.project.tracks[tr])=='drum_rack':
+                        if drum_right[tr] is not None:
+                            rpart=list(part);self.drums[tr].render_into(part,count,rpart);drum_right[tr].extend(rpart)
+                        else:self.drums[tr].render_into(part,count)
+                    elif device_kind(self.project.tracks[tr])=='sampler':self.samplers[tr].render_into(part,count)
                     buf.extend(part)
                 for j in range(count):
                     if self.click_age<self.rate*.025:
@@ -1331,8 +1446,21 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             for tr,(t,fx,audio) in enumerate(zip(self.project.tracks,self.fx,track_audio)):
                 if not t['mute']:
                     process=fx.process_stereo if stereo else fx.process
-                    audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
-                                  clock=start/self.fpb if self.playing else None,frame=abs_start)
+                    extra={'right':drum_right[tr]} if stereo and drum_right[tr] is not None else {}
+                    if frozen[tr] and not live_frozen[tr] and self.fx_live_until[tr]<=abs_start:
+                        audio=([0.]*n,[0.]*n) if stereo else [0.]*n  # no live notes: the FX rest too
+                    else:
+                        if frozen[tr]:self.fx_live_until[tr]=abs_end+round(3*self.rate)
+                        audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
+                                      clock=start/self.fpb if self.playing else None,frame=abs_start,**extra)
+                    if frozen[tr] or tr in self.freeze_ring:
+                        looping=freeze_mode=='loop' or self.project.song['loop']
+                        block=self._freeze_block(tr,start,n,looping,freeze_mode)
+                        if block is not None:
+                            fl,fr=block
+                            if stereo:audio=([a+b for a,b in zip(audio[0],fl)],[a+b for a,b in zip(audio[1],fr)])
+                            else:audio=[a+(b+c)*.5 for a,b,c in zip(audio,fl,fr)]
+                    if self.capture_track==tr and stereo:self.captured.append((list(audio[0]),list(audio[1])))
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
                     if stereo:
                         pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
@@ -1370,5 +1498,6 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             self.absolute_frame+=n
             self._event_frame=None
             if self.recording and self.frame>=self.record_end:self.finish_record()
+            if self.count_end is not None and self.absolute_frame>=self.count_end:self._count_done()
             remaining-=n
         return result

@@ -280,3 +280,33 @@
 
 /* Shape seeds are one committed action with a finger-sized target. */
 .harness-shell .shape-chips button{min-height:44px;min-width:44px}
+/* Review 2026-11-15 round 2: Partials / Morph pad folded to their title bar; the sound cards wrap into rows instead of scrolling sideways. */
+.harness-shell .frame-window-fold{display:flex;align-items:center;gap:6px;min-width:76px;min-height:44px;padding:0 12px;font:inherit;font-size:12px;font-weight:700;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:#dbe6e2;cursor:pointer}
+.harness-shell .frame-window-fold:hover{background:#2e4145;border-color:#7aaca0}
+.harness-shell .frame-window.is-folded .frame-window-fold{border-color:#5b9a86;color:#b2f4dc}
+.harness-shell .frame-window.is-folded .frame-window-bar{border-bottom:0}
+.harness-shell .frame.frame-sound.sound-folded{grid-template-rows:172px 46px minmax(0,1fr)}
+.harness-shell .frame.sound-folded .frame-rack{height:auto;min-height:0;max-height:none;flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto}
+/* 15 Nov round 3: Settings, Recording (count-in, wait for first note). */
+.setting-rec{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:10px;background:var(--raised);border:1px solid var(--line)}
+.setting-choice{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.setting-choice strong{font-size:13px}
+.setting-rec small{font-size:11.5px;color:var(--soft);line-height:1.35}
+.setting-seg{display:flex;gap:3px;padding:2px;border:1px solid var(--line);border-radius:9px;flex:none}
+.setting-seg button{min-height:44px;min-width:76px;padding:0 10px;border-radius:7px;border:1px solid transparent;background:transparent;color:#cfdad7;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.setting-seg button.on{background:#4a2a2e;border-color:#c46a6a;color:#ffe3e3}
+/* REC while counting in (the beat number) or armed (waiting for the first note). */
+.harness-shell .transport-pad.record.counting{border-color:#e46a6a;color:#ffd7d7}
+.harness-shell .transport-pad.record.counting.count>span{display:block;font-size:22px;font-weight:900;line-height:1}
+.harness-shell .transport-pad.record.counting.count>svg{display:none}
+.harness-shell .transport-pad.record.counting.armed{animation:rec-armed 1s steps(2,jump-none) infinite}
+@keyframes rec-armed{50%{background:#5a2328}}
+@media (prefers-reduced-motion:reduce){.harness-shell .transport-pad.record.counting.armed{animation:none;background:#5a2328}}
+/* 15 Nov round 3: the FX tab's Morph pad folds like Partials / Morph pad on the Sound tab. */
+.harness-shell .frame.frame-fx.fx-folded{grid-template-rows:172px 46px minmax(0,1fr)}
+.harness-shell .frame.fx-folded .frame-rack{height:auto;min-height:0;max-height:none;flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto}
+.harness-shell .frame-window[data-window=fx] .frame-window-bar>.frame-window-actions{margin-left:auto}
+.harness-shell .settings-panel .modal-close,.settings-panel .modal-close{min-height:44px}
+.setting-choice strong{white-space:nowrap}
+.setting-rec .setting-seg button{min-width:52px;padding:0 9px}
+.setting-rec{gap:4px;padding:6px 10px}

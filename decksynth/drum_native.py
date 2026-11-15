@@ -26,9 +26,11 @@ _FIELDS = [
     ('old_pos', C.c_double), ('old_step', C.c_double), ('old_gain', C.c_double),
     ('old_age', C.c_int64), ('old_remaining', C.c_int64),
     ('old_scalar', C.c_double), ('last', C.c_double),
+    ('gl', C.c_double), ('gr', C.c_double), ('old_gl', C.c_double), ('old_gr', C.c_double),
 ]
 _SYNC_FIELDS = ('pos', 'step', 'gain', 'age', 'remaining', 'old_pos', 'old_step',
-                'old_gain', 'old_age', 'old_remaining', 'old_scalar', 'last')
+                'old_gain', 'old_age', 'old_remaining', 'old_scalar', 'last',
+                'gl', 'gr', 'old_gl', 'old_gr')
 
 
 class NativeVoice(C.Structure):
@@ -60,7 +62,7 @@ def build_library(output=None, force=False):
     with tempfile.TemporaryDirectory(prefix='.drums-build-', dir=target.parent) as work:
         temporary = Path(work) / 'drums.so'
         args = compiler + ['-std=c99', '-O3', '-ffp-contract=off', '-fPIC', '-shared',
-                           str(source), '-o', str(temporary)]
+                           str(source), '-o', str(temporary), '-lm']
         result = subprocess.run(args, capture_output=True, text=True, timeout=60)
         if result.returncode:
             raise RuntimeError('Native Drum Rack build failed: ' + result.stderr[-2000:])
@@ -72,12 +74,13 @@ _lock = threading.Lock()
 _attempted = False
 _kernel = None
 _library = None
+_shape = None
 _error = None
 
 
 def native_kernel():
     """Prepare the optional library once, before any rack starts rendering."""
-    global _attempted, _kernel, _library, _error
+    global _attempted, _kernel, _library, _shape, _error
     with _lock:
         if not _attempted:
             _attempted = True
@@ -91,10 +94,19 @@ def native_kernel():
                 kernel.argtypes = [C.POINTER(NativeVoice), C.c_int, C.POINTER(C.c_double),
                                    C.c_int, C.c_int, C.c_int]
                 kernel.restype = None
-                _library, _kernel = library, kernel
+                shape = library.drum_shape
+                shape.argtypes = [C.c_void_p, C.c_int64, C.POINTER(C.c_double)]
+                shape.restype = None
+                _library, _kernel, _shape = library, kernel, shape
             except (OSError, RuntimeError, ValueError, AttributeError, subprocess.SubprocessError) as error:
                 _error = str(error)
         return _kernel
+
+
+def native_shape():
+    """The C pad-shaping routine (drum_shape.py), or None when only Python is available."""
+    native_kernel()
+    return _shape
 
 
 def native_error():
@@ -108,10 +120,10 @@ class NativeDrumMixer:
             raise ValueError('native drum pool must contain 1–32 slots')
         self.kernel = kernel
         self.states = (NativeVoice * voice_limit)()
-        self.scratch = (C.c_double * 128)()
+        self.scratch = (C.c_double * 256)()
         self._views = tuple(self.states[i] for i in range(voice_limit))
 
-    def render_into(self, voices, out, frames, attack, fade):
+    def render_into(self, voices, out, frames, attack, fade, right=None):
         for voice, state in zip(voices, self._views):
             state.data = voice.sample.data.buffer_info()[0] if voice.sample is not None else None
             state.frames = voice.sample.frames if voice.sample is not None else 0
@@ -123,8 +135,13 @@ class NativeDrumMixer:
         while offset < frames:
             count = min(128, frames - offset)
             self.kernel(self.states, len(self.states), self.scratch, count, attack, fade)
-            for i in range(count):
-                out[offset + i] += self.scratch[i]
+            scratch = self.scratch
+            if right is None:
+                for i in range(count):
+                    out[offset + i] += (scratch[i] + scratch[count + i]) * .5
+            else:
+                for i in range(count):
+                    out[offset + i] += scratch[i]; right[offset + i] += scratch[count + i]
             offset += count
         for voice, state in zip(voices, self._views):
             for field in _SYNC_FIELDS:

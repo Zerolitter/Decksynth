@@ -8,7 +8,10 @@ from functools import lru_cache
 from pathlib import Path
 from .library import factory_bank,FACTORY_PATTERNS
 from .keystep import validate_pattern
-ROLES={'kick':36,'snare':38,'clap':39,'rim':40,'perc':41,'closed_hat':42,'open_hat':43,'shaker':44,'tom':45,'ride':50}
+ROLES={'kick':36,'snare':38,'clap':39,'rim':40,'perc':41,'closed_hat':42,'open_hat':43,'shaker':44,'tom':45,'ride':50,'crash':51}
+# Drum grooves whose kind is an arrangement move also appear under Effects.
+DRUM_FX_ROLES={'build':'builder','fill':'tension','transition':'tension','breakdown':'bridge'}
+BANK_CATEGORY=['bass','chords','arp','melodie']
 # Each recipe is a deliberate 16th-grid rhythm; 32-step entries explicitly vary
 # their second bar. k/s/c/h/o/r/p/t/y = the corresponding kit roles.
 RECIPES=[
@@ -94,10 +97,14 @@ def _catalog():
     velocity=(116 if role=='kick' else 105 if role in ('clap','snare') and start%8==4 else 66 if role=='snare' else 88 if role=='open_hat' else 86 if start%4==0 else 58+((start+index)%4)*7)
     p['steps'][start].append(dict(note=ROLES[role],velocity=velocity,tie=1))
   validate_pattern(p)
-  out.append(dict(id=desc['id'],version=1,name=desc['name'],genre=desc['genre'],kind=desc['kind'],bpm=desc['suggested_bpm_range'],brief=desc['rhythm_brief'],device='drum_rack',tags=[desc['kind'],'swing' if p['swing']>.5 else 'straight',str(p['length'])+' steps'],roles=roles,pattern=p))
+  item=dict(id=desc['id'],version=1,name=desc['name'],genre=desc['genre'],kind=desc['kind'],bpm=desc['suggested_bpm_range'],brief=desc['rhythm_brief'],device='drum_rack',category='drums',tags=[desc['kind'],'swing' if p['swing']>.5 else 'straight',str(p['length'])+' steps'],roles=roles,pattern=p)
+  if desc['kind'] in DRUM_FX_ROLES:item['fx_role']=DRUM_FX_ROLES[desc['kind']]
+  out.append(item)
  for b in range(1,5):
   for i,p in enumerate(factory_bank(b).values()):
-   out.append(dict(id=f'existing.{b}.{i+1:02}',version=1,name=FACTORY_PATTERNS[b-1][i]['name'],genre='Existing',kind=['Bass','Chords','Arps','Hooks'][b-1],bpm=None,brief='Original factory '+str(b)+':'+str(i+1),device='synth',tags=['Original',str(p['length'])+' steps'],roles=[],pattern=p))
+   out.append(dict(id=f'existing.{b}.{i+1:02}',version=1,name=FACTORY_PATTERNS[b-1][i]['name'],genre='Classic' if b==4 else 'Existing',kind=['Bass','Chords','Arps','Hooks'][b-1],bpm=None,brief='Original factory '+str(b)+':'+str(i+1),device='synth',category=BANK_CATEGORY[b-1],tags=['Original',str(p['length'])+' steps'],roles=[],pattern=p))
+ from .pattern_extras import melodies,effects
+ for item in melodies()+effects(ROLES):validate_pattern(item['pattern']);out.append(item)
  return out
 
 def catalog():return copy.deepcopy(_catalog())
@@ -108,7 +115,7 @@ def template(identity):
 
 def kit_roles(track,rack):
  if track.get('device','synth')!='drum_rack':return {},{}
- patterns={'kick':r'kick|(?:^|[ _-])bd(?:$|[ _-])','snare':r'snare|(?:^|[ _-])sd(?:$|[ _-])','clap':r'clap|clp','rim':r'rim|stick','closed_hat':r'closed|close.*hat|(?:^|[ _-])ch(?:$|[ _-])','open_hat':r'open|(?:^|[ _-])oh(?:$|[ _-])','perc':r'perc|conga|bongo|cowbell','tom':r'tom','ride':r'ride','shaker':r'shaker|tamb'}
+ patterns={'kick':r'kick|(?:^|[ _-])bd(?:$|[ _-])','snare':r'snare|(?:^|[ _-])sd(?:$|[ _-])','clap':r'clap|clp','rim':r'rim|stick','closed_hat':r'closed|close.*hat|(?:^|[ _-])ch(?:$|[ _-])','open_hat':r'open|(?:^|[ _-])oh(?:$|[ _-])','perc':r'perc|conga|bongo|cowbell','tom':r'tom','ride':r'ride','shaker':r'shaker|tamb','crash':r'crash|cymbal'}
  roles={};ready={};kit=track.get('drum_rack',{});solo=any(p['solo'] for p in kit.get('pads',[]))
  for role,pattern in patterns.items():
   candidates=[(i,p) for i,p in enumerate(kit.get('pads',[])) if re.search(pattern,p['name'],re.I)]
@@ -118,14 +125,27 @@ def kit_roles(track,rack):
    i,p=candidates[0];roles[role]=p['note'];ready[role]=rack.samples[i] is not None and not p['mute'] and (not solo or p['solo'])
  return roles,ready
 
+DRUM_BASE=36  # C2: Drum Rack pad 1
+
 def resolve_pattern(item,track,rack):
+ """Every library pattern is MIDI, so any track can use it.
+ Melodic patterns on a Drum Rack play from C2 up (the lowest note's C lands on pad 1, notes keep their
+ intervals). Drum patterns on a synth play their drum notes as pitches. Drum patterns on a Drum Rack
+ are bound to the kit's own kick/snare/hat pads; roles
+ the kit lacks (or has muted) still load."""
  device=track.get('device','synth')
- if device!=item['device']:raise ValueError('Choose '+('Drum Rack' if item['device']=='drum_rack' else 'Synth')+' to use this template')
  p=copy.deepcopy(item['pattern'])
+ notes=[n for step in p['steps'] for n in step]
+ if device=='drum_rack' and item['device']!='drum_rack':
+  if notes:
+   shift=DRUM_BASE-12*(min(n['note'] for n in notes)//12)
+   for n in notes:n['note']=max(0,min(127,n['note']+shift))
+  return validate_pattern(p)
  if device=='drum_rack':
-  roles,ready=kit_roles(track,rack);missing=[r for r in item['roles'] if not ready.get(r)]
-  if missing:raise ValueError('Missing or muted kit roles: '+', '.join(missing))
-  mapping={ROLES[r]:roles[r] for r in item['roles']}
+  # Missing or muted roles never block loading: a role with no pad keeps its GM note, so the
+  # notes are there once a sample lands on that note (or the pad is unmuted).
+  roles,ready=kit_roles(track,rack)
+  mapping={ROLES[r]:roles.get(r,ROLES[r]) for r in item['roles']}
   for step in p['steps']:
    for note in step:note['note']=mapping[note['note']]
  return validate_pattern(p)

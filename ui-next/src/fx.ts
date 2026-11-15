@@ -13,7 +13,11 @@ export type FxModuleState = { id:FxModuleId; on:boolean; params:Record<string,nu
 /** 'sound' targets are the Sound page knobs of the same track. */
 export type FxTarget = { module:FxModuleId|'sound'; param:string; depth:number };
 export type FxMacro = { name:string; value:number; targets:FxTarget[] };
-export type ModShape = 'sine'|'triangle'|'saw'|'ramp'|'square'|'pulse'|'random'|'smooth'|'steps'|'curve';
+export type ModShape = 'sine'|'triangle'|'saw'|'ramp'|'square'|'pulse'|'random'|'smooth'|'steps'|'curve'
+  |'cosine'|'half_sine'|'exp_up'|'log_up'|'exp_down'|'log_down'|'s_curve'|'shark'|'double_sine'|'warm'
+  |'pluck'|'swell'|'ad'|'trapezoid'|'ramp_hold'|'pump'|'pump2'|'bounce'|'heartbeat'|'wobble'
+  |'pulse_narrow'|'pulse_wide'|'gate2'|'gate3'|'gate4'|'trance'|'euclid5'|'offbeat'|'stairs4'|'stairs8'
+  |'sh16'|'drift';
 export type ModFeel = ''|'T'|'D';
 export type FxModSource = { shape:ModShape; rate:number; steps:number[]; targets:FxTarget[];
   /** straight, triplet or dotted cycle */ feel?:ModFeel; /** Steps shape: how many steps (cells merge in groups) */ count?:4|8|16;
@@ -25,8 +29,23 @@ export type FxMorph = { x:number; y:number; xMacro:number; yMacro:number; /** -1
   path:MorphPath; rate:number; size:number; wander:number; spin:number; mode:MorphMode };
 export type FxChain = { modules:FxModuleState[]; macros:FxMacro[]; mods:FxModSource[]; morph:FxMorph };
 
-export const MOD_SHAPES:ModShape[]=['sine','triangle','saw','ramp','square','pulse','random','smooth','steps','curve'];
-export const MOD_RATES=['4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16'];
+/** Shape pages of 2 x 5 in the mod pad editor (same order as decksynth/fx.py SHAPES). */
+export const SHAPE_PAGES:{name:string;shapes:ModShape[]}[]=[
+  {name:'Basic',shapes:['sine','triangle','saw','ramp','square','pulse','random','smooth','steps','curve']},
+  {name:'Curves',shapes:['cosine','half_sine','exp_up','log_up','exp_down','log_down','s_curve','shark','double_sine','warm']},
+  {name:'Envelopes',shapes:['pluck','swell','ad','trapezoid','ramp_hold','pump','pump2','bounce','heartbeat','wobble']},
+  {name:'Gates & rhythm',shapes:['pulse_narrow','pulse_wide','gate2','gate3','gate4','trance','euclid5','offbeat','stairs4','stairs8']},
+  {name:'Random',shapes:['sh16','drift']},
+];
+export const MOD_SHAPES:ModShape[]=SHAPE_PAGES.flatMap(p=>p.shapes);
+/** Shapes drawn from a random source: no "Edit points" (there is no fixed curve to copy). */
+export const RANDOM_SHAPES=new Set<ModShape>(['random','smooth','sh16','drift']);
+/** Indexed by the saved rate number; 8 and 16 bars were added at the end (15 Nov) so old projects keep their rates. */
+export const MOD_RATES=['4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16','8 bars','16 bars'];
+/** Rate numbers in the order the editor shows them: slowest first. */
+export const MOD_RATE_ORDER=[8,7,0,1,2,3,4,5,6];
+/** Morph pad path speeds use the original seven rates only. */
+export const PATH_RATE_COUNT=7;
 export const FEEL_FACTOR:Record<ModFeel,number>={'':1,'T':2/3,'D':1.5};
 export const STEP_COUNTS=[4,8,16] as const;
 export const DEFAULT_POINTS:[number,number][]=[[0,0],[.5,1],[1,0]];
@@ -56,9 +75,36 @@ export function shapeValue(shape:ModShape,phase:number,steps:number[],seed=0,cou
   if(shape==='steps')return steps[(Math.floor(phase*count)%count)*(16/count)]??0;
   if(shape==='curve')return curveValue(points,phase);
   if(shape==='smooth')return noise(phase*8+seed*8,5);
+  const extra=EXTRA_SHAPES[shape as keyof typeof EXTRA_SHAPES];
+  if(extra)return Math.max(-1,Math.min(1,extra(phase,seed)));
   const k=Math.floor(phase*8)+seed*8;
   return ((k*2654435761)%1000)/500-1;
 }
+
+const E4=Math.exp(4)-1,TRANCE=[1,0,1,1,0,1,1,0,1,0,1,1,0,1,1,0],EUCLID5=[1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0];
+const uni=(v:number)=>2*v-1,frac=(x:number)=>x-Math.floor(x);
+const shark=(p:number)=>p<.5?1-(1-p/.5)**3:1-(p-.5)/.5;
+const ad=(p:number)=>p<.15?p/.15:Math.exp(-5*(p-.15)/.85);
+const trap=(p:number)=>p<.2?p/.2:p<.6?1:p<.8?1-(p-.6)/.2:0;
+const pump=(p:number)=>1-Math.exp(-6*p);
+const beatShape=(p:number)=>Math.min(1,Math.exp(-(((p-.1)/.04)**2))+.7*Math.exp(-(((p-.28)/.04)**2)));
+/** Same maths as decksynth/fx.py _EXTRA (the 32 shapes added 15 Nov). */
+const EXTRA_SHAPES:Partial<Record<ModShape,(p:number,s:number)=>number>>={
+  cosine:p=>Math.cos(2*Math.PI*p), half_sine:p=>uni(Math.sin(Math.PI*p)),
+  exp_up:p=>uni((Math.exp(4*p)-1)/E4), log_up:p=>uni(1-(1-p)**3), exp_down:p=>uni((1-p)**3), log_down:p=>uni(1-(Math.exp(4*p)-1)/E4),
+  s_curve:p=>uni(p*p*(3-2*p)), shark:p=>uni(shark(p)), double_sine:p=>Math.sin(4*Math.PI*p),
+  warm:p=>(Math.sin(2*Math.PI*p)+1-4*Math.abs(p-.5))/2,
+  pluck:p=>uni(Math.exp(-6*p)), swell:p=>uni(p*p), ad:p=>uni(ad(p)), trapezoid:p=>uni(trap(p)), ramp_hold:p=>uni(Math.min(1,2*p)),
+  pump:p=>uni(pump(p)), pump2:p=>uni(pump(frac(2*p))), bounce:p=>uni(Math.abs(Math.cos(3*Math.PI*p))*(1-p)),
+  heartbeat:p=>uni(beatShape(p)), wobble:p=>Math.sin(8*Math.PI*p)*(1-p),
+  pulse_narrow:p=>p<.125?1:-1, pulse_wide:p=>p<.75?1:-1,
+  gate2:p=>frac(2*p)<.5?1:-1, gate3:p=>frac(3*p)<.5?1:-1, gate4:p=>frac(4*p)<.6?1:-1,
+  trance:p=>TRANCE[Math.floor(16*p)%16]&&frac(16*p)<.8?1:-1, euclid5:p=>EUCLID5[Math.floor(16*p)%16]&&frac(16*p)<.5?1:-1,
+  offbeat:p=>{const f=frac(4*p);return f>=.5&&f<.9?1:-1;},
+  stairs4:p=>uni(Math.min(3,Math.floor(4*p))/3), stairs8:p=>uni(Math.min(7,Math.floor(8*p))/7),
+  sh16:(p,s)=>(((Math.floor(16*p)+s*16)*2654435761+12345)%1000)/500-1,
+  drift:(p,s)=>noise(p*2+s*2,9),
+};
 
 export const MORPH_PATHS:MorphPath[]=['hand','circle','eight','flower','triangle','square','spiral','star','wave','drift'];
 export const defaultMorph=():FxMorph=>({x:.5,y:.5,xMacro:0,yMacro:1,mixMacro:-1,path:'hand',rate:0,size:.8,wander:.2,spin:0,mode:'follow'});

@@ -7,7 +7,8 @@ import {
   ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, GanttChart, Layers3, AudioWaveform, Minus, Pencil, Piano, Plus, RectangleHorizontal, RotateCw,
   Scissors, Sparkles, Trash2, Volume2, VolumeX, Copy,
 } from 'lucide-react';
-import { SONG_TRACK_COLORS, type Note, type Project } from '../types';
+import { SONG_TRACK_COLORS, type FreezeInfo, type Note, type Project } from '../types';
+import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
 import {
   CLIP_NAMES, CLIPS, MARKER_NAMES, MAX_BARS, blockAt, changeBlock, clipNotes, clipsOf, deleteBlock, duplicateBlock,
   emptyClip, markerAt, moveBlock, nextMarkerName, phase, place, setLength, setMarker, splitBlock, type Block, type Song,
@@ -157,9 +158,10 @@ function BlockNotes({notes, b, from, to, bars, color}:{notes:Note[]; b:Block; fr
 type ArrProps = {
   project:Project; song:Song; selected:number; zoom:number; start:number; sel:SongSel; onSel(s:SongSel):void; onSong(s:Song):void;
   playing:boolean; songBeat:number; onSelect(track:number):void; onMute(track:number, next:boolean):void; onClips(track:number):void;
+  freeze?:FreezeInfo[]; onFreeze?(track:number):void; onUnfreeze?(track:number):void;
 };
 
-export function Arranger({project, song, selected, zoom, start, sel, onSel, onSong, playing, songBeat, onSelect, onMute, onClips}:ArrProps) {
+export function Arranger({project, song, selected, zoom, start, sel, onSel, onSong, playing, songBeat, onSelect, onMute, onClips, freeze, onFreeze, onUnfreeze}:ArrProps) {
   const open = clipsOf(project).open, bars = project.bars;
   const area = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{track:number; at:number; x:number; id:number; by:number; moved:boolean}|null>(null);
@@ -206,6 +208,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
             </button>
             <button type="button" className="lane-loop" aria-label={'Clips of track ' + (tr + 1) + ': clip ' + CLIP_NAMES[open[tr]] + ' is open'}
               title="The open clip: you record into it and empty bars get it" onClick={() => onClips(tr)}><b>{CLIP_NAMES[open[tr]]}</b><small>clip</small></button>
+            {onFreeze && onUnfreeze ? <FreezeButton info={freeze?.[tr]} name={t.preset} onFreeze={() => onFreeze(tr)} onUnfreeze={() => onUnfreeze(tr)}/> : null}
             <button type="button" className={'lane-mute' + (t.mute ? ' muted' : '')} aria-label={(t.mute ? 'Unmute ' : 'Mute ') + t.preset} aria-pressed={t.mute}
               onClick={() => onMute(tr, !t.mute)}>{t.mute ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>
           </div>
@@ -236,6 +239,8 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
                 {notes.length ? null : <small className="blk-empty">empty</small>}
               </div>;
             })}
+            {onFreeze && onUnfreeze ? <FreezeOverlay info={freeze?.[tr]} meta={freezeFor(t,'song')} mode={song.on ? 'song' : 'loop'} waveMode={'song'} from={start * 4} span={zoom * 4}
+              passBeats={song.length * 4} onFreeze={() => onFreeze(tr)} onUnfreeze={() => onUnfreeze(tr)}/> : null}
             {playing && song.on && headPos >= 0 && headPos <= 100 ? <i className="arr-playhead" style={{left:headPos + '%'}} aria-hidden="true"/> : null}
           </div>
         </div>;

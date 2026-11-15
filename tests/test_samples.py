@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 
-from decksynth.samples import SampleCache, validate_source
+from decksynth.samples import MAX_DURATION_SECONDS, MAX_FILE_BYTES, SampleCache, validate_source
 
 
 def wav_bytes(values, bits=24, channels=1, rate=44100, **fmt_overrides):
@@ -116,7 +116,7 @@ class Samples(unittest.TestCase):
                                   '/tmp/samples/../sound.wav', '/tmp/../sound.wav'],
                               sha256=['xyz', 'F' * 64, None],
                               source_rate=[True, 0, 7999, 192001, 44100.0],
-                              channels=[True, 0, 3], frames=[True, 0, 44100 * 31, 1.0],
+                              channels=[True, 0, 3], frames=[True, 0, 44100 * (MAX_DURATION_SECONDS + 1), 1.0],
                               bits=[True, 8, 64]).items():
             bad_sources.extend({**source, key: bad} for bad in bads)
         for bad in bad_sources:
@@ -269,13 +269,13 @@ assert after == before, (before, after)
     def test_file_size_cap_rejects_sparse_file(self):
         path = self.write(wav_bytes([0]))
         with path.open('r+b') as handle:
-            handle.truncate(32 * 1024 * 1024 + 1)
+            handle.truncate(MAX_FILE_BYTES + 1)
         with self.assertRaises(ValueError):
             SampleCache().load(path)
 
     def test_duration_cap_rejects_before_decode(self):
-        # Sparse valid PCM16 WAV describing over 30 s; no sample payload is built.
-        rate, frames = 8000, 8000 * 30 + 1
+        # Sparse valid PCM16 WAV describing over the limit; no sample payload is built.
+        rate, frames = 8000, 8000 * MAX_DURATION_SECONDS + 1
         content = bytearray(wav_bytes([0], bits=16, rate=rate))
         struct.pack_into('<I', content, 4, 36 + frames * 2)
         struct.pack_into('<I', content, 40, frames * 2)

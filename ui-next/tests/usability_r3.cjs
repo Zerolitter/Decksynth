@@ -59,18 +59,18 @@ const { launch } = require('./usability-harness.cjs');
         assert.ok(await button.evaluate(el => el === document.activeElement));
       }
     });
-    await check('help opened from an editor suspends that editor and Escape returns to its invoker', async () => {
+    // Review 2026-11-15: Song "edit notes" opens the clip in the Perform note editor (no separate modal any more).
+    await check('help opened from the clip note editor returns focus to its invoker on Escape', async () => {
       await openEditor();
-      const editor = page.getByRole('dialog', { name: 'MIDI note editor', exact: true });
-      await editor.waitFor();
-      const button = editor.getByRole('button', { name: 'Note editing help', exact: true });
+      const tools = page.getByRole('toolbar', { name: 'Clip note tools', exact: true });
+      await tools.waitFor();
+      assert.ok(await page.getByRole('tab', { name: 'Perform', exact: true }).evaluate(el => el.getAttribute('aria-selected') === 'true'));
+      const button = tools.getByRole('button', { name: 'Note editing help', exact: true });
       await button.click(); await help().waitFor();
-      assert.ok(await editor.evaluate(el => el.inert));
       await page.keyboard.press('Escape'); await help().waitFor({ state: 'detached' });
       assert.ok(await button.evaluate(el => el === document.activeElement));
-      assert.ok(!(await editor.evaluate(el => el.inert)));
-      await page.keyboard.press('Escape'); await editor.waitFor({ state: 'detached' });
-      await page.getByRole('tab', { name: 'Perform', exact: true }).click();
+      await tools.getByRole('button', { name: 'Back to pattern', exact: true }).click();
+      await tools.waitFor({ state: 'detached' });
     });
     await check('documented global keys act outside inputs; help and numeric text entry retain ownership', async () => {
       await commands();
@@ -89,14 +89,16 @@ const { launch } = require('./usability-harness.cjs');
       await page.keyboard.press('F9'); await page.waitForFunction(() => window.usabilityState.selected === 0);
       await page.keyboard.press('F10');
       assert.ok((await commands()).some(c => c.cmd === 'undo'));
-      await openEditor();
-      const editor = page.getByRole('dialog', { name: 'MIDI note editor', exact: true });
-      const input = editor.getByRole('spinbutton', { name: 'Selected note velocity', exact: true });
-      await input.fill('88'); await commands();
+      // The separate MIDI note editor modal (and its velocity box) is gone; a knob's exact numeric entry is the text field here.
+      await page.getByRole('tab', { name: 'Sound', exact: true }).click();
+      await page.locator('.knob-value:visible').first().click();
+      const input = page.locator('.knob-entry:visible').first();
+      await input.fill('42'); await commands();
       await page.keyboard.press('Control+a'); await page.keyboard.press('F5');
-      assert.equal(await input.inputValue(), '88');
-      assert.ok(!(await commands()).some(c => c.cmd === 'play' || c.cmd === 'note_edit'));
-      await editor.getByRole('button', { name: 'Done', exact: true }).click();
+      assert.equal(await input.inputValue(), '42');
+      assert.ok(!(await commands()).some(c => c.cmd === 'play'));
+      await page.keyboard.press('Escape');
+      await page.getByRole('tab', { name: 'Perform', exact: true }).click();
     });
   } finally { await h.close(); }
   assert.deepEqual(failures, []);

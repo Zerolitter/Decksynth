@@ -3,7 +3,7 @@ import { SourceInspector } from './SourceInspector';
 import { depthAt, parseDepth } from '../depth';
 import { Magnet, Pencil, X } from 'lucide-react';
 import {
-  DEFAULT_POINTS, FX_MODULES, MOD_RATES, MOD_SHAPES, SOUND_TARGETS, STEP_COUNTS, rateLabel, shapeValue, targetInfo,
+  DEFAULT_POINTS, FX_MODULES, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, SHAPE_PAGES, SOUND_TARGETS, STEP_COUNTS, rateLabel, shapeValue, targetInfo,
   type FxChain, type FxModSource, type FxModuleId, type FxTarget, type ModFeel, type ModShape,
 } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, SHAPE_LABEL } from './ModParts';
@@ -151,6 +151,8 @@ type SheetProps={chain:FxChain;index:number;tab:SheetTab;onTab:(t:SheetTab)=>voi
 export function ModSheet({chain,index,tab,onTab,onChange,onClose,phase,live,container,anchor}:SheetProps){
   const mod=chain.mods[index];const color=MOD_COLORS[index];
   const [snap,setSnap]=useState(true);
+  // The shape list is pages of 2 x 5; it opens on the page that holds the current shape.
+  const [shapePage,setShapePage]=useState(()=>Math.max(0,SHAPE_PAGES.findIndex(p=>p.shapes.includes(mod.shape))));
   const set=(patch:Partial<FxModSource>)=>onChange({...chain,mods:chain.mods.map((m,i)=>i===index?{...m,...patch}:m)});
   const setTargets=(t:FxTarget[])=>set({targets:t.slice(0,16)});
   if(!container)return null;
@@ -173,29 +175,31 @@ export function ModSheet({chain,index,tab,onTab,onChange,onClose,phase,live,cont
             :mod.shape==='steps'?'Drag across the bars to set each step.':'Tap Edit points to change this shape by hand.'}</p>
         </div>
         <div className="mod-sheet-side">
-          <span className="mod-group-label">Shape</span>
+          <div className="mod-shape-head"><span className="mod-group-label">Shape · {SHAPE_PAGES[shapePage].name}</span>
+            <div className="fx-segment mod-shape-pages" role="tablist" aria-label="Shape pages">
+              {SHAPE_PAGES.map((p,i)=><button key={p.name} type="button" role="tab" aria-selected={shapePage===i} aria-label={'Shapes '+(i+1)+': '+p.name}
+                title={p.name} className={(shapePage===i?'active':'')+(p.shapes.includes(mod.shape)?' holds':'')} onClick={()=>setShapePage(i)}>{i+1}</button>)}</div></div>
           <div className="mod-shape-grid" role="radiogroup" aria-label={'Mod pad '+(index+1)+' shape'}>
-            {MOD_SHAPES.map(sh=><button key={sh} type="button" role="radio" aria-checked={mod.shape===sh} className={mod.shape===sh?'active':''}
+            {SHAPE_PAGES[shapePage].shapes.map(sh=><button key={sh} type="button" role="radio" aria-checked={mod.shape===sh} className={mod.shape===sh?'active':''}
               onClick={()=>set(sh==='steps'&&mod.steps.every(v=>Math.abs(v)<.01)?{shape:sh,steps:STARTER_STEPS}:{shape:sh})}><MiniShape shape={sh} color={color}/>{SHAPE_LABEL[sh]}</button>)}
           </div>
-          <span className="mod-group-label">Rate</span>
           <div className="mod-rate-row">
             <div className="fx-segment" role="radiogroup" aria-label="Mod pad rate">
-              {MOD_RATES.map((r,i)=><button key={r} type="button" role="radio" aria-checked={mod.rate===i} className={mod.rate===i?'active':''}
-                onClick={()=>set({rate:i})}>{r.replace(' bars',' bar')}</button>)}</div>
+              {MOD_RATE_ORDER.map(i=><button key={i} type="button" role="radio" aria-label={MOD_RATES[i]} aria-checked={mod.rate===i} className={mod.rate===i?'active':''}
+                onClick={()=>set({rate:i})}>{MOD_RATES[i].replace(' bars',' bar')}</button>)}</div>
+          </div>
+          <div className="mod-tools-row">
             <div className="fx-segment" role="radiogroup" aria-label="Mod pad feel">
               {([['','Straight','—'],['T','Triplet','T'],['D','Dotted','D']] as [ModFeel,string,string][]).map(([f,l,sh])=>
                 <button key={l} type="button" role="radio" aria-label={l} aria-checked={(mod.feel??'')===f} className={(mod.feel??'')===f?'active':''}
                   onClick={()=>set({feel:f})}>{sh}</button>)}</div>
-          </div>
-          <div className="mod-tools-row">
             {mod.shape==='steps'?<><span className="mod-group-label">Steps</span>
               <div className="fx-segment" role="radiogroup" aria-label="Step count">
                 {STEP_COUNTS.map(n=><button key={n} type="button" role="radio" aria-checked={(mod.count??16)===n} className={(mod.count??16)===n?'active':''}
                   onClick={()=>set({count:n})}>{n}</button>)}</div></>:null}
             <button type="button" className={'mod-tool'+(snap?' on':'')} aria-pressed={snap} onClick={()=>setSnap(!snap)}
               title="Points and steps lock to the grid"><Magnet size={16}/>Snap</button>
-            {mod.shape!=='curve'&&mod.shape!=='steps'&&mod.shape!=='random'&&mod.shape!=='smooth'?
+            {mod.shape!=='curve'&&mod.shape!=='steps'&&!RANDOM_SHAPES.has(mod.shape)?
               <button type="button" className="mod-tool" onClick={()=>set({shape:'curve',points:pointsFrom(mod)})}><Pencil size={16}/>Edit points</button>:null}
           </div>
         </div>

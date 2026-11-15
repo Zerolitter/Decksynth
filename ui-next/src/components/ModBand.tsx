@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Eraser, Maximize2 } from 'lucide-react';
 import { Knob } from './Knob';
-import { FEEL_FACTOR, MOD_RATES, normalizeChain, rateLabel, type FxChain } from '../fx';
+import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, normalizeChain, rateLabel, type FxChain } from '../fx';
 import {
   LinkSummary, MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview,
   sourceColor, type Live, type Source,
@@ -58,7 +58,7 @@ export function ModBand({selected,chain:raw,onChange,beat,live,edit,onEdit,armed
               live={m.targets.length?live?.mods?.[i]:undefined} active={m.targets.length>0}/>
           </button>
           <button type="button" className="fx-pad-label" aria-pressed={isArmed('mod',i)} aria-label={'Link Mod pad '+(i+1)+' to knobs'}
-            onClick={()=>lip({kind:'mod',index:i})}>{i+1} · {rateLabel(m)}</button>
+            onClick={()=>lip({kind:'mod',index:i})}>{i+1} · {rateLabel(m).replace('16 bars','16 bar')}</button>
         </div>)}
       </div>
     </div>
@@ -88,8 +88,8 @@ export function ModBand({selected,chain:raw,onChange,beat,live,edit,onEdit,armed
             <span>Shape</span><strong>{SHAPE_LABEL[mod.shape]}</strong><ChevronDown size={15}/></button>
         </div>
         <div className="pe-rates fx-segment" role="radiogroup" aria-label={'Rate of '+label}>
-          {MOD_RATES.map((r,i)=><button key={r} type="button" role="radio" aria-checked={mod.rate===i} className={mod.rate===i?'active':''}
-            onClick={()=>setMod({rate:i})}>{r}</button>)}
+          {MOD_RATE_ORDER.map(i=><button key={i} type="button" role="radio" aria-checked={mod.rate===i} className={mod.rate===i?'active':''}
+            aria-label={MOD_RATES[i]} onClick={()=>setMod({rate:i})}>{MOD_RATES[i]}</button>)}
         </div>
         <div className="pe-links"><LinkSummary targets={mod.targets} onOpen={()=>setSheet('links')}/></div>
         {sheet?<ModSheet key={'mod-'+edit.index} chain={chain} index={edit.index} tab={sheet} onTab={setSheet} onChange={onChange} onClose={()=>setSheet(null)}

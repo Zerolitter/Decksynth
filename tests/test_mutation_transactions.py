@@ -135,7 +135,8 @@ class PatternTransactionTests(unittest.TestCase):
                ('mutate',float('nan')),('mutate',float('inf')),('mutate',2),('unknown',None)]
         for action,value in cases:
             with self.subTest(action=action,value=value):
-                e=self.engine(64);e.perform_action('mutate',0.)
+                # 15 Nov: patterns go up to 256 steps, so double is rejected at 256.
+                e=self.engine(256 if action=='double' else 64);e.perform_action('mutate',0.)
                 e.perform_set('seq','enabled',True);e.playing=True;e.render(1)
                 before=copy.deepcopy(e.project.data());history=copy.deepcopy(e.history)
                 voices=copy.deepcopy(e.synths[0].voices)

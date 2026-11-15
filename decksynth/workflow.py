@@ -108,7 +108,7 @@ class WorkflowEngine:
   if action!='end':raise ValueError('Invalid gesture action')
   after=self.control_scope(track,module,param);self._sound_gesture=None
   if self.scope_value(after)!=self.scope_value(g['before']):
-   history=self.patch_history(track);history.append(dict(module=module,param=param,before=g['before'],after=after));del history[:-40]
+   history=self.patch_history(track);history.append(dict(module=module,param=param,before=g['before'],after=after,seq=self.next_edit_seq()));del history[:-40]
  def cancel_sound_gesture(self):
   g=self._sound_gesture
   if g is None:return
@@ -165,9 +165,8 @@ class WorkflowEngine:
     elif beat>=points[-1][0]:unit=points[-1][1]
     else:unit=left[1]+(right[1]-left[1])*(beat-left[0])/(right[0]-left[0])
     spec=registry()[lane['module']+'.'+lane['param']];self.automation_values[tr][(lane['module'],lane['param'])]=spec['min']+unit*(spec['max']-spec['min'])
-    if index<len(points):
-     delta=round((points[index][0]-beat)*self.fpb)
-     if 0<delta<count:count=delta
+    # Values are interpolated once per audio block (128 frames, under 3 ms), so a block is not split
+    # at every point: a densely recorded lane used to cut each block into many tiny ones.
   if not self.project.song['on']:
    wrap=round((span-beat)*self.fpb)
    if 0<wrap<count:count=wrap

@@ -16,8 +16,9 @@ import struct
 import threading
 
 
-MAX_FILE_BYTES = 32 * 1024 * 1024
-MAX_DURATION_SECONDS = 30
+# Long recordings (a bounce, a piano library take) are chopped into slices, so allow ten minutes.
+MAX_FILE_BYTES = 256 * 1024 * 1024
+MAX_DURATION_SECONDS = 600
 MIN_RATE = 8000
 MAX_RATE = 192000
 _SOURCE_KEYS = frozenset(('path', 'sha256', 'source_rate', 'channels', 'frames', 'bits'))
@@ -54,7 +55,7 @@ def validate_source(source):
     if type(source['bits']) is not int or source['bits'] not in (16, 24, 32):
         raise ValueError('sample source must be PCM16, PCM24 or PCM32')
     if not _integer(source['frames'], 1, rate * MAX_DURATION_SECONDS):
-        raise ValueError('sample source duration must be positive and at most 30 seconds')
+        raise ValueError('sample source duration must be positive and at most %d seconds' % MAX_DURATION_SECONDS)
     if source['frames'] * source['channels'] * (source['bits'] // 8) + 44 > MAX_FILE_BYTES:
         raise ValueError('sample source exceeds the WAV size limit')
     return dict(source)
@@ -134,64 +135,79 @@ def _inspect_wav(handle, file_size):
         raise ValueError('WAV data must contain complete nonempty PCM frames')
     frames = size // align
     if frames > rate * MAX_DURATION_SECONDS:
-        raise ValueError('sample duration exceeds 30 seconds')
+        raise ValueError('sample duration exceeds %d minutes' % (MAX_DURATION_SECONDS // 60))
     return channels, rate, bits, frames, start, size
 
 
+def _ints(payload, bits):
+    """Signed PCM as one flat integer array, using bulk C-level copies (no per-frame Python)."""
+    if bits == 16:
+        values = array('h'); values.frombytes(bytes(payload))
+    elif bits == 32:
+        values = array('i'); values.frombytes(bytes(payload))
+    else:
+        # PCM24: place each 3-byte sample in the top of a 4-byte int, so the sign comes for free.
+        count = len(payload) // 3; wide = bytearray(count * 4); raw = bytes(payload)
+        wide[1::4] = raw[0::3]; wide[2::4] = raw[1::3]; wide[3::4] = raw[2::3]
+        values = array('i'); values.frombytes(bytes(wide))
+    if values.itemsize * 8 != (16 if bits == 16 else 32):
+        raise ValueError('unsupported platform integer size')
+    if __import__('sys').byteorder != 'little':
+        values.byteswap()
+    return values
+
+
 def _decode(payload, channels, bits):
-    width = bits // 8
-    scale = 1.0 / (1 << (bits - 1))
-    frame_bytes = channels * width
-    mono = array('f')
-    for offset in range(0, len(payload), frame_bytes):
-        left = int.from_bytes(payload[offset:offset + width], 'little', signed=True)
-        if channels == 2:
-            right = int.from_bytes(payload[offset + width:offset + frame_bytes], 'little', signed=True)
-            mono.append((left + right) * (.5 * scale))
-        else:
-            mono.append(left * scale)
-    return mono
+    values = _ints(payload, bits)
+    scale = 1.0 / (1 << ((bits if bits != 24 else 32) - 1))
+    if channels == 2:
+        half = .5 * scale
+        return array('f', [(left + right) * half for left, right in zip(values[0::2], values[1::2])])
+    return array('f', [value * scale for value in values])
 
 
 def _resample(mono, source_rate, output_rate, frames):
     if source_rate == output_rate:
         return mono
-    result = array('f')
     last = len(mono) - 1
-    for index in range(frames):
+    data = mono
+
+    def at(index):
         # Integer quotient/remainder avoids accumulated timing error.
         left, fraction = divmod(index * source_rate, output_rate)
         if left >= last:
-            result.append(mono[last])
-        else:
-            a = mono[left]
-            result.append(a + (mono[left + 1] - a) * (fraction / output_rate))
-    return result
+            return data[last]
+        a = data[left]
+        return a + (data[left + 1] - a) * (fraction / output_rate)
+    return array('f', [at(index) for index in range(frames)])
+
+
+def peaks_of(data, start=0, end=None, count=256):
+    """(low, high) pairs over data[start:end], using C-level min/max on slices."""
+    end = len(data) if end is None else end
+    span = end - start
+    count = max(1, min(count, span))
+    out = []
+    for index in range(count):
+        a = start + index * span // count
+        b = max(a + 1, start + (index + 1) * span // count)
+        part = data[a:b]
+        out.append((min(part), max(part)))
+    return tuple(out)
 
 
 def _peaks(data):
-    count = min(256, len(data))
-    peaks = []
-    for index in range(count):
-        start = index * len(data) // count
-        end = (index + 1) * len(data) // count
-        lo = hi = data[start]
-        for frame in range(start + 1, end):
-            value = data[frame]
-            lo = min(lo, value)
-            hi = max(hi, value)
-        peaks.append((lo, hi))
-    return tuple(peaks)
+    return peaks_of(data, 0, len(data), 256) if len(data) else ()
 
 
 class SampleCache:
-    """Hash-keyed, no-eviction cache, bounded by resident float32 PCM bytes.
+    """Hash-keyed, no-eviction cache (512 MiB: about 45 minutes of audio at 48 kHz), bounded by resident float32 PCM bytes.
 
     Loads serialize to avoid concurrent decode allocations and budget races.
     Lookup uses a separate short lock and never waits for file IO or decoding.
     Capacity exhaustion rejects the new asset; existing voices keep references.
     """
-    def __init__(self, rate=48000, max_bytes=64 * 1024 * 1024):
+    def __init__(self, rate=48000, max_bytes=512 * 1024 * 1024):
         if not _integer(rate, MIN_RATE, MAX_RATE):
             raise ValueError('cache rate must be between 8000 and 192000 Hz')
         if type(max_bytes) is not int or max_bytes <= 0:
@@ -224,7 +240,7 @@ class SampleCache:
                 if not stat.S_ISREG(info.st_mode):
                     raise ValueError('sample must be a regular file')
                 if info.st_size > MAX_FILE_BYTES:
-                    raise ValueError('sample file exceeds 32 MiB')
+                    raise ValueError('sample file exceeds %d MiB' % (MAX_FILE_BYTES >> 20))
                 handle = os.fdopen(descriptor, 'rb')
                 descriptor = None  # The buffered handle now owns the descriptor.
                 with handle:

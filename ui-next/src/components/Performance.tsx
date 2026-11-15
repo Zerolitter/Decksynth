@@ -2,12 +2,13 @@ import {NoteShortcuts} from './NoteShortcuts';
 import {PianoRoll,type PianoRollHandle} from './PianoRoll';
 import {useNoteGeneration} from './NoteGeneration';
 import {PatternLibrary} from './PatternLibrary';
+import {ChoiceList,STEP_CHOICES} from './LoopBars';
 import {useNoteContext} from './useNoteContext';
 import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks } from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { CHORD_EXTS, ROOTS, SCALES, chordName, chordText, diatonicChords, leadVoices, type ChordExt } from '../chords';
@@ -67,6 +68,11 @@ type Props={
   onStep:(index:number,notes:StepNote[],replace:boolean)=>void;
   onAction:(action:string,value?:unknown,expected?:TransferTarget)=>void;
   transfer:{clip:number;bars:number};
+  /** The note grid edits the selected track's open Song clip instead of the SEQ pattern (SONG → Edit notes opens it here). */
+  clipEdit?:boolean;
+  onClipEdit?:(on:boolean)=>void;
+  /** Where the open clip is playing, in beats, for the playhead while editing a clip. */
+  clipBeat?:number;clipPlaying?:boolean;
   onPlay:()=>void;
   onTempo:(bpm:number)=>void;
   /** Raw MIDI from the touch keyboard and strips: status, data1, data2. */
@@ -93,10 +99,12 @@ export function PerformTools({onPanic,arp=false,paused=false,onArp}:{onPanic:()=
   </>;
 }
 
-export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo,transfer}:Props){
+export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo,transfer,clipEdit=false,onClipEdit,clipBeat=0,clipPlaying=false}:Props){
   const [noteEditorOpen,setNoteEditorOpen]=useState(false);
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
+  const octPending=useRef<number|null>(null);
+  useEffect(()=>{octPending.current=null;},[state.scale.octave]);
 
   const [viewBases,setViewBases]=useState<Record<string,number>>({});
   const viewKey=selectedTrack+':'+device;
@@ -128,13 +136,23 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const seq=state.seq,arp=state.arp,chord=state.chord,scale=state.scale,sync=state.sync;
   const ref=seq.bank+':'+seq.slot;
   const pat=state.patterns[ref]??defaultPattern(seq.length,seq.division);
-  const edit=useNoteEditing({target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,events:patternEvents(pat),bounds:{span:pat.length,snap:1,maxDuration:8},playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
-  const generation=useNoteGeneration(edit,{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},{span:pat.length,snap:1,maxDuration:8},recording,scale);
-  const noteContext=useNoteContext({edit,target:{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device},expected:pat,bounds:{span:pat.length,snap:1,maxDuration:8},recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
+  // One note editor for both: the SEQ pattern, or (SONG → Edit notes) the selected track's open Song clip.
+  const clipMode=clipEdit&&mode==='seq';
+  const clipSpan=transfer.bars*4;
+  const noteTarget:NoteTarget=clipMode?{kind:'clip',track:selectedTrack,clip:transfer.clip,bars:transfer.bars,device}
+    :{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device};
+  const noteBounds=clipMode?{span:clipSpan,snap:.25,maxDuration:clipSpan}:{span:pat.length,snap:1,maxDuration:Math.min(32,pat.length)};
+  const noteExpected=clipMode?track.notes:pat;
+  const edit=useNoteEditing({target:noteTarget,expected:noteExpected,events:clipMode?track.notes:patternEvents(pat),bounds:noteBounds,playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
+  const generation=useNoteGeneration(edit,noteTarget,noteBounds,recording,scale);
+  const noteContext=useNoteContext({edit,target:noteTarget,expected:noteExpected,bounds:noteBounds,recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
 
   const factoryName=undefined; // Slot number is not a factory identity after edits/imports.
-  const pages=Math.max(1,Math.ceil(pat.length/16));
+  // A page is 16 steps of a pattern (a quarter of it, in 16s, past 64 steps), or a quarter of a clip
+  // (one bar for clips up to 4 bars). Four page buttons always reach the whole pattern or clip.
+  const pageSize=clipMode?Math.max(4,Math.ceil(transfer.bars/4)*4):Math.max(16,Math.ceil(pat.length/64)*16);
+  const pages=clipMode?Math.min(4,Math.ceil(clipSpan/pageSize)):Math.max(1,Math.min(4,Math.ceil(pat.length/pageSize)));
   const currentStep=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
   const cursor=seq.recording?recStep%pat.length:-1;
   const channel=scale.input_channel?scale.input_channel-1:0;
@@ -143,7 +161,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const transferNotes=(name:'capture_song'|'commit_song')=>{
     edit.cancel();
     const expected:TransferTarget={track:selectedTrack,device,clip:transfer.clip,bars:transfer.bars,
-      bank:seq.bank,slot:seq.slot,transpose:seq.transpose,pattern:edit.expectedState() as StepPattern,notes:track.notes};
+      bank:seq.bank,slot:seq.slot,transpose:seq.transpose,pattern:clipMode?pat:edit.expectedState() as StepPattern,
+      notes:clipMode?edit.expectedState() as import('../types').Note[]:track.notes};
     onAction(name,name==='commit_song'?'add':null,expected);
   };
   const tool=(c:string)=>({['--tool' as string]:'var(--t-'+c+')'});
@@ -174,7 +193,18 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     if(notes.length&&device!=='drum_rack'){const low=Math.min(...notes);const base=clamp(Math.floor(low/12)*12,0,108);setGridBase(base);roll.current?.pitchTo(base+12);}
   },[seq.bank,seq.slot]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(page>=pages)setPage(pages-1);},[page,pages]);
-  useEffect(()=>{if(cursor>=0&&Math.floor(cursor/16)!==page)setPage(Math.floor(cursor/16));},[cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Step rec: the grid follows the rec cursor (page and scroll) and shows the pitch just recorded.
+  useEffect(()=>{if(cursor<0)return;const at=Math.floor(cursor/pageSize);if(at!==page)setPage(at);roll.current?.timeTo(Math.floor(cursor/16)*16);},[cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lastRecorded=seq.recording?pat.steps[(cursor-1+pat.length)%pat.length]?.map(n=>n.note).join(','):'';
+  useEffect(()=>{
+    if(!lastRecorded)return;
+    const notes=lastRecorded.split(',').map(Number),range=performanceRange(device,gridBase);
+    if(notes.every(n=>n>=range.base&&n<=range.top))return;
+    const next=performanceRange(device,Math.floor(Math.min(...notes)/12)*12);
+    setGridBase(next.base);roll.current?.pitchTo(next.top);
+  },[lastRecorded]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Step rec and pattern choices always work on the pattern: leave clip editing.
+  useEffect(()=>{if(clipEdit&&seq.recording)onClipEdit?.(false);},[seq.recording,clipEdit]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>setChainText(seq.chain.join(',')),[seq.chain]);
   useEffect(()=>{if(!message)return;const id=setTimeout(()=>setMessage(''),5000);return()=>clearTimeout(id);},[message]);
 
@@ -213,7 +243,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const density=(b:number,sl:number)=>{const ptn=state.patterns[b+':'+sl];if(!ptn)return [] as number[];
     return Array.from({length:8},(_,i)=>{const a=Math.floor(i*ptn.length/8),z=Math.floor((i+1)*ptn.length/8);
       return ptn.steps.slice(a,Math.max(a+1,z)).reduce((n,st)=>n+st.length,0);});};
-  const pick=(b:number,sl:number)=>{if(b!==seq.bank)set('seq','bank',b);if(sl!==seq.slot)set('seq','slot',sl);};
+  const pick=(b:number,sl:number)=>{if(clipEdit)onClipEdit?.(false);if(b!==seq.bank)set('seq','bank',b);if(sl!==seq.slot)set('seq','slot',sl);};
   const padDown=(b:number,sl:number)=>{longPressed.current=false;if(press.current)clearTimeout(press.current);
     press.current=setTimeout(()=>{longPressed.current=true;pick(b,sl);setPadMenu({bank:b,slot:sl});},450);};
   const padUp=()=>{if(press.current)clearTimeout(press.current);press.current=null;};
@@ -249,7 +279,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         title="What a recorded key does to a step that already has notes">{seq.overdub?'Overdub':'Replace'}</button>}
     </div>
     <div className="pf-transfers" role="group" aria-label="Pattern and Song transfers">
-      <span data-testid="pf-transfer-target">Track {selectedTrack+1} · Clip {String.fromCharCode(65+transfer.clip)} ↔ Pattern {seq.bank}·{seq.slot}</span>
+      <span data-testid="pf-transfer-target">Track {selectedTrack+1} · <button type="button" className={'pf-clip-link'+(clipMode?' on':'')} aria-pressed={clipMode}
+        title={clipMode?'Back to editing the pattern':'Edit the notes of Clip '+String.fromCharCode(65+transfer.clip)+' here'}
+        onClick={()=>onClipEdit?.(!clipMode)}>Clip {String.fromCharCode(65+transfer.clip)}</button> ↔ Pattern {seq.bank}·{seq.slot}</span>
       <button type="button" aria-label="Pattern → Song" disabled={recording||seq.recording||!edit.events.length}
         title={'Add Pattern '+seq.bank+'·'+seq.slot+' to Track '+(selectedTrack+1)+' Clip '+String.fromCharCode(65+transfer.clip)+', repeating to fill the clip'}
         onClick={()=>transferNotes('commit_song')}>Pattern → Song<small>Add · fill clip</small></button>
@@ -315,8 +347,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   };
   const gridTools=<>
     <div className="pf-seg" role="group" aria-label="Pattern page">
-      {Array.from({length:4},(_,i)=><button key={i} type="button" disabled={i>=pages} aria-pressed={page===i}
-        className={page===i?'on':''} onClick={()=>{setPage(i);roll.current?.timeTo(i*16);}}>{i*16+1}–{i*16+16}</button>)}
+      {Array.from({length:4},(_,i)=>{const bars=pageSize/4,label=clipMode?(bars===1?'Bar '+(i+1):'Bars '+(i*bars+1)+'–'+(i*bars+bars)):(i*pageSize+1)+'–'+(i<pages?Math.min(pat.length,(i+1)*pageSize):(i+1)*pageSize);
+        return <button key={i} type="button" disabled={i>=pages} aria-pressed={page===i}
+        className={page===i?'on':''} onClick={()=>{setPage(i);roll.current?.timeTo(i*pageSize);}}>{label}</button>;})}
     </div>
     <div className="pf-seg" role="group" aria-label="What a tap does">
       {(['select','draw','erase','length','accent'] as NoteTool[]).map(t=><button key={t} type="button" aria-label={t==='select'?'Select notes':t==='draw'?'Draw notes':t==='erase'?'Erase notes':t==='length'?'Longer':'Accent'} aria-pressed={tap===t}
@@ -324,6 +357,16 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>
     <OctaveControl base={gridBase} onRange={showRange}/>
   </>;
+  // Keys octave (scale.octave): moves what the keys, the arp and the chord pads play, C3 -> C5 at +2.
+  const oct=scale.octave??0;
+  // Quick double taps step twice even before the engine has answered the first one.
+  const shiftOct=(d:number)=>{const next=Math.max(-3,Math.min(3,(octPending.current??oct)+d));octPending.current=next;if(next!==oct)set('scale','octave',next);};
+  const transposeTool=<div className="pf-seg pf-transpose" role="group" aria-label="Transpose keys" data-testid="pf-transpose-oct"
+    title={'Keys play '+(oct?(oct>0?'+':'−')+Math.abs(oct)+' octave'+(Math.abs(oct)>1?'s':''):'as labelled')+' · C3 sounds '+noteName(48+12*oct)}>
+    <button type="button" aria-label="Transpose an octave down" disabled={oct<=-3} onClick={()=>shiftOct(-1)}><Minus size={14}/></button>
+    <span className={oct?'on':''}><small>Oct</small><b>{oct>0?'+'+oct:oct<0?'−'+Math.abs(oct):'0'}</b></span>
+    <button type="button" aria-label="Transpose an octave up" disabled={oct>=3} onClick={()=>shiftOct(1)}><Plus size={14}/></button>
+  </div>;
   const ab=rateParts(arp.division);
   const arpTools=<>
     <div className="pf-seg" role="group" aria-label="Arp rate">
@@ -333,18 +376,30 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       {([['','Straight','—'],['T','Triplet','T'],['D','Dotted','D']] as const).map(([f,label,short])=>
         <button key={label} type="button" aria-label={label} aria-pressed={ab.feel===f} className={ab.feel===f?'on':''}
           onClick={()=>set('arp','division',ab.base+f)}>{short}</button>)}</div>
+    {transposeTool}
   </>;
-  const chordTools=<div className="pf-seg" role="group" aria-label="Strum order">
+  const chordTools=<><div className="pf-seg" role="group" aria-label="Strum order">
     {STRUM_ORDER.map(o=><button key={o} type="button" aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''}
       onClick={()=>set('chord','strum_type',o)}>{o}</button>)}
-  </div>;
+  </div>{transposeTool}</>;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[];return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion((inversion+1)%3),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(notes)}};});
-  const grid=<PianoRoll key={viewKey} ref={roll} compact pitchBase={gridBase} edit={edit} target={{kind:'pattern',track:selectedTrack,bank:seq.bank,slot:seq.slot,device}} bounds={{span:pat.length,snap:1,maxDuration:8}} context={noteContext} playing={playing&&seq.enabled} beat={currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/16)))}/>;
+  const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beat={clipMode?clipBeat:currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
 
   let laneView:ReactNode;
   const rb=rateParts(pat.division);
-  const rail=<div className="pf-rail" role="toolbar" aria-label="Pattern tools">
+  const expandButton=<button type="button" aria-label={noteEditorOpen?'Restore compact notes':'Expand notes'} aria-expanded={noteEditorOpen}
+      style={tool('more')} onClick={()=>{edit.cancel();setNoteEditorOpen(v=>!v);}}>{noteEditorOpen?<Minimize2 size={18}/>:<Maximize2 size={18}/>}<span>{noteEditorOpen?'Restore':'Expand'}</span></button>;
+  // Clip notes: the same grid and tools, without the pattern-only actions (those rewrite a SEQ slot in the engine).
+  const clipRail=<div className="pf-rail" role="toolbar" aria-label="Clip note tools">
+    <button type="button" className="primary" style={tool('library')} aria-label="Back to pattern" title={'Edit Pattern '+seq.bank+'·'+seq.slot+' again'} onClick={()=>onClipEdit?.(false)}><Layers3 size={18}/><span>Pattern</span></button>
+    <button type="button" style={tool('nudge')} aria-label="Quantize selected notes" disabled={!edit.selection.length||recording} title="Snap the selected notes to the grid" onClick={()=>edit.action({kind:'quantize'})}><b>Q</b><span>Quantize</span></button>
+    <button type="button" style={tool('more')} aria-label="Select all notes" disabled={!edit.events.length} onClick={()=>edit.selectAll()}><ListChecks size={18}/><span>All</span></button>
+    <button type="button" aria-label="Fit notes" style={tool('more')} onClick={()=>roll.current?.fit()}><Scan size={18}/><span>Fit</span></button>
+    {expandButton}
+    <NoteShortcuts compact/>
+  </div>;
+  const rail=clipMode?clipRail:<div className="pf-rail" role="toolbar" aria-label="Pattern tools">
     <button type="button" className="primary" style={tool('mutate')} aria-label="Mutate" title={'Mutate the pattern ('+pct(strength*100)+')'} onClick={()=>action('mutate',strength)}><Shuffle size={18}/><span>Mutate</span></button>
     <button type="button" style={tool('reset')} aria-label="Reset" title="Undo the mutations" onClick={()=>action('reset_mutate')}><RotateCcw size={18}/><span>Reset</span></button>
     <button type="button" style={tool('double')} aria-label="×2 length" title="Double the length" onClick={()=>action('double')}><b>×2</b><span>Length</span></button>
@@ -356,8 +411,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <button type="button" style={tool('dice')} aria-label="Dice" disabled={!seq.spice} title={seq.spice?'New spice variation':'Raise Spice first'}
       onClick={()=>set('seq','spice_seed',(seq.spice_seed%1000000)+1)}><Dices size={18}/><span>Dice</span></button>
     <button type="button" aria-label="Fit notes" style={tool('more')} onClick={()=>roll.current?.fit()}><Scan size={18}/><span>Fit</span></button>
-    <button type="button" aria-label={noteEditorOpen?'Restore compact notes':'Expand notes'} aria-expanded={noteEditorOpen}
-      style={tool('more')} onClick={()=>{edit.cancel();setNoteEditorOpen(v=>!v);}}>{noteEditorOpen?<Minimize2 size={18}/>:<Maximize2 size={18}/>}<span>{noteEditorOpen?'Restore':'Expand'}</span></button>
+    {expandButton}
     <NoteShortcuts compact/>
   </div>;
   const timing=<div className="pf-bar" data-testid="pf-seq-timing" data-length={pat.length} data-division={pat.division}>
@@ -371,20 +425,25 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         <button key={label} type="button" aria-label={label} aria-pressed={rb.feel===f} className={rb.feel===f?'on':''}
           onClick={()=>set('seq','division',rb.base+f)}>{short}</button>)}</div>
     <div className="pf-seg" role="group" aria-label="Pattern steps">
-      {[8,16,32,64].map(n=><button key={n} type="button" aria-pressed={pat.length===n} className={pat.length===n?'on':''}
-        onClick={()=>set('seq','length',n)}>{n}</button>)}
+      <ChoiceList values={STEP_CHOICES} value={pat.length} onChange={n=>set('seq','length',n)} columns={4} testId="pf-steps-list"
+        className="pf-steps-list" label="Pattern steps list" title={'Pattern length · '+(pat.length*(RATE_BEATS[pat.division]??.25)/4).toFixed(2).replace(/\.?0+$/,'')+' bars at '+pat.division}
+        trigger={<><b>{pat.length}</b> steps</>} choice={n=>String(n)}/>
       <button type="button" aria-label="Fewer steps" disabled={pat.length<=1} onClick={()=>set('seq','length',pat.length-1)}><Minus size={14}/></button>
-      <span className="pf-steps-n" aria-label="Steps">{pat.length}</span>
-      <button type="button" aria-label="More steps" disabled={pat.length>=64} onClick={()=>set('seq','length',pat.length+1)}><Plus size={14}/></button></div>
+      <button type="button" aria-label="More steps" disabled={pat.length>=256} onClick={()=>set('seq','length',pat.length+1)}><Plus size={14}/></button></div>
     <div className="pf-bar-knobs">
       {pctKnob('pf-seq-swing','Swing',seq.swing,50,75,v=>set('seq','swing',v))}
       {pctKnob('pf-seq-gate','Gate',seq.gate,10,90,v=>set('seq','gate',v))}
       {pctKnob('pf-seq-spice','Spice',seq.spice,0,100,v=>set('seq','spice',v))}
     </div>
   </div>;
+  const clipBar=<div className="pf-bar pf-clip-bar" data-testid="pf-clip-bar">
+    <span className="pf-clip-title"><b>Clip {String.fromCharCode(65+transfer.clip)}</b> · Track {selectedTrack+1} · {transfer.bars} {transfer.bars===1?'bar':'bars'} · {edit.events.length} notes</span>
+    <span className="pf-clip-hint">{recording?'Finish the take to edit':edit.status||(clipPlaying?'Playing from the Song':'The Song plays these notes')}</span>
+    <button type="button" className="pf-clip-back" onClick={()=>onClipEdit?.(false)}><Layers3 size={15}/>Pattern {seq.bank}·{seq.slot}</button>
+  </div>;
   if(mode==='seq')laneView=<>
     <div className="pf-seq-main">{grid}{rail}</div>
-    {timing}
+    {clipMode?clipBar:timing}
   </>;
   else if(mode==='arp'){
     // The real pattern as a small piano roll: columns are steps, rows are the pitches the arp walks through.
@@ -500,7 +559,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],
           ['chord','Chord',<Combine size={16}/>,chord.enabled]] as const)
           .map(([id,label,icon,on])=><button key={id} type="button" role="tab" aria-selected={mode===id}
-            className={(mode===id?'active':'')+(on?' live':'')} style={{['--sec' as string]:'var(--c-'+id+')'}} onClick={()=>{setMode(id);setNoteEditorOpen(false);setSheet(null);setSlotMenu(null);}}>
+            className={(mode===id?'active':'')+(on?' live':'')} style={{['--sec' as string]:'var(--c-'+id+')'}} onClick={()=>{setMode(id);if(id!=='seq'&&clipEdit)onClipEdit?.(false);setNoteEditorOpen(false);setSheet(null);setSlotMenu(null);}}>
             {icon}<span>{label}</span><i className="pf-led"/></button>)}
       </div>
       <div className="pf-head-tools">{mode==='arp'?arpTools:mode==='chord'?chordTools:gridTools}</div>

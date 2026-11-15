@@ -16,6 +16,8 @@ type Props = {
   chain?:FxChain; onChain:(c:FxChain)=>void;
   onShape:(shape:Shape)=>void;
   live?:Live; bpm?:number;
+  /** Partials and Morph pad folded away so the sound cards get the room. */
+  folded?:boolean; onFold?:(folded:boolean)=>void;
 };
 
 export function createHarmonicShape(name:Shape,seed=0) { return harmonicShape(name,seed); }
@@ -31,7 +33,7 @@ function waveform(harmonics:number[]) {
   return points.map((y,i)=>(i===0?'M':'L')+' '+(i*2.9+6).toFixed(2)+' '+(49-y*38).toFixed(2)).join(' ');
 }
 
-export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,bpm}:Props) {
+export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,bpm,folded,onFold}:Props) {
   const p=track.instrument;
   const [activePartial,setActivePartial]=useState(0);
   const shapeUsed=useMemo(()=>SHAPES.find(name=>
@@ -68,7 +70,7 @@ export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,b
   const wave=useMemo(()=>waveform(result),[result]);
   const accent=TRACK_COLORS[selected];
 
-  return <FrameWindow id="sound" label="Sound" tabs={[
+  return <FrameWindow id="sound" label="Sound" folded={folded} onFold={onFold} tabs={[
     {id:'PARTIALS',label:'Partials',
       actions:<><svg className="wave-thumb" viewBox="0 0 476 98" preserveAspectRatio="none" role="img" aria-label="Waveform of the partials">
           <line x1="0" x2="476" y1="49" y2="49" stroke="#37414a" strokeDasharray="4 5" vectorEffect="non-scaling-stroke"/>
@@ -89,7 +91,7 @@ export function SoundWindow({track,selected,onParam,onShape,chain,onChain,live,b
             style={{'--partial':(value*100)+'%', '--partial-color':accent} as React.CSSProperties}
             onClick={e=>{e.stopPropagation();setActivePartial(index);}}>
             <span className="bar-index">{String(index+1).padStart(2,'0')}</span>
-            <span className="bar-line"><span/><i className="bar-result" style={{bottom:(result[index]*100)+'%'}} aria-hidden="true"/></span>
+            <span className="bar-line"><span/><i className="bar-result" style={{'--heard':Math.round(result[index]*1000)/1000} as React.CSSProperties} aria-hidden="true"/></span>
             <span className="bar-value">{Math.round(value*100)}</span>
           </button>)}
       </div>},

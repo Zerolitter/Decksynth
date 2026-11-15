@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Hand } from 'lucide-react';
 import { Knob } from './Knob';
 import { MACRO_COLORS, MOD_COLORS, type Live } from './ModParts';
-import { MOD_RATES, MORPH_PATHS, defaultMorph, morphPoint, padMix, shapeValue,
+import { MOD_RATES, MORPH_PATHS, PATH_RATE_COUNT, defaultMorph, morphPoint, padMix, shapeValue,
   type FxChain, type FxMorph, type MorphMode, type MorphPath } from '../fx';
 
 /** Path symbols, drawn in a 32×32 box. DeckSynth's own drawings. */
@@ -20,7 +20,8 @@ const SYMBOL:Record<Exclude<MorphPath,'hand'>,string>={
 const PATH_NAME:Record<MorphPath,string>={hand:'Hand',circle:'Circle',eight:'Figure 8',flower:'Flower',triangle:'Triangle',
   square:'Square',spiral:'Spiral',star:'Star',wave:'Wave',drift:'Drift'};
 const MODES:[MorphMode,string][]=[['follow','Follow'],['retrigger','Retrigger'],['freeze','Freeze']];
-const RATE_BEATS=[16,8,4,2,1,.5,.25];
+/** Beats per cycle by rate number (mod pads may use 8 and 16 bars, numbers 7 and 8). */
+const RATE_BEATS=[16,8,4,2,1,.5,.25,32,64];
 const CORNERS=[{label:'Pad 1',x:0,y:1},{label:'Pad 2',x:1,y:1},{label:'Pad 3',x:0,y:0},{label:'Pad 4',x:1,y:0}];
 
 type Props={chain:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?:number};
@@ -106,7 +107,7 @@ export function MorphPad({chain,onChange,live,bpm=120}:Props) {
         <div className="morph-rate" role="group" aria-label="Path speed">
           <button type="button" aria-label="Slower path" disabled={mo.rate<=0} onClick={()=>set({rate:Math.max(0,latest().rate-1)})}><ChevronLeft size={18}/></button>
           <strong>{MOD_RATES[mo.rate]}</strong>
-          <button type="button" aria-label="Faster path" disabled={mo.rate>=MOD_RATES.length-1} onClick={()=>set({rate:Math.min(MOD_RATES.length-1,latest().rate+1)})}><ChevronRight size={18}/></button>
+          <button type="button" aria-label="Faster path" disabled={mo.rate>=PATH_RATE_COUNT-1} onClick={()=>set({rate:Math.min(PATH_RATE_COUNT-1,latest().rate+1)})}><ChevronRight size={18}/></button>
         </div>
       </div>
     </div>

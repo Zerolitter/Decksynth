@@ -2,7 +2,7 @@ import {RackScrollControls,useRackNavigation} from './RackNavigation';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
-import { Minus, Plus, RotateCcw, X } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Minus, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
 import { Panel, markUsed, setFold, useAutoFold,usePanelScope } from './Panel';
 import { useRackOrder } from './RackOrder';
@@ -41,10 +41,12 @@ function Stepper({label,name,value,min,max,color,onChange}:{label:string,name:st
   </div>;
 }
 
-type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?:number};
+type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?:number;
+  /** Morph pad folded to its title bar so the effect cards get the room (as on the Sound tab). */
+  folded?:boolean; onFold?:(folded:boolean)=>void};
 
 /** Morph is always in the middle; its existing header also names the cards in the bottom chain. */
-export function FxWindow({chain:raw,onChange,live,bpm}:WindowProps) {
+export function FxWindow({chain:raw,onChange,live,bpm,folded=false,onFold}:WindowProps) {
   const chain=normalizeChain(raw);
   const windowRef=useRef<HTMLElement>(null),scope=usePanelScope();
   const reveal=(id:FxModuleId)=>{
@@ -52,7 +54,7 @@ export function FxWindow({chain:raw,onChange,live,bpm}:WindowProps) {
     requestAnimationFrame(()=>{if(!frame?.isConnected)return;const card=frame.querySelector<HTMLElement>('[data-panel="'+panel+'"]');
       card?.scrollIntoView({block:'nearest',inline:'nearest'});card?.querySelector<HTMLElement>('.ds-panel-title')?.focus({preventScroll:true});});
   };
-  return <section ref={windowRef} className="frame-window" data-window="fx" data-view="MORPH" aria-label="FX window">
+  return <section ref={windowRef} className={'frame-window'+(folded?' is-folded':'')} data-window="fx" data-view="MORPH" aria-label="FX window">
     <header className="frame-window-bar">
       <span className="frame-window-label">Morph pad</span>
       <div className="fx-chain-tags" role="group" aria-label="FX card tags">
@@ -60,8 +62,11 @@ export function FxWindow({chain:raw,onChange,live,bpm}:WindowProps) {
           style={{['--fx-color' as string]:FX_MODULES[m.id].color}} onClick={()=>reveal(m.id)}>
           {FX_MODULES[m.id].name}{m.bypass?<small> · Off</small>:null}</button>)}
       </div>
+      {onFold?<span className="frame-window-actions"><button type="button" className="frame-window-fold" aria-expanded={!folded}
+        title={folded?'Show the Morph pad':'Hide the Morph pad to give the effect cards more room'}
+        onClick={()=>onFold(!folded)}>{folded?<ChevronsUpDown size={16}/>:<ChevronsDownUp size={16}/>}{folded?'Show':'Hide'}</button></span>:null}
     </header>
-    <div className="frame-window-body"><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/></div>
+    {folded?null:<div className="frame-window-body"><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/></div>}
   </section>;
 }
 

@@ -1,61 +1,72 @@
 import {useEffect,useRef,useState} from 'react';
-import {ChevronLeft,ChevronRight,Undo2,Volume2} from 'lucide-react';
+import {ChevronLeft,ChevronRight,Power,Undo2,Volume2} from 'lucide-react';
 import {useNoteEditing} from './useNoteEditing';
-import type {NoteTarget} from '../note-ops';
-import {noteName,type Note,type DrumPad} from '../types';
+import {patternEvents,type NoteTarget} from '../note-ops';
+import {noteName,type Note,type DrumPad,type PerformanceState,type StepPattern} from '../types';
 
-type Props={track:number;clip:number;bars:number;kitId:string;pad:DrumPad;notes:Note[];
- playing:boolean;beat:number;recording:boolean;
- onEdit:(target:NoteTarget,expected:Note[],notes:Note[])=>void;
+const RATE_BEATS:Record<string,number>={'1/2D':3,'1/2':2,'1/2T':4/3,'1/4D':1.5,'1/4':1,'1/4T':2/3,'1/8D':.75,'1/8':.5,'1/8T':1/3,'1/16D':.375,'1/16':.25,'1/16T':1/6,'1/32D':.1875,'1/32':.125,'1/32T':1/12};
+
+type Props={track:number;kitId:string;pad:DrumPad;seq:PerformanceState['seq'];patterns:Record<string,StepPattern>;
+ playing:boolean;beat:number;recording:boolean;recStep:number;
+ onEdit:(target:NoteTarget,expected:StepPattern,notes:Note[])=>void;
  onEditorNote:(track:number,id:string,pitch:number,velocity:number)=>void;
+ onSeq:(key:string,value:unknown)=>void;
  onUndo:()=>void};
-type Intent={id:number;capture:HTMLButtonElement;owner:string;source:string;step:number;events:Note[];expected:Note[];target:Extract<NoteTarget,{kind:'clip'}>};
+type Intent={id:number;capture:HTMLButtonElement;owner:string;source:string;step:number;events:Note[];expected:StepPattern;target:Extract<NoteTarget,{kind:'pattern'}>};
 
-/** One bar of the selected pad's actual open SONG clip; transport remains native. */
-export function DrumSteps({track,clip,bars,kitId,pad,notes,playing,beat,recording,onEdit,onEditorNote,onUndo}:Props){
- const [bar,setBar]=useState(0),intent=useRef<Intent|null>(null);
- const target:NoteTarget={kind:'clip',track,clip,bars,device:'drum_rack'};
- const edit=useNoteEditing({target,expected:notes,events:notes,bounds:{span:bars*4,snap:.25,maxDuration:bars*4},
-  playing,recording,commit:(t,b,a)=>onEdit(t,b as Note[],a),audition:onEditorNote,undo:onUndo});
- const owner=JSON.stringify([track,clip,bars,kitId,pad.note,bar]),source=JSON.stringify(edit.events);
+/** The selected pad's row of the open SEQ pattern: the same pattern Perform edits and SEQ plays. */
+export function DrumSteps({track,kitId,pad,seq,patterns,playing,beat,recording,recStep,onEdit,onEditorNote,onSeq,onUndo}:Props){
+ const pat:StepPattern=patterns[seq.bank+':'+seq.slot]??{length:seq.length,division:seq.division,gate:.8,swing:.5,steps:Array.from({length:seq.length},()=>[])};
+ const pages=Math.max(1,Math.ceil(pat.length/16));
+ const [page,setPage]=useState(0),intent=useRef<Intent|null>(null);
+ const target:NoteTarget={kind:'pattern',track,bank:seq.bank,slot:seq.slot,device:'drum_rack'};
+ const edit=useNoteEditing({target,expected:pat,events:patternEvents(pat),bounds:{span:pat.length,snap:1,maxDuration:Math.min(32,pat.length)},
+  playing,recording,commit:(t,b,a)=>onEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo});
+ const owner=JSON.stringify([track,seq.bank,seq.slot,pat.length,kitId,pad.note,page]),source=JSON.stringify(edit.events);
  const cancel=()=>{const g=intent.current;intent.current=null;if(g?.capture.hasPointerCapture(g.id))g.capture.releasePointerCapture(g.id);};
  useEffect(()=>{cancel();return cancel;},[owner,source,recording,playing]);
  useEffect(()=>{window.addEventListener('blur',cancel);window.addEventListener('decksynth-undo',cancel);return()=>{window.removeEventListener('blur',cancel);window.removeEventListener('decksynth-undo',cancel);};},[]);
- useEffect(()=>{cancel();setBar(0);},[track,clip]);
- useEffect(()=>{if(bar>=bars){cancel();setBar(bars-1);}},[bars,bar]);
- const changeBar=(next:number)=>{cancel();setBar(Math.max(0,Math.min(bars-1,next)));};
- const apply=(step:number,events=edit.events,expected=edit.expectedState() as Note[],at=target)=>{
+ useEffect(()=>{if(page>=pages){cancel();setPage(pages-1);}},[pages,page]);
+ const current=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
+ const cursor=seq.recording?recStep%pat.length:-1;
+ // Follow the playhead (or the step-rec cursor) across pages, like the Perform grid.
+ const follow=cursor>=0?cursor:current;
+ useEffect(()=>{if(follow>=0&&!intent.current)setPage(Math.floor(follow/16));},[Math.floor(Math.max(0,follow)/16),follow>=0]);
+ const changePage=(next:number)=>{cancel();setPage(Math.max(0,Math.min(pages-1,next)));};
+ const apply=(step:number,events=edit.events,expected=edit.expectedState() as StepPattern,at=target)=>{
   if(recording)return;
-  const from=bar*4+step*.25,to=from+.25;
-  const hit=(n:Note)=>n.note===pad.note&&n.start>=from-1e-8&&n.start<to-1e-8;
+  const hit=(n:Note)=>n.note===pad.note&&n.start===step;
   const remove=events.some(hit);
-  const next=remove?events.filter(n=>!hit(n)):[...events,{start:from,note:pad.note,duration:.25,velocity:100}];
+  const next=remove?events.filter(n=>!hit(n)):[...events,{start:step,note:pad.note,duration:1,velocity:100}];
   edit.commit(next,[],expected,at);
   if(!remove)edit.auditionPitch(pad.note);
  };
- const active=playing&&Math.floor(beat/4)===bar&&beat>=0;
+ const count=Math.min(16,pat.length-page*16);
  return <section className="drum-steps" aria-label="Drum steps" onKeyDown={e=>{
   if(e.key==='Escape'&&intent.current){e.preventDefault();e.stopPropagation();cancel();}
  }}>
   <div className="drum-step-head">
-   <strong data-testid="drum-step-target" title={pad.name}>Track {track+1} · Clip {String.fromCharCode(65+clip)} · {noteName(pad.note)} · MIDI {pad.note}</strong>
-   <div className="drum-bar-nav" role="group" aria-label="Drum step bar">
-    <button type="button" aria-label="Previous drum bar" disabled={bar<=0} onClick={()=>changeBar(bar-1)}><ChevronLeft size={17}/></button>
-    <span aria-live="polite">Bar {bar+1} / {bars}<small>1/16</small></span>
-    <button type="button" aria-label="Next drum bar" disabled={bar>=bars-1} onClick={()=>changeBar(bar+1)}><ChevronRight size={17}/></button>
+   <button type="button" className="drum-seq-power" aria-pressed={seq.enabled} title={seq.enabled?'SEQ is playing this pattern':'SEQ is off: turn it on to hear the pattern'} onClick={()=>onSeq('enabled',!seq.enabled)}><Power size={16}/>SEQ</button>
+   <strong data-testid="drum-step-target" title={'Pattern '+seq.bank+':'+seq.slot+', the same pattern as Perform · '+pad.name}>{seq.bank}:{seq.slot} · {noteName(pad.note)}</strong>
+   <div className="drum-bar-nav" role="group" aria-label="Drum step page">
+    <button type="button" aria-label="Previous step page" disabled={page<=0} onClick={()=>changePage(page-1)}><ChevronLeft size={17}/></button>
+    <span aria-live="polite">{page*16+1}–{page*16+count}<small>of {pat.length} · {pat.division}</small></span>
+    <button type="button" aria-label="Next step page" disabled={page>=pages-1} onClick={()=>changePage(page+1)}><ChevronRight size={17}/></button>
    </div>
    <button type="button" aria-label="Audition selected drum pad" title={'Play '+pad.name} onClick={()=>edit.auditionPitch(pad.note)}><Volume2 size={18}/></button>
    <button type="button" aria-label="Undo last edit" title="Undo last edit" disabled={recording} onClick={()=>{cancel();edit.undo();}}><Undo2 size={18}/></button>
   </div>
-  <div className="drum-step-grid" role="group" aria-label={'Sixteen sixteenth steps for '+pad.name}>
-   {Array.from({length:16},(_,step)=>{
-    const from=bar*4+step*.25,hit=edit.events.some(n=>n.note===pad.note&&n.start>=from-1e-8&&n.start<from+.25-1e-8);
-    return <button key={step} type="button" data-testid={'drum-step-'+(step+1)} aria-pressed={hit} disabled={recording}
-     aria-label={(hit?'Remove':'Add')+' step '+(step+1)+' · '+noteName(pad.note)+' · bar '+(bar+1)} className={step%4===0?'beat':''}
+  <div className="drum-step-grid" role="group" aria-label={'Steps of pattern '+seq.bank+':'+seq.slot+' for '+pad.name}>
+   {Array.from({length:16},(_,i)=>{
+    const step=page*16+i;
+    if(i>=count)return <span key={i} className="drum-step-blank" aria-hidden="true"/>;
+    const hit=edit.events.some(n=>n.note===pad.note&&n.start===step);
+    return <button key={i} type="button" data-testid={'drum-step-'+(i+1)} aria-pressed={hit} disabled={recording}
+     aria-label={(hit?'Remove':'Add')+' step '+(step+1)+' · '+noteName(pad.note)} className={(i%4===0?'beat':'')+(step===current?' is-now':'')+(step===cursor?' is-cursor':'')}
      onPointerDown={e=>{
       if(e.button!==0||recording||intent.current)return;
       e.currentTarget.setPointerCapture(e.pointerId);
-      intent.current={id:e.pointerId,capture:e.currentTarget,owner,source,step,events:edit.events.map(n=>({...n})),expected:edit.expectedState() as Note[],target:{...target}};
+      intent.current={id:e.pointerId,capture:e.currentTarget,owner,source,step,events:edit.events.map(n=>({...n})),expected:edit.expectedState() as StepPattern,target:{...target} as Extract<NoteTarget,{kind:'pattern'}>};
      }}
      onPointerUp={e=>{
       const g=intent.current;if(!g||g.id!==e.pointerId)return;
@@ -66,7 +77,6 @@ export function DrumSteps({track,clip,bars,kitId,pad,notes,playing,beat,recordin
      {step+1}{hit&&<i aria-hidden="true"/>}
     </button>;
    })}
-   {active&&<span className="drum-step-playhead" style={{left:((beat%4)/4*100)+'%'}} aria-hidden="true"/>}
   </div>
  </section>;
 }

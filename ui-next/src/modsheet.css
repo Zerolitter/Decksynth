@@ -120,3 +120,10 @@
 .harness-shell .source-inspector button{min-width:44px;min-height:44px}
 .harness-shell .source-inspector .bipolar.typing{height:48px;padding:1px 6px}
 .harness-shell .source-inspector .bipolar.typing input{height:44px;min-height:44px}
+/* 15 Nov round 3: 42 shapes in pages of 2 x 5, picked with numbered page buttons. */
+.harness-shell .mod-shape-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.harness-shell .mod-shape-pages button{min-width:44px;min-height:44px;padding:0;font-weight:800}
+.harness-shell .mod-shape-pages button.holds:not(.active){box-shadow:inset 0 -3px 0 var(--src)}
+.harness-shell .source-inspector .mod-sheet-body.shape{grid-template-columns:minmax(200px,.8fr) minmax(430px,1.25fr)}
+.harness-shell .source-inspector .mod-rate-row .fx-segment button{min-width:44px;padding:0 2px}
+.harness-shell .source-inspector .mod-tools-row .fx-segment button{min-width:44px}

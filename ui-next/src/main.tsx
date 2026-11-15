@@ -13,6 +13,7 @@ import './modsheet.css';
 import './visuals.css';
 import './song.css';
 import './voice-cards.css';
+import './freeze.css';
 const root=document.getElementById('root');
 if(!root)throw new Error('Missing DeckSynth root node');
 createRoot(root).render(<React.StrictMode><App/></React.StrictMode>);

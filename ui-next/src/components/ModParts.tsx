@@ -7,9 +7,17 @@ export type Live = {partials?:number[]|null;gate?:import('../fx').GateRuntime|nu
   /** compressor gain reduction (dB) and resonator string notes */comp?:number,strings?:number[]};
 export const MACRO_COLORS=['#f2c46d','#f08a5d','#e06c9f','#b38cf0','#7aa7f5','#5fd3c8','#8fd36a','#d9d36a'];
 export const MOD_COLORS=['#5fd3a8','#6cb6f0','#f08ab0','#f2a65a','#c79df5','#e5d75a','#7ee0e8','#f27c7c'];
-export const RATE_BEATS=[16,8,4,2,1,.5,.25];
+/** Beats per cycle, by saved rate number (8 and 16 bars appended 15 Nov). */
+export const RATE_BEATS=[16,8,4,2,1,.5,.25,32,64];
 export const SHAPE_LABEL:Record<ModShape,string>={sine:'Sine',triangle:'Triangle',saw:'Saw down',ramp:'Ramp up',square:'Square',
-  pulse:'Pulse',random:'Random',smooth:'Smooth',steps:'Steps',curve:'Drawn'};
+  pulse:'Pulse',random:'Random',smooth:'Smooth',steps:'Steps',curve:'Drawn',
+  cosine:'Cosine',half_sine:'Half sine',exp_up:'Exp rise',log_up:'Fast rise',exp_down:'Decay',log_down:'Late fall',
+  s_curve:'S-curve',shark:'Shark fin',double_sine:'Sine ×2',warm:'Sine + tri',
+  pluck:'Pluck',swell:'Swell',ad:'Attack-decay',trapezoid:'Trapezoid',ramp_hold:'Rise & hold',pump:'Pump',pump2:'Pump ×2',
+  bounce:'Bounce',heartbeat:'Heartbeat',wobble:'Wobble',
+  pulse_narrow:'Pulse 1/8',pulse_wide:'Pulse 3/4',gate2:'Gate ×2',gate3:'Gate ×3',gate4:'Gate ×4',trance:'Trance gate',
+  euclid5:'Euclid 5',offbeat:'Off-beat',stairs4:'Stairs 4',stairs8:'Stairs 8',
+  sh16:'S&H 16',drift:'Drift'};
 export const sourceTargets=(c:FxChain,s:Source)=>s.kind==='macro'?c.macros[s.index].targets:c.mods[s.index].targets;
 export const withTargets=(c:FxChain,s:Source,t:FxTarget[]):FxChain=>s.kind==='macro'
   ?{...c,macros:c.macros.map((m,i)=>i===s.index?{...m,targets:t}:m)}

@@ -16,7 +16,16 @@ export type Instrument = {
 export type DrumPad = {
   note:number;name:string;source:null|{path:string;sha256:string;[key:string]:unknown};
   gain:number;velocity:number;mute:boolean;solo:boolean;tune:number;choke:number;
+  /** Non-destructive pad shaping (trim, fades, envelope, EQ, compressor, drive, pan); absent = as recorded. */
+  shape?:DrumShape;
 };
+export type DrumShape={start:number;end:number;reverse:boolean;fade_in:number;fade_out:number;attack:number;hold:number;decay:number;
+  low_cut:number;high_cut:number;eq_low:number;eq_mid:number;eq_freq:number;eq_high:number;
+  comp_threshold:number;comp_ratio:number;comp_attack:number;comp_release:number;comp_makeup:number;drive:number;pan:number};
+/** Mirrors decksynth/drum_shape.py DEFAULT_SHAPE. */
+export const DEFAULT_DRUM_SHAPE:DrumShape={start:0,end:1,reverse:false,fade_in:0,fade_out:0,attack:0,hold:0,decay:0,
+  low_cut:20,high_cut:20000,eq_low:0,eq_mid:0,eq_freq:1000,eq_high:0,
+  comp_threshold:-18,comp_ratio:1,comp_attack:5,comp_release:120,comp_makeup:0,drive:0,pan:0};
 export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null;
   sample_page?:{folder:string;page:number;total:number;items:{index:number;name:string;filename:string}[]}|null;
   preview?:{folder:string;index:number;loading:boolean;active:boolean}|null};
@@ -25,11 +34,31 @@ export type AutomationLane={module:string;param:string;points:[number,number][]}
 export type Track = {
   sound_ab?:{active:'A'|'B';A:unknown;B:unknown};automation?:AutomationLane[];
   midi_cc?:import('./parameter-registry').MidiMapping[];
-  device?:'synth'|'drum_rack';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
+  device?:'synth'|'drum_rack'|'sampler';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
+  /** A pad played across the keys (decksynth/sampler.py). */
+  sampler?:SamplerSpec;
   name: string; preset: string; instrument: Instrument;
   volume: number; mute: boolean; notes: Note[];
   fx?: import('./fx').FxChain;
+  /** Frozen to audio (decksynth/freeze.py): metadata only. */
+  freeze?: FreezeMeta;
+  /** The Loop freeze next to a Song freeze: a frozen track stays frozen in both modes. */
+  freeze_loop?: FreezeMeta;
 };
+export type SamplerMode='oneshot'|'hold'|'loop';
+export type SamplerSpec={version:1;id:string;name:string;family:string;source:DrumPad['source'];shape?:Partial<DrumShape>;
+  root:number;tune:number;fine:number;mode:SamplerMode;start:number;end:number;loop_start:number;loop_end:number;
+  attack:number;decay:number;sustain:number;release:number;poly:boolean;glide:number;gain:number;velocity:number;
+  /** Chop: [start, end] or [start, end, root] pairs, 0..1 of the sample, in order (sampler expansion stage 3). */ slices?:number[][];
+  /** Stage 4: how keys play the slices, and the extra tuning. */
+  keymap?:'whole'|'slices'|'pitched';reverse?:boolean;normalize?:boolean;filter?:'off'|'lp'|'bp'|'hp';cutoff?:number;resonance?:number;
+  f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number};
+export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING';peaks:number[][];seconds:number;playing:number[];event:number;voices:number;error?:string|null;accelerated?:boolean;native_warning?:string|null;
+  /** The waveform's zoom (0..1) the peaks cover, the slice being auditioned, and background jobs. */
+  view?:[number,number];audition?:{index:number;at:number}|null;busy?:string[]};
+export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
+export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};
+export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing';active?:boolean;progress?:number;holds?:FreezeHold[]};
 export type StepNote = { note: number; velocity: number; tie: number };
 export type StepPattern = {
   length: number; division: string; gate: number; swing: number;
@@ -68,9 +97,14 @@ export type DeckUpdate = {
   pattern_library?:{roles:Record<string,number>;ready:Record<string,boolean>;preview:{id:string;track:number;step:number}|null};
   midi_learn?:{track:number;module:string;param:string}|null;
   drum_racks?: (DrumRuntime|null)[];
+  samplers?: (SamplerRuntime|null)[];
+  /** Recording into a Sampler: the open input, its level, and the take. */
+  sampler_record?: SamplerRecord;
   drum_library?:DrumLibraryState;
   state: Project; selected: number; beat: number;
   playing: boolean; recording: boolean; connected: string | null;
+  /** REC count-in: counting (beat n of 4) or armed (waiting for the first note). */
+  count_in?: {state:'count';beat:number;of:number}|{state:'armed';count:number}|null;
   devices: string[]; audio: string; audio_output: string;
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; preview?: boolean;
   sound_undo?:number[];automation_arm?:boolean;audio_channels?:number;
@@ -81,6 +115,10 @@ export type DeckUpdate = {
   arp_view?: { groups:number[][]; step:number; phase?:number; paused?:boolean } | null;
   /** song position in beats (not wrapped to the loop), for the audio gate cursor */ song_beat?: number;
   song_pos?: { bar:number; length:number; marker:number|null; name:string|null } | null;
+  /** Per track: frozen, out of date, or freezing (with progress 0..1). */
+  freeze?: FreezeInfo[];
+  /** WAV export progress 0..1 while it runs. */
+  exporting?: number|null;
 };
 export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string };
 export type DeckApi = {
@@ -98,3 +136,8 @@ export function noteName(n: number) {
   return names[n%12] + (Math.floor(n/12)-1);
 }
 export function clamp(n:number,low:number,high:number) { return Math.min(high,Math.max(low,n)); }
+
+export type SamplerRecord = {
+  inputs: string[]; input: string | null; error: string | null; track: number | null;
+  state: 'idle' | 'armed' | 'recording' | 'saving'; level: number; threshold: number; length: number; seconds: number; clipped: boolean;
+};

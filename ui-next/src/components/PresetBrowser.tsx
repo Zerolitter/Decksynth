@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, LayoutGrid, Sparkles, X } from 'lucide-react';
+import { LayoutGrid, Sparkles, X } from 'lucide-react';
 import { FX_MODULES, type FxModuleId } from '../fx';
 import library from '../library.json';
 
@@ -21,7 +21,7 @@ function FxDots({fx}:{fx:string[]}) {
   </span>;
 }
 
-/** A one-line preset bar (step through sounds with arrows) that opens a full browser. */
+/** A one-line preset bar that opens a full browser. */
 export function PresetBrowser({current,accent,onPreset}:Props) {
   const [open,setOpen]=useState(false);
   const index=PRESET_NAMES.indexOf(current);
@@ -29,20 +29,14 @@ export function PresetBrowser({current,accent,onPreset}:Props) {
   const [category,setCategory]=useState(active?.category??LIBRARY.categories[0]);
   useEffect(()=>{if(active)setCategory(active.category);},[active?.category]);
   const list=useMemo(()=>LIBRARY.presets.filter(p=>p.category===category),[category]);
-  const step=(d:number)=>{
-    const n=PRESET_NAMES.length, i=index<0?(d>0?0:n-1):(index+d+n)%n;
-    onPreset(PRESET_NAMES[i]);
-  };
   return <div className={'preset-strip'+(open?' open':'')}>
     <div className="preset-bar">
-      <button type="button" className="preset-step" aria-label="Previous preset" onClick={()=>step(-1)}><ChevronLeft size={20}/></button>
       <button type="button" className="preset-current" aria-label="Browse presets" aria-expanded={open} onClick={()=>setOpen(!open)}>
         <span className="preset-cat">Presets</span>
         <strong>{current}</strong>
         {active?<FxDots fx={active.fx}/>:null}
         <LayoutGrid size={16}/>
       </button>
-      <button type="button" className="preset-step" aria-label="Next preset" onClick={()=>step(1)}><ChevronRight size={20}/></button>
       <span className="preset-count">{index>=0?index+1:'–'} / {PRESET_NAMES.length}</span>
     </div>
     {open?<div className="preset-browser" role="dialog" aria-label="Preset library">

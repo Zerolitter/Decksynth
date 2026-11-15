@@ -52,9 +52,16 @@ SOUND_PARAMS = {
     'pitch':(-12,12),'glide':(0,2),'velocity_brightness':(-1,1),'velocity_cutoff':(-1,1),'vcf_keytrack':(0,1),
     'fenv_a': (.001, 3), 'fenv_d': (.001, 3), 'fenv_s': (0, 1), 'fenv_r': (.01, 3),
 }
-SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smooth', 'steps', 'curve']
-# Mod-pad rates in beats per cycle: 4 bars, 2 bars, 1 bar, 1/2, 1/4, 1/8, 1/16
-RATES = [16, 8, 4, 2, 1, .5, .25]
+# The first ten are the original shapes; the 32 after them were added 15 Nov (Sir: shapes for sound
+# modulation), shown in the editor as pages of 2 x 5: Curves, Envelopes, Gates & rhythm, Random.
+SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smooth', 'steps', 'curve',
+          'cosine', 'half_sine', 'exp_up', 'log_up', 'exp_down', 'log_down', 's_curve', 'shark', 'double_sine', 'warm',
+          'pluck', 'swell', 'ad', 'trapezoid', 'ramp_hold', 'pump', 'pump2', 'bounce', 'heartbeat', 'wobble',
+          'pulse_narrow', 'pulse_wide', 'gate2', 'gate3', 'gate4', 'trance', 'euclid5', 'offbeat', 'stairs4', 'stairs8',
+          'sh16', 'drift']
+# Mod-pad rates in beats per cycle: 4 bars, 2 bars, 1 bar, 1/2, 1/4, 1/8, 1/16, then 8 bars and 16 bars
+# (added 15 Nov at the end so saved rate numbers keep their meaning; the editor shows them slowest first).
+RATES = [16, 8, 4, 2, 1, .5, .25, 32, 64]
 # Feel: straight, triplet (2/3 of the time) or dotted (1.5 times)
 FEELS = {'': 1., 'T': 2 / 3, 'D': 1.5}
 STEP_COUNTS = (4, 8, 16)
@@ -279,9 +286,57 @@ def shape_value(shape, phase, steps, seed=0, count=16, points=None):
         return steps[(int(phase * count) % count) * (16 // count)]
     if shape == 'curve': return curve_value(points, phase)
     if shape == 'smooth': return _noise(phase * 8 + seed * 8, 5)
+    extra = _EXTRA.get(shape)
+    if extra is not None: return max(-1., min(1., extra(phase, seed)))
     # random: a new held value 8 times per cycle, repeatable per cycle index
     k = int(phase * 8) + seed * 8
     return ((k * 2654435761) % 1000) / 500. - 1
+
+_E4 = math.exp(4) - 1
+_TRANCE = (1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0)
+_EUCLID5 = (1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0)
+def _uni(v): return 2 * v - 1
+def _frac(x): return x - math.floor(x)
+def _shark(p): return 1 - (1 - p / .5) ** 3 if p < .5 else 1 - (p - .5) / .5
+def _ad(p): return p / .15 if p < .15 else math.exp(-5 * (p - .15) / .85)
+def _trap(p): return p / .2 if p < .2 else 1. if p < .6 else 1 - (p - .6) / .2 if p < .8 else 0.
+def _pump(p): return 1 - math.exp(-6 * p)
+def _beat(p): return min(1., math.exp(-((p - .1) / .04) ** 2) + .7 * math.exp(-((p - .28) / .04) ** 2))
+# Same maths as ui-next/src/fx.ts EXTRA_SHAPES (the editor draws what the engine plays).
+_EXTRA = {
+    'cosine': lambda p, s: math.cos(2 * math.pi * p),
+    'half_sine': lambda p, s: _uni(math.sin(math.pi * p)),
+    'exp_up': lambda p, s: _uni((math.exp(4 * p) - 1) / _E4),
+    'log_up': lambda p, s: _uni(1 - (1 - p) ** 3),
+    'exp_down': lambda p, s: _uni((1 - p) ** 3),
+    'log_down': lambda p, s: _uni(1 - (math.exp(4 * p) - 1) / _E4),
+    's_curve': lambda p, s: _uni(p * p * (3 - 2 * p)),
+    'shark': lambda p, s: _uni(_shark(p)),
+    'double_sine': lambda p, s: math.sin(4 * math.pi * p),
+    'warm': lambda p, s: (math.sin(2 * math.pi * p) + 1 - 4 * abs(p - .5)) / 2,
+    'pluck': lambda p, s: _uni(math.exp(-6 * p)),
+    'swell': lambda p, s: _uni(p * p),
+    'ad': lambda p, s: _uni(_ad(p)),
+    'trapezoid': lambda p, s: _uni(_trap(p)),
+    'ramp_hold': lambda p, s: _uni(min(1., 2 * p)),
+    'pump': lambda p, s: _uni(_pump(p)),
+    'pump2': lambda p, s: _uni(_pump(_frac(2 * p))),
+    'bounce': lambda p, s: _uni(abs(math.cos(3 * math.pi * p)) * (1 - p)),
+    'heartbeat': lambda p, s: _uni(_beat(p)),
+    'wobble': lambda p, s: math.sin(8 * math.pi * p) * (1 - p),
+    'pulse_narrow': lambda p, s: 1. if p < .125 else -1.,
+    'pulse_wide': lambda p, s: 1. if p < .75 else -1.,
+    'gate2': lambda p, s: 1. if _frac(2 * p) < .5 else -1.,
+    'gate3': lambda p, s: 1. if _frac(3 * p) < .5 else -1.,
+    'gate4': lambda p, s: 1. if _frac(4 * p) < .6 else -1.,
+    'trance': lambda p, s: 1. if _TRANCE[int(16 * p) % 16] and _frac(16 * p) < .8 else -1.,
+    'euclid5': lambda p, s: 1. if _EUCLID5[int(16 * p) % 16] and _frac(16 * p) < .5 else -1.,
+    'offbeat': lambda p, s: 1. if .5 <= _frac(4 * p) < .9 else -1.,
+    'stairs4': lambda p, s: _uni(min(3, int(4 * p)) / 3),
+    'stairs8': lambda p, s: _uni(min(7, int(8 * p)) / 7),
+    'sh16': lambda p, s: (((int(16 * p) + s * 16) * 2654435761 + 12345) % 1000) / 500. - 1,
+    'drift': lambda p, s: _noise(p * 2 + s * 2, 9),
+}
 
 def _noise(s, seed):
     """Smooth repeatable value noise in [-1, 1]."""
@@ -463,15 +518,18 @@ class TrackFx:
             for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
                 v = automation.get((m['id'],key),m['params'].get(key, init)) + offsets.get((m['id'], key), 0.) * (hi - lo)
                 self.params[idx * NPAR + j] = min(hi, max(lo, v))
-    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False):
+    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False, right=None):
         """samples: list of floats; returns a list (same object when bypassed).
         modulated: the engine already called modulate() for this block.
-        clock: song position in beats while the transport plays (the audio gate locks to it)."""
+        clock: song position in beats while the transport plays (the audio gate locks to it).
+        right: a separate right input (stereo sources such as a panned Drum Rack); samples is then the left."""
+        if right is not None and _stereo and not self.right and (self.active or self._tail):
+            samples = [(l + r) * .5 for l, r in zip(samples, right)]; right = None  # no stereo FX: fold to mono
         if not modulated and self.chain:
             if self.active: self.modulate(beat)
             else: self.move_puck(beat, [0.] * NMACRO)  # keep the puck moving for the screen
         if not self.active:
-            if not self._tail: return (samples,list(samples)) if _stereo else samples
+            if not self._tail: return (samples,list(samples) if right is None else right) if _stereo else samples
             self._tail -= 1
         n = len(samples); buf = (ctypes.c_double * n)(*samples)
         start=self._gate_frame if frame is None else int(frame);end=start+n;self._gate_frame=end
@@ -492,7 +550,7 @@ class TrackFx:
         if _stereo and self.right and clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.right,float(clock))
         if events:self._gate_origin=start+events[-1]
         if _stereo and self.right:
-            right=(ctypes.c_double*n)(*samples)
+            right=(ctypes.c_double*n)(*(samples if right is None else right))
             self.lib.dsfx_process_stereo(self.handle,self.right,buf,right,n,self.order,self.on,self.params,float(bpm))
             return list(buf),list(right)
         self.lib.dsfx_process(self.handle,buf,n,self.order,self.on,self.params,float(bpm))

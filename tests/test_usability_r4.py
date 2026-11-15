@@ -79,15 +79,21 @@ class TransferTests(unittest.TestCase):
                     with self.assertRaises(ValueError):e.perform_action(action,value,expected)
                     self.assertEqual(e.project.data(),before);self.assertEqual(len(e.history),history)
 
-    def test_capture_rejects_quantization_wrapping_overfull_steps_and_unrepresentable_ties(self):
-        bad=[[note(.1)], [note(4.)], [note(0.,60,.123),note(.25,64,.25)], [note(0.,60,2.5)],
-             [note(0.,60+i) for i in range(9)]]
-        for notes in bad:
+    def test_capture_snaps_live_takes_and_reports_what_changed(self):
+        # 15 Nov (Sir): the strict copy refused every live arp/chord take. Song -> Pattern now snaps to the
+        # grid, keeps up to 8 notes a step (the loudest) and the nearest tie, and reports each change.
+        cases=[([note(.1)],'moved',1), ([note(3.99)],'moved',1), ([note(0.,60,.123),note(.25,64,.25)],'notes',2),
+               ([note(0.,60+i,.25,80+i) for i in range(9)],'dropped',1)]
+        for notes,key,count in cases:
             with self.subTest(notes=notes):
                 e=self.engine();e.project.tracks[0]['notes']=notes
-                before=copy.deepcopy(e.project.data())
-                with self.assertRaises(ValueError):e.perform_action('capture_song',None,target(e))
-                self.assertEqual(e.project.data(),before);self.assertEqual(len(e.history),0)
+                e.perform_action('capture_song',None,target(e))
+                self.assertEqual(e.transfer_report[key],count)
+                self.assertEqual(len(e.history),1)  # one undo step
+        e=self.engine();e.project.tracks[0]['notes']=[note(0.,60,2.5)]
+        e.perform_action('capture_song',None,target(e))
+        p=e.project.performance['patterns']['1:1'];n=p['steps'][0][0]
+        self.assertAlmostEqual(n['tie']*p['gate']*.25,2.5)
 
     def test_pattern_to_song_rejects_pitch_clipping_time_truncation_and_empty_sources(self):
         e=self.engine();e.perform_set('seq','transpose',12)

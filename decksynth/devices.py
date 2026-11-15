@@ -2,6 +2,7 @@
 DEVICE_REGISTRY = {
     'synth': {'name': 'Synth', 'version': 1},
     'drum_rack': {'name': 'Drum Rack', 'version': 1},
+    'sampler': {'name': 'Sampler', 'version': 1},
 }
 
 

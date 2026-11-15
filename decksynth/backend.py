@@ -1,7 +1,7 @@
 """SDL audio and Linux raw MIDI adapter, isolated from the desktop UI."""
 import array
 import copy
-from concurrent.futures import ThreadPoolExecutor
+import json as jsonlib
 from collections import deque
 import math
 import ctypes as C
@@ -15,6 +15,8 @@ from .drum_memory import data_directory
 from .drum_library_service import DrumLibraryService
 from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, EXPRESSION_DEFAULTS, arp_view
 from .keystep import StepCapacityError
+from .render_jobs import RenderJob
+from .freeze import freeze_mode,freeze_modes,describe_holds,fingerprint,freeze_directory,freeze_file_name,validate_freeze,FrozenAudio
 
 class AudioSpec(C.Structure):
     _fields_=[('freq',C.c_int),('format',C.c_ushort),('channels',C.c_ubyte),('silence',C.c_ubyte),('samples',C.c_ushort),('padding',C.c_ushort),('size',C.c_uint),('callback',C.c_void_p),('userdata',C.c_void_p)]
@@ -60,6 +62,53 @@ class Audio:
         if self.device:self.lib.SDL_CloseAudioDevice(self.device); self.device=0
         self.lib.SDL_QuitSubSystem(0x10)
 
+def capture_inputs(audio):
+    """Names of the inputs SDL can record from (the piano's USB audio, a mic, 'Monitor of ...' for resampling)."""
+    s=audio.lib
+    return [s.SDL_GetAudioDeviceName(i,1).decode(errors='replace') for i in range(max(0,s.SDL_GetNumAudioDevices(1)))]
+
+def default_input(names):
+    """A plugged-in instrument first (the piano's USB audio), then any real input. 'Monitor of' sources
+    record the computer's own output, and the Deck's own microphone is the last choice."""
+    real=[n for n in names if not n.startswith('Monitor of') and n!='Test input']
+    plugged=[n for n in real if not any(w in n for w in ('Internal','Coprocessor','Built-in'))]
+    if 'Test input' in names:return 'Test input'
+    return next(iter(plugged+real+list(names)),None)
+
+class Capture:
+    """An SDL capture device, mono float at the engine rate (SDL converts). read() never blocks."""
+    def __init__(self,audio,name,rate):
+        s=self.lib=audio.lib
+        s.SDL_DequeueAudio.argtypes=[C.c_uint,C.c_void_p,C.c_uint]; s.SDL_DequeueAudio.restype=C.c_uint
+        s.SDL_GetAudioDeviceStatus.argtypes=[C.c_uint]; s.SDL_GetAudioDeviceStatus.restype=C.c_int
+        desired=AudioSpec(freq=rate,format=0x8120,channels=1,samples=512); actual=AudioSpec()
+        self.device=s.SDL_OpenAudioDevice(name.encode(),1,C.byref(desired),C.byref(actual),0)
+        if not self.device:raise RuntimeError('Input not available: '+name+' ('+s.SDL_GetError().decode(errors='replace')+')')
+        self.name=name; self.buffer=C.create_string_buffer(1<<16); s.SDL_PauseAudioDevice(self.device,0)
+    def read(self):
+        out=array.array('f')
+        while self.device:
+            n=self.lib.SDL_DequeueAudio(self.device,self.buffer,len(self.buffer))
+            if n:out.frombytes(self.buffer.raw[:n-n%4])
+            if n<len(self.buffer):break
+        return out
+    def alive(self):return bool(self.device) and self.lib.SDL_GetAudioDeviceStatus(self.device)!=0
+    def close(self):
+        if self.device:self.lib.SDL_CloseAudioDevice(self.device); self.device=0
+
+class TestInput:
+    """DECKSYNTH_TEST_INPUT=<wav>: plays a WAV as if it came from an input, in real time, then silence."""
+    name='Test input'
+    def __init__(self,engine,path):
+        self.data=engine.sample_cache.load(path).data; self.rate=engine.rate; self.at=0; self.since=time.monotonic()
+    def read(self):
+        now=time.monotonic(); n=int((now-self.since)*self.rate); self.since+=n/self.rate
+        part=array.array('f',self.data[self.at:self.at+n]); self.at+=n
+        if len(part)<n:part.extend([0.]*(n-len(part)))
+        return part
+    def alive(self):return True
+    def close(self):pass
+
 class MidiDevice:
     def __init__(self):self.path='Auto'; self.fd=None; self.connected=None; self.parser=MidiParser(); self.next_scan=0
     @staticmethod
@@ -95,9 +144,42 @@ class MidiDevice:
             except OSError:engine.panic(); self.close()
         return rejections
 
+
+def note_label(n):
+    return ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][n%12]+str(n//12-1)
+
+
+def transfer_message(r):
+    """Song -> Pattern in words: how long the pattern became and what snapping changed."""
+    if not r:return 'Song notes captured into pattern'
+    parts=['Song → Pattern: %d notes in %d steps at %s'%(r['notes'],r['length'],r['division'])]
+    if r['moved']:parts.append('%d snapped to the grid'%r['moved'])
+    if r['merged']:parts.append('%d doubles merged'%r['merged'])
+    if r['rounded']:parts.append('%d lengths rounded'%r['rounded'])
+    if r['dropped']:parts.append('%d over 8 per step left out'%r['dropped'])
+    if r.get('better'):parts.append('this take fits %s: pick it and send again'%r['better'])
+    return ' · '.join(parts)
+
+def now_freeze_check(last):
+    return time.monotonic()-last>.4
+
+def reuse_freeze(path,engine,tr,mode,fp):
+    """A file already rendered from exactly this track state is used again at once."""
+    import json as _json
+    side=path+'.json'
+    try:
+        with open(side) as f:meta=validate_freeze(_json.load(f))
+        if meta['fingerprint']!=fp or meta['rate']!=engine.rate or meta['file']!=path:return None
+        FrozenAudio(meta).close();return meta
+    except (OSError,ValueError,TypeError):return None
+
 def worker(commands,updates):
-    exporter=ThreadPoolExecutor(max_workers=1,thread_name_prefix="decksynth-export")
+    # Offline renders (WAV export, freeze) run in their own low-priority process (render_jobs.py),
+    # so they never hold Python's lock while the audio is being made.
+    renders={}  # 'export' or ('freeze', track) -> RenderJob
+    freeze_checked=0.
     engine=Engine(); midi=MidiDevice(); audio=None; loader=None; library=None; last_status=0; underruns=0; started=False
+    capture=None  # the input a Sampler records from, open while the Record sheet is
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
     monitor_samples=deque(maxlen=6144)
@@ -117,13 +199,16 @@ def worker(commands,updates):
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
         library=DrumLibraryService(engine,data_directory())
+        engine.chop_directory=data_directory()
         loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
         while running:
+            handled=False
             for _ in range(128):
                 try:cmd,args=commands.get_nowait()
                 except queue.Empty:break
+                handled=True
                 try:
                     if cmd=='quit':running=False; break
                     elif cmd=='midi':engine.midi(*args)
@@ -140,7 +225,41 @@ def worker(commands,updates):
                     elif cmd=='set_device':engine.set_device(*args)
                     elif cmd=='drum_note':engine.drum_note(*args)
                     elif cmd=='drum_edit':engine.edit_drum_pad(*args)
+                    elif cmd=='sampler_make':
+                        made=engine.make_sampler(*args); engine.select(made['track'])
+                        send(dict(message='Track %d plays %s on the keys'%(made['track']+1,engine.project.tracks[made['track']]['sampler']['name'])))
+                    elif cmd=='sampler_edit':engine.edit_sampler(*args)
+                    elif cmd=='sampler_detect':
+                        found=engine.detect_sampler_root(*args)
+                        send(dict(message='No clear pitch in this sample; the root stays where it was' if found is None else 'Root set to '+note_label(found)))
                     elif cmd=='drum_import':loader.request(*args)
+                    elif cmd=='sampler_load_wav':engine.load_sampler_wav(*args)
+                    elif cmd=='sampler_chop':engine.chop_sampler(*args)
+                    elif cmd=='sampler_view':engine.sampler_view(*args)
+                    elif cmd=='sampler_audition':engine.audition_slice(*args)
+                    elif cmd=='sampler_audition_stop':engine.stop_sample_preview()
+                    elif cmd=='sampler_send':engine.slices_to_pads(*args)
+                    elif cmd=='sampler_inputs':
+                        engine.record_inputs=(['Test input'] if os.environ.get('DECKSYNTH_TEST_INPUT') else [])+(capture_inputs(audio) if audio else [])
+                    elif cmd=='sampler_record':
+                        action,*rest=args if isinstance(args,list) and args else [None]
+                        if action=='open':
+                            # Open the chosen input (or the first real one) so its level shows before arming.
+                            engine.record_inputs=(['Test input'] if os.environ.get('DECKSYNTH_TEST_INPUT') else [])+(capture_inputs(audio) if audio else [])
+                            name=rest[0] if rest and rest[0] else engine.record_input or default_input(engine.record_inputs)
+                            if name not in engine.record_inputs:raise ValueError('No input found: plug in the piano or a USB audio interface' if not engine.record_inputs else 'Input not available: '+str(name))
+                            if capture is None or capture.name!=name:
+                                engine.sampler_record('cancel')
+                                if capture:capture.close(); capture=None; engine.record_input=None
+                                capture=TestInput(engine,os.environ['DECKSYNTH_TEST_INPUT']) if name=='Test input' else Capture(audio,name,engine.rate)
+                            engine.record_input=name; engine.record_error=None
+                        elif action=='close':
+                            if engine.recorder is not None and engine.recorder.state=='recording':engine.sampler_record('stop')
+                            else:engine.sampler_record('cancel')
+                            if capture:capture.close()
+                            capture=None; engine.record_input=None
+                        else:engine.sampler_record(action,*rest)
+                    elif cmd=='sampler_slice_roots':engine.detect_slice_roots(*args)
                     elif cmd=='drum_library_root':library.set_root(args)
                     elif cmd=='drum_library_refresh':library.refresh()
                     elif cmd=='drum_load_folder':library.load_folder(*args)
@@ -158,8 +277,9 @@ def worker(commands,updates):
                         else:engine.playing=True
                     elif cmd=='stop':engine.stop(); audio and audio.clear()
                     elif cmd=='panic':engine.panic(); audio and audio.clear()
-                    elif cmd=='record':engine.finish_record() if engine.recording else engine.record(engine.selected)
-                    elif cmd=='undo':engine.undo()
+                    elif cmd=='record':engine.record_button()
+                    elif cmd=='record_options':engine.set_record_options(*args)
+                    elif cmd=='undo':engine.undo_any()
                     elif cmd=='quantize':engine.quantize(engine.selected)
                     elif cmd=='clear':engine.snapshot(); engine.stop(); engine.project.tracks[engine.selected]['notes']=[]
                     elif cmd=='device':engine.panic(); midi.close(); midi.path=args; midi.next_scan=0
@@ -183,7 +303,7 @@ def worker(commands,updates):
                         engine.perform_action(*args)
                         action=args[0]
                         message='Performance: '+action
-                        if action=='capture_song':message='Song notes captured into pattern'
+                        if action=='capture_song':message=transfer_message(engine.transfer_report)
                         elif action=='commit_song':
                             message={'add':'Pattern added to open Song clip','replace':'Open Song clip replaced with pattern',
                                 'fill':'Open Song clip filled with pattern'}.get(args[1],'Pattern sent to open Song clip')
@@ -250,7 +370,7 @@ def worker(commands,updates):
                     elif cmd=='track':
                         tr,key,value=args; engine.project.tracks[tr][key]=value
                         if key=='volume':engine.record_control(tr,'sound','volume',value)
-                        if key=='mute':engine.synths[tr].panic();engine.drums[tr].panic()
+                        if key=='mute':engine.synths[tr].panic();engine.drums[tr].panic();engine.samplers[tr].panic()
                     elif cmd=='tempo':
                         # Stop before changing the beat-to-sample conversion.
                         engine.stop(); engine.project.bpm=max(30,min(240,float(args)))
@@ -261,9 +381,29 @@ def worker(commands,updates):
                         p=Project.load(args);engine.replace_project(p)
                         send(dict(message='Opened '+args))
                     elif cmd=='export_wav':
-                        from .render_export import export_project_wav
-                        job=exporter.submit(export_project_wav,copy.deepcopy(engine.project),engine.rate,args)
-                        job.add_done_callback(lambda f:send(dict(error='WAV export failed: '+str(f.exception())) if f.exception() else dict(message='Stereo WAV exported')))
+                        if 'export' in renders:raise ValueError('A WAV export is already running')
+                        renders['export']=RenderJob('export_wav',engine.project.data(),engine.rate,str(args))
+                    elif cmd=='freeze':
+                        tr=int(args)
+                        if not 0<=tr<4:raise ValueError('Choose track 1–4')
+                        if ('freeze',tr) in renders:raise ValueError('Track %d is already freezing'%(tr+1))
+                        engine.finish_record()
+                        # Freeze holds the whole Song timeline and the Loop, whichever page or mode you are on.
+                        folder=freeze_directory();folder.mkdir(parents=True,exist_ok=True)
+                        ready=[];todo=[]
+                        for mode in freeze_modes(engine.project,tr):
+                            fp=fingerprint(engine.project,tr,mode);path=str((folder/freeze_file_name(tr,fp)).resolve())
+                            meta=reuse_freeze(path,engine,tr,mode,fp)
+                            if meta:ready.append(meta)
+                            else:todo.append((mode,fp,path))
+                        if not todo:engine.set_freeze(tr,ready);send(dict(message='Track %d frozen: %s'%(tr+1,describe_holds(ready))))
+                        else:renders[('freeze',tr)]=RenderJob('freeze',engine.project.data(),engine.rate,[p for _,_,p in todo],track=tr,
+                                                             meta=dict(modes=[m for m,_,_ in todo],fingerprints=[f for _,f,_ in todo],ready=ready))
+                    elif cmd=='unfreeze':
+                        tr=int(args)
+                        job=renders.get(('freeze',tr))
+                        if job:job.cancel();send(dict(message='Freeze cancelled'))  # dropped once the process has ended
+                        elif engine.project.tracks[tr].get('freeze') or engine.project.tracks[tr].get('freeze_loop'):engine.set_freeze(tr,None);send(dict(message='Track %d plays live again'%(tr+1)))
                     elif cmd=='export':engine.project.export_midi(args); send(dict(message='Exported '+args))
                     elif cmd=='save_preset':
                         from pathlib import Path
@@ -282,7 +422,35 @@ def worker(commands,updates):
                 except Exception as exc:send(dict(error=str(exc)))
             if not running:break
             library.poll()
+            for key,job in list(renders.items()):
+                if not job.poll():continue
+                renders.pop(key)
+                if key=='export':
+                    send(dict(message='Stereo WAV exported') if job.result else dict(error='WAV export failed: '+job.error))
+                elif job.error=='cancelled':pass
+                elif job.result is None:send(dict(error='Freeze failed: '+job.error))
+                else:
+                    tr=key[1]
+                    try:
+                        made=[dict(m,fingerprint=f) for m,f in zip(job.result,job.meta['fingerprints'])]
+                        metas=job.meta['ready']+made
+                        engine.set_freeze(tr,metas);send(dict(message='Track %d frozen: %s'%(tr+1,describe_holds(metas))))
+                        for meta in made:
+                            with open(meta["file"]+".json","w") as side:jsonlib.dump(meta,side)
+                    except (ValueError,TypeError) as exc:send(dict(error='Freeze failed: '+str(exc)))
+            if handled or now_freeze_check(freeze_checked):
+                freeze_checked=time.monotonic();engine.freeze_refresh()
             for rejection in loader.poll():send(dict(error=rejection))
+            for note in engine.poll_sampler_tasks():send(note)
+            if capture is not None:
+                try:
+                    block=capture.read()
+                    if not capture.alive():raise RuntimeError('The input went away')
+                    for i in range(0,len(block),1024):engine.record_feed(block[i:i+1024])
+                except Exception as exc:
+                    capture.close(); capture=None; engine.record_input=None
+                    try:engine.record_lost(str(exc))
+                    except Exception as inner:send(dict(error='Recording not saved: '+str(inner)))
             for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
                 if started and audio.queued()==0:
@@ -314,10 +482,14 @@ def worker(commands,updates):
                 meter=dict(channels=stereo,rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),
                            fx_live=engine.fx_live(engine.selected))
-                send(dict(pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
-                          playing=engine.playing,recording=engine.recording,devices=midi.devices(),connected=midi.connected,
-                          voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums),
-                          drum_racks=engine.drum_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
+                freezes=engine.freeze_status()
+                for key,job in renders.items():
+                    if key!='export':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
+                send(dict(freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
+                          pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
+                          playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
+                          voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
+                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
@@ -328,8 +500,10 @@ def worker(commands,updates):
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:
-        exporter.shutdown(wait=False,cancel_futures=True)
+        for job in renders.values():job.cancel()
         if library:library.close()
         if loader:loader.close()
+        if capture:capture.close()
+        if engine is not None and hasattr(engine,'sampler_tasks'):engine.sampler_tasks.close()
         midi.close()
         if audio:audio.close()

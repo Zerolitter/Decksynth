@@ -50,10 +50,10 @@ const ROOT=path.resolve(__dirname,'..');
   await mod.waitFor();
   assert.deepEqual(await covered(),[],'nothing in the mod sheet is covered');
 
-  // Ten shapes, seven rates, three feels.
+  // Ten shapes on the first of five shape pages, nine rates (8 and 16 bars added 15 Nov), three feels.
   assert.equal(await mod.getByRole('radiogroup',{name:'Mod pad 1 shape'}).getByRole('radio').count(),10);
   const rate=mod.getByRole('radiogroup',{name:'Mod pad rate'});
-  assert.equal(await rate.getByRole('radio').count(),7);
+  assert.equal(await rate.getByRole('radio').count(),9);
   await rate.getByRole('radio',{name:'1/4'}).click();
   await mod.getByRole('radiogroup',{name:'Mod pad feel'}).getByRole('radio',{name:/Triplet/}).click();
   assert.match(await p.locator('.fx-pad-row .fx-pad').first().innerText(),/1\/4 T/,'pad shows the triplet rate');

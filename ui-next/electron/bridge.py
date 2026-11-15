@@ -25,12 +25,13 @@ def diagnostic_worker(commands, updates):
 COMMANDS = {
     'drum_library_root', 'drum_library_refresh', 'drum_load_folder',
     'drum_list_samples', 'drum_preview_sample', 'drum_preview_stop', 'drum_replace_sample',
-    'set_device', 'drum_note', 'drum_edit', 'drum_import', 'spectral_seed',
+    'set_device', 'drum_note', 'drum_edit', 'drum_import', 'sampler_make', 'sampler_edit', 'sampler_detect', 'spectral_seed',
+    'sampler_load_wav', 'sampler_chop', 'sampler_view', 'sampler_audition', 'sampler_audition_stop', 'sampler_send', 'sampler_slice_roots', 'sampler_inputs', 'sampler_record',
     'perform_set', 'perform_step', 'perform_action',
-    'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'undo', 'quantize',
+    'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'record_options', 'undo', 'quantize',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
     'edit_note','note_edit','editor_note','catalog_action', 'track', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
-    'save', 'load', 'export','export_wav', 'save_preset', 'load_preset',
+    'save', 'load', 'export','export_wav', 'freeze', 'unfreeze', 'save_preset', 'load_preset',
 }
 
 def encode(value):

@@ -29,8 +29,8 @@ class NoteEditEngine:
   token=('editor',gesture)
   if velocity:
    if track!=self.selected:raise ValueError('Track changed; audition cancelled')
-   self.synths[track].cancel_tokens({token});self.voice_on(track,note,velocity,token)
-  else:self.synths[track].cancel_tokens({token});self.drum_gate_keys[track].discard(token)
+   self.synths[track].cancel_tokens({token});self.samplers[track].cancel_tokens({token});self.voice_on(track,note,velocity,token)
+  else:self.synths[track].cancel_tokens({token});self.samplers[track].off(note,token);self.drum_gate_keys[track].discard(token)
  def note_target(self,target,owned=True):
   if not isinstance(target,dict) or target.get('kind') not in ('clip','pattern'):raise ValueError('Invalid note target')
   track=target.get('track')
@@ -54,6 +54,7 @@ class NoteEditEngine:
   changed={i for i,n in enumerate(before) if i>=len(after) or n!=after[i]};s=self.synths[track]
   tokens={k for k in set(s.gated)|set(s.mono_held)|set(s.voices) if isinstance(k,tuple) and len(k)>1 and k[0]=='loop' and k[1] in changed}
   s.cancel_tokens(tokens)
+  self.samplers[track].cancel_sources_where(lambda k:isinstance(k,tuple) and len(k)>1 and k[0]=='loop' and k[1] in changed)
   self.drum_gate_keys[track]={k for k in self.drum_gate_keys[track] if not (isinstance(k,tuple) and len(k)>1 and k[0]=='loop' and k[1] in changed)}
  def put_clip_events(self,target,events):
   track=target['track'];clip=target['clip']

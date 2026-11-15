@@ -1,0 +1,177 @@
+/* Sampler track (15 Nov). Built on the Drum Rack's materials; the accent is the colour of the pad's family. */
+.sampler-page .drum-device-title svg{color:var(--pad-accent)}
+.sampler-page .drum-device-meta .smp-name{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e3eeea;font-weight:700}
+.sampler-page .drum-device-meta strong{color:var(--pad-accent)}
+.smp-empty{margin:auto;color:var(--soft)}
+
+/* The window: the sample, its play range and its loop */
+.smp-window{position:relative;flex:1 1 150px;min-height:120px;max-height:240px;display:flex;flex-direction:column;gap:2px}
+.smp-wave-shell{position:relative;flex:1;min-height:0;margin:0 22px;border:1px solid color-mix(in srgb,var(--pad-accent) 45%,var(--line));border-radius:8px;background:var(--inset)}
+.smp-wave{position:absolute;inset:0;width:100%;height:100%}
+.smp-wave line{stroke:color-mix(in srgb,var(--pad-accent) 80%,#fff)}
+.smp-wave .smp-zero{stroke:#3a4448;stroke-width:1}
+.smp-wave .smp-cut{fill:#0b0d0fcc}
+.smp-wave .smp-loop{fill:color-mix(in srgb,var(--pad-accent) 18%,transparent);stroke:var(--pad-accent);stroke-width:0}
+.smp-wave .smp-playhead{stroke:#fff;stroke-width:2}
+.sampler-page .smp-handle{position:absolute;top:0;bottom:0;width:44px;min-width:44px;margin-left:-22px;padding:0;border:0;background:transparent;cursor:ew-resize;touch-action:none;z-index:2}
+.sampler-page .smp-handle:hover:not(:disabled),.sampler-page .smp-handle:active:not(:disabled){background:transparent}
+.smp-handle i{display:none}
+.sampler-page .smp-handle.h-start,.sampler-page .smp-handle.h-end{bottom:50%}
+.sampler-page .smp-handle.h-loop_start,.sampler-page .smp-handle.h-loop_end{top:50%}
+.smp-wave .smp-edge{stroke:#e9f2ef;stroke-width:2}
+.smp-wave .smp-edge.loop{stroke:var(--pad-accent)}
+.smp-handle b{position:absolute;left:23px;top:4px;padding:1px 5px;border-radius:4px;background:#e9f2ef;color:#101315;font-size:10.5px;font-weight:800;white-space:nowrap}
+.smp-handle.h-end b,.smp-handle.h-loop_end b{left:auto;right:23px}
+.smp-handle.h-loop_start b,.smp-handle.h-loop_end b{top:auto;bottom:4px;background:var(--pad-accent)}
+.smp-caption{margin:0 22px;font-size:11px;color:var(--soft);font-variant-numeric:tabular-nums;min-height:14px}
+
+/* The cards */
+.smp-cards{flex:none;display:flex;gap:8px;align-items:stretch;min-width:0}
+.smp-card{display:flex;flex-direction:column;gap:6px;padding:6px 10px 8px;border:1px solid color-mix(in srgb,var(--pad-accent) 55%,var(--line));border-radius:10px;background:var(--panel);min-width:0}
+.smp-card h2{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--pad-accent)}
+
+.smp-seg{display:flex;gap:4px}
+.sampler-page .smp-seg button{flex:1;padding:0 10px;font-size:12px}
+.sampler-page .smp-seg button[aria-checked=true],.sampler-page .smp-root button[aria-pressed=true],.sampler-page .smp-targets button[aria-checked=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#f4faf7}
+.smp-knobs{display:flex;gap:6px}
+.sampler-page .smp-knobs .drum-committed-knob{width:76px}
+.sampler-page .smp-card .tactile-knob{grid-template-rows:14px 44px 32px;gap:2px}
+.sampler-page .smp-card .tactile-knob .knob-target{width:44px;height:44px;min-width:44px;min-height:44px}
+.sampler-page .smp-card .tactile-knob .knob-value{height:32px;min-height:32px}
+/* Stage 4: compact knobs, 44 px tall: the dial on the left, the name over its value on the right */
+.smp-knobs.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px}
+.sampler-page .smp-knobs.two .drum-committed-knob{width:auto;min-width:0}
+.sampler-page .smp-knobs.two .tactile-knob{position:relative;grid-template-columns:44px minmax(0,1fr);grid-template-rows:44px;gap:0 5px;align-items:stretch;justify-items:stretch}
+.sampler-page .smp-knobs.two .tactile-knob .knob-heading{grid-column:2;grid-row:1;align-self:start;z-index:1;padding:3px 0 0 7px;text-align:left;font-size:10.5px;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.sampler-page .smp-knobs.two .tactile-knob .knob-target{grid-column:1;grid-row:1}
+.sampler-page .smp-knobs.two .tactile-knob .knob-value{grid-column:2;grid-row:1;height:44px;min-height:44px;padding:13px 4px 0 7px;justify-content:flex-start;font-size:12.5px}
+.sampler-page .smp-knobs.two .tactile-knob .knob-entry{grid-column:2;grid-row:1}
+.smp-line{display:flex;gap:6px}
+.smp-line .smp-seg{flex:1}
+.sampler-page .smp-toggle{display:flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:0 10px;font-size:12px}
+.sampler-page .smp-toggle[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#f4faf7}
+.smp-play{width:244px}
+.smp-pitch{width:276px}
+.smp-filter{width:282px}
+.smp-filter.off .smp-knobs{opacity:.45}
+.smp-pitch .smp-root strong{min-width:40px}
+.smp-root{display:flex;align-items:center;gap:6px}
+.smp-root>span{color:var(--soft);font-size:11.5px;margin-right:2px}
+.smp-root strong{min-width:46px;text-align:center;font-size:15px;color:var(--pad-accent);font-variant-numeric:tabular-nums}
+.sampler-page .smp-detect{display:flex;align-items:center;gap:5px;padding:0 10px}
+.smp-amp{display:flex;gap:10px;align-items:stretch}
+.smp-env{width:220px;height:118px;border-radius:7px;background:var(--inset);flex:none;overflow:hidden}
+.smp-env .env-editor{width:100%;height:100%;min-height:0;border:0}
+
+/* The keyboard */
+.smp-keys{position:relative;flex:none;height:96px;display:flex;margin:0 2px;user-select:none;touch-action:none}
+.smp-white{position:relative;flex:1;min-width:0;border:1px solid #121416;border-radius:0 0 6px 6px;background:#d9dfdc;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px}
+.smp-white em{font-style:normal;font-size:10px;font-weight:800;color:#3b4547;white-space:nowrap}
+.smp-black{position:absolute;top:0;height:58%;border-radius:0 0 5px 5px;background:#1d2023;border:1px solid #000;z-index:1}
+.smp-white.far{background:#9ea6a3}
+.smp-black.far{background:#3a3f43}
+.smp-white.root{background:color-mix(in srgb,var(--pad-accent) 55%,#e6ebe8)}
+.smp-white.root em{color:#151a1c}
+.smp-black.root{background:color-mix(in srgb,var(--pad-accent) 70%,#111)}
+.smp-white.down,.smp-black.down{background:var(--pad-accent)}
+
+/* Empty: pick a pad right here */
+.smp-pick{flex:1;display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);min-height:0}
+.smp-pick h2{font-size:15px}
+.smp-pick p{color:var(--soft);font-size:12.5px}
+.smp-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;align-content:start;overflow:auto;min-height:300px}
+.sampler-page .smp-pick-grid button{--pad:#c1cbd2;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:7px 10px;min-height:52px;border-left:4px solid var(--pad);text-align:left}
+.smp-pick-grid b{font-size:10.5px;color:var(--soft);font-weight:700}
+.smp-pick-grid span{font-size:13px}
+
+/* The sheet from Pad Sound */
+.smp-sheet-screen{position:fixed;inset:0;z-index:60;background:#0008;display:grid;place-items:center}
+.smp-sheet{width:min(720px,94vw);display:flex;flex-direction:column;gap:12px;padding:14px 16px 16px;border:1px solid var(--pad-accent);border-radius:12px;background:var(--panel);color:#e3eeea;font-size:12.5px;box-shadow:0 12px 40px #000a}
+.smp-sheet *{box-sizing:border-box}
+.smp-sheet h2,.smp-sheet p{margin:0}
+.smp-sheet header{display:flex;align-items:center;gap:10px}
+.smp-sheet header svg{color:var(--pad-accent)}
+.smp-sheet header h2{flex:1;font-size:16px}
+.smp-sheet header em{font-style:normal;color:var(--pad-accent)}
+.smp-sheet p{color:var(--soft)}
+.smp-sheet button{min-width:44px;min-height:44px;font:inherit;border:1px solid var(--line);border-radius:8px;background:var(--raised);color:#e3eeea;font-weight:750;cursor:pointer;touch-action:manipulation}
+.smp-sheet button[aria-checked=true],.smp-sheet button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#f4faf7}
+.smp-targets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.smp-targets button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px 10px;text-align:left}
+.smp-targets span{font-size:11px;color:var(--soft);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.smp-sheet footer{display:flex;justify-content:flex-end}
+.smp-sheet .smp-make{display:flex;align-items:center;gap:8px;padding:0 18px;background:color-mix(in srgb,var(--pad-accent) 30%,var(--panel));border-color:var(--pad-accent)}
+.smp-sheet .smp-done{padding:0 14px}
+.drum-rack .drum-import-actions .drum-play-keys{color:var(--pad-accent);border-color:color-mix(in srgb,var(--pad-accent) 60%,var(--line))}
+/* The keyboard sits where messages pop up: on the Sampler page they show in the header's free middle, clear of the tabs, Load WAV and the waveform. */
+.decksynth-shell:has(.sampler-page) .toast{bottom:auto;top:121px;left:396px;right:auto;transform:none;max-width:630px;padding:9px 13px}
+
+/* Sampler expansion (stage 3): Load WAV, Trim / Chop, slices to pads */
+.sampler-page .drum-device-bar{gap:12px}
+.sampler-page .smp-tabs{flex:none;margin-right:auto}
+.sampler-page .smp-tabs button,.sampler-page .smp-load,.sampler-page .smp-chop button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;font-size:12.5px}
+.sampler-page .smp-tabs button{min-width:92px}
+.sampler-page .smp-load{padding:0 13px;color:#e3eeea}
+.sampler-page .smp-load svg{color:var(--pad-accent)}
+.smp-pick-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sampler-page .smp-load.big{padding:0 18px;font-size:13.5px;background:color-mix(in srgb,var(--pad-accent) 24%,var(--panel));border-color:var(--pad-accent)}
+
+.smp-window.chop{flex-basis:130px}
+.smp-wave .smp-slice{fill:color-mix(in srgb,var(--pad-accent) 9%,transparent)}
+.smp-wave .smp-slice.odd{fill:color-mix(in srgb,var(--pad-accent) 17%,transparent)}
+.smp-wave .smp-slice.on{fill:color-mix(in srgb,var(--pad-accent) 36%,transparent)}
+.smp-wave .smp-edge.slice{stroke:color-mix(in srgb,var(--pad-accent) 85%,#fff);stroke-width:1.5}
+.smp-wave .smp-marker{stroke:#ffd25e;stroke-width:1.5;stroke-dasharray:4 3}
+.smp-slice-no{position:absolute;top:3px;margin-left:3px;padding:0 4px;border-radius:4px;background:#0b0d0fb0;color:#dfe9e5;font-size:10.5px;font-weight:800;pointer-events:none;font-variant-numeric:tabular-nums}
+.smp-slice-no.on{background:var(--pad-accent);color:#101315}
+.sampler-page .smp-handle.h-slice_start,.sampler-page .smp-handle.h-slice_end{top:50%}
+.smp-handle.h-slice_start b,.smp-handle.h-slice_end b{top:auto;bottom:4px;background:var(--pad-accent)}
+.smp-handle.h-slice_end b{left:auto;right:23px}
+
+.smp-chop{flex:none;display:flex;align-items:center;gap:8px;margin:0 22px;min-width:0}
+.sampler-page .smp-chop .smp-seg button{flex:none;padding:0 11px}
+.smp-chop-params{display:flex;align-items:center;gap:8px}
+.smp-stepper{display:flex;align-items:center;gap:4px}
+.smp-stepper>span{color:var(--soft);font-size:11.5px;margin-right:2px}
+.smp-stepper strong{min-width:52px;text-align:center;font-size:13.5px;color:var(--pad-accent);font-variant-numeric:tabular-nums}
+.sampler-page .smp-stepper button{width:44px;padding:0}
+.smp-chop-edit{display:flex;gap:4px;padding-left:8px;border-left:1px solid var(--line)}
+.sampler-page .smp-chop-edit button{padding:0 10px}
+.sampler-page .smp-chop-edit button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#f4faf7}
+.smp-chop-info{flex:1;min-width:0;font-size:11.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.sampler-page .smp-chop .smp-send{padding:0 14px;background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#f4faf7}
+
+.smp-sheet .smp-seg{display:flex;gap:6px}
+.smp-sheet .smp-seg button{flex:1;padding:0 10px}
+.smp-sheet button:disabled{opacity:.45;cursor:default}
+.smp-padgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.smp-padgrid button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:6px 9px;min-height:50px;text-align:left}
+.smp-padgrid b{font-size:10.5px;color:var(--soft)}
+.smp-padgrid span{font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.smp-white.slice em,.smp-black.slice em{font-style:normal;font-size:10px;font-weight:800}
+.smp-black em{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-style:normal;font-size:9px;font-weight:800;color:#e9f2ef}
+.smp-white.slice{background:color-mix(in srgb,var(--pad-accent) 22%,#e6ebe8)}
+.smp-black.slice{background:color-mix(in srgb,var(--pad-accent) 45%,#111)}
+
+/* Stage 5: the Record sheet */
+.sampler-page .smp-rec-open[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent)}
+.sampler-page .smp-rec-open svg{color:#ff6b6b}
+.smp-pick-head .smp-load+.smp-load{margin-left:8px}
+.smp-sheet .smp-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.smp-sheet .smp-inputs b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smp-sheet .smp-look{display:flex;align-items:center;gap:8px;align-self:flex-start;padding:0 14px}
+.smp-meter{position:relative;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--inset);overflow:hidden}
+.smp-meter i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,color-mix(in srgb,var(--pad-accent) 55%,transparent),var(--pad-accent));transition:width 80ms linear}
+.smp-meter i.hot{background:linear-gradient(90deg,var(--pad-accent),#ff5a5a)}
+.smp-meter b{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff}
+.smp-meter span{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:800;color:#f4faf7;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+.smp-record-row{display:flex;align-items:center;gap:6px}
+.smp-record-row>span{color:var(--soft);margin-left:8px}
+.smp-record-row>span:first-child{margin-left:0}
+.smp-record-row strong{min-width:58px;text-align:center;font-size:15px;color:var(--pad-accent);font-variant-numeric:tabular-nums}
+.smp-sheet .smp-record-words{min-height:36px;color:#cfdad6}
+.smp-sheet .smp-record-words.armed{color:var(--pad-accent)}
+.smp-sheet .smp-record-words.recording{color:#ff8a8a}
+.smp-record footer{gap:8px}
+.smp-record footer button{padding:0 16px}
+.smp-sheet .smp-make.smp-stop{background:#5a1f22;border-color:#ff6b6b}

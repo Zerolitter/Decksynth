@@ -9,6 +9,12 @@ import math
 import random
 
 
+# Pattern size limits (Sir, 15 Nov: 256 steps; a tie can hold a note for up to 32 steps).
+MAX_STEPS = 256
+MAX_TIE = 32
+STEP_CHOICES = (4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256)
+
+
 class StepCapacityError(ValueError):
     """A rejected note edit exceeds capacity; the MIDI stream can continue."""
 
@@ -139,7 +145,7 @@ def validate_state(value):
     if not boolean(seq['enabled'],seq['recording'],seq['overdub'],seq['chain_enabled'],
                    arp['enabled'],arp['hold'],arp['retrigger'],chord['enabled'],chord['voicing']):
         raise ValueError('Invalid performance booleans')
-    if not integer(seq['bank'],1,4) or not integer(seq['slot'],1,16) or not integer(seq['length'],1,64):
+    if not integer(seq['bank'],1,4) or not integer(seq['slot'],1,16) or not integer(seq['length'],1,MAX_STEPS):
         raise ValueError('Invalid pattern slot/length')
     if seq['division'] not in DIVISIONS or arp['division'] not in DIVISIONS:
         raise ValueError('Unknown musical time division')
@@ -195,7 +201,7 @@ def validate_pattern(pattern):
     if not isinstance(pattern,dict) or set(pattern)!={'length','division','gate','swing','steps'}:
         raise ValueError('Invalid sequence pattern')
     length=pattern['length']
-    if type(length) is not int or not 1<=length<=64 or pattern['division'] not in DIVISIONS:
+    if type(length) is not int or not 1<=length<=MAX_STEPS or pattern['division'] not in DIVISIONS:
         raise ValueError('Pattern time division / length invalid')
     if not isinstance(pattern['gate'],(int,float)) or not .1<=pattern['gate']<=.9:
         raise ValueError('Pattern gate invalid')
@@ -210,13 +216,13 @@ def validate_pattern(pattern):
                 raise ValueError('Invalid step note')
             if not (type(item['note']) is int and 0<=item['note']<=127 and
                     type(item['velocity']) is int and 1<=item['velocity']<=127 and
-                    type(item['tie']) is int and 1<=item['tie']<=8):
+                    type(item['tie']) is int and 1<=item['tie']<=MAX_TIE):
                 raise ValueError('Invalid step pitch/velocity/tie')
     return pattern
 
 
 def change_pattern_length(pattern,length):
-    if type(length) is not int or not 1<=length<=64:raise ValueError('Sequence length 1-64 steps')
+    if type(length) is not int or not 1<=length<=MAX_STEPS:raise ValueError('Sequence length 1-%d steps'%MAX_STEPS)
     updated=copy.deepcopy(pattern)
     updated['steps']=(updated['steps']+[[] for _ in range(length)])[:length]
     updated['length']=length
@@ -350,13 +356,109 @@ def pattern_from_song(notes,bars,division='1/16',length=16):
         step=int(round(item['start']/beat_size))%length
         if len(pattern['steps'][step])>=8:continue
         pattern['steps'][step].append(dict(note=item['note'],velocity=item['velocity'],
-                                          tie=max(1,min(8,round(item['duration']/beat_size)))))
+                                          tie=max(1,min(MAX_TIE,round(item['duration']/beat_size)))))
     return validate_pattern(pattern)
 
 
-def song_from_pattern(pattern,bars,transpose=0,gate=None,fill=False):
+def clip_to_pattern(notes,clip_beats,division,frame_beats=0.):
+    """Song -> Pattern for a recorded clip. Returns (pattern, report).
+
+    A live take (keys, chord pads, the arp) is stored at audio-frame times, so its notes sit a few
+    samples off the grid at most tempos, and played chords are off it by milliseconds. Each note is
+    snapped to the nearest step of `division`; the report counts the ones that moved by more than one
+    audio frame. The pattern gets the clip's length in steps (up to MAX_STEPS), so an 8-bar take
+    becomes 128 steps at 1/16 instead of failing on a 16-step pattern. Note lengths become ties with
+    one shared gate; exact when the lengths allow it, else the nearest tie.
+    """
+    unit=DIVISIONS[division]
+    if not notes:raise ValueError('The source clip is empty')
+    clip_steps=clip_beats/unit
+    length=max(1,int(math.ceil(clip_steps-1e-9)))
+    if length>MAX_STEPS:
+        last=max(int(round(n['start']/unit)) for n in notes)+1
+        length=next((c for c in STEP_CHOICES if c>=last),None)
+        if length is None:
+            bars=clip_beats/4
+            raise ValueError('This %g-bar clip is %d steps at %s; a pattern holds %d. Pick a slower rate such as %s and try again'
+                             %(bars,int(math.ceil(clip_steps-1e-9)),division,MAX_STEPS,
+                               next((d for d in ('1/8','1/4','1/2') if clip_beats/DIVISIONS[d]<=MAX_STEPS),'1/2')))
+    tolerance=(frame_beats/unit if frame_beats else 0.)+1e-6
+    moved=0;placed={}
+    for n in sorted(notes,key=lambda n:(n['start'],n['note'])):
+        exact=n['start']/unit;step=int(round(exact))
+        if abs(exact-step)>tolerance:moved+=1
+        step%=length  # a note snapped onto the loop end belongs to the next loop's step 1
+        bucket=placed.setdefault(step,{})
+        old=bucket.get(n['note'])
+        # Two takes of the same pitch landing on one step merge: keep the louder, longer one.
+        if old is None or (n['velocity'],n['duration'])>(old['velocity'],old['duration']):bucket[n['note']]=n
+    merged=len(notes)-sum(len(b) for b in placed.values())
+    dropped=0;steps=[[] for _ in range(length)];kept=[]
+    for step,bucket in placed.items():
+        chosen=sorted(bucket.values(),key=lambda n:-n['velocity'])
+        dropped+=max(0,len(chosen)-8)
+        for n in sorted(chosen[:8],key=lambda n:n['note']):kept.append((step,n))
+    ratios=[max(1e-9,n['duration']/unit) for _,n in kept]
+    def exact_gate():
+        first=ratios[0]
+        # Recorded lengths are whole audio frames, so allow a frame or two of slack (and tidy the gate).
+        slack=2*tolerance
+        cands=[.8]+sorted({round(first/t,3) for t in range(1,MAX_TIE+1) if .1<=first/t<=.9},key=lambda g:abs(g-.8))
+        for g in cands:
+            if all(1<=round(r/g)<=MAX_TIE and math.isclose(r/g,round(r/g),abs_tol=max(1e-6,slack/g)) for r in ratios):return g
+        return None
+    gate=exact_gate();rounded=0
+    if gate is None:
+        # No shared gate is exact: pick the one that keeps the lengths closest to what was played.
+        best=None
+        for k in range(10,91,5):
+            g=k/100;err=sum(abs(max(1,min(MAX_TIE,round(r/g)))*g-r) for r in ratios)
+            if best is None or err<best[0]-1e-9:best=(err,g)
+        gate=best[1]
+        rounded=sum(1 for r in ratios if abs(max(1,min(MAX_TIE,round(r/gate)))*gate-r)>.05*r+1e-6)
+    for (step,n),r in zip(kept,ratios):
+        steps[step].append(dict(note=n['note'],velocity=n['velocity'],tie=max(1,min(MAX_TIE,round(r/gate)))))
+    pattern=dict(length=length,division=division,gate=round(gate,6),swing=.5,steps=steps)
+    validate_pattern(pattern)
+    report=dict(length=length,notes=len(kept),moved=moved,merged=merged,dropped=dropped,rounded=rounded,division=division,
+                better=better_division(notes,clip_beats,frame_beats) if moved else None)
+    if report['better']==division:report['better']=None
+    return pattern,report
+
+
+def off_grid(notes,division,frame_beats=0.):
+    unit=DIVISIONS[division];tol=(frame_beats/unit if frame_beats else 0.)+1e-6
+    return sum(1 for n in notes if abs(n['start']/unit-round(n['start']/unit))>tol)
+
+
+def better_division(notes,clip_beats,frame_beats=0.):
+    """The coarsest rate that fits a take with far fewer snapped notes (e.g. 1/16T for a triplet take),
+    for the Song -> Pattern report. None when nothing fits clearly better."""
+    rates=[d for d in ('1/4','1/8','1/8T','1/16','1/16T','1/32','1/32T') if clip_beats/DIVISIONS[d]<=MAX_STEPS]
+    scored=[(off_grid(notes,d,frame_beats),-DIVISIONS[d],d) for d in rates]
+    if not scored:return None
+    best=min(scored)
+    return best[2] if best[0]<=len(notes)*.05 else None
+
+
+def seq_spice(spice,seed,tick,idx,gate):
+    """Spice for one SEQ note: (skip, gate, ratchets). Shared by live playback and Pattern -> Song,
+    so a sent clip holds exactly the variation that was heard."""
+    if not spice:return False,gate,1
+    rng=random.Random((tick*983+idx*61+seed)*41)
+    if rng.random()<spice*.25:return True,gate,1
+    gate=max(.1,min(.9,gate+rng.uniform(-.25,.25)*spice))
+    ratchets=(2 if rng.random()<.7 else 3) if rng.random()<spice*.35 else 1
+    return False,gate,ratchets
+
+
+def song_from_pattern(pattern,bars,transpose=0,gate=None,fill=False,feel=None):
     """Song notes for a pattern. With fill, a pattern shorter than the loop repeats until the loop is full,
-    so a 1-bar pattern sent to a 4-bar track plays in every bar instead of leaving 3 bars empty."""
+    so a 1-bar pattern sent to a 4-bar track plays in every bar instead of leaving 3 bars empty.
+
+    feel=dict(spice=..., spice_seed=...) renders what the sequencer plays from bar 1: the pattern's swing
+    shifts the off-beat steps, and spice skips notes, varies gate and adds ratchets with the live seed.
+    Without feel the notes stay exactly on the grid (Song -> Pattern round trips rely on that)."""
     beat_size=DIVISIONS[pattern['division']]
     length=bars*4
     span=len(pattern['steps'])*beat_size
@@ -366,9 +468,20 @@ def song_from_pattern(pattern,bars,transpose=0,gate=None,fill=False):
         for step,notes in enumerate(pattern['steps']):
             start=rep*span+step*beat_size
             if start>=length-1e-9:break
-            for item in notes:
-                out.append(dict(start=start,duration=min(length,beat_size*(gate or pattern['gate'])*item['tie']),
-                                note=_ratio(item['note'],transpose),velocity=item['velocity']))
+            tick=rep*len(pattern['steps'])+step
+            if feel is not None:start+=time_swing(tick,pattern['swing'],beat_size)
+            for idx,item in enumerate(notes):
+                note_gate=gate or pattern['gate'];ratchets=1
+                if feel is not None:
+                    skip,note_gate,ratchets=seq_spice(feel.get('spice',0.),feel.get('spice_seed',1),tick,idx,note_gate)
+                    if skip:continue
+                sub=beat_size/ratchets
+                for r in range(ratchets):
+                    on=start+r*sub
+                    if on>=length-1e-9:break
+                    duration=sub*note_gate*(item['tie'] if ratchets==1 else 1)
+                    out.append(dict(start=round(on,9),duration=min(length,duration),
+                                    note=_ratio(item['note'],transpose),velocity=item['velocity']))
     return out
 
 
@@ -447,12 +560,8 @@ def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0,velocities=N
             for idx,item in enumerate(p['steps'][offset]):
                 num=_ratio(item['note'],transpose+seq['transpose'])
                 velocity=item['velocity']
-                gate=p['gate'];spice=seq['spice'];ratchets=1
-                if spice:
-                    rng=random.Random((tick*983+idx*61+seq['spice_seed'])*41)
-                    if rng.random()<spice*.25:continue
-                    gate=max(.1,min(.9,gate+rng.uniform(-.25,.25)*spice))
-                    if rng.random()<spice*.35:ratchets=2 if rng.random()<.7 else 3
+                skip,gate,ratchets=seq_spice(seq['spice'],seq['spice_seed'],tick,idx,p['gate'])
+                if skip:continue
                 for r in range(ratchets):
                     sublength=DIVISIONS[p['division']]*fpb/ratchets
                     on=onset+round(r*sublength)

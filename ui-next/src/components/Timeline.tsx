@@ -8,7 +8,8 @@ import { AudioWaveform, CircleDot, Pencil,Layers3, SlidersHorizontal, Volume2, V
 import { LIBRARY } from './PresetBrowser';
 
 const categoryOf=(name:string)=>LIBRARY.presets.find(p=>p.name===name)?.category??'';
-import { clamp, noteName, SONG_TRACK_COLORS, type Project, type Note } from '../types';
+import { clamp, noteName, SONG_TRACK_COLORS, type FreezeInfo, type Project, type Note } from '../types';
+import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
 
 type Props = {
   project: Project; selected: number; beat: number;
@@ -18,6 +19,7 @@ type Props = {
   onOpenSound?(index:number):void; compact?:boolean;
   /** Song page: each lane's clip button (the open clip's letter) and the toolbar above. */
   loops?:{label:string;sub:string;aria:string;title:string}[]; onLoops?(index:number):void; header?:React.ReactNode;
+  freeze?:FreezeInfo[]; onFreeze?(index:number):void; onUnfreeze?(index:number):void;
 };
 
 function pitchSpan(notes:Note[]) {
@@ -26,7 +28,8 @@ function pitchSpan(notes:Note[]) {
   return {low:Math.max(0,lo-3), high:Math.min(127,Math.max(lo+15,hi+3))};
 }
 
-function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip,playbackLabel}:{
+function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip,playbackLabel,overlay}:{
+  overlay?:React.ReactNode;
   track:Project['tracks'][number];idx:number;bars:number;beat:number;
   selected:boolean;recording:boolean;playing:boolean;
   clip:number;playbackLabel?:string;onOpenNotes?:()=>void;onSelect():void;onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;
@@ -100,13 +103,15 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
         style={{left:0,width:((n.start+n.duration-beats)/beats*100)+'%',
                 top:noteTop(n.note)}}/>
     )}
+    {overlay}
     {(playing||recording)&&<div className="clip-playhead" style={{left:(pos*100)+'%'}} aria-hidden="true"><span className="playhead-cap"/></div>}
     <span className="clip-status">{recording?'● RECORDING':playbackLabel??(track.notes.length?
       track.notes.length+' NOTES':'EMPTY')}</span>
   </div>;
 }
 
-export function Timeline({project,selected,beat,songBeat=beat,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header}:Props) {
+export function Timeline({project,selected,beat,songBeat=beat,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header,freeze,onFreeze,onUnfreeze}:Props) {
+  const canFreeze=!!(onFreeze&&onUnfreeze);
   const noteCount=project.tracks.reduce((sum,t)=>sum+t.notes.length,0);
   return <section className={'timeline'+(compact?' compact':'')} aria-label="Four-track MIDI looping timeline">
     {header??(compact?null:<div className="timeline-toolbar">
@@ -130,7 +135,7 @@ export function Timeline({project,selected,beat,songBeat=beat,playing,recording,
         const loop=loops?.[i];
         const clock=clipPlayback(project,i,songBeat,beat,playing);
         return <div key={i} className={'track-row'+(active?' active':'')}
-          style={{'--track-accent':SONG_TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
+          style={{'--track-accent':SONG_TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0)+(canFreeze?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
             onClick={()=>onSelect(i)}>
             <span className="track-index">{String(i+1).padStart(2,'0')}</span>
@@ -140,9 +145,10 @@ export function Timeline({project,selected,beat,songBeat=beat,playing,recording,
           </button>
           {loop&&onLoops?<button type="button" className="lane-loop" aria-label={loop.aria}
             title={loop.title} onClick={()=>onLoops(i)}><b>{loop.label}</b><small>{loop.sub}</small></button>:null}
-          {onOpenNotes?<button type="button" className="lane-sound" aria-label={'Edit notes of track '+(i+1)} title="Edit MIDI notes" onClick={()=>onOpenNotes(i)}><Pencil size={17}/></button>:null}
+          {onOpenNotes?<button type="button" className="lane-sound" aria-label={'Edit notes of track '+(i+1)} title="Edit these notes in the Perform note editor" onClick={()=>onOpenNotes(i)}><Pencil size={17}/></button>:null}
           {onOpenSound?<button type="button" className="lane-sound" aria-label={'Edit sound of '+track.preset}
             title="Edit this sound" onClick={()=>onOpenSound(i)}><SlidersHorizontal size={17}/></button>:null}
+          {canFreeze?<FreezeButton info={freeze?.[i]} name={track.preset} onFreeze={()=>onFreeze!(i)} onUnfreeze={()=>onUnfreeze!(i)}/>:null}
           <button type="button" className={'lane-mute'+(track.mute?' muted':'')}
             aria-label={(track.mute?'Unmute ':'Mute ')+track.preset}
             aria-pressed={track.mute} title={track.mute?'Unmute':'Mute'}
@@ -152,7 +158,9 @@ export function Timeline({project,selected,beat,songBeat=beat,playing,recording,
           <ClipGrid track={track} idx={i} bars={project.bars} beat={clock.beat}
             selected={active} recording={recording&&active} playing={clock.playing}
             playbackLabel={playing&&clock.heard!==clock.open?`${CLIP_NAMES[clock.open]} OPEN · ${clock.heard===undefined?'NO BLOCK':CLIP_NAMES[clock.heard]+' PLAYING'}`:undefined}
-            clip={clipsOf(project).open[i]} onOpenNotes={()=>onOpenNotes?.(i)} onSelect={()=>onSelect(i)} onEdit={onEdit}/>
+            clip={clipsOf(project).open[i]} onOpenNotes={()=>onOpenNotes?.(i)} onSelect={()=>onSelect(i)} onEdit={onEdit}
+            overlay={canFreeze?<FreezeOverlay info={freeze?.[i]} meta={freezeFor(track,'loop')} mode={project.song?.on?'song':'loop'} waveMode={'loop'} from={0} span={project.bars*4}
+              passBeats={project.bars*4} onFreeze={()=>onFreeze!(i)} onUnfreeze={()=>onUnfreeze!(i)}/>:null}/>
         </div>;
       })}
     </div>

@@ -1,28 +1,106 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
+import {Plus} from 'lucide-react';
 import {controlName,type ControlTarget} from '../parameter-registry';
 import type {AutomationLane} from '../types';
-type Props={track:number;lanes:AutomationLane[];target:ControlTarget|null;beats:number;armed:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void};
-export function AutomationEditor({track,lanes,target,beats,armed,send,close}:Props){
- const [selected,setSelected]=useState<ControlTarget>(target??lanes[0]??{module:'sound',param:'filter'}),[index,setIndex]=useState(0);
- const done=useRef<HTMLButtonElement>(null),drag=useRef(false),points=useRef<[number,number][]>([]);
- const lane=lanes.find(l=>l.module===selected.module&&l.param===selected.param),current=lane?.points??[];
- const [draft,setDraft]=useState<[number,number][]>(current);
- useEffect(()=>{if(!drag.current)setDraft(current);},[lane]);
- useEffect(()=>{const previous=document.activeElement as HTMLElement;done.current?.focus();const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();close();}};window.addEventListener('keydown',key);return()=>{window.removeEventListener('keydown',key);if(previous?.isConnected)previous.focus();};},[close]);
- function commit(next:[number,number][]){const others=lanes.filter(l=>l.module!==selected.module||l.param!==selected.param);send('automation',[track,next.length?[...others,{...selected,points:next}]:others]);}
- function edit(e:React.PointerEvent<SVGSVGElement>){const b=e.currentTarget.getBoundingClientRect(),beat=Math.round(Math.max(0,Math.min(beats-.000001,(e.clientX-b.left)/b.width*beats))*16)/16,unit=Math.max(0,Math.min(1,1-(e.clientY-b.top)/b.height));const next=points.current.filter(p=>Math.abs(p[0]-beat)>.00001);next.push([Math.min(beats-.000001,beat),Math.round(unit*1000)/1000]);next.sort((a,b)=>a[0]-b[0]);points.current=next;setDraft(next);setIndex(next.findIndex(p=>p[0]===beat));}
- const choices=[...lanes,...(!lanes.some(l=>l.module===selected.module&&l.param===selected.param)?[selected]:[])];
- const point=draft[Math.max(0,Math.min(index,draft.length-1))];
- return createPortal(<div className="automation-backdrop" onPointerDown={e=>{if(e.target===e.currentTarget)close();}}>
-  <section role="dialog" aria-modal="true" aria-label="Parameter automation" className="automation-editor" onKeyDown={e=>{if(e.key==='Tab'){const buttons=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),[tabindex="0"]'));const i=buttons.indexOf(document.activeElement as HTMLElement);if((e.shiftKey&&i===0)||(!e.shiftKey&&i===buttons.length-1)){e.preventDefault();buttons[e.shiftKey?buttons.length-1:0]?.focus();}}}}>
-   <header><strong>Automation · Track {track+1} · {controlName(selected)}</strong><button type="button" aria-pressed={armed} onClick={()=>send('automation_arm',!armed)}>{armed?'Automation armed':'Arm automation'}</button><button ref={done} type="button" onClick={close}>Done</button></header>
-   <div className="automation-content"><div className="automation-lanes" role="group" aria-label="Automation lanes">{choices.map(l=><button key={l.module+'.'+l.param} type="button" aria-pressed={l.module===selected.module&&l.param===selected.param} onClick={()=>{setSelected(l);setIndex(0);}}>{controlName(l)}</button>)}<p>Add a lane from a knob’s menu.</p></div>
-    <div className="automation-lane-editor"><svg role="slider" tabIndex={0} aria-label={controlName(selected)+' automation lane'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((point?.[1]??0)*100)} viewBox="0 0 520 180" preserveAspectRatio="none"
-     onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);drag.current=true;points.current=current.map(p=>[...p]);edit(e);}} onPointerMove={e=>{if(drag.current)edit(e);}} onPointerUp={()=>{if(drag.current){drag.current=false;commit(points.current);}}} onPointerCancel={()=>{drag.current=false;setDraft(current);}}
-     onKeyDown={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Delete','Home'].includes(e.key)){e.preventDefault();const next=draft.length?draft.map(p=>[...p] as [number,number]):[[0,.5] as [number,number]];let i=Math.max(0,Math.min(index,next.length-1));if(e.key==='ArrowRight')setIndex(Math.min(i+1,next.length-1));else if(e.key==='ArrowLeft')setIndex(Math.max(0,i-1));else if(e.key==='Delete'){next.splice(i,1);commit(next);}else if(e.key==='Home'){next[i][1]=.5;commit(next);}else{next[i][1]=Math.max(0,Math.min(1,next[i][1]+(e.key==='ArrowUp'?.01:-.01)));commit(next);}}}}>
-      <path d={draft.map((p,i)=>(i?'L':'M')+(p[0]/beats*520)+' '+((1-p[1])*180)).join(' ')} fill="none" stroke="currentColor" strokeWidth="3"/>{draft.map((p,i)=><circle key={p[0]} cx={p[0]/beats*520} cy={(1-p[1])*180} r={i===index?6:4}/>)}</svg>
-     <footer><span>{draft.length?draft.length+' points · '+beats+' beats':'Touch to draw · REC + arm records knob moves'}</span><button type="button" onClick={()=>commit([])}>Clear lane</button></footer>
-    </div></div>
-  </section></div>,document.querySelector('.harness-shell')??document.body);
+
+type Point=[number,number];
+type Props={track:number;lanes:AutomationLane[];target:ControlTarget|null;beats:number;beat:number;playing:boolean;armed:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void};
+
+/** Sound and macro targets offered when adding a lane (a grid of buttons, rule 11). Every one exists in the engine registry. */
+export const AUTOMATION_CHOICES:ControlTarget[]=[
+  ...['filter','vcf_cutoff','vcf_reso','vcf_morph','vcf_env','modulation','volume','pan','uni_detune','formant','vowel','character','sub','pitch','attack','release']
+    .map(param=>({module:'sound',param})),
+  ...Array.from({length:8},(_,i)=>({module:'macro',param:String(i)})),
+];
+const H=120,MAX_HANDLES=64;
+const same=(a:ControlTarget,b:ControlTarget)=>a.module===b.module&&a.param===b.param;
+
+/** Drop points that sit on the straight line between their neighbours: same curve, far fewer points to store,
+ *  send every 100 ms and draw. A drawn gesture at 1/16 beat easily makes hundreds. */
+export function thinPoints(points:Point[],tolerance=.004):Point[]{
+  if(points.length<3)return points;
+  const out:Point[]=[points[0]];
+  for(let i=1;i<points.length-1;i++){
+    const a=out[out.length-1],b=points[i],c=points[i+1];
+    const t=(b[0]-a[0])/Math.max(1e-9,c[0]-a[0]),y=a[1]+(c[1]-a[1])*t;
+    if(Math.abs(y-b[1])>tolerance)out.push(b);
+  }
+  out.push(points[points.length-1]);
+  return out;
+}
+
+export function AutomationEditor({track,lanes,target,beats,beat,playing,armed,send,close}:Props){
+  const [selected,setSelected]=useState<ControlTarget>(target??lanes[0]??{module:'sound',param:'filter'});
+  const [index,setIndex]=useState(0),[adding,setAdding]=useState(false);
+  const done=useRef<HTMLButtonElement>(null),drag=useRef(false),points=useRef<Point[]>([]);
+  const lane=lanes.find(l=>same(l,selected)),current=lane?.points??[];
+  // The worker sends the whole project ten times a second; only react when this lane's points really changed.
+  const signature=JSON.stringify(current);
+  const [draft,setDraft]=useState<Point[]>(current as Point[]);
+  useEffect(()=>{if(!drag.current)setDraft(JSON.parse(signature));},[signature]);
+  const strip=useRef<HTMLElement>(null);
+  const [place,setPlace]=useState<React.CSSProperties>({left:8,right:8,bottom:8});
+  const [width,setWidth]=useState(1200);
+  // Sit over the page's focus window (Partials, waveform, FX window), so the rack's knobs stay in reach.
+  useEffect(()=>{const fit=()=>{const w=document.querySelector('.frame-window')?.getBoundingClientRect();
+      setPlace(w&&w.height>120?{left:w.left,width:w.width,top:w.top,height:Math.min(w.height,232)}:{left:8,right:8,bottom:8});
+      const svg=strip.current?.querySelector('.automation-lane-editor svg')?.getBoundingClientRect();if(svg&&svg.width>100)setWidth(Math.round(svg.width/svg.height*H));};
+    fit();const ro=new ResizeObserver(fit);ro.observe(document.body);return()=>ro.disconnect();},[adding]);
+  useEffect(()=>{const previous=document.activeElement as HTMLElement;
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();if(adding)setAdding(false);else close();}};
+    // A tap on blank space (not a control) closes it; knobs and buttons elsewhere keep working.
+    const blank=(e:PointerEvent)=>{const t=e.target as HTMLElement|null;if(!t||strip.current?.contains(t))return;
+      if(t.closest('button,[role],input,select,a,svg,label,.knob'))return;close();};
+    window.addEventListener('keydown',key);window.addEventListener('pointerdown',blank,true);
+    return()=>{window.removeEventListener('keydown',key);window.removeEventListener('pointerdown',blank,true);if(previous?.isConnected&&strip.current?.contains(document.activeElement))previous.focus();};},[close,adding]);
+  function commit(next:Point[]){
+    const others=lanes.filter(l=>!same(l,selected));
+    send('automation',[track,next.length?[...others,{...selected,points:thinPoints(next)}]:others]);
+  }
+  function locate(e:React.PointerEvent<SVGSVGElement>){
+    const b=e.currentTarget.getBoundingClientRect();
+    const beatAt=Math.round(Math.max(0,Math.min(beats-.000001,(e.clientX-b.left)/b.width*beats))*16)/16;
+    return {beat:Math.min(beats-.000001,beatAt),unit:Math.round(Math.max(0,Math.min(1,1-(e.clientY-b.top)/b.height))*1000)/1000};
+  }
+  function edit(e:React.PointerEvent<SVGSVGElement>){
+    const {beat:at,unit}=locate(e);
+    const next=points.current.filter(p=>Math.abs(p[0]-at)>.00001);next.push([at,unit]);next.sort((a,b)=>a[0]-b[0]);
+    points.current=next;setDraft(next);setIndex(next.findIndex(p=>p[0]===at));
+  }
+  const choices=[...lanes.map(l=>({module:l.module,param:l.param})),...(!lanes.some(l=>same(l,selected))?[selected]:[])];
+  const point=draft[Math.max(0,Math.min(index,draft.length-1))];
+  const W=width;
+  const path=useMemo(()=>draft.length?'M0 '+(1-draft[0][1])*H+' '+draft.map(p=>'L'+(p[0]/beats*W).toFixed(1)+' '+((1-p[1])*H).toFixed(1)).join(' ')+' L'+W+' '+((1-draft[draft.length-1][1])*H):'',[draft,beats,W]);
+  const head=playing?((beat%beats)+beats)%beats/beats*W:null;
+  // A slim strip over the page's focus window, not a modal: the knobs stay visible and playable below it.
+  return createPortal(<section ref={strip} role="dialog" aria-label="Parameter automation" className="automation-editor automation-strip" style={place}>
+      <header>
+        <strong>Automation</strong>
+        <div className="automation-lanes" role="group" aria-label="Automation lanes">
+          {choices.map(l=><button key={l.module+'.'+l.param} type="button" aria-pressed={!adding&&same(l,selected)} onClick={()=>{setSelected(l);setIndex(0);setAdding(false);}}>{controlName(l)}</button>)}
+          <button type="button" className="automation-add" aria-expanded={adding} onClick={()=>setAdding(!adding)}><Plus size={15}/>Lane</button>
+        </div>
+        <span className="automation-readout">{draft.length?(point?Math.round(point[1]*100)+'% · beat '+(point[0]+1).toFixed(2)+' · ':'')+draft.length+' pts':'Drag to draw'}</span>
+        <button type="button" disabled={!draft.length} onClick={()=>commit([])}>Clear</button>
+        <button type="button" aria-pressed={armed} title="With REC on, knob moves are written into their lanes" onClick={()=>send('automation_arm',!armed)}>{armed?'Armed':'Arm REC'}</button>
+        <button ref={done} type="button" onClick={close}>Done</button></header>
+      <div className="automation-content">
+        {adding?<div className="automation-targets" role="group" aria-label="Choose what to automate">
+          {AUTOMATION_CHOICES.map(t=>{const used=lanes.some(l=>same(l,t));return <button key={t.module+'.'+t.param} type="button" aria-pressed={same(t,selected)} className={used?'used':''}
+            onClick={()=>{setSelected(t);setIndex(0);setAdding(false);}}>{controlName(t)}{used?' ●':''}</button>;})}
+        </div>
+        :<div className="automation-lane-editor"><svg role="slider" tabIndex={0} aria-label={controlName(selected)+' automation lane'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((point?.[1]??0)*100)} viewBox={'0 0 '+W+' '+H}
+          onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);drag.current=true;points.current=current.map(p=>[p[0],p[1]] as Point);edit(e);}} onPointerMove={e=>{if(drag.current)edit(e);}}
+          onPointerUp={()=>{if(drag.current){drag.current=false;commit(points.current);}}} onPointerCancel={()=>{drag.current=false;setDraft(JSON.parse(signature));}}
+          onKeyDown={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Delete','Home'].includes(e.key)){e.preventDefault();const next=draft.length?draft.map(p=>[...p] as Point):[[0,.5] as Point];const i=Math.max(0,Math.min(index,next.length-1));if(e.key==='ArrowRight')setIndex(Math.min(i+1,next.length-1));else if(e.key==='ArrowLeft')setIndex(Math.max(0,i-1));else if(e.key==='Delete'){next.splice(i,1);commit(next);}else if(e.key==='Home'){next[i][1]=.5;commit(next);}else{next[i][1]=Math.max(0,Math.min(1,next[i][1]+(e.key==='ArrowUp'?.01:-.01)));commit(next);}}}}>
+          {Array.from({length:Math.max(0,Math.floor(beats/4)-1)},(_,i)=><line key={i} className="automation-bar" x1={(i+1)*4/beats*W} x2={(i+1)*4/beats*W} y1={0} y2={H}/>)}
+          {path?<path d={path} fill="none" stroke="currentColor" strokeWidth="3"/>:null}
+          {draft.length<=MAX_HANDLES?draft.map((p,i)=><circle key={p[0]} cx={p[0]/beats*W} cy={(1-p[1])*H} r={i===index?6:4}/>)
+            :point?<circle cx={point[0]/beats*W} cy={(1-point[1])*H} r={6}/>:null}
+          {head!==null?<line className="automation-head" x1={head} x2={head} y1={0} y2={H}/>:null}
+        </svg>
+        </div>}
+      </div>
+    </section>,document.querySelector('.harness-shell')??document.body);
 }

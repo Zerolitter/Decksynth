@@ -170,7 +170,8 @@ let app;
   await page.getByRole('button',{name:'Load preset Wobble Bass'}).click();
   const loaded=await page.evaluate(()=>new Promise(r=>{const rm=window.deckApi.onMessage(m=>{const t=m.state?.tracks?.[0];if(t?.preset==='Wobble Bass'){rm();r({mods:t.fx.mods[0].targets.length,on:t.fx.modules.filter(x=>x.on).length});}});}));
   assert.ok(loaded.mods>0&&loaded.on>0,'preset FX: '+JSON.stringify(loaded));
-  await page.getByRole('button',{name:'Next preset'}).click();
+  assert.equal(await page.getByRole('button',{name:/^(Previous|Next) preset$/}).count(),0,'no preset arrows');
+  await page.getByRole('button',{name:'Load preset Acid Bass'}).click();
   await page.waitForFunction(()=>document.querySelector('.preset-current strong')?.textContent==='Acid Bass');
   console.log('PASS: preset browser loads library sounds with their FX and mod pads');
   // Factory patterns fill a bank in the engine.

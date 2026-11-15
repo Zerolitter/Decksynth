@@ -1,0 +1,606 @@
+/* Sampler track (15 Nov): one sample played across the keys, from a pad or a WAV file.
+   The window is the sample. Trim: drag Start, End and, in Loop mode, the loop's two ends. Chop: cut it into
+   slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
+   how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
+import { useEffect, useRef, useState } from 'react';
+import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Minus, Plus, ScanSearch, Scissors, Undo2, ZoomIn } from 'lucide-react';
+import { CommittedKnob } from './DrumRack';
+import { EnvEditor, type Env } from './EnvEditor';
+import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
+import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode } from '../types';
+import '../sampler.css';
+
+const BLACK = new Set([1, 3, 6, 8, 10]);
+const KEYMAPS: ['whole' | 'slices' | 'pitched', string, string][] = [
+  ['whole', 'Whole', 'The whole sample on every key, a semitone per key'],
+  ['slices', 'Slices', 'One slice per key from the first key, each at its own pitch'],
+  ['pitched', 'Pitched', "Each key plays the slice whose pitch is nearest, tuned to the key (finds each slice's pitch)"],
+];
+const FILTERS: ['off' | 'lp' | 'bp' | 'hp', string, string][] = [['off', 'Off', 'No filter'], ['lp', 'LP', 'Low-pass'], ['bp', 'BP', 'Band-pass'], ['hp', 'HP', 'High-pass']];
+const hz = (f: number) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz';
+const MODES: [SamplerMode, string, string][] = [
+  ['oneshot', 'One shot', 'Plays to the end, whatever the key does'],
+  ['hold', 'Hold', 'Plays while the key is held, then the release'],
+  ['loop', 'Loop', 'Repeats the loop while the key is held'],
+];
+export const familyColor = (family?: string) => DRUM_KINDS[(family as DrumKind) in DRUM_KINDS ? family as DrumKind : 'other'].color;
+
+type Edit = (key: string, value: unknown) => void;
+type Handle = 'start' | 'end' | 'loop_start' | 'loop_end' | 'slice_start' | 'slice_end';
+type Values = Record<Handle, number>;
+const MIN_SLICE = .0005;
+const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/** The waveform. Trim: Start/End and the loop. Chop: the slices; tap one to hear it and choose it, drag its edges.
+    Every handle has a 44 px hit zone; one drag is one undo step. The view can be zoomed (Chop's Zoom). */
+function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit }: {
+  spec: SamplerSpec; runtime?: SamplerRuntime | null; mode: 'trim' | 'chop'; selected: number; marker: number | null;
+  onSelect(index: number, at: number): void; onEdit: Edit;
+}) {
+  const slices = spec.slices ?? [];
+  const sel = slices[selected];
+  const base = (): Values => ({ start: spec.start, end: spec.end, loop_start: spec.loop_start, loop_end: spec.loop_end,
+    slice_start: sel?.[0] ?? 0, slice_end: sel?.[1] ?? 1 });
+  const [draft, setDraft] = useState<Partial<Values> | null>(null);
+  const drag = useRef<{ key: Handle; left: number; width: number; values: Values } | null>(null);
+  const v = { ...base(), ...draft };
+  const looping = spec.mode === 'loop' && mode === 'trim';
+  const [va, vb] = runtime?.view ?? [0, 1];
+  const span = Math.max(1e-6, vb - va);
+  const x = (u: number) => (u - va) / span;                    // 0..1 across the window
+  const pct = (u: number) => (x(u) * 100) + '%';
+  const visible = (u: number) => u >= va - 1e-9 && u <= vb + 1e-9;
+  const peaks = (runtime?.peaks ?? []).filter(p => p.length >= 2);
+  const limit = (key: Handle, at: number, s: Values): Partial<Values> => {
+    const r = (n: number) => Math.round(n * 1e5) / 1e5;
+    if (key === 'start') return { start: r(Math.min(at, s.end - .002)) };
+    if (key === 'end') return { end: r(Math.max(at, s.start + .002)) };
+    if (key === 'loop_start') return { loop_start: r(Math.max(s.start, Math.min(at, s.loop_end - .002))) };
+    if (key === 'loop_end') return { loop_end: r(Math.min(s.end, Math.max(at, s.loop_start + .002))) };
+    const lo = selected > 0 ? slices[selected - 1][1] : 0, hi = selected < slices.length - 1 ? slices[selected + 1][0] : 1;
+    if (key === 'slice_start') return { slice_start: r6(Math.max(lo, Math.min(at, s.slice_end - MIN_SLICE))) };
+    return { slice_end: r6(Math.min(hi, Math.max(at, s.slice_start + MIN_SLICE))) };
+  };
+  const toU = (clientX: number, left: number, width: number) => Math.max(0, Math.min(1, va + (clientX - left) / width * span));
+  const commit = (values: Values) => {
+    if (values.slice_start !== base().slice_start || values.slice_end !== base().slice_end) {
+      const next = slices.map((p, i) => i === selected ? [values.slice_start, values.slice_end, ...p.slice(2)] : p);
+      onEdit('slices', next); return;
+    }
+    const keys: Handle[] = ['start', 'end', 'loop_start', 'loop_end'];
+    const changed: Record<string, number> = Object.fromEntries(keys.filter(k => values[k] !== spec[k as 'start']).map(k => [k, values[k]]));
+    // Start and End also keep the loop inside them.
+    if ('start' in changed && values.loop_start < values.start) changed.loop_start = values.start;
+    if ('end' in changed && values.loop_end > values.end) changed.loop_end = values.end;
+    if (Object.keys(changed).length) onEdit('patch', changed);
+  };
+  const begin = (key: Handle) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    const box = e.currentTarget.parentElement!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { key, left: box.left, width: box.width, values: base() };
+  };
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current; if (!d) return;
+    const next = limit(d.key, toU(e.clientX, d.left, d.width), d.values);
+    d.values = { ...d.values, ...next }; setDraft({ ...next });
+  };
+  const end = (ok: boolean) => () => {
+    const d = drag.current; drag.current = null; setDraft(null);
+    if (d && ok) commit(d.values);
+  };
+  const handle = (key: Handle, label: string, tag = true) => visible(v[key]) ? <button key={key} type="button" className={'smp-handle h-' + key}
+    style={{ left: pct(v[key]) }} aria-label={label + ' ' + (Math.round(v[key] * 1000) / 10) + '%'}
+    onPointerDown={begin(key)} onPointerMove={move} onPointerUp={end(true)} onPointerCancel={end(false)}
+    onKeyDown={e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault();
+      const s = base(); commit({ ...s, ...limit(key, s[key] + (e.key === 'ArrowLeft' ? -.01 : .01) * span, s) });
+    }}><i />{tag ? <b>{label}</b> : null}</button> : null;
+  const secs = runtime?.seconds ?? 0, ms = (u: number) => Math.round(u * secs * 1000);
+  const tap = (e: React.PointerEvent<HTMLElement>) => {
+    if (mode !== 'chop' || e.button !== 0) return;
+    const box = (e.currentTarget.closest('.smp-wave-shell') as HTMLElement).getBoundingClientRect();
+    const at = toU(e.clientX, box.left, box.width);
+    onSelect(slices.findIndex(([a, b]) => at >= a && at < b), at);
+  };
+  const W = 512;
+  return <div className={'smp-window' + (mode === 'chop' ? ' chop' : '')} data-testid="sampler-window">
+    <div className="smp-wave-shell" onPointerDown={tap}>
+      {peaks.length ? <svg className="smp-wave" viewBox={'0 0 ' + W + ' 120'} preserveAspectRatio="none" role="img" aria-label="The sample's waveform">
+        {mode === 'chop' ? slices.map(([a, b], i) => <rect key={'s' + i} className={'smp-slice' + (i % 2 ? ' odd' : '') + (i === selected ? ' on' : '')}
+          x={x(i === selected ? v.slice_start : a) * W} y={0} width={Math.max(.5, (x(i === selected ? v.slice_end : b) - x(i === selected ? v.slice_start : a)) * W)} height={120} />) : null}
+        <path d="M0 60H512" className="smp-zero" />
+        {peaks.map((p, i) => <line key={i} x1={(i + .5) * W / peaks.length} x2={(i + .5) * W / peaks.length}
+          y1={60 - Math.max(-1, Math.min(1, p[1])) * 56} y2={60 - Math.max(-1, Math.min(1, p[0])) * 56} strokeWidth={Math.max(1, W / peaks.length * .75)} />)}
+        {mode === 'trim' ? <>
+          <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(v.start) * W)} height={120} />
+          <rect className="smp-cut" x={x(v.end) * W} y={0} width={Math.max(0, (1 - x(v.end)) * W)} height={120} />
+          {looping ? <rect className="smp-loop" x={x(v.loop_start) * W} y={0} width={(x(v.loop_end) - x(v.loop_start)) * W} height={120} /> : null}
+          {(['start', 'end'] as const).map(k => <line key={k} className="smp-edge" x1={x(v[k]) * W} x2={x(v[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+          {looping ? (['loop_start', 'loop_end'] as const).map(k => <line key={k} className="smp-edge loop" x1={x(v[k]) * W} x2={x(v[k]) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />) : null}
+        </> : <>
+          {slices.map(([a], i) => <line key={'e' + i} className="smp-edge slice" x1={x(i === selected ? v.slice_start : a) * W} x2={x(i === selected ? v.slice_start : a) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+          {marker !== null && visible(marker) ? <line className="smp-marker" x1={x(marker) * W} x2={x(marker) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
+          {runtime?.audition ? <line className="smp-playhead" x1={x(runtime.audition.at) * W} x2={x(runtime.audition.at) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
+        </>}
+        {(runtime?.playing ?? []).map((at, i) => <line key={'p' + i} className="smp-playhead" x1={x(at) * W} x2={x(at) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" />)}
+      </svg> : null}
+      {mode === 'chop' ? slices.map(([a, b], i) => visible(a) && x(b) - x(a) > .018 ? <span key={'n' + i} className={'smp-slice-no' + (i === selected ? ' on' : '')}
+        style={{ left: pct(a) }} aria-hidden="true">{i + 1}</span> : null) : null}
+      {peaks.length && mode === 'trim' ? <>{handle('start', 'Start')}{handle('end', 'End')}{looping ? <>{handle('loop_start', 'Loop')}{handle('loop_end', 'Loop end')}</> : null}</> : null}
+      {peaks.length && mode === 'chop' && sel ? <>{handle('slice_start', 'Slice ' + (selected + 1), x(v.slice_end) - x(v.slice_start) > .09)}{handle('slice_end', 'Slice ' + (selected + 1) + ' end', false)}</> : null}
+    </div>
+    {mode === 'trim' ? <span className="smp-caption">{secs ? 'Plays ' + ms(v.start) + '–' + ms(v.end) + ' ms' + (looping ? ' · loops ' + ms(v.loop_start) + '–' + ms(v.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : ''}</span> : null}
+  </div>;
+}
+
+const fmtS = (s: number) => s < 10 ? s.toFixed(2) + ' s' : s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+const THRESH = [-60, -54, -48, -42, -36, -30, -24, -18, -12, -6];
+const GAPS = [20, 40, 80, 150, 300, 600, 1000];
+const COUNTS = [2, 4, 8, 12, 16, 24, 32, 48, 64];
+const BEATS: [number, string][] = [[.25, '1/16'], [.5, '1/8'], [1, '1/4'], [2, '1/2'], [4, 'Bar']];
+type ChopMode = 'threshold' | 'regions' | 'bpm';
+type ChopSettings = { mode: ChopMode; threshold: number; min_ms: number; count: number; bpm: number; beats: number };
+
+/** −/+ through a list of values (or by 1 with no list). */
+function Stepper({ label, value, text, list, min, max, onChange }: { label: string; value: number; text: string; list?: number[]; min?: number; max?: number; onChange(n: number): void }) {
+  const at = list ? list.indexOf(value) : -1;
+  const down = list ? (at > 0 ? list[at - 1] : null) : value > (min ?? -Infinity) ? value - 1 : null;
+  const up = list ? (at >= 0 && at < list.length - 1 ? list[at + 1] : null) : value < (max ?? Infinity) ? value + 1 : null;
+  return <div className="smp-stepper" role="group" aria-label={label}>
+    <span>{label}</span>
+    <button type="button" aria-label={label + ' down'} disabled={down === null} onClick={() => down !== null && onChange(down)}><Minus size={15} /></button>
+    <strong aria-live="polite">{text}</strong>
+    <button type="button" aria-label={label + ' up'} disabled={up === null} onClick={() => up !== null && onChange(up)}><Plus size={15} /></button>
+  </div>;
+}
+
+/** Chop tools, one row under the waveform: how to find slices, then Split / Join / Clear, Zoom and To pads. */
+function ChopBar({ spec, runtime, settings, onSettings, selected, marker, zoomed, onChop, onZoom, onSend }: {
+  spec: SamplerSpec; runtime?: SamplerRuntime | null; settings: ChopSettings; onSettings(s: ChopSettings, apply: boolean): void;
+  selected: number; marker: number | null; zoomed: boolean;
+  onChop(mode: string, options?: Record<string, unknown>): void; onZoom(): void; onSend(): void;
+}) {
+  const slices = spec.slices ?? [];
+  const sel = slices[selected];
+  const busy = runtime?.busy ?? [];
+  const set = (patch: Partial<ChopSettings>) => onSettings({ ...settings, ...patch }, true);
+  const secs = runtime?.seconds ?? 0;
+  const canSplit = !!sel && marker !== null && marker > sel[0] + .0005 && marker < sel[1] - .0005;
+  return <div className="smp-chop" role="toolbar" aria-label="Chop">
+    <div className="smp-seg" role="radiogroup" aria-label="Find slices by">
+      {([['threshold', 'Threshold', 'A slice starts at each hit or played note'], ['regions', 'Regions', 'Equal slices'], ['bpm', 'BPM', 'One slice per beat length']] as const).map(([m, label, title]) =>
+        <button key={m} type="button" role="radio" aria-checked={settings.mode === m} title={title} onClick={() => set({ mode: m })}>{label}</button>)}
+    </div>
+    <div className="smp-chop-params">
+      {settings.mode === 'threshold' ? <>
+        <Stepper label="Level" value={settings.threshold} text={settings.threshold + ' dB'} list={THRESH} onChange={n => set({ threshold: n })} />
+        <Stepper label="Min" value={settings.min_ms} text={settings.min_ms + ' ms'} list={GAPS} onChange={n => set({ min_ms: n })} />
+      </> : settings.mode === 'regions' ?
+        <Stepper label="Slices" value={settings.count} text={String(settings.count)} list={COUNTS} onChange={n => set({ count: n })} />
+        : <>
+          <Stepper label="BPM" value={settings.bpm} text={String(settings.bpm)} min={40} max={300} onChange={n => set({ bpm: n })} />
+          <div className="smp-seg" role="radiogroup" aria-label="Slice length">
+            {BEATS.map(([b, label]) => <button key={b} type="button" role="radio" aria-checked={settings.beats === b} onClick={() => set({ beats: b })}>{label}</button>)}
+          </div>
+        </>}
+    </div>
+    <div className="smp-chop-edit">
+      <button type="button" disabled={!canSplit} title="Cut the chosen slice where you last tapped" onClick={() => onChop('split', { index: selected, at: marker })}><Scissors size={15} />Split</button>
+      <button type="button" disabled={!sel || selected >= slices.length - 1} title="Merge the chosen slice with the next one" onClick={() => onChop('join', { index: selected })}><Merge size={15} />Join</button>
+      <button type="button" disabled={!slices.length} onClick={() => onChop('clear')}><Eraser size={15} />Clear</button>
+      <button type="button" aria-pressed={zoomed} disabled={!zoomed && !sel && marker === null} title="Zoom to the chosen slice" onClick={onZoom}><ZoomIn size={15} />Zoom</button>
+    </div>
+    <span className="smp-chop-info" aria-live="polite">{busy.includes('chop') ? 'Chopping…' : busy.includes('send') ? 'Writing slices…' :
+      !slices.length ? 'No slices yet' : slices.length + ' slices' + (sel ? ' · ' + (selected + 1) + ': ' + fmtS(sel[0] * secs) + '–' + fmtS(sel[1] * secs) : '')}</span>
+    <button type="button" className="smp-send" disabled={!slices.length} onClick={onSend}><Grid3x3 size={16} />To pads</button>
+  </div>;
+}
+
+/** Send slices to a Drum Rack: a new 16-pad kit, or the chosen slice onto one pad. Done, a blank tap, Esc or To pads close it. */
+function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
+  spec: SamplerSpec; selected: number; trackIndex: number; tracks: Track[];
+  onSend(target: number, mode: 'kit' | 'pad', options: Record<string, unknown>): void; onClose(): void;
+}) {
+  const slices = spec.slices ?? [];
+  const others = [0, 1, 2, 3].filter(i => i !== trackIndex && tracks[i]);
+  const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'drum_rack') ?? others[0]);
+  const kit = tracks[target]?.device === 'drum_rack' ? tracks[target]?.drum_rack : undefined;
+  const [what, setWhat] = useState<'kit' | 'pad'>('kit');
+  const [bank, setBank] = useState(Math.max(0, Math.floor(Math.max(0, selected) / 16)));
+  const [pad, setPad] = useState(0);
+  const banks = Math.ceil(slices.length / 16);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+  const mode = what === 'pad' && kit && selected >= 0 ? 'pad' : 'kit';
+  const first = bank * 16 + 1, last = Math.min(slices.length, bank * 16 + 16);
+  const describe = (i: number) => { const t = tracks[i]; if (!t) return '';
+    return t.device === 'drum_rack' ? 'Drum Rack' + (t.drum_rack?.name ? ' · ' + t.drum_rack.name : '') : t.device === 'sampler' ? 'Sampler · ' + (t.sampler?.source ? t.sampler.name : 'empty') : 'Synth · ' + t.preset; };
+  return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="smp-sheet" role="dialog" aria-label="Send slices to pads">
+      <header><Grid3x3 size={20} /><h2>Send slices of <em>{spec.name}</em> to pads</h2><button type="button" className="smp-done" onClick={onClose}>Done</button></header>
+      <div className="smp-targets" role="radiogroup" aria-label="Track">
+        {others.map(i => <button key={i} type="button" role="radio" aria-checked={target === i} onClick={() => setTarget(i)}>
+          <b>Track {i + 1}</b><span>{describe(i)}</span></button>)}
+      </div>
+      <div className="smp-seg" role="radiogroup" aria-label="What to send">
+        <button type="button" role="radio" aria-checked={mode === 'kit'} onClick={() => setWhat('kit')}>New kit of 16 slices</button>
+        <button type="button" role="radio" aria-checked={mode === 'pad'} disabled={!kit || selected < 0}
+          title={!kit ? 'Choose a Drum Rack track' : selected < 0 ? 'Choose a slice first' : undefined} onClick={() => setWhat('pad')}>
+          {selected >= 0 ? 'Slice ' + (selected + 1) + ' to one pad' : 'One slice to one pad'}</button>
+      </div>
+      {mode === 'kit' ? <>
+        {banks > 1 ? <div className="smp-seg" role="radiogroup" aria-label="Slices">
+          {Array.from({ length: banks }, (_, b) => <button key={b} type="button" role="radio" aria-checked={bank === b} onClick={() => setBank(b)}>
+            Slices {b * 16 + 1}–{Math.min(slices.length, b * 16 + 16)}</button>)}
+        </div> : null}
+        <p>{tracks[target]?.device === 'drum_rack' ? 'Its kit is replaced' : 'Track ' + (target + 1) + ' becomes a Drum Rack'}: slices {first}–{last} go on pads 1–{last - first + 1}, as WAV files of their own. Undo brings the track back.</p>
+      </> : <div className="smp-padgrid" role="radiogroup" aria-label="Pad">
+        {[12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3].map(i => <button key={i} type="button" role="radio" aria-checked={pad === i} onClick={() => setPad(i)}>
+          <b>{String(i + 1).padStart(2, '0')}</b><span>{kit?.pads[i]?.source ? kit.pads[i].name : 'empty'}</span></button>)}
+      </div>}
+      <footer><button type="button" className="smp-make" onClick={() => {
+        if (mode === 'pad' && kit) onSend(target, 'pad', { index: selected, pad, kit: kit.id }); else onSend(target, 'kit', { bank });
+        onClose();
+      }}><Grid3x3 size={18} />{mode === 'pad' ? 'Put slice ' + (selected + 1) + ' on pad ' + (pad + 1) : 'Make the kit on track ' + (target + 1)}</button></footer>
+    </div>
+  </div>;
+}
+
+/** Keys from the C below the root, three octaves. Holds, glides between keys, velocity from how low you touch. */
+function SamplerKeys({ spec, onMidi }: { spec: SamplerSpec; onMidi: (s: number, a: number, b: number) => void }) {
+  const root = spec.root, slices = spec.keymap !== 'whole' ? spec.slices ?? [] : [];
+  const roots = spec.keymap === 'pitched' ? slices.map(p => p[2]).filter((r): r is number => typeof r === 'number') : [];
+  const low = spec.keymap === 'slices' ? root : roots.length ? Math.min(...roots) : root;
+  const base = Math.max(0, Math.min(91, low - low % 12 - (spec.keymap === 'whole' ? 12 : 0)));
+  const keys = Array.from({ length: 37 }, (_, i) => base + i);
+  const whites = keys.filter(n => !BLACK.has(n % 12));
+  const pointers = useRef(new Map<number, number>());
+  const send = useRef(onMidi); send.current = onMidi;
+  const [down, setDown] = useState<number[]>([]);
+  const sync = () => setDown([...new Set(pointers.current.values())]);
+  const noteAt = (x: number, y: number) => {
+    const n = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>('[data-note]')?.dataset.note;
+    return n === undefined ? null : Number(n);
+  };
+  const velocity = (y: number, el: Element | null) => {
+    if (!el) return 100; const r = el.getBoundingClientRect();
+    return Math.max(1, Math.min(127, Math.round(40 + 87 * ((y - r.top) / Math.max(1, r.height)))));
+  };
+  const press = (id: number, note: number, vel: number) => {
+    const old = pointers.current.get(id); if (old === note) return;
+    if (old !== undefined && ![...pointers.current.entries()].some(([k, n]) => k !== id && n === old)) send.current(0x80, old, 0);
+    pointers.current.set(id, note); send.current(0x90, note, vel); sync();
+  };
+  const release = (id: number) => {
+    const old = pointers.current.get(id); pointers.current.delete(id);
+    if (old !== undefined && ![...pointers.current.values()].includes(old)) send.current(0x80, old, 0);
+    sync();
+  };
+  useEffect(() => () => { for (const id of [...pointers.current.keys()]) release(id); }, [base]);
+  // Whole: the root and two octaves above it. Slices: one slice per key from the root. Pitched: each slice's root.
+  const sliceOn = (n: number) => spec.keymap === 'slices' && n >= root && n < root + slices.length ? n - root : -1;
+  const rootOf = (n: number) => roots.indexOf(n);
+  const cls = (n: number) => (spec.keymap === 'whole' ? (n === root ? ' root' : '') + (n > root + 24 ? ' far' : '')
+    : spec.keymap === 'slices' ? (sliceOn(n) >= 0 ? ' slice' : ' far') : (rootOf(n) >= 0 ? ' root' : ''))
+    + (down.includes(n) ? ' down' : '');
+  const label = (n: number) => spec.keymap === 'slices' ? (sliceOn(n) >= 0 ? String(sliceOn(n) + 1) : null)
+    : spec.keymap === 'pitched' ? (rootOf(n) >= 0 ? noteName(n) : n % 12 === 0 ? noteName(n) : null)
+    : n === root ? 'Root ' + noteName(n) : n % 12 === 0 ? noteName(n) : null;
+  return <div className="smp-keys" role="group" aria-label="Sampler keyboard"
+    onPointerDown={e => { if (e.button !== 0) return; const n = noteAt(e.clientX, e.clientY); if (n === null) return;
+      e.currentTarget.setPointerCapture(e.pointerId); press(e.pointerId, n, velocity(e.clientY, (e.target as HTMLElement).closest('[data-note]'))); }}
+    onPointerMove={e => { if (!pointers.current.has(e.pointerId)) return; const n = noteAt(e.clientX, e.clientY);
+      if (n !== null) press(e.pointerId, n, velocity(e.clientY, (e.target as HTMLElement).closest('[data-note]'))); }}
+    onPointerUp={e => release(e.pointerId)} onPointerCancel={e => release(e.pointerId)} onLostPointerCapture={e => release(e.pointerId)}
+    onContextMenu={e => e.preventDefault()}>
+    {whites.map(n => <span key={n} data-note={n} className={'smp-white' + cls(n)}
+      title={spec.keymap === 'whole' && n > root + 24 ? 'More than two octaves above the root: may sound harsh' : sliceOn(n) >= 0 ? 'Slice ' + (sliceOn(n) + 1) : undefined}>
+      {label(n) ? <em>{label(n)}</em> : null}</span>)}
+    {keys.filter(n => BLACK.has(n % 12)).map(n => {
+      const left = whites.filter(w => w < n).length;
+      return <span key={n} data-note={n} className={'smp-black' + cls(n)} title={sliceOn(n) >= 0 ? 'Slice ' + (sliceOn(n) + 1) : undefined}
+        style={{ left: 'calc(' + (left / whites.length * 100) + '% - ' + (100 / whites.length * .31) + '%)', width: (100 / whites.length * .62) + '%' }}>
+        {spec.keymap === 'slices' && sliceOn(n) >= 0 ? <em>{sliceOn(n) + 1}</em> : null}</span>;
+    })}
+  </div>;
+}
+
+/** Amp card: the envelope you drag, with the same four values as knobs. A drag is one undo step. */
+function AmpCard({ spec, id, onEdit }: { spec: SamplerSpec; id: string; onEdit: Edit }) {
+  const [draft, setDraft] = useState<Partial<Env>>({});
+  const held = useRef(false), latest = useRef<Partial<Env>>({});
+  const env: Env = { attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release };
+  useEffect(() => {
+    const up = () => { if (!held.current) return; held.current = false; const d = latest.current; latest.current = {}; setDraft({});
+      if (Object.keys(d).length) onEdit('patch', d); };
+    document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+    return () => { document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true); };
+  }, [onEdit]);
+  const shown = { ...env, ...draft };
+  const knob = (key: keyof Env, name: string, max: number, description: string) =>
+    <CommittedKnob id={id + '-' + key} name={name} value={spec[key]} min={0} max={max} step={key === 'sustain' ? .01 : .001}
+      suffix={key === 'sustain' ? '%' : 's'} precision={key === 'sustain' ? 0 : 3} description={description}
+      format={key === 'sustain' ? n => Math.round(n * 100) + '%' : n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'}
+      onCommit={n => onEdit(key, n)} />;
+  return <section className="smp-card" aria-label="Amp">
+    <h2>Amp</h2>
+    <div className="smp-amp">
+      <div className="smp-env" onPointerDownCapture={() => { held.current = true; }}>
+        <EnvEditor compact env={shown} color="var(--pad-accent)" onChange={(k, value) => {
+          if (held.current) { latest.current = { ...latest.current, [k]: value }; setDraft(d => ({ ...d, [k]: value })); }
+          else onEdit(k, value);
+        }} />
+      </div>
+      <div className="smp-knobs two">
+        {knob('attack', 'Attack', 3, 'Time to full level after a key goes down')}
+        {knob('decay', 'Decay', 3, 'Time to fall to the sustain level')}
+        {knob('sustain', 'Sustain', 1, 'Level while the key is held')}
+        {knob('release', 'Release', 3, 'Fade after the key comes up (Hold and Loop)')}
+      </div>
+    </div>
+  </section>;
+}
+
+type PadChoice = { track: number; kit: string; pad: number; name: string; family: DrumKind };
+
+export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, bpm, onEdit, onDetect, onMake, onMidi, onLoadWav, send }: {
+  track: Track; trackIndex: number; runtime?: SamplerRuntime | null; record?: SamplerRecord; pads: PadChoice[]; tracks: Track[]; bpm: number;
+  onEdit: Edit; onDetect(): void; onMake(choice: PadChoice): void; onMidi(s: number, a: number, b: number): void;
+  onLoadWav(): void; send(cmd: string, args: unknown): void;
+}) {
+  const spec = track.sampler;
+  const [mode, setMode] = useState<'trim' | 'chop'>(() => (spec?.slices?.length ? 'chop' : 'trim'));
+  const [selected, setSelected] = useState(-1);
+  const [marker, setMarker] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
+  // A take that has just been stopped goes straight into Chop.
+  const lastState = useRef(record?.state);
+  useEffect(() => {
+    if (record?.state === 'saving' && lastState.current === 'recording' && record.track === trackIndex) { setRecording(false); setMode('chop'); }
+    lastState.current = record?.state;
+  }, [record?.state, record?.track, trackIndex]);
+  const [settings, setSettings] = useState<ChopSettings>({ mode: 'threshold', threshold: -30, min_ms: 150, count: 16, bpm: Math.round(bpm) || 120, beats: 1 });
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  // A loaded WAV has no drum family: it takes the track's colour.
+  const accent = spec?.family === 'sample' || !spec?.source ? TRACK_COLORS[trackIndex % TRACK_COLORS.length] : familyColor(spec?.family);
+  const style = { ['--pad-accent' as string]: accent, ['--drum-accent' as string]: TRACK_COLORS[trackIndex % TRACK_COLORS.length] };
+  if (!spec) return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}><p className="smp-empty">Preparing the Sampler…</p></section>;
+  const slices = spec.slices ?? [];
+  const sel = selected < slices.length ? selected : -1;
+  const status = runtime?.status ?? (spec.source ? 'LOADING' : 'EMPTY');
+  const id = 'smp-' + trackIndex + '-' + spec.id;
+  const file = spec.source?.path.split(/[\\/]/).pop();
+  const view = runtime?.view ?? [0, 1];
+  const zoomed = view[1] - view[0] < .999;
+  const chop = (m: string, options?: Record<string, unknown>) => send('sampler_chop', [trackIndex, spec.id, m, options ?? {}]);
+  const apply = (s: ChopSettings) => chop(s.mode, s.mode === 'threshold' ? { threshold: s.threshold, min_ms: s.min_ms }
+    : s.mode === 'regions' ? { count: s.count } : { bpm: s.bpm, beats: s.beats });
+  const setView = (a: number, b: number) => send('sampler_view', [trackIndex, spec.id, Math.max(0, a), Math.min(1, b)]);
+  const toMode = (m: 'trim' | 'chop') => { if (m === 'trim' && zoomed) setView(0, 1); setMode(m); };
+  return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}>
+    <header className="drum-device-bar">
+      <div className="drum-device-title"><KeyboardMusic size={21} /><h1>Sampler</h1><span>Track {trackIndex + 1}</span></div>
+      {spec.source ? <div className="smp-seg smp-tabs" role="radiogroup" aria-label="Edit">
+        <button type="button" role="radio" aria-checked={mode === 'trim'} title="Where the sample starts and ends, and its loop" onClick={() => toMode('trim')}><Crop size={15} />Trim</button>
+        <button type="button" role="radio" aria-checked={mode === 'chop'} title="Cut it into slices for pads" onClick={() => toMode('chop')}><Scissors size={15} />Chop</button>
+      </div> : null}
+      <div className="drum-device-meta">
+        <button type="button" className="smp-load smp-rec-open" aria-pressed={recording} onClick={() => setRecording(r => !r)} title="Record the piano or another input into this Sampler"><Mic size={16} />Record</button>
+        <button type="button" className="smp-load" onClick={onLoadWav} title="Load a WAV file, up to 10 minutes"><FolderOpen size={16} />Load WAV</button>
+        <span className="drum-kit-name smp-name" title={file}>{spec.source ? spec.name : 'No sample yet'}</span>
+        <strong className={'drum-status status-' + status.toLowerCase()}>{status}</strong>
+      </div>
+    </header>
+    {!spec.source ? <div className="smp-pick" aria-label="Choose a sound to play on the keys">
+      <div className="smp-pick-head"><h2>Play a sound on the keys</h2>
+        <button type="button" className="smp-load big" onClick={onLoadWav}><FolderOpen size={18} />Load a WAV</button>
+        <button type="button" className="smp-load big" onClick={() => setRecording(true)}><Mic size={18} />Record</button></div>
+      {pads.length ? <><p>Or tap a pad. Its sound plays on this track's keys, a semitone per key.</p>
+        <div className="smp-pick-grid">{pads.map(p => <button key={p.track + ':' + p.pad} type="button" style={{ ['--pad' as string]: DRUM_KINDS[p.family].color }}
+          onClick={() => onMake(p)}><b>Track {p.track + 1} · Pad {String(p.pad + 1).padStart(2, '0')}</b><span>{p.name}</span></button>)}</div></>
+        : <p>Load a WAV (a bounce, a recording, up to 10 minutes), or load a kit on a Drum Rack track and pick a pad here.</p>}
+    </div> : <>
+      <SampleWindow spec={spec} runtime={runtime} mode={mode} selected={sel} marker={marker} onEdit={onEdit}
+        onSelect={(i, at) => { setSelected(i); setMarker(at); if (i >= 0) send('sampler_audition', [trackIndex, spec.id, i]); }} />
+      {mode === 'chop' ? <ChopBar spec={spec} runtime={runtime} settings={settings} selected={sel} marker={marker} zoomed={zoomed}
+        onSettings={(s, now) => { setSettings(s); if (now) { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => apply(s), 250); } }}
+        onChop={(m, o) => { chop(m, o); if (m === 'clear') setSelected(-1); }}
+        onZoom={() => {
+          if (zoomed) { setView(0, 1); return; }
+          if (sel >= 0) { const [a, b] = slices[sel]; const pad = Math.max((b - a) * .15, .001); setView(a - pad, b + pad); }
+          else if (marker !== null) setView(marker - .04, marker + .04);
+        }}
+        onSend={() => setSending(s => !s)} /> : null}
+      {runtime?.error ? <p className="drum-source-error" role="status">{runtime.error}</p> : null}
+      <div className="smp-cards" key={spec.id}>
+        <section className="smp-card smp-play" aria-label="Play">
+          <h2>Play</h2>
+          <div className="smp-seg" role="radiogroup" aria-label="Play mode">
+            {MODES.map(([m, label, title]) => <button key={m} type="button" role="radio" aria-checked={spec.mode === m} title={title} onClick={() => onEdit('mode', m)}>{label}</button>)}
+          </div>
+          <div className="smp-line">
+            <div className="smp-seg" role="radiogroup" aria-label="Voices">
+              <button type="button" role="radio" aria-checked={spec.poly} title="Chords: up to 16 notes at once" onClick={() => onEdit('poly', true)}>Poly</button>
+              <button type="button" role="radio" aria-checked={!spec.poly} title="One note at a time; glides between held keys" onClick={() => onEdit('poly', false)}>Mono</button>
+            </div>
+            <button type="button" className="smp-toggle" aria-pressed={!!spec.reverse} title="Play backwards" onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} />Reverse</button>
+          </div>
+          <div className="smp-knobs two">
+            <CommittedKnob id={id + '-glide'} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
+              description="Mono only: slide from the held note to the next one" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('glide', n)} />
+            <CommittedKnob id={id + '-gain'} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onCommit={n => onEdit('gain', n)} />
+            <CommittedKnob id={id + '-velocity'} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
+              description="How much softer soft notes are: 0 is fixed level, 1 is linear" onCommit={n => onEdit('velocity', n)} />
+            <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
+          </div>
+        </section>
+        <section className="smp-card smp-pitch" aria-label="Pitch">
+          <h2>Pitch</h2>
+          <div className="smp-seg" role="radiogroup" aria-label="Keys">
+            {KEYMAPS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={(spec.keymap ?? 'whole') === k} title={title}
+              disabled={k !== 'whole' && !slices.length}
+              onClick={() => { if (k === 'pitched' && !slices.some(p => p.length > 2)) send('sampler_slice_roots', [trackIndex, spec.id]); else onEdit('keymap', k); }}>{label}</button>)}
+          </div>
+          {spec.keymap === 'pitched' ? <div className="smp-root" role="group" aria-label="Slice roots">
+            <span>Roots</span><strong aria-live="polite">{slices.filter(p => p.length > 2).length} of {slices.length}</strong>
+            <button type="button" className="smp-detect" title="Find each slice's pitch again" disabled={runtime?.busy?.includes('roots')}
+              onClick={() => send('sampler_slice_roots', [trackIndex, spec.id])}><ScanSearch size={16} />{runtime?.busy?.includes('roots') ? 'Finding…' : 'Detect'}</button>
+          </div> : <div className="smp-root" role="group" aria-label={spec.keymap === 'slices' ? 'First slice key' : 'Root note'}>
+            <span>{spec.keymap === 'slices' ? 'Slice 1 on' : 'Root'}</span>
+            <button type="button" aria-label={(spec.keymap === 'slices' ? 'First slice key' : 'Root note') + ' down'} disabled={spec.root <= 0} onClick={() => onEdit('root', spec.root - 1)}><Minus size={16} /></button>
+            <strong aria-live="polite">{noteName(spec.root)}</strong>
+            <button type="button" aria-label={(spec.keymap === 'slices' ? 'First slice key' : 'Root note') + ' up'} disabled={spec.root >= 127} onClick={() => onEdit('root', spec.root + 1)}><Plus size={16} /></button>
+            {spec.keymap !== 'slices' ? <button type="button" className="smp-detect" title="Find the note the sample sounds at" onClick={onDetect}><ScanSearch size={16} />Detect</button> : null}
+          </div>}
+          <div className="smp-knobs two">
+            <CommittedKnob id={id + '-tune'} name="Tune" value={spec.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Shift every key by semitones" onCommit={n => onEdit('tune', n)} />
+            <CommittedKnob id={id + '-fine'} name="Fine" value={spec.fine} min={-100} max={100} step={1} suffix="ct" precision={0} description="Fine tuning in cents" onCommit={n => onEdit('fine', n)} />
+            <CommittedKnob id={id + '-p_env'} name="Pitch env" value={spec.p_env ?? 0} min={-24} max={24} step={.1} suffix="st" precision={1}
+              description="Each note starts this many semitones away and settles to its pitch" format={n => Math.abs(n) < .05 ? 'Off' : (n > 0 ? '+' : '') + n.toFixed(1) + ' st'} onCommit={n => onEdit('p_env', n)} />
+            <CommittedKnob id={id + '-p_decay'} name="Env time" value={spec.p_decay ?? .15} min={0} max={3} step={.001} suffix="s" precision={3}
+              description="How long the pitch envelope takes to settle" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('p_decay', n)} />
+          </div>
+        </section>
+        <section className={'smp-card smp-filter' + ((spec.filter ?? 'off') === 'off' ? ' off' : '')} aria-label="Filter">
+          <h2>Filter</h2>
+          <div className="smp-seg" role="radiogroup" aria-label="Filter type">
+            {FILTERS.map(([f, label, title]) => <button key={f} type="button" role="radio" aria-checked={(spec.filter ?? 'off') === f} title={title} onClick={() => onEdit('filter', f)}>{label}</button>)}
+          </div>
+          <div className="smp-knobs two">
+            <CommittedKnob id={id + '-cutoff'} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
+              description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
+            <CommittedKnob id={id + '-resonance'} name="Resonance" value={spec.resonance ?? .2} min={0} max={1} step={.01} suffix="%" precision={0}
+              description="A peak at the cutoff" format={n => Math.round(n * 100) + '%'} onCommit={n => onEdit('resonance', n)} />
+            <CommittedKnob id={id + '-f_env'} name="Env" value={spec.f_env ?? 0} min={-1} max={1} step={.01} suffix="%" precision={0}
+              description="How far the filter's envelope moves the cutoff (100% is five octaves)" format={n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%'} onCommit={n => onEdit('f_env', n)} />
+            <CommittedKnob id={id + '-f_velocity'} name="Velocity" value={spec.f_velocity ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
+              description="Soft notes are darker: up to four octaves lower" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onCommit={n => onEdit('f_velocity', n)} />
+            <CommittedKnob id={id + '-f_attack'} name="Attack" value={spec.f_attack ?? 0} min={0} max={3} step={.001} suffix="s" precision={3}
+              description="Time for the filter envelope to rise" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_attack', n)} />
+            <CommittedKnob id={id + '-f_decay'} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
+              description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_decay', n)} />
+          </div>
+        </section>
+        <AmpCard spec={spec} id={id} onEdit={onEdit} />
+      </div>
+      <SamplerKeys spec={spec} onMidi={onMidi} />
+      {sending && mode === 'chop' ? <SendSheet spec={spec} selected={sel} trackIndex={trackIndex} tracks={tracks} onClose={() => setSending(false)}
+        onSend={(target, how, options) => send('sampler_send', [trackIndex, spec.id, target, how, options])} /> : null}
+    </>}
+    {recording ? <RecordSheet spec={spec} trackIndex={trackIndex} record={record} send={send} onClose={() => setRecording(false)} /> : null}
+  </section>;
+}
+
+const LENGTHS = [10, 20, 30, 60, 120, 300, 600];
+const clock = (s: number) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+/** Record the piano (or any input) into this Sampler: pick the input, watch its level, arm, play. The take goes into Chop. */
+function RecordSheet({ spec, trackIndex, record, send, onClose }: {
+  spec: SamplerSpec; trackIndex: number; record?: SamplerRecord; send(cmd: string, args: unknown): void; onClose(): void;
+}) {
+  const [threshold, setThreshold] = useState(record?.threshold ?? -40);
+  const [length, setLength] = useState(record?.length && LENGTHS.includes(record.length) ? record.length : 60);
+  const close = useRef(onClose); close.current = onClose;
+  useEffect(() => {
+    send('sampler_record', ['open', null]);
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); close.current(); } };
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('keydown', key); send('sampler_record', ['close']); };
+    // Opened once per sheet; closing it stops a take (and keeps it) or drops an armed one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const sendNow = useRef(send); sendNow.current = send;
+  useEffect(() => { sendNow.current('sampler_record', ['level', threshold, length]); }, [threshold, length]);
+  const state = record?.state ?? 'idle';
+  const mine = record?.track === null || record?.track === undefined || record.track === trackIndex;
+  const busy = mine && (state === 'armed' || state === 'recording');
+  const inputs = record?.inputs ?? [];
+  const level = Math.max(-60, record?.level ?? -90);
+  const pct = (d: number) => Math.max(0, Math.min(100, (d + 60) / 60 * 100)) + '%';
+  const go = (how: 'arm' | 'now') => send('sampler_record', [how, trackIndex, spec.id, threshold, length]);
+  const words = !inputs.length ? 'No input found. Plug in the piano\'s USB audio, or an audio interface, then tap Look again.'
+    : record?.error && state === 'idle' ? record.error
+    : !mine ? 'Another track is recording.'
+    : state === 'armed' ? 'Waiting for sound above ' + threshold + ' dB. Play now.'
+    : state === 'recording' ? 'Recording ' + clock(record?.seconds ?? 0) + ' of ' + clock(length) + (record?.clipped ? '. It clipped: turn the input down.' : '')
+    : state === 'saving' ? 'Saving the take…'
+    : 'Arm waits for you to play: the take starts when the level passes the threshold, and goes into Chop when you stop.';
+  return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="smp-sheet smp-record" role="dialog" aria-label="Record into the Sampler">
+      <header><Mic size={20} /><h2>Record into <em>Track {trackIndex + 1}</em></h2>
+        <button type="button" className="smp-done" onClick={onClose}>Done</button></header>
+      {inputs.length ? <div className="smp-targets smp-inputs" role="radiogroup" aria-label="Input">
+        {inputs.map(name => <button key={name} type="button" role="radio" aria-checked={record?.input === name} disabled={busy}
+          onClick={() => send('sampler_record', ['open', name])}><b>{name.replace(/^Monitor of /, '')}</b>
+          <span>{name.startsWith('Monitor of') ? 'What this computer plays' : name === 'Test input' ? 'A test recording' : 'Input'}</span></button>)}
+      </div> : <button type="button" className="smp-look" onClick={() => send('sampler_record', ['open', null])}><ScanSearch size={17} />Look again</button>}
+      <div className="smp-meter" role="meter" aria-label="Input level" aria-valuemin={-60} aria-valuemax={0} aria-valuenow={Math.round(level)}>
+        <i style={{ width: pct(level) }} className={level > -1 ? 'hot' : undefined} /><b style={{ left: pct(threshold) }} />
+        <span>{record?.input ? Math.round(level) + ' dB' : 'No input open'}</span>
+      </div>
+      <div className="smp-record-row">
+        <span>Threshold</span>
+        <button type="button" aria-label="Threshold down" disabled={threshold <= -60} onClick={() => setThreshold(t => Math.max(-60, t - 3))}><Minus size={16} /></button>
+        <strong aria-live="polite">{threshold} dB</strong>
+        <button type="button" aria-label="Threshold up" disabled={threshold >= -6} onClick={() => setThreshold(t => Math.min(-6, t + 3))}><Plus size={16} /></button>
+        <span>Longest</span>
+        <button type="button" aria-label="Shorter" disabled={length <= LENGTHS[0] || busy} onClick={() => setLength(l => LENGTHS[Math.max(0, LENGTHS.indexOf(l) - 1)])}><Minus size={16} /></button>
+        <strong aria-live="polite">{clock(length)}</strong>
+        <button type="button" aria-label="Longer" disabled={length >= LENGTHS[LENGTHS.length - 1] || busy} onClick={() => setLength(l => LENGTHS[Math.min(LENGTHS.length - 1, LENGTHS.indexOf(l) + 1)])}><Plus size={16} /></button>
+      </div>
+      <p role="status" className={'smp-record-words ' + state}>{words}</p>
+      <footer>
+        {state === 'recording' && mine ? <button type="button" className="smp-make smp-stop" onClick={() => send('sampler_record', ['stop'])}><Scissors size={18} />Stop and chop</button> : <>
+          {state === 'armed' && mine ? <button type="button" onClick={() => send('sampler_record', ['cancel'])}>Disarm</button> : null}
+          <button type="button" disabled={!record?.input || state === 'saving' || !mine} onClick={() => go('now')}>Record now</button>
+          {state !== 'armed' ? <button type="button" className="smp-make" disabled={!record?.input || state === 'saving' || !mine} onClick={() => go('arm')}><Mic size={18} />Arm</button> : null}
+        </>}
+      </footer>
+    </div>
+  </div>;
+}
+
+/** Pads with a sample on Drum Rack tracks, for the Sampler's empty state. */
+export function padChoices(tracks: Track[]): PadChoice[] {
+  return tracks.flatMap((t, track) => t.device === 'drum_rack' && t.drum_rack ? t.drum_rack.pads.flatMap((p, pad) => p.source ? [{
+    track, kit: t.drum_rack!.id, pad, name: padLabel(p.name, t.drum_rack!.name), family: drumKind(p.name, p.source.path) }] : []) : []);
+}
+
+/** The sheet from Pad Sound: which track plays this pad on the keys, and from which root. */
+export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, onClose }: {
+  padName: string; family: DrumKind; sourceTrack: number; tracks: Track[];
+  onMake(target: number, root: number | null): void; onClose(): void;
+}) {
+  const others = [0, 1, 2, 3].filter(i => i !== sourceTrack);
+  const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'sampler') ?? others[0]);
+  const [root, setRoot] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
+  }, [onClose]);
+  const what = (i: number) => { const t = tracks[i]; if (!t) return '';
+    return t.device === 'drum_rack' ? 'Drum Rack' + (t.drum_rack?.name ? ' · ' + t.drum_rack.name : '') : t.device === 'sampler' ? 'Sampler · ' + (t.sampler?.source ? t.sampler.name : 'empty') : 'Synth · ' + t.preset; };
+  return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div ref={ref} className="smp-sheet" role="dialog" aria-label={'Play ' + padName + ' on the keys'} style={{ ['--pad-accent' as string]: DRUM_KINDS[family].color }}>
+      <header><KeyboardMusic size={20} /><h2>Play <em>{padName}</em> on the keys</h2><button type="button" className="smp-done" onClick={onClose}>Close</button></header>
+      <p>Which track should play it? That track becomes a Sampler.</p>
+      <div className="smp-targets" role="radiogroup" aria-label="Track">
+        {others.map(i => <button key={i} type="button" role="radio" aria-checked={target === i} onClick={() => setTarget(i)}>
+          <b>Track {i + 1}</b><span>{what(i)}</span></button>)}
+      </div>
+      <div className="smp-root" role="group" aria-label="Root note">
+        <span>Root note</span>
+        <button type="button" aria-pressed={root === null} onClick={() => setRoot(null)} title="Find the note the sample sounds at; C4 when it has no clear pitch">Detect</button>
+        <button type="button" aria-label="Root note down" onClick={() => setRoot(r => Math.max(0, (r ?? 60) - 1))}><Minus size={16} /></button>
+        <strong>{root === null ? 'Auto' : noteName(root)}</strong>
+        <button type="button" aria-label="Root note up" onClick={() => setRoot(r => Math.min(127, (r ?? 60) + 1))}><Plus size={16} /></button>
+      </div>
+      <footer><button type="button" className="smp-make" onClick={() => onMake(target, root)}><KeyboardMusic size={18} />Make Sampler on track {target + 1}</button></footer>
+    </div>
+  </div>;
+}

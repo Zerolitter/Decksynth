@@ -32,7 +32,7 @@ class PatternCatalogEngine:
  def stop_pattern_preview(self):
   preview=getattr(self,'_pattern_preview',None)
   if preview:
-   tr=preview['track'];self.synths[tr].cancel_sources(('preview',));self.drums[tr].cancel_source('preview')
+   tr=preview['track'];self.synths[tr].cancel_sources(('preview',));self.drums[tr].cancel_source('preview');self.samplers[tr].cancel_sources(('preview',))
    self.drum_gate_keys[tr]={k for k in self.drum_gate_keys[tr] if not (isinstance(k,tuple) and k[0]=='preview')}
   self._pattern_preview=None
  def preview_events(self,start,end):

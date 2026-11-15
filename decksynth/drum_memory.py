@@ -62,11 +62,15 @@ class KitMemory:
         if not isinstance(value['tracks'],list) or len(value['tracks'])!=4: raise ValueError('Invalid remembered tracks')
         result = copy.deepcopy(value)
         for t in result['tracks']:
-            if not isinstance(t,dict) or set(t)-{'device','drum_rack'}: raise ValueError('Invalid remembered device')
+            if not isinstance(t,dict) or set(t)-{'device','drum_rack','sampler'}: raise ValueError('Invalid remembered device')
             if not t: continue
-            if t.get('device') not in ('synth','drum_rack'): raise ValueError('Unknown remembered device')
+            if t.get('device') not in ('synth','drum_rack','sampler'): raise ValueError('Unknown remembered device')
             if 'drum_rack' in t: t['drum_rack'] = validate_kit(t['drum_rack'])
             elif t['device']=='drum_rack': raise ValueError('Remembered Drum Rack has no kit')
+            if 'sampler' in t:
+                from .sampler import validate_sampler
+                t['sampler'] = validate_sampler(t['sampler'])
+            elif t['device']=='sampler': raise ValueError('Remembered Sampler is missing')
         return result
 
     @staticmethod
@@ -77,6 +81,7 @@ class KitMemory:
             if 'drum_rack' in t:
                 row=dict(device=t.get('device','synth'),drum_rack=copy.deepcopy(t['drum_rack']))
             elif 'device' in t: row=dict(device=t['device'])
+            if 'sampler' in t: row=dict(row,device=t.get('device','synth'),sampler=copy.deepcopy(t['sampler']))
             tracks.append(row)
         return KitMemory.validate(dict(version=1, selected=engine.selected, tracks=tracks))
 

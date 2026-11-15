@@ -11,6 +11,7 @@ import re
 import uuid
 from .samples import validate_source
 from .drum_native import NativeDrumMixer, native_kernel, native_error
+from .drum_shape import PadShaper, is_identity, pan_gains, render_key, validate_shape
 
 PAD_COUNT = 16
 VOICE_LIMIT = 32
@@ -39,8 +40,10 @@ def validate_kit(value):
         raise ValueError('Invalid Drum Rack kit name')
     out = copy.deepcopy(value)
     for i, p in enumerate(out['pads']):
-        if not isinstance(p, dict) or set(p) != {'note', 'name', 'source', 'gain', 'velocity', 'mute', 'solo', 'tune', 'choke'}:
+        base = {'note', 'name', 'source', 'gain', 'velocity', 'mute', 'solo', 'tune', 'choke'}
+        if not isinstance(p, dict) or set(p) not in (base, base | {'shape'}):
             raise ValueError('Invalid drum pad fields')
+        if 'shape' in p: p['shape'] = validate_shape(p['shape'])
         if type(p['note']) is not int or p['note'] != 36+i:
             raise ValueError('M1 pads use MIDI notes 36–51')
         if not isinstance(p['name'], str) or not 1 <= len(p['name']) <= 80:
@@ -60,7 +63,7 @@ def validate_kit(value):
 class Voice:
     __slots__ = ('token','sample', 'pad', 'pos', 'step', 'gain', 'age', 'stamp', 'remaining',
                  'old_sample', 'old_pos', 'old_step', 'old_gain', 'old_age', 'old_remaining',
-                 'old_scalar', 'last')
+                 'old_scalar', 'last', 'gl', 'gr', 'old_gl', 'old_gr')
 
     def __init__(self):
         self.token=None;self.sample = None; self.old_sample = None
@@ -68,13 +71,16 @@ class Voice:
         self.stamp = 0; self.remaining = -1
         self.old_pos = 0.; self.old_step = 1.; self.old_gain = 0.; self.old_age = 0; self.old_remaining = 0
         self.old_scalar = 0.; self.last = 0.
+        self.gl = self.gr = self.old_gl = self.old_gr = 1.
 
 
 class DrumRack:
     def __init__(self, rate, cache):
         self.rate = rate; self.cache = cache; self.kit = None
         self.voices = [Voice() for _ in range(VOICE_LIMIT)]
-        self.samples = [None]*PAD_COUNT
+        self.samples = [None]*PAD_COUNT  # what the pads play: the source PCM, or its shaped copy
+        self.raw = [None]*PAD_COUNT      # the source PCM from the sample cache
+        self.shaping = [0]*PAD_COUNT; self.shaped_key = [None]*PAD_COUNT
         self.loading = [False]*PAD_COUNT; self.errors = [None]*PAD_COUNT
         self.events = [0]*PAD_COUNT; self.serial = 0; self.stamp = 0
         self.fade_frames = max(1, round(rate*.008)); self.attack_frames = max(1, round(rate*.001))
@@ -96,17 +102,41 @@ class DrumRack:
             if source != prior:
                 self.fade_pad(i); self.errors[i] = None; self.loading[i] = False
             if source != prior or previous is None or kit is None:
-                self.samples[i] = self.cache.get(source['sha256']) if source and self.cache else None
+                self.raw[i] = self.cache.get(source['sha256']) if source and self.cache else None
+            self.reshape(i)
         if kit:
             solo = any(p['solo'] for p in kit['pads'])
             for i, p in enumerate(kit['pads']):
                 if p['mute'] or (solo and not p['solo']): self.fade_pad(i)
 
     def bind(self, index, sample):
-        self.samples[index] = sample; self.loading[index] = False; self.errors[index] = None
+        self.raw[index] = sample; self.loading[index] = False; self.errors[index] = None
+        self.shaped_key[index] = None; self.reshape(index)
 
     def missing(self, index, error):
-        self.samples[index] = None; self.loading[index] = False; self.errors[index] = str(error)
+        self.raw[index] = None; self.samples[index] = None; self.shaped_key[index] = None
+        self.loading[index] = False; self.errors[index] = str(error)
+
+    def reshape(self, index):
+        """Play the pad's shaped copy. Rendering happens off the audio path; until it is ready the
+        previous copy (or the plain sample) keeps playing."""
+        raw = self.raw[index]; shape = self.kit['pads'][index].get('shape') if self.kit else None
+        if raw is None:
+            self.samples[index] = None; self.shaped_key[index] = None; return
+        step = 2**(self.kit['pads'][index]['tune']/12.)
+        rk = render_key(shape)
+        # Tune is part of the key: the copy is rendered so envelope times and EQ stay in real seconds/Hz.
+        key = (id(raw), None if rk is None else (rk, round(step, 9)))
+        prior = self.shaped_key[index]
+        if key == prior: return
+        self.shaped_key[index] = key; self.shaping[index] += 1; serial = self.shaping[index]
+        if key[1] is None or prior is None or prior[0] != key[0]:
+            self.samples[index] = raw  # a new sample never plays the previous sample's shaped copy
+        if key[1] is None: return
+
+        def ready(shaped):
+            if self.shaping[index] == serial and self.raw[index] is raw: self.samples[index] = shaped
+        PadShaper.submit(raw, shape, self.rate, ready, step)
 
     def fade_pad(self, pad):
         for v in self.voices:
@@ -126,18 +156,18 @@ class DrumRack:
         if v.old_remaining > 0:
             # A second steal must not replace an audible tail with age-zero PCM.
             # Fade the actual last combined slot output using one bounded scalar.
-            v.old_sample = None; v.old_scalar = v.last
+            v.old_sample = None; v.old_scalar = v.last; v.old_gl = v.gl; v.old_gr = v.gr  # last is the slot's unpanned output
             v.old_remaining = self.fade_frames
         elif v.sample is not None:
             v.old_sample = v.sample; v.old_pos = v.pos; v.old_step = v.step
-            v.old_gain = v.gain; v.old_age = v.age; v.old_scalar = 0.
+            v.old_gain = v.gain; v.old_age = v.age; v.old_scalar = 0.; v.old_gl = v.gl; v.old_gr = v.gr
             v.old_remaining = min(self.fade_frames, v.remaining) if v.remaining >= 0 else self.fade_frames
         else:
             v.old_sample = None; v.old_scalar = 0.; v.old_remaining = 0; v.last = 0.
         self.stamp += 1
         v.token=token;v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(p['tune']/12.)
         v.gain = p['gain']*(velocity/127.)**p['velocity']; v.age = 0
-        v.stamp = self.stamp; v.remaining = -1
+        v.stamp = self.stamp; v.remaining = -1; v.gl, v.gr = pan_gains(p.get('shape'))
         self.serial += 1; self.events[pad] = self.serial
         return True
 
@@ -163,33 +193,38 @@ class DrumRack:
         env = min(1., age/self.attack_frames, (sample.frames-pos)/self.attack_frames)
         return value*gain*max(0., env)
 
-    def render_into(self, out, frames):
+    def render_into(self, out, frames, right=None):
+        """Mix the pads into out (mono), or into out/right with each pad's pan when right is given."""
         if frames <= 0: return
         if self._native is not None:
-            self._native.render_into(self.voices, out, frames, self.attack_frames, self.fade_frames)
+            self._native.render_into(self.voices, out, frames, self.attack_frames, self.fade_frames, right)
             return
         for v in self.voices:
             if v.sample is None and v.old_remaining <= 0:
                 v.last = 0.
                 continue
             for i in range(frames):
-                value = 0.
+                value = left = rgt = 0.
                 if v.sample is not None:
                     value = self._value(v.sample, v.pos, v.age, v.gain)
                     if v.remaining >= 0:
                         value *= v.remaining/self.fade_frames; v.remaining -= 1
                     v.pos += v.step; v.age += 1
                     if v.pos >= v.sample.frames or v.remaining == 0: v.sample = None
+                    left = value*v.gl; rgt = value*v.gr
                 if v.old_remaining > 0:
                     old = (self._value(v.old_sample, v.old_pos, v.old_age, v.old_gain)
                            if v.old_sample is not None else v.old_scalar)
-                    value += old*v.old_remaining/self.fade_frames
+                    old *= v.old_remaining/self.fade_frames
+                    value += old; left += old*v.old_gl; rgt += old*v.old_gr
                     if v.old_sample is not None:
                         v.old_pos += v.old_step; v.old_age += 1
                         if v.old_pos >= v.old_sample.frames: v.old_remaining = 1
                     v.old_remaining -= 1
                     if v.old_remaining <= 0: v.old_sample = None
-                out[i] += value; v.last = value
+                if right is None: out[i] += (left+rgt)*.5
+                else: out[i] += left; right[i] += rgt
+                v.last = value
                 if v.sample is None and v.old_remaining <= 0:
                     if i+1 < frames: v.last = 0.
                     break
@@ -204,6 +239,6 @@ class DrumRack:
                       'MISSING' if sample is None else 'MUTED' if muted else 'PLAYING' if playing else 'READY')
             pads.append(dict(status=status, peaks=sample.peaks if sample else [],
                              event=self.events[i], playing=playing, error=self.errors[i]))
-        return dict(pads=pads, voices=self.active_count, voice_limit=VOICE_LIMIT, output='mono',
+        return dict(pads=pads, voices=self.active_count, voice_limit=VOICE_LIMIT, output='stereo',
                     accelerated=self._native is not None,
                     native_warning=native_error() if self._native is None else None)

@@ -193,7 +193,7 @@ class NativeDrumTests(unittest.TestCase):
         self.assertGreater(max(output), 0.)
         self.assertEqual((id(rack._native.states), id(rack._native.scratch)), (state_id, scratch_id))
         self.assertEqual(len(rack._native.states), 32)
-        self.assertEqual(len(rack._native.scratch), 128)
+        self.assertEqual(len(rack._native.scratch), 256)  # left + right (per-pad pan)
         self.assertTrue(rack.state()['accelerated'])
         self.assertIsNone(rack.state()['native_warning'])
 
