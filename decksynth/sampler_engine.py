@@ -6,7 +6,8 @@ from .devices import device_kind, track_index
 from .drum_rack import new_kit, validate_kit
 from .sampler import EDITABLE, Sampler, detect_root, new_sampler, validate_sampler
 from . import sampler_chop as chopper
-from .sampler_record import Recorder
+from .sampler_record import GAIN_RANGE, Recorder, amplify, gain, normalized
+import math
 import time
 
 
@@ -18,6 +19,8 @@ class SamplerEngine:
         self.chop_directory = None     # where sliced WAVs are written (the backend sets the data folder)
         self.recorder = None           # the take being armed or recorded, and which Sampler it goes to
         self.record_target = None      # (track, sampler id)
+        self.record_gain = 0.          # input gain in dB (Record sheet)
+        self.record_normalize = True   # bring each take to -1 dBFS when it is saved
         self.record_inputs = []        # capture devices the backend found; record_input is the open one
         self.record_input = None; self.record_error = None
 
@@ -79,6 +82,19 @@ class SamplerEngine:
         self.snapshot(); self.project.tracks[track]['sampler'] = clean
         if clean['mode'] != spec['mode'] or clean['poly'] != spec['poly']: self.samplers[track].panic()
         self.samplers[track].configure(clean)
+
+    def clear_sampler(self, track, sampler_id):
+        """Clear sample: the Sampler goes back to empty (one undo step). The WAV file stays on disk."""
+        spec = self.sampler_target(track, sampler_id)
+        if spec['source'] is None: return
+        if self.recorder is not None and self.recorder.state in ('armed', 'recording') and self.record_target and self.record_target[0] == track:
+            raise ValueError('Stop the recording first')
+        clean = copy.deepcopy(spec)
+        clean.update(source=None, name='Sampler', family='other', slices=[], keymap='whole', start=0., end=1., loop_start=0., loop_end=1.)
+        clean.pop('shape', None)
+        clean = validate_sampler(clean)
+        self.snapshot(); self.project.tracks[track]['sampler'] = clean
+        self.samplers[track].panic(); self.samplers[track].configure(clean)
 
     def commit_sampler_sample(self, track, sampler_id, sample, epoch=None):
         spec = self.sampler_target(track, sampler_id)
@@ -284,14 +300,28 @@ class SamplerEngine:
             track = track_index(track); self.sampler_target(track, sampler_id)
             if self.record_input is None: raise ValueError('Choose an input first')
             if self.sampler_tasks.busy(('record', track)) or self.sampler_tasks.busy(('load', track)): raise ValueError('The last take is still being saved')
+            # Record here takes over: a take on another track is kept (saved to its Sampler), and this one starts fresh.
+            old = self.recorder
+            if old is not None and old.state == 'recording':
+                try: self._keep_take()
+                except ValueError: old.cancel()   # a silent take is dropped
+            if old is not None and old.state in ('recording', 'saving'):
+                self.recorder = Recorder(self.rate, old.threshold_db, old.max_seconds)
             if self.recorder is None: self.recorder = Recorder(self.rate)
             self.recorder.set_threshold(threshold); self.recorder.set_length(length)
             self.record_target = (track, sampler_id)
             self.recorder.arm() if action == 'arm' else self.recorder.start()
         elif action == 'level':
             if self.recorder is None: self.recorder = Recorder(self.rate)
-            threshold, length = args
+            if len(args) not in (2, 4): raise ValueError('Level needs a threshold and a length (and gain, normalize)')
+            threshold, length = args[:2]
             self.recorder.set_threshold(threshold); self.recorder.set_length(length)
+            if len(args) == 4:
+                g = float(args[2])
+                if not math.isfinite(g): raise ValueError('Gain must be a number')
+                self.record_gain = max(GAIN_RANGE[0], min(GAIN_RANGE[1], g))
+                if type(args[3]) is not bool: raise ValueError('Normalize must be on or off')
+                self.record_normalize = args[3]
         elif action == 'stop': self._keep_take()
         elif action == 'cancel':
             if self.recorder is not None: self.recorder.cancel()
@@ -300,6 +330,7 @@ class SamplerEngine:
     def record_feed(self, block):
         """One block of mono input. Ends the take by itself when it reaches its length."""
         if self.recorder is None: self.recorder = Recorder(self.rate)
+        if self.record_gain: block = amplify(block, gain(self.record_gain))
         if self.recorder.feed(block): self._keep_take()
 
     def record_lost(self, reason):
@@ -320,6 +351,8 @@ class SamplerEngine:
         folder = Path(self.chop_directory) / 'Samples' / 'Recordings'
         path = folder / ('Recording %s.wav' % time.strftime('%d %b %H-%M-%S'))
         cache, rate = self.sample_cache, self.rate
+        lift = [0.]
+        if self.record_normalize: data, lift[0] = normalized(data)
 
         def work():
             folder.mkdir(parents=True, exist_ok=True)
@@ -331,6 +364,7 @@ class SamplerEngine:
             rec.saved()
             if self._still(track, sampler_id) is None: return 'Recording saved as ' + path.name + '; the Sampler changed, so it was not loaded'
             note = self.install_sampler_sample(track, sampler_id, *result).replace('Loaded', 'Recorded', 1)
+            if lift[0] >= .5: note += ', normalized +%.0f dB' % lift[0]
             if clipped: note += '. It clipped: turn the input down'
             if lost: note += '. The input went away, so the take ends there'
             return note
@@ -341,8 +375,10 @@ class SamplerEngine:
 
     def record_state(self):
         out = dict(inputs=self.record_inputs, input=self.record_input, error=self.record_error,
-                   **(self.recorder.status() if self.recorder is not None else dict(state='idle', level=-90., threshold=-40., length=60., seconds=0., clipped=False)))
-        out['track'] = self.record_target[0] if self.record_target else None
+                   **(self.recorder.status() if self.recorder is not None else dict(state='idle', level=-90., peak=-90., threshold=-40., length=60., seconds=0., clipped=False)))
+        # Only a live take belongs to a track; an old, saved take never blocks another Sampler.
+        out['track'] = self.record_target[0] if self.record_target and out['state'] != 'idle' else None
+        out['gain'] = self.record_gain; out['normalize'] = self.record_normalize
         return out
 
     def load_sampler_sources(self):

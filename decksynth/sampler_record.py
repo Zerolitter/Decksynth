@@ -19,10 +19,39 @@ def gain(decibels):
     return 10. ** (decibels / 20.)
 
 
+GAIN_RANGE = (0., 30.)       # input gain in dB, applied before the meter and the threshold
+NORMALIZE_TO = gain(-1.)     # a normalized take peaks at -1 dBFS
+NORMALIZE_MAX = 16.          # never lift a take by more than 24 dB
+
+
+def amplify(block, factor):
+    """The input gain. Hard clips at full scale, so a clip shows on the meter and in the take."""
+    if factor == 1.: return block
+    return array('f', [-1. if v < -1. else 1. if v > 1. else v for v in (x * factor for x in block)])
+
+
+def normalized(data):
+    """Brings the take's peak to -1 dBFS (at most +24 dB). Returns (data, gain in dB)."""
+    peak = max(max(data, default=0.), -min(data, default=0.))
+    if peak <= 1e-6: return data, 0.
+    factor = min(NORMALIZE_MAX, NORMALIZE_TO / peak)
+    if factor <= 1.: return data, 0.
+    return array('f', (v * factor for v in data)), 20. * math.log10(factor)
+
+
+def downmix(left, right):
+    """Stereo input to mono. A piano or interface often sends one side only, so a side that is
+    20 dB quieter than the other is ignored instead of halving the level."""
+    pl = max(max(left, default=0.), -min(left, default=0.)); pr = max(max(right, default=0.), -min(right, default=0.))
+    if pr < pl * .1: return array('f', left)
+    if pl < pr * .1: return array('f', right)
+    return array('f', ((a + b) * .5 for a, b in zip(left, right)))
+
+
 class Recorder:
     def __init__(self, rate, threshold_db=-40., max_seconds=60., preroll=.03):
         self.rate = int(rate)
-        self.level = 0.; self.clipped = False; self.state = 'idle'
+        self.level = 0.; self.hold = 0.; self.clipped = False; self.state = 'idle'
         self.data = array('f'); self.pre = deque(maxlen=max(1, int(self.rate * preroll)))
         self.set_threshold(threshold_db); self.set_length(max_seconds)
 
@@ -38,12 +67,12 @@ class Recorder:
 
     def arm(self):
         if self.state in ('recording', 'saving'): raise ValueError('Already recording')
-        self.state = 'armed'; self.data = array('f'); self.pre.clear(); self.clipped = False
+        self.state = 'armed'; self.data = array('f'); self.pre.clear(); self.clipped = False; self.hold = 0.
 
     def start(self):
         """Record now, without waiting for the threshold."""
         if self.state in ('recording', 'saving'): raise ValueError('Already recording')
-        self.data = array('f', self.pre); self.pre.clear(); self.clipped = False; self.state = 'recording'
+        self.data = array('f', self.pre); self.pre.clear(); self.clipped = False; self.hold = 0.; self.state = 'recording'
 
     def cancel(self):
         if self.state != 'saving': self.state = 'idle'
@@ -58,6 +87,7 @@ class Recorder:
         if not block: return False
         peak = max(max(block), -min(block))
         self.level = max(peak, self.level * .5 ** (len(block) / (self.rate * .25)))
+        self.hold = max(self.hold, peak)
         if self.state == 'armed':
             if peak >= gain(self.threshold_db):
                 self.data = array('f', self.pre); self.pre.clear(); self.state = 'recording'
@@ -86,5 +116,5 @@ class Recorder:
         if self.state == 'saving': self.state = 'idle'
 
     def status(self):
-        return dict(state=self.state, level=round(db(self.level), 1), threshold=self.threshold_db,
+        return dict(state=self.state, level=round(db(self.level), 1), peak=round(db(self.hold), 1), threshold=self.threshold_db,
                     length=self.max_seconds, seconds=round(len(self.data) / self.rate, 2), clipped=self.clipped)

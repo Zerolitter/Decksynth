@@ -446,3 +446,8 @@ button svg{flex:none}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
+
+/* No text selection in the app UI (UI-RULES 34): dragging across labels, values and buttons never highlights them.
+   Only real text fields select. */
+html,body,#root{-webkit-user-select:none;user-select:none}
+input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;user-select:text}

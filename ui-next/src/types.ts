@@ -139,5 +139,6 @@ export function clamp(n:number,low:number,high:number) { return Math.min(high,Ma
 
 export type SamplerRecord = {
   inputs: string[]; input: string | null; error: string | null; track: number | null;
-  state: 'idle' | 'armed' | 'recording' | 'saving'; level: number; threshold: number; length: number; seconds: number; clipped: boolean;
+  state: 'idle' | 'armed' | 'recording' | 'saving'; level: number; peak?: number; threshold: number; length: number; seconds: number; clipped: boolean;
+  gain?: number; normalize?: boolean;
 };

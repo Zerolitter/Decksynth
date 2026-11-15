@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Minus, Plus, ScanSearch, Scissors, Undo2, ZoomIn } from 'lucide-react';
+import { Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Minus, Plus, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
 import { CommittedKnob } from './DrumRack';
 import { EnvEditor, type Env } from './EnvEditor';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
@@ -187,7 +187,7 @@ function ChopBar({ spec, runtime, settings, onSettings, selected, marker, zoomed
     <div className="smp-chop-edit">
       <button type="button" disabled={!canSplit} title="Cut the chosen slice where you last tapped" onClick={() => onChop('split', { index: selected, at: marker })}><Scissors size={15} />Split</button>
       <button type="button" disabled={!sel || selected >= slices.length - 1} title="Merge the chosen slice with the next one" onClick={() => onChop('join', { index: selected })}><Merge size={15} />Join</button>
-      <button type="button" disabled={!slices.length} onClick={() => onChop('clear')}><Eraser size={15} />Clear</button>
+      <button type="button" disabled={!slices.length} title="Remove every slice (the sample stays)" onClick={() => onChop('clear')}><Eraser size={15} />Clear slices</button>
       <button type="button" aria-pressed={zoomed} disabled={!zoomed && !sel && marker === null} title="Zoom to the chosen slice" onClick={onZoom}><ZoomIn size={15} />Zoom</button>
     </div>
     <span className="smp-chop-info" aria-live="polite">{busy.includes('chop') ? 'Chopping…' : busy.includes('send') ? 'Writing slices…' :
@@ -392,6 +392,8 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
         <button type="button" className="smp-load smp-rec-open" aria-pressed={recording} onClick={() => setRecording(r => !r)} title="Record the piano or another input into this Sampler"><Mic size={16} />Record</button>
         <button type="button" className="smp-load" onClick={onLoadWav} title="Load a WAV file, up to 10 minutes"><FolderOpen size={16} />Load WAV</button>
         <span className="drum-kit-name smp-name" title={file}>{spec.source ? spec.name : 'No sample yet'}</span>
+        {spec.source ? <button type="button" className="smp-clear-sample" aria-label="Clear sample" title="Clear sample: empty this Sampler (Undo brings it back; the file stays)"
+          onClick={() => { setSelected(-1); setMarker(null); setMode('trim'); send('sampler_clear', [trackIndex, spec.id]); }}><Trash2 size={17} /></button> : null}
         <strong className={'drum-status status-' + status.toLowerCase()}>{status}</strong>
       </div>
     </header>
@@ -504,6 +506,8 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
 }) {
   const [threshold, setThreshold] = useState(record?.threshold ?? -40);
   const [length, setLength] = useState(record?.length && LENGTHS.includes(record.length) ? record.length : 60);
+  const [gainDb, setGainDb] = useState(record?.gain ?? 0);
+  const [normalize, setNormalize] = useState(record?.normalize ?? true);
   const close = useRef(onClose); close.current = onClose;
   useEffect(() => {
     send('sampler_record', ['open', null]);
@@ -514,17 +518,20 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const sendNow = useRef(send); sendNow.current = send;
-  useEffect(() => { sendNow.current('sampler_record', ['level', threshold, length]); }, [threshold, length]);
+  useEffect(() => { sendNow.current('sampler_record', ['level', threshold, length, gainDb, normalize]); }, [threshold, length, gainDb, normalize]);
   const state = record?.state ?? 'idle';
-  const mine = record?.track === null || record?.track === undefined || record.track === trackIndex;
+  // Another track's live take never blocks this one: Arm or Record now here keeps that take and starts this one.
+  const other = record?.track !== null && record?.track !== undefined && record.track !== trackIndex && (state === 'armed' || state === 'recording');
+  const mine = !other;
   const busy = mine && (state === 'armed' || state === 'recording');
+  const peak = record?.peak ?? -90;
   const inputs = record?.inputs ?? [];
   const level = Math.max(-60, record?.level ?? -90);
   const pct = (d: number) => Math.max(0, Math.min(100, (d + 60) / 60 * 100)) + '%';
   const go = (how: 'arm' | 'now') => send('sampler_record', [how, trackIndex, spec.id, threshold, length]);
   const words = !inputs.length ? 'No input found. Plug in the piano\'s USB audio, or an audio interface, then tap Look again.'
     : record?.error && state === 'idle' ? record.error
-    : !mine ? 'Another track is recording.'
+    : !mine ? 'Track ' + ((record?.track ?? 0) + 1) + (state === 'armed' ? ' is armed. Arm here to take over.' : ' is recording. Arm or Record now here keeps that take and starts this one.')
     : state === 'armed' ? 'Waiting for sound above ' + threshold + ' dB. Play now.'
     : state === 'recording' ? 'Recording ' + clock(record?.seconds ?? 0) + ' of ' + clock(length) + (record?.clipped ? '. It clipped: turn the input down.' : '')
     : state === 'saving' ? 'Saving the take…'
@@ -540,7 +547,15 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
       </div> : <button type="button" className="smp-look" onClick={() => send('sampler_record', ['open', null])}><ScanSearch size={17} />Look again</button>}
       <div className="smp-meter" role="meter" aria-label="Input level" aria-valuemin={-60} aria-valuemax={0} aria-valuenow={Math.round(level)}>
         <i style={{ width: pct(level) }} className={level > -1 ? 'hot' : undefined} /><b style={{ left: pct(threshold) }} />
-        <span>{record?.input ? Math.round(level) + ' dB' : 'No input open'}</span>
+        {peak > -60 ? <u style={{ left: pct(peak) }} /> : null}
+        <span>{record?.input ? Math.round(level) + ' dB · peak ' + (peak > -90 ? Math.round(peak) + ' dB' : '–') : 'No input open'}</span>
+      </div>
+      <div className="smp-record-gain">
+        <CommittedKnob id={'smp-rec-gain-' + trackIndex} name="Input gain" value={gainDb} min={0} max={30} step={.5} suffix="dB" precision={1}
+          description="Lifts a quiet input before the meter and the threshold (the piano's line out is low)" format={n => '+' + n.toFixed(1) + ' dB'} onCommit={setGainDb} />
+        <button type="button" className="smp-toggle" aria-pressed={normalize} title="Bring each take's loudest peak to -1 dB when it is saved (at most +24 dB)"
+          onClick={() => setNormalize(v => !v)}><Maximize2 size={15} />Normalize take</button>
+        <em>{peak > -90 && peak < -18 && !busy ? 'Quiet input: raise Input gain' : peak >= -0.5 ? 'Clipping: lower Input gain' : ''}</em>
       </div>
       <div className="smp-record-row">
         <span>Threshold</span>
@@ -556,8 +571,8 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
       <footer>
         {state === 'recording' && mine ? <button type="button" className="smp-make smp-stop" onClick={() => send('sampler_record', ['stop'])}><Scissors size={18} />Stop and chop</button> : <>
           {state === 'armed' && mine ? <button type="button" onClick={() => send('sampler_record', ['cancel'])}>Disarm</button> : null}
-          <button type="button" disabled={!record?.input || state === 'saving' || !mine} onClick={() => go('now')}>Record now</button>
-          {state !== 'armed' ? <button type="button" className="smp-make" disabled={!record?.input || state === 'saving' || !mine} onClick={() => go('arm')}><Mic size={18} />Arm</button> : null}
+          <button type="button" disabled={!record?.input || (state === 'saving' && mine)} onClick={() => go('now')}>Record now</button>
+          {state !== 'armed' || !mine ? <button type="button" className="smp-make" disabled={!record?.input || (state === 'saving' && mine)} onClick={() => go('arm')}><Mic size={18} />Arm</button> : null}
         </>}
       </footer>
     </div>

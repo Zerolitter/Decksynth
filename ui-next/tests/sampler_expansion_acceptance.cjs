@@ -12,7 +12,7 @@ const STAGES=(process.env.STAGES||'1,2,3,4,5').split(',');
 let app,page;
 (async()=>{
  fs.mkdirSync(OUT,{recursive:true});
- if(STAGES.includes('5')){
+ if(STAGES.includes('5')||STAGES.includes('6')){
   // A stand-in for the piano: 3 s of silence, then three notes, played as the 'Test input'.
   const rate=48000,n=rate*6,pcm=Buffer.alloc(n*2);
   for(let i=0;i<n;i++){const t=i/rate-3,k=Math.floor(t/.7),u=t-k*.7;const v=t>=0&&k<3&&u<.4?.5*Math.exp(-u*4)*Math.sin(2*Math.PI*[220,330,440][k]*u):0;pcm.writeInt16LE(Math.round(v*32767),i*2);}
@@ -83,6 +83,7 @@ let app,page;
  if(STAGES.includes('3')||STAGES.includes('4'))await require(path.join(__dirname,'sampler_expansion_stage3.cjs'))(globalThis.T);
  if(STAGES.includes('4'))await require(path.join(__dirname,'sampler_expansion_stage4.cjs'))(globalThis.T);
  if(STAGES.includes('5'))await require(path.join(__dirname,'sampler_expansion_stage5.cjs'))(globalThis.T);
+ if(STAGES.includes('6'))await require(path.join(__dirname,'sampler_editing_stage6.cjs'))(globalThis.T);
  assert.deepEqual(errors,[]);
  await app.close();console.log('PASS sampler expansion at '+H);
 })().catch(async e=>{console.error(e);try{await page?.screenshot({path:path.join(OUT,'failure-'+H+'.png')});}catch{}try{await app?.close();}catch{}process.exit(1);});

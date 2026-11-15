@@ -22,7 +22,7 @@ module.exports=async({p,send,latest,inside,H,OUT,DATA,assert})=>{
   // Trim / Chop tabs in the header; Chop with Threshold finds every hit (64 of them is the cap).
   await inside(p.getByRole('radio',{name:/Trim/}),'Trim');await p.getByRole('radio',{name:/Chop/}).click();
   for(const name of ['Threshold','Regions','BPM'])await inside(p.getByRole('radio',{name,exact:true}),name);
-  for(const name of ['Split','Join','Clear','Zoom','To pads'])await inside(p.getByRole('button',{name,exact:true}),name);
+  for(const name of ['Split','Join','Clear slices','Zoom','To pads'])await inside(p.getByRole('button',{name,exact:true}),name);
   await p.getByRole('radio',{name:'Threshold'}).click();
   await p.waitForFunction(()=>(window.__latest.state.tracks[1].sampler.slices||[]).length>=60,null,{timeout:15000});
   // Regions 16, then tap slice 3: it is chosen and heard.

@@ -12,6 +12,7 @@ import queue
 import time
 from .drum_loader import DrumLoader
 from .drum_memory import data_directory
+from .sampler_record import downmix
 from .drum_library_service import DrumLibraryService
 from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, EXPRESSION_DEFAULTS, arp_view
 from .keystep import StepCapacityError
@@ -76,21 +77,24 @@ def default_input(names):
     return next(iter(plugged+real+list(names)),None)
 
 class Capture:
-    """An SDL capture device, mono float at the engine rate (SDL converts). read() never blocks."""
+    """An SDL capture device, stereo float at the engine rate (SDL converts), mixed to mono by us
+    (downmix keeps a one-sided input at full level). read() never blocks."""
     def __init__(self,audio,name,rate):
         s=self.lib=audio.lib
         s.SDL_DequeueAudio.argtypes=[C.c_uint,C.c_void_p,C.c_uint]; s.SDL_DequeueAudio.restype=C.c_uint
         s.SDL_GetAudioDeviceStatus.argtypes=[C.c_uint]; s.SDL_GetAudioDeviceStatus.restype=C.c_int
-        desired=AudioSpec(freq=rate,format=0x8120,channels=1,samples=512); actual=AudioSpec()
+        desired=AudioSpec(freq=rate,format=0x8120,channels=2,samples=512); actual=AudioSpec()
         self.device=s.SDL_OpenAudioDevice(name.encode(),1,C.byref(desired),C.byref(actual),0)
         if not self.device:raise RuntimeError('Input not available: '+name+' ('+s.SDL_GetError().decode(errors='replace')+')')
-        self.name=name; self.buffer=C.create_string_buffer(1<<16); s.SDL_PauseAudioDevice(self.device,0)
+        self.name=name; self.channels=max(1,actual.channels or 2); self.buffer=C.create_string_buffer(1<<16); s.SDL_PauseAudioDevice(self.device,0)
     def read(self):
         out=array.array('f')
         while self.device:
             n=self.lib.SDL_DequeueAudio(self.device,self.buffer,len(self.buffer))
             if n:out.frombytes(self.buffer.raw[:n-n%4])
             if n<len(self.buffer):break
+        if self.channels==2:
+            out=out[:len(out)-len(out)%2]; out=downmix(out[0::2],out[1::2])
         return out
     def alive(self):return bool(self.device) and self.lib.SDL_GetAudioDeviceStatus(self.device)!=0
     def close(self):
@@ -234,6 +238,7 @@ def worker(commands,updates):
                         send(dict(message='No clear pitch in this sample; the root stays where it was' if found is None else 'Root set to '+note_label(found)))
                     elif cmd=='drum_import':loader.request(*args)
                     elif cmd=='sampler_load_wav':engine.load_sampler_wav(*args)
+                    elif cmd=='sampler_clear':engine.clear_sampler(*args)
                     elif cmd=='sampler_chop':engine.chop_sampler(*args)
                     elif cmd=='sampler_view':engine.sampler_view(*args)
                     elif cmd=='sampler_audition':engine.audition_slice(*args)

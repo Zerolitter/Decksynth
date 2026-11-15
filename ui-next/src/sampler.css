@@ -175,3 +175,11 @@
 .smp-record footer{gap:8px}
 .smp-record footer button{padding:0 16px}
 .smp-sheet .smp-make.smp-stop{background:#5a1f22;border-color:#ff6b6b}
+
+/* Stage 6 (15 Nov evening): Clear sample, input gain, peak hold. */
+.sampler-page .smp-clear-sample{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:grid;place-items:center;border-radius:9px;
+  border:1px solid #7a3a36;background:#3a2321;color:#ff8f86}
+.sampler-page .smp-clear-sample:hover{background:#4a2a27;border-color:#a54a43}
+.smp-meter u{position:absolute;top:0;bottom:0;width:2px;background:#ffd36b;opacity:.9;transform:translateX(-1px);pointer-events:none}
+.smp-record-gain{display:flex;align-items:center;gap:12px;min-height:56px}
+.smp-record-gain em{font-style:normal;color:#ffd36b;font-size:13px}
