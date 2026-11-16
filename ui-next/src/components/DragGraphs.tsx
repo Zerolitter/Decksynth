@@ -26,8 +26,9 @@ export function DragBox({ className = '', label, handles, children, onMove, onDo
   };
   return <div ref={box} className={'drag-box ' + className} role="group" aria-label={label}>
     {children}
-    {handles.map(h => <button key={h.key} type="button" data-handle={h.key}
-      className={'drag-handle axis-' + h.axis + (h.line ? ' is-line' : '') + (h.x > .78 ? ' label-left' : '')}
+    {handles.map((h, i) => <button key={h.key} type="button" data-handle={h.key}
+      className={'drag-handle axis-' + h.axis + (h.line ? ' is-line' : '') + (h.x > .78 ? ' label-left' : '')
+        + (handles.some((o, j) => j < i && Math.abs(o.x - h.x) < .06 && Math.abs(o.y - h.y) < .2) ? ' label-stack' : '')}
       style={{ left: clamp(h.x, .012, .988) * 100 + '%', top: clamp(h.y, .03, .97) * 100 + '%' }}
       aria-label={h.label + ', ' + h.text} title={h.label + ': ' + h.text + ' · drag, Shift for fine, double-click resets'}
       onPointerDown={e => {
@@ -185,11 +186,13 @@ export function CompMeter({ shape, level, onDraft, onCommit }: { shape: DrumShap
     <DragBox label="Compressor level and threshold" handles={handles}
       onMove={(_, __, y) => d.move({ comp_threshold: Math.round(clamp(-y * 48, -48, 0) * 2) / 2 })}
       onDone={() => d.done()} onReset={() => onCommit({ comp_threshold: -18 })}>
+      <div className="comp-meter-scale" aria-hidden="true">{[0, 12, 24, 36].map(db => <i key={db} style={{ top: Y(-db) * 100 + '%' }}>{db ? '-' + db : '0'}</i>)}</div>
       <div className="comp-meter-bars" role="meter" aria-label="Level into the compressor" aria-valuemin={-48} aria-valuemax={0} aria-valuenow={Math.round(Math.max(-48, inDb) * 10) / 10}>
-        <b className="in" style={{ height: (1 - Y(inDb)) * 100 + '%' }} />
-        <b className="out" style={{ height: (1 - Y(outDb)) * 100 + '%' }} />
+        <span className="slot"><b className="in" style={{ height: (1 - Y(inDb)) * 100 + '%' }} /></span>
+        <span className="slot"><b className="out" style={{ height: (1 - Y(outDb)) * 100 + '%' }} /></span>
       </div>
     </DragBox>
+    <div className="comp-meter-legend" aria-hidden="true"><span>In</span><span>Out</span></div>
   </div>;
 }
 

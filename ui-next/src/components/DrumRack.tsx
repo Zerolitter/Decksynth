@@ -1,6 +1,6 @@
 import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
-import { ArrowUp, AudioWaveform, FolderOpen, Grid2X2, KeyboardMusic, Link2, ListMusic, RotateCcw, Undo2 } from 'lucide-react';
+import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, RotateCcw, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
@@ -144,28 +144,34 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
         {steps?.(pad)}
       </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">
-        <div className="drum-section-bar"><h2 id="drum-pad-sound-title">PAD SOUND</h2><span>Pad {String(selected+1).padStart(2,'0')} · MIDI {pad.note}</span>
-          <strong className="drum-sound-name" title={pad.name}>{padLabel(pad.name,kit.name)||'Empty pad'}</strong>
+        <div className="drum-section-bar"><h2 id="drum-pad-sound-title">PAD SOUND</h2>
+          {pad.source?<div className="drum-view-tabs" role="radiogroup" aria-label="Waveform view">
+            {([['trim','Trim','Start and end of the sound',<Crop key="i" size={15}/>],['env','Envelope','Attack, hold and decay over the sound',<Activity key="i" size={15}/>],['tone','Tone','EQ and cut filters',<SlidersHorizontal key="i" size={15}/>]] as const).map(([id,name,hint,icon])=>
+              <button key={id} type="button" role="radio" aria-checked={view===id} title={hint} onClick={()=>setView(id)}>{icon}{name}</button>)}
+          </div>:null}
+          <strong className="drum-sound-name" title={pad.name+' · pad '+(selected+1)+' · MIDI '+pad.note}>{padLabel(pad.name,kit.name)||'Empty pad'}</strong>
           <span className="drum-source-file" title={pad.source?.path}>{fileName??'No sample assigned'}</span>
           <span className={'drum-status status-'+status.toLowerCase()}>{status}</span>
           <div className="drum-import-actions">
           {onPlayOnKeys?<button type="button" className="drum-play-keys" aria-label="Play this pad on the keys" title="Make a Sampler track that plays this sound on the keys" disabled={!sourceReady} onClick={()=>onPlayOnKeys(selected)}><KeyboardMusic size={17}/></button>:null}
           <button type="button" aria-label="Browse and audition sample sounds" title="Listen to library sounds and swap this pad" onClick={()=>setBrowsing(true)}><ListMusic size={17}/></button>
-          <button type="button" aria-label={pad.source?'Import replacement WAV file':'Import WAV file'} title="Choose a WAV file directly" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>{pad.source?null:'Import WAV'}</button>
+          <button type="button" aria-label={pad.source?'Import replacement WAV file':'Import WAV file'} title="Choose a WAV file directly" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/></button>
           {pad.source&&status==='MISSING'?<button type="button" className="drum-relink" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Relink WAV</button>:null}
         </div></div>
         <div className={'drum-wave-shell drum-smp-wave view-'+view}>
-          <div className="drum-view-rail" role="radiogroup" aria-label="Waveform view">
-            {([['trim','Trim','Start and end of the sound'],['env','Envelope','Attack, hold and decay over the sound'],['tone','Tone','EQ and cut filters']] as const).map(([id,name,hint])=>
-              <button key={id} type="button" role="radio" aria-checked={view===id} title={hint} onClick={()=>setView(id)}>{name}</button>)}
-          </div>
           {sourceReady&&live?.peaks.length&&view==='env'?<EnvelopeView shape={shown} seconds={seconds} step={step} peaks={live.peaks} at={live.at??[]}
             onDraft={p=>setDrafts(d=>({...d,...p}))} onCommit={p=>edit('shape',{...shape,...p})}/>
           :sourceReady&&view==='tone'?<ToneView shape={shown} onDraft={p=>setDrafts(d=>({...d,...p}))} onCommit={p=>edit('shape',{...shape,...p})}/>
           :sourceReady&&live?.peaks.length?<SampleWindow spec={waveSpec} runtime={waveRuntime} mode="trim" selected={-1} marker={null}
             onSelect={()=>{}} onView={()=>{}} onChop={()=>{}} onAudition={()=>onNote(selected,100)}
             onEdit={(k,v)=>{if(k!=='patch')return;const p=v as Partial<Record<'start'|'end',number>>;edit('shape',{...shape,...(p.start!==undefined?{start:p.start}:{}),...(p.end!==undefined?{end:p.end}:{})});}}/>
-          :<div className="drum-wave-empty"><AudioWaveform size={22}/><span>{status==='MISSING'?'Sample missing · relink the original WAV':status==='LOADING'?'Loading sample…':status==='ERROR'?'Sample could not load':'Import a WAV to see its waveform'}</span></div>}
+          :<div className={'drum-wave-empty is-'+status.toLowerCase()}><AudioWaveform size={26}/>
+            <div className="drum-wave-empty-text"><strong>{status==='MISSING'?'The sample is missing':status==='LOADING'?'Loading sample…':status==='ERROR'?'The sample could not load':'Pad '+(selected+1)+' has no sound yet'}</strong>
+              <span>{status==='MISSING'?'Point it at the original WAV again':status==='LOADING'||status==='ERROR'?(fileName??''):'Drop in a WAV, or pick one from the library'}</span></div>
+            {status==='MISSING'?<button type="button" className="drum-empty-main" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Find the WAV</button>
+            :!pad.source?<><button type="button" className="drum-empty-main" title="Choose a WAV file for this pad" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>Choose a WAV</button>
+              <button type="button" className="drum-empty-alt" onClick={()=>setBrowsing(true)}><ListMusic size={17}/>Browse sounds</button></>:null}
+          </div>}
         </div>
         {live?.error?<p className="drum-source-error" title={live.error} role="status">{live.error}</p>:null}
         <div className="smp-cards drum-cards" key={selected} data-testid="drum-shape">
@@ -188,9 +194,9 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           </section>
           <section className="smp-card drum-card-shape" aria-label="Shape">
             <div className="drum-card-head"><h2>Shape</h2>
-              <button type="button" className="smp-toggle drum-card-up" aria-label="Edit the envelope on the waveform" aria-pressed={view==='env'}
+              <button type="button" className="drum-card-icon drum-card-up" aria-label="Edit the envelope on the waveform" aria-pressed={view==='env'}
                 title={view==='env'?'Back to Trim':'Drag the envelope on the big waveform above'} onClick={()=>setView(view==='env'?'trim':'env')}><ArrowUp size={18}/></button>
-              <button type="button" className="smp-toggle drum-card-reset" aria-label="Reset shape" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)}
+              <button type="button" className="drum-card-icon drum-card-reset" aria-label="Reset shape" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)}
                 title="Back to the sample as recorded: trim, fades, envelope, EQ, filter, compressor and pan" onClick={()=>edit('shape',{...DEFAULT_DRUM_SHAPE})}><RotateCcw size={16}/></button></div>
             <div className="smp-knobs two one">
               {knob('attack','Attack',0,1000,1,'ms',0,'Rise time at the start of the hit',1000)}
@@ -202,7 +208,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           </section>
           <section className="smp-card drum-card-tone" aria-label="Tone">
             <div className="drum-card-head"><h2>Tone</h2>
-              <button type="button" className="smp-toggle drum-card-up" aria-label="Edit the EQ curve on the waveform" aria-pressed={view==='tone'}
+              <button type="button" className="drum-card-icon drum-card-up" aria-label="Edit the EQ curve on the waveform" aria-pressed={view==='tone'}
                 title={view==='tone'?'Back to Trim':'Drag the EQ curve on the big waveform above'} onClick={()=>setView(view==='tone'?'trim':'tone')}><ArrowUp size={18}/></button></div>
             <div className="smp-seg" role="radiogroup" aria-label="Tone controls">
               <button type="button" role="radio" aria-checked={toneTab==='eq'} onClick={()=>setToneTab('eq')}>EQ</button>

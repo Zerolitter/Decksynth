@@ -292,3 +292,32 @@
 .drum-smp .drum-card-up[aria-pressed="true"]{background:color-mix(in srgb,var(--pad-accent) 28%,transparent);border-color:var(--pad-accent);color:var(--text,#f1f2f4)}
 .drum-comp-body{display:flex;gap:8px;min-height:0;flex:1}
 .drum-comp-body .smp-knobs{flex:1;min-width:0}
+
+/* r2j: Pad Sound design pass */
+.drum-pad-sound .drum-section-bar{gap:8px}
+.drum-pad-sound .drum-view-tabs{display:flex;gap:2px;padding:0;margin:0 2px;border-radius:9px;background:var(--inset);border:1px solid #2f3338;flex:none}
+.drum-pad-sound .drum-view-tabs button{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 11px;border:0;border-radius:8px;background:none;color:var(--muted,#aeb3bb);font-size:12px;font-weight:650;cursor:pointer}
+.drum-pad-sound .drum-view-tabs button svg{opacity:.75}
+.drum-pad-sound .drum-view-tabs button[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 20%,#24262b);color:var(--text,#f1f2f4);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 70%,transparent)}
+.drum-pad-sound .drum-view-tabs button[aria-checked="true"] svg{opacity:1;color:var(--accent)}
+.drum-smp .drum-smp-wave.view-trim .smp-wave-shell,.drum-smp .drum-smp-wave .smp-wave-shell{margin:0 12px}
+.drum-smp .drum-smp-wave.view-trim .smp-caption,.drum-smp .drum-smp-wave .smp-caption{margin:0 12px}
+.drum-smp .drum-smp-wave>.drag-box,.drum-smp .drum-smp-wave>.drag-graph,.drum-smp .drum-smp-wave>div:not(.smp-window){margin:0 12px}
+.drum-smp .drum-wave-shell.drum-smp-wave{gap:0}
+.drum-smp .drum-wave-empty{flex:1;height:auto;margin:0 12px;display:flex;align-items:center;justify-content:center;gap:14px;border:1px dashed #3a3f45;border-radius:10px;background:repeating-linear-gradient(90deg,transparent 0 23px,#ffffff06 23px 24px),var(--inset);color:var(--muted,#aeb3bb)}
+.drum-smp .drum-wave-empty>svg{color:var(--pad-accent);opacity:.8}
+.drum-wave-empty-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.drum-wave-empty-text strong{color:var(--text,#e8eaed);font-size:13px;font-weight:650}
+.drum-wave-empty-text span{font-size:11.5px;color:var(--soft,#9aa0a6)}
+.drum-wave-empty .drum-empty-main,.drum-wave-empty .drum-empty-alt{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;border-radius:8px;font-size:12.5px;font-weight:650;cursor:pointer;flex:none}
+.drum-wave-empty .drum-empty-main{background:color-mix(in srgb,var(--accent) 22%,#25272c);border:1px solid var(--accent);color:#fff}
+.drum-wave-empty .drum-empty-alt{background:#23262b;border:1px solid #3a3d43;color:#e3e6ea}
+.drum-wave-empty.is-loading,.drum-wave-empty.is-error{border-style:solid}
+.drum-smp .drum-cards{align-items:stretch}
+.drum-smp .drum-card-head{min-height:32px;margin-right:-4px}
+.drum-smp .drum-card-icon{flex:none;width:44px;height:44px;min-height:44px;margin:-6px 0;padding:0;display:grid;place-items:center;border:0;border-radius:7px;background:none;color:var(--muted,#9aa0a6);cursor:pointer;position:relative}
+.drum-smp .drum-card-icon:hover:not(:disabled){background:#ffffff0d;color:var(--text,#f1f2f4)}
+.drum-smp .drum-card-icon:disabled{opacity:.35;cursor:default}
+.drum-smp .drum-card-up{margin-left:auto}
+.drum-smp .drum-card-up+.drum-card-reset{margin-left:0}
+.drum-smp .drum-card-up[aria-pressed="true"]{background:color-mix(in srgb,var(--pad-accent) 18%,transparent);color:var(--pad-accent)}
