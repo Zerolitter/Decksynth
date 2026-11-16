@@ -1,9 +1,0 @@
-#!/bin/sh
-set -eu
-APP=/app/share/decksynth
-export DECKSYNTH_PYTHON=/app/bin/python3
-export DECKSYNTH_DEMO_KITS_DIR="$APP/ui-next/demo-kits"
-export DECKSYNTH_RUNTIME_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/decksynth"
-export LD_LIBRARY_PATH=/app/lib:/app/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-cd "$APP/ui-next"
-exec "$APP/ui-next/node_modules/electron/dist/electron" --no-sandbox .
