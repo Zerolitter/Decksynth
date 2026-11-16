@@ -57,9 +57,9 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('group',{name:'Chord type'}).getByRole('button',{name:'7th'}).click();
   assert.match(await p.getByTestId('cb-pad-V').innerText(),/G7/);
   await p.getByRole('group',{name:'Chord type'}).getByRole('button',{name:'Triad'}).click();
-  await p.getByRole('button',{name:'Inversion up'}).click();
+  const inv=p.getByRole('group',{name:'Inversion'}).getByRole('spinbutton',{name:'Inversion'});await inv.focus();await inv.press('ArrowUp');
   assert.match(await vi.innerText(),/C E A/,'first inversion of Am');
-  await p.getByRole('button',{name:'Inversion down'}).click();
+  await inv.press('ArrowDown');await p.waitForTimeout(450);
 
   // Voices and Bass.
   await p.getByRole('group',{name:'Bass note'}).getByRole('button',{name:'Bass −1 octave'}).click();

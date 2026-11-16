@@ -21,3 +21,15 @@ export function controlName(t:ControlTarget):string{
  if(t.module==='drum'){const [pad,key]=t.param.split(':');return 'Pad '+(Number(pad)+1)+' '+key;}
  return (FX_MODULES[t.module as FxModuleId]?.name??t.module)+' '+(FX_MODULES[t.module as FxModuleId]?.params.find(p=>p.key===t.param)?.label??t.param);
 }
+
+/** Neutral values of the synth's sound keys a preset may leave out (engine PARAM_DEFAULTS, core.py), so a double-tap
+ *  on any Sound knob resets it (Sir, 16 Nov). The filter envelope follows the amp envelope when it is not set. */
+export const SOUND_NEUTRAL:Record<string,number>={curve:0,balance:.5,focus:0,focus_center:4,character:0,
+ vcf_cutoff:.65,vcf_reso:.2,vcf_env:.3,vcf_morph:0,uni_detune:.3,formant:0,inharm:0,sub:0,
+ pan:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5};
+export const FILTER_ENV_FROM:Record<string,string>={fenv_a:'attack',fenv_d:'decay',fenv_s:'sustain',fenv_r:'release'};
+export function soundDefault(preset:Record<string,unknown>|undefined,param:string):number|undefined{
+ const own=preset?.[param];if(typeof own==='number')return own;
+ const amp=FILTER_ENV_FROM[param];if(amp){const v=preset?.[amp];return typeof v==='number'?v:undefined;}
+ return SOUND_NEUTRAL[param];
+}

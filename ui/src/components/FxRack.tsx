@@ -166,7 +166,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
             // whole numbers are knobs too, with a value box (rule 36: value boxes, not steppers)
             return <div key={p.key} className={'fx-knob-cell'+cls} style={at(p)} onPointerDownCapture={capture(state.id,p.key)}>
               {<Knob id={selected+'-fx-'+state.id+'-'+p.key} name={p.label}
-                value={state.params[p.key]??p.init} min={p.min} max={p.max} suffix={p.suffix??''}
+                value={state.params[p.key]??p.init} min={p.min} max={p.max} suffix={p.suffix??''} defaultValue={p.init}
                 step={p.precision===0?1:.001} precision={p.precision??2} accent={def.color} compact
                 modValue={routes.length&&liveValue!==undefined?liveValue:null}
                 modColor={color}

@@ -56,25 +56,25 @@ const ROOT=path.resolve(__dirname,'..');
   await inline.getByRole('radio',{name:'32 bars'}).click();
   assert.match(await p.getByRole('button',{name:'Link Mod pad 1 to knobs'}).innerText(),/32 bar/,'pad label shows 32 bars');
 
-  // The Shape sheet: ten shapes on the first of five pages, the same ten rates, three feels.
-  await p.getByRole('button',{name:/^Shape of Mod pad 1/}).click();
-  const mod=p.getByRole('dialog',{name:'Mod pad 1 editor'});
-  await mod.waitFor();
-  assert.deepEqual(await covered(),[],'nothing in the mod sheet is covered');
-  assert.equal(await mod.getByRole('radiogroup',{name:'Mod pad 1 shape'}).getByRole('radio').count(),10);
-  const rate=mod.getByRole('radiogroup',{name:'Mod pad rate'});
-  assert.equal(await rate.getByRole('radio').count(),10);
-  await rate.getByRole('radio',{name:'1/4'}).click();
-  await mod.getByRole('radiogroup',{name:'Mod pad feel'}).getByRole('radio',{name:/Triplet/}).click();
+  // Shapes sit right under the graph (Sir, 16 Nov): ten on the first of five pages, tap to pick; feel and rate inline.
+  const shapes=editor.getByRole('radiogroup',{name:'Shape of Mod pad 1'});
+  assert.equal(await shapes.getByRole('radio').count(),10);
+  assert.equal(await editor.getByRole('tablist',{name:'Shape pages'}).getByRole('tab').count(),5);
+  const gBox=await editor.locator('.pad-graph-editor').boundingBox(),sBox=await shapes.boundingBox();
+  assert.ok(sBox.y>gBox.y+gBox.height-1&&sBox.y-(gBox.y+gBox.height)<70,'shapes directly under the graph');
+  await inline.getByRole('radio',{name:'1/4'}).click();
+  await editor.getByRole('radiogroup',{name:'Mod pad feel'}).getByRole('radio',{name:/Triplet/}).click();
   assert.match(await p.getByRole('button',{name:'Link Mod pad 1 to knobs'}).innerText(),/1\/4 T/,'pad shows the triplet rate');
+  await editor.getByRole('tab',{name:'Envelopes'}).click();
+  await shapes.getByRole('radio',{name:/Pump$/}).click();
+  assert.match(await editor.locator('.pe-sub').innerText(),/Pump/);
+  await editor.getByRole('tab',{name:'Basic'}).click();
 
   // Steps: merge to 4 groups.
-  await mod.getByRole('radio',{name:/Steps/}).click();
-  await mod.getByRole('radiogroup',{name:'Step count'}).getByRole('radio',{name:'4'}).click();
-  assert.equal(await mod.locator('.pad-graph-editor .step-slot').count(),4,'four merged steps');
-  await mod.getByRole('radio',{name:/Sine/}).click();
-  await mod.getByRole('button',{name:'Done'}).click();
-  assert.equal(await p.locator('.mod-sheet').count(),0,'Done closes the sheet');
+  await shapes.getByRole('radio',{name:/Steps/}).click();
+  await editor.getByRole('radiogroup',{name:'Step count'}).getByRole('radio',{name:'4'}).click();
+  assert.equal(await editor.locator('.pad-graph-editor .step-slot').count(),4,'four merged steps');
+  await shapes.getByRole('radio',{name:/^Sine/}).click();
 
   // Edit points turns into Done in the same spot (Sir, 16 Nov); points show only while editing and snap to the grid.
   const tool=editor.locator('.lp-points');
@@ -101,6 +101,7 @@ const ROOT=path.resolve(__dirname,'..');
 
   // Links by name: pick an effect, tap a param, set depth with the bipolar bar.
   await p.locator('.lp-links').getByRole('button',{name:/By name/}).click();
+  const mod=p.getByRole('dialog',{name:'Mod pad 1 editor'});
   await mod.waitFor();
   await mod.getByRole('radiogroup',{name:'Target effect'}).getByRole('radio',{name:'Compressor'}).click();
   await mod.getByRole('button',{name:'Amount'}).click();

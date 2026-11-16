@@ -112,11 +112,11 @@ export function MorphPad({chain,onChange,live,bpm=120,compact=false}:Props) {
       </div>
     </div>
     <div className="morph-knobs">
-      <Knob id="morph-size" name="Size" value={Math.round(mo.size*100)} min={0} max={100} step={1} precision={0} suffix="%"
+      <Knob id="morph-size" name="Size" defaultValue={80} value={Math.round(mo.size*100)} min={0} max={100} step={1} precision={0} suffix="%"
         accent="#b79cf0" compact={compact} onChange={v=>set({size:v/100})}/>
-      <Knob id="morph-wander" name="Wander" value={Math.round(mo.wander*100)} min={0} max={100} step={1} precision={0} suffix="%"
+      <Knob id="morph-wander" name="Wander" defaultValue={20} value={Math.round(mo.wander*100)} min={0} max={100} step={1} precision={0} suffix="%"
         accent="#b79cf0" compact={compact} onChange={v=>set({wander:v/100})}/>
-      <Knob id="morph-spin" name="Spin" value={Math.round(mo.spin*360)} min={0} max={360} step={1} precision={0} suffix="°"
+      <Knob id="morph-spin" name="Spin" defaultValue={0} value={Math.round(mo.spin*360)} min={0} max={360} step={1} precision={0} suffix="°"
         accent="#b79cf0" compact={compact} onChange={v=>set({spin:v/360})}/>
     </div>
     <div className="morph-sources" role="group" aria-label="Puck sources">

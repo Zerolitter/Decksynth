@@ -1,9 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {zoomAt,fitNotesView} from '../src/piano-viewport.ts';
 test('performance range starts drum editing at MIDI 36–51 and preserves the melodic C4 view',async()=>{
  const {performanceRange}=await import('../src/piano-viewport.ts');
- assert.deepEqual(performanceRange('drum_rack'),{base:36,top:51,rows:16,keyboardBase:36,keyCount:16});
- assert.deepEqual(performanceRange('synth'),{base:60,top:72,rows:13,keyboardBase:48,keyCount:37});
- assert.deepEqual(performanceRange('drum_rack',48),{base:48,top:63,rows:16,keyboardBase:48,keyCount:16});
+ assert.deepEqual(performanceRange('drum_rack'),{base:36,top:51,rows:16,keyboardBase:36,keyCount:16,viewTop:47,viewRows:12});
+ assert.deepEqual(performanceRange('synth'),{base:60,top:72,rows:13,keyboardBase:48,keyCount:37,viewTop:72,viewRows:9});
+ assert.deepEqual(performanceRange('drum_rack',48),{base:48,top:63,rows:16,keyboardBase:48,keyCount:16,viewTop:59,viewRows:12});
  assert.equal(performanceRange('synth',-12).base,0);
  assert.equal(performanceRange('drum_rack',120).top,123);
 });

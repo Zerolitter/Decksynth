@@ -795,7 +795,7 @@ export function RecordSheet({ spec, trackIndex, record, send, onClose, pad }: {
         </div>
       </div>
       <div className="rec-controls">
-        <CommittedKnob id={'smp-rec-gain-' + trackIndex} name="Input gain" value={gainDb} min={0} max={30} step={.5} suffix="dB" precision={1}
+        <CommittedKnob id={'smp-rec-gain-' + trackIndex} defaultValue={0} name="Input gain" value={gainDb} min={0} max={30} step={.5} suffix="dB" precision={1}
           description="Lifts a quiet input before the meter and the threshold (the piano's line out is low)" format={n => '+' + n.toFixed(1) + ' dB'} onCommit={setGainDb} />
         <ValueBox label="Threshold" value={threshold} min={-60} max={-6} step={1} coarse={6} fine={.5} format={dB} onChange={setThreshold}
           title="Arm starts the take when the level passes this. Click, then scroll (Shift big, Ctrl fine) · two slow clicks to type" />

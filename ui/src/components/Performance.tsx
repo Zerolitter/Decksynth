@@ -8,9 +8,10 @@ import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, Layers3, Minus, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks } from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
+import { ValueBox } from './ValueBox';
 import { CHORD_EXTS, ROOTS, SCALES, chordName, chordText, diatonicChords, leadVoices, type ChordExt } from '../chords';
 import { LIBRARY } from './PresetBrowser';
 import { clamp, noteName, type PerformanceState, type StepNote, type StepPattern } from '../types';
@@ -201,7 +202,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     const notes=lastRecorded.split(',').map(Number),range=performanceRange(device,gridBase);
     if(notes.every(n=>n>=range.base&&n<=range.top))return;
     const next=performanceRange(device,Math.floor(Math.min(...notes)/12)*12);
-    setGridBase(next.base);roll.current?.pitchTo(next.top);
+    setGridBase(next.base);roll.current?.pitchTo(next.viewTop);
   },[lastRecorded]); // eslint-disable-line react-hooks/exhaustive-deps
   // Step rec and pattern choices always work on the pattern: leave clip editing.
   useEffect(()=>{if(clipEdit&&seq.recording)onClipEdit?.(false);},[seq.recording,clipEdit]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -233,8 +234,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const power=(on:boolean,label:string,toggle:()=>void)=>
     <button type="button" className={'pf-power'+(on?' on':'')} aria-pressed={on} onClick={toggle}>
       <Power size={16}/>{on?label+' on':'Turn '+label.toLowerCase()+' on'}</button>;
-  const pctKnob=(id:string,name:string,value:number,min:number,max:number,onChange:(v:number)=>void)=>
-    <Knob id={id} name={name} value={Math.round(value*100)} min={min} max={max} step={1} format={pct}
+  const pctKnob=(id:string,name:string,value:number,min:number,max:number,onChange:(v:number)=>void,reset?:number)=>
+    <Knob id={id} name={name} value={Math.round(value*100)} min={min} max={max} step={1} format={pct} defaultValue={reset}
       onChange={n=>onChange(Math.round(n)/100)}/>;
 
   const userPatterns=useContextTarget(el=>{const pad=el.closest<HTMLElement>('[data-user-pattern]');if(!pad)return null;const slot=Number(pad.dataset.userPattern);return {kind:'library.pattern',label:'User slot '+seq.bank+':'+slot,caps:{copy:()=>{setClip(seq.bank+':'+slot);setMessage('Copied slot '+seq.bank+':'+slot);},details:()=>{set('seq','slot',slot);setSheet('mutate');},library:()=>setSheet('library')}};});
@@ -303,9 +304,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
           disabled={arp.octaves<2} title="How the octaves are walked" onClick={()=>set('arp','octave_mode',v)}>{icon}{label}</button>)}
     </div>
     <div className="pf-knobs">
-      {pctKnob('pf-arp-gate','Gate',arp.gate,10,90,v=>set('arp','gate',v))}
-      {pctKnob('pf-arp-swing','Swing',arp.swing,50,75,v=>set('arp','swing',v))}
-      {pctKnob('pf-arp-spice','Spice',arp.spice,0,100,v=>set('arp','spice',v))}
+      {pctKnob('pf-arp-gate','Gate',arp.gate,10,90,v=>set('arp','gate',v),75)}
+      {pctKnob('pf-arp-swing','Swing',arp.swing,50,75,v=>set('arp','swing',v),50)}
+      {pctKnob('pf-arp-spice','Spice',arp.spice,0,100,v=>set('arp','spice',v),0)}
     </div>
     <div className="pf-buttons">
       <button type="button" className={'pf-btn'+(arp.retrigger?' on':'')} aria-pressed={arp.retrigger}
@@ -324,7 +325,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     {power(chord.enabled,'Chord',()=>set('chord','enabled',!chord.enabled))}
     <p className="pf-hint-line">{chord.enabled?'Each key plays the last chord you tapped.':'Tap a chord to hear it. Turn chord on to play it from one key.'}</p>
     <div className="pf-knobs pf-knobs-1">
-      <Knob id="pf-strum" name="Strum" value={chord.strum_ms} min={0} max={500} step={5} format={n=>Math.round(n)+' ms'}
+      <Knob id="pf-strum" name="Strum" value={chord.strum_ms} min={0} max={500} step={5} defaultValue={0} format={n=>Math.round(n)+' ms'}
         onChange={n=>set('chord','strum_ms',Math.round(n))}/>
     </div>
     <span className="pf-group-label">Strum sync</span>
@@ -343,7 +344,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const showRange=(base:number)=>{
     const next=performanceRange(device,base);
     if(next.base===gridBase)return;
-    edit.cancel();setGridBase(next.base);roll.current?.pitchTo(next.top);
+    edit.cancel();setGridBase(next.base);roll.current?.pitchTo(next.viewTop);
   };
   const gridTools=<>
     <div className="pf-seg" role="group" aria-label="Pattern page">
@@ -363,9 +364,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const shiftOct=(d:number)=>{const next=Math.max(-3,Math.min(3,(octPending.current??oct)+d));octPending.current=next;if(next!==oct)set('scale','octave',next);};
   const transposeTool=<div className="pf-seg pf-transpose" role="group" aria-label="Transpose keys" data-testid="pf-transpose-oct"
     title={'Keys play '+(oct?(oct>0?'+':'−')+Math.abs(oct)+' octave'+(Math.abs(oct)>1?'s':''):'as labelled')+' · C3 sounds '+noteName(48+12*oct)}>
-    <button type="button" aria-label="Transpose an octave down" disabled={oct<=-3} onClick={()=>shiftOct(-1)}><Minus size={14}/></button>
-    <span className={oct?'on':''}><small>Oct</small><b>{oct>0?'+'+oct:oct<0?'−'+Math.abs(oct):'0'}</b></span>
-    <button type="button" aria-label="Transpose an octave up" disabled={oct>=3} onClick={()=>shiftOct(1)}><Plus size={14}/></button>
+    <ValueBox label="Oct" className={'pf-vbox'+(oct?' on':'')} value={oct} min={-3} max={3} step={1} coarse={1}
+      format={n=>n>0?'+'+n:n<0?'−'+Math.abs(n):'0'} parse={t=>{const n=Number(t.replace('−','-'));return Number.isFinite(n)?Math.round(n):null;}}
+      title="Keys octave: click, then scroll · hold and drag · two slow clicks to type" onChange={n=>shiftOct(n-(octPending.current??oct))}/>
   </div>;
   const ab=rateParts(arp.division);
   const arpTools=<>
@@ -427,13 +428,13 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     <div className="pf-seg" role="group" aria-label="Pattern steps">
       <ChoiceList values={STEP_CHOICES} value={pat.length} onChange={n=>set('seq','length',n)} columns={4} testId="pf-steps-list"
         className="pf-steps-list" label="Pattern steps list" title={'Pattern length · '+(pat.length*(RATE_BEATS[pat.division]??.25)/4).toFixed(2).replace(/\.?0+$/,'')+' bars at '+pat.division}
-        trigger={<><b>{pat.length}</b> steps</>} choice={n=>String(n)}/>
-      <button type="button" aria-label="Fewer steps" disabled={pat.length<=1} onClick={()=>set('seq','length',pat.length-1)}><Minus size={14}/></button>
-      <button type="button" aria-label="More steps" disabled={pat.length>=256} onClick={()=>set('seq','length',pat.length+1)}><Plus size={14}/></button></div>
+        trigger={<ListOrdered size={16} aria-hidden="true"/>} choice={n=>String(n)}/>
+      <ValueBox label="Pattern steps" hideLabel className="pf-vbox" value={pat.length} min={1} max={256} step={1} coarse={4}
+        format={n=>n+' steps'} onChange={n=>set('seq','length',n)}/></div>
     <div className="pf-bar-knobs">
-      {pctKnob('pf-seq-swing','Swing',seq.swing,50,75,v=>set('seq','swing',v))}
-      {pctKnob('pf-seq-gate','Gate',seq.gate,10,90,v=>set('seq','gate',v))}
-      {pctKnob('pf-seq-spice','Spice',seq.spice,0,100,v=>set('seq','spice',v))}
+      {pctKnob('pf-seq-swing','Swing',seq.swing,50,75,v=>set('seq','swing',v),50)}
+      {pctKnob('pf-seq-gate','Gate',seq.gate,10,90,v=>set('seq','gate',v),80)}
+      {pctKnob('pf-seq-spice','Spice',seq.spice,0,100,v=>set('seq','spice',v),0)}
     </div>
   </div>;
   const clipBar=<div className="pf-bar pf-clip-bar" data-testid="pf-clip-bar">
@@ -478,9 +479,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         <div className="pf-seg" role="group" aria-label="Arp steps">
           {/* the same pick list as Seq (Sir, 16 Nov), up to the arp's 64 steps */}
           <ChoiceList values={STEP_CHOICES.filter(n=>n<=64)} value={arp.length} onChange={n=>set('arp','length',n)} columns={4} testId="pf-arp-steps-list"
-            className="pf-steps-list" label="Arp steps list" title="Arp cycle length in steps" trigger={<><b aria-label="Arp steps count">{arp.length}</b> steps</>} choice={n=>String(n)}/>
-          <button type="button" aria-label="Fewer arp steps" disabled={arp.length<=1} onClick={()=>set('arp','length',arp.length-1)}><Minus size={14}/></button>
-          <button type="button" aria-label="More arp steps" disabled={arp.length>=64} onClick={()=>set('arp','length',arp.length+1)}><Plus size={14}/></button></div>
+            className="pf-steps-list" label="Arp steps list" title="Arp cycle length in steps" trigger={<ListOrdered size={16} aria-hidden="true"/>} choice={n=>String(n)}/>
+          <ValueBox label="Arp steps" hideLabel className="pf-vbox" value={arp.length} min={1} max={64} step={1} coarse={4}
+            format={n=>n+' steps'} onChange={n=>set('arp','length',n)}/></div>
         <button type="button" className={'pf-btn'+(arp.restart_bar?' on':'')} aria-pressed={!!arp.restart_bar}
           title="Start the pattern again on every bar line" onClick={()=>set('arp','restart_bar',!arp.restart_bar)}><RotateCcw size={15}/>Restart on bar</button>
         <p className="pf-roll-info" aria-live="polite">{!arp.enabled?'Arp off':example?'Hold keys to start'
@@ -514,9 +515,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
               if(c)padOn('pad-0',c.notes);}} onPointerUp={padOff} onPointerCancel={padOff} onPointerLeave={padOff}>{label}</button>)}
         </div>
         <div className="pf-seg cb-inv" role="group" aria-label="Inversion">
-          <button type="button" aria-label="Inversion down" disabled={inversion<=-3} onClick={()=>setInversion(inversion-1)}><Minus size={14}/></button>
-          <span>{inversion===0?'Root':(inversion>0?'Inv +':'Inv −')+Math.abs(inversion)}</span>
-          <button type="button" aria-label="Inversion up" disabled={inversion>=3} onClick={()=>setInversion(inversion+1)}><Plus size={14}/></button>
+          <ValueBox label="Inversion" hideLabel className="pf-vbox" value={inversion} min={-3} max={3} step={1} coarse={1} live
+            format={n=>n===0?'Root':(n>0?'Inv +':'Inv −')+Math.abs(n)} onChange={setInversion}/>
         </div>
         <button type="button" className={'pf-btn'+(chord.voicing?' on':'')} aria-pressed={chord.voicing}
           title="Move chord voices as little as possible between chords" onClick={()=>set('chord','voicing',!chord.voicing)}>Voice lead</button>
@@ -593,8 +593,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
             className={scale.name===n?'on':''} onClick={()=>{set('scale','name',n);setSheet(null);}}>{n}</button>)}</div>
         </div>:sheet==='mutate'?<div className="pf-mutate-sheet">
           <div className="pf-knobs">
-            {pctKnob('pf-mutate','Amount',strength,0,100,setStrength)}
-            <Knob id="pf-transpose" name="Transpose" value={seq.transpose} min={-24} max={24} step={1}
+            {pctKnob('pf-mutate','Amount',strength,0,100,setStrength,35)}
+            <Knob id="pf-transpose" name="Transpose" value={seq.transpose} min={-24} max={24} step={1} defaultValue={0}
               format={n=>(Math.round(n)>0?'+':'')+Math.round(n)} onChange={n=>{const v=Math.round(n);if(v!==seq.transpose)set('seq','transpose',v);}}/>
           </div>
           <div className="pf-buttons">

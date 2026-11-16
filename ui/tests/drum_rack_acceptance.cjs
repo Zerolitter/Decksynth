@@ -74,7 +74,7 @@ with wave.open(sys.argv[1],'wb') as f:
   const k=p.locator('[data-param="drum-0-0-'+key+'"]').getByRole('slider');await k.focus();await p.keyboard.press(label==='Tune'?'ArrowUp':label==='Velocity'?'Shift+ArrowDown':'Shift+ArrowUp');
   await p.waitForFunction(([k,v])=>Math.abs(window.__drumLatest.state.tracks[0].drum_rack.pads[0][k]-v)<.0001,[key,want]);
  }
- await p.getByLabel('Choke group').selectOption('1');
+ await p.getByTestId('drum-choke').click();await p.getByRole('listbox',{name:/^Choke group/}).getByRole('option',{name:'1',exact:true}).click();
  await p.waitForFunction(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].choke===1);
  // A drag updates its local readout but must not write per-frame to the worker.
  const gain=p.locator('[data-param="drum-0-0-gain"]').getByRole('slider');const box=await gain.boundingBox();
@@ -86,7 +86,7 @@ with wave.open(sys.argv[1],'wb') as f:
  const controlGeometry=[];
  for(const node of await p.locator('.drum-rack button,.drum-rack select,.drum-rack [role="slider"]').all()){
   const r=await node.boundingBox();controlGeometry.push({label:await node.getAttribute('aria-label')||await node.innerText(),...r});assert.ok(r&&r.width>=44&&r.height>=44,'all rack controls at least 44px '+await node.innerText());
-  assert.ok(r.x>=0&&r.y>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'control inside 1280×718 '+JSON.stringify(r));
+  assert.ok(r.x>=0&&r.y>=0&&r.x+r.width<=1281&&r.y+r.height<=719,'control inside 1280×718 '+JSON.stringify(controlGeometry.at(-1)));
  }
  // End numeric input on pad change must not apply a stale edit to either pad.
  const committedGain=await p.evaluate(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].gain);

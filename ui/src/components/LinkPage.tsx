@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, Eraser, Link2, Magnet, Orbit, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronRight, Eraser, Link2, Magnet, Orbit, Pencil, Plus, X } from 'lucide-react';
 import { Knob } from './Knob';
 import { MorphPad } from './MorphPad';
 import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, STEP_COUNTS, normalizeChain, rateLabel, targetInfo,
   type FxChain, type FxModSource, type FxTarget, type ModFeel } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview, sourceColor, type Live, type Source } from './ModParts';
-import { BipolarDepth, MacroSheet, ModSheet, PadGraphEditor, pointsFrom, type SheetTab } from './ModSheet';
+import { BipolarDepth, MacroSheet, ModSheet, PadGraphEditor, ShapePicker, pointsFrom, type SheetTab } from './ModSheet';
 
 type Props = {
   selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; beat:number; live?:Live; bpm:number;
@@ -50,7 +50,7 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
           {chain.macros.map((m,i)=><div key={i}
             className={'fx-macro'+(isEdit('macro',i)?' editing':'')+(isArmed('macro',i)?' armed':'')+(m.targets.length?' routed':'')}
             style={{['--src' as string]:MACRO_COLORS[i]}} onPointerDownCapture={()=>{if(!isEdit('macro',i)||morph)pick({kind:'macro',index:i});}}>
-            <Knob id={selected+'-macro-'+i} name={m.name} value={m.value} min={0} max={1} accent={MACRO_COLORS[i]}
+            <Knob id={selected+'-macro-'+i} name={m.name} value={m.value} min={0} max={1} defaultValue={0} accent={MACRO_COLORS[i]}
               compact onChange={v=>onChange({...chain,macros:chain.macros.map((x,j)=>j===i?{...x,value:v}:x)})}/>
             <button type="button" className="fx-src-arm" aria-pressed={isArmed('macro',i)}
               aria-label={'Link '+m.name+' to knobs'} onClick={()=>lip({kind:'macro',index:i})}>
@@ -66,9 +66,11 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
               onClick={()=>pick({kind:'mod',index:i})}>
               <ShapePreview shape={m.shape} steps={m.steps} count={m.count} points={m.points} phase={phaseOf(i)} color={MOD_COLORS[i]}
                 live={m.targets.length?live?.mods?.[i]:undefined} active={m.targets.length>0}/>
+              {m.targets.length?<b className="fx-pad-count" title={m.targets.length+(m.targets.length===1?' link':' links')}>{m.targets.length}</b>:null}
             </button>
             <button type="button" className="fx-pad-label" aria-pressed={isArmed('mod',i)} aria-label={'Link Mod pad '+(i+1)+' to knobs'}
-              onClick={()=>lip({kind:'mod',index:i})}>{i+1} · {rateLabel(m).replace(/(\d+) bars/,'$1 bar')}{m.targets.length?<small> · {m.targets.length}</small>:null}</button>
+              onClick={()=>lip({kind:'mod',index:i})} title={'Mod pad '+(i+1)+' · '+rateLabel(m)+(m.targets.length?' · '+m.targets.length+(m.targets.length===1?' link':' links'):'')}>
+              {i+1} · {rateLabel(m).replace(/(\d+) bars/,'$1 bar')}</button>
           </div>)}
         </div>
         <button type="button" className={'lp-morph-tile'+(morph?' open':'')} aria-pressed={morph} onClick={()=>setMorph(!morph)}
@@ -112,9 +114,8 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
       </header>
       {mod?<div className="lp-shape">
         <PadGraphEditor mod={mod} color={color} phase={phaseOf(edit.index)} live={mod.targets.length?live?.mods?.[edit.index]:undefined} snap={snap} editing={pointsEdit} onChange={setMod}/>
+        <ShapePicker key={edit.index} mod={mod} color={color} label={label} onChange={patch=>{if(patch.shape&&patch.shape!=='curve')setPointsEdit(false);setMod(patch);}}/>
         <div className="lp-shape-tools">
-          <button type="button" className="lp-pick" aria-label={'Shape of '+label+': '+SHAPE_LABEL[mod.shape]} onClick={()=>setSheet('shape')}>
-            <span>Shape</span><strong>{SHAPE_LABEL[mod.shape]}</strong><ChevronDown size={15}/></button>
           <div className="fx-segment" role="radiogroup" aria-label="Mod pad feel">
             {([['','Straight','—'],['T','Triplet','T'],['D','Dotted','D']] as [ModFeel,string,string][]).map(([f,l,sh])=>
               <button key={l} type="button" role="radio" aria-label={l} aria-checked={(mod.feel??'')===f} className={(mod.feel??'')===f?'active':''}
@@ -133,7 +134,7 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
             aria-label={MOD_RATES[i]} onClick={()=>setMod({rate:i})}>{MOD_RATES[i].replace(' bars',' bar')}</button>)}
         </div>
       </div>:<div className="lp-macro">
-        <Knob id={selected+'-macro-big-'+edit.index} name={macro!.name} value={macro!.value} min={0} max={1} suffix="%" accent={color}
+        <Knob id={selected+'-macro-big-'+edit.index} name={macro!.name} value={macro!.value} min={0} max={1} defaultValue={0} suffix="%" accent={color}
           onChange={v=>setMacro({value:v})}/>
         <div className="lp-macro-text">
           <b>{macro!.name} moves {macro!.targets.length?macro!.targets.length+(macro!.targets.length===1?' knob':' knobs'):'nothing yet'}</b>

@@ -2,7 +2,8 @@ import type {Note} from './types';
 export const bound=(v:number,min:number,max:number)=>Math.max(min,Math.min(max,v));
 export function performanceRange(device:string,requested?:number){
  const drum=device==='drum_rack',base=bound(Math.round((requested??(drum?36:60))/12)*12,0,108);
- return {base,top:base+(drum?15:12),rows:drum?16:13,keyboardBase:drum?base:Math.max(0,base-12),keyCount:drum?16:37};
+ // Drums (16 Nov): the roll shows 12 of the 16 pad rows and scrolls, like the synth's 9; it opens on the lowest pads (kick, snare, hats).
+ return {base,top:base+(drum?15:12),rows:drum?16:13,keyboardBase:drum?base:Math.max(0,base-12),keyCount:drum?16:37,viewTop:base+(drum?11:12),viewRows:drum?12:9};
 }
 export function zoomAt(scroll:number,pointer:number,before:number,after:number,origin:number){return Math.max(0,origin+(scroll+pointer-origin)/before*after-pointer);}
 export function fitNotesView(notes:Note[],span:number,snap:number,width:number,height:number){

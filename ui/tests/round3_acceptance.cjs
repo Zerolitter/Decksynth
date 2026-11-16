@@ -79,11 +79,10 @@ let app;
  // --- Keys octave in Arp and Chord ---
  for(const tab of ['Arp','Chord']){
   await p.getByRole('tab',{name:new RegExp('^'+tab)}).click();
-  const up=p.getByRole('button',{name:'Transpose an octave up'});await inside(up,tab+' octave up');
+  const up=p.getByTestId('pf-transpose-oct').getByRole('spinbutton',{name:'Oct'});await inside(up,tab+' octave up');
  }
  const before=(await latest()).state.performance.scale.octave;
- await p.getByRole('button',{name:'Transpose an octave up'}).click();
- await p.getByRole('button',{name:'Transpose an octave up'}).click();
+ {const oct=p.getByTestId('pf-transpose-oct').getByRole('spinbutton',{name:'Oct'});await oct.focus();await oct.press('ArrowUp');await oct.press('ArrowUp');}
  await p.waitForFunction(o=>window.__latest.state.performance.scale.octave===o+2,before);
  await p.screenshot({path:path.join(OUT,'chord-octave-'+H+'.png')});
  // A key now sounds two octaves up: hold C4 and read the held notes.
@@ -91,9 +90,9 @@ let app;
  assert.ok((await latest()).held_notes.includes(84),'C4 plays C6: '+(await latest()).held_notes);
  await send('midi',[0x80,60,0]);
  await p.getByRole('tab',{name:/^Arp/}).click();
- assert.equal(await p.getByTestId('pf-transpose-oct').locator('b').textContent(),'+2');
+ assert.equal(await p.getByTestId('pf-transpose-oct').locator('.vbox-value').textContent(),'+2');
  await p.screenshot({path:path.join(OUT,'arp-octave-'+H+'.png')});
- await p.getByRole('button',{name:'Transpose an octave down'}).click();await p.getByRole('button',{name:'Transpose an octave down'}).click();
+ {const oct=p.getByTestId('pf-transpose-oct').getByRole('spinbutton',{name:'Oct'});await oct.focus();await oct.press('ArrowDown');await oct.press('ArrowDown');await p.waitForTimeout(450);}
 
  // --- Count-in from Settings ---
  await p.getByRole('button',{name:'Settings',exact:true}).click();

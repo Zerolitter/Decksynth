@@ -51,6 +51,15 @@ const sampleKeys=[
  ['Library','The sample library: tap a card to load it (Undo brings the old sample back), ▶ to hear it first. Save the whole sample, its trim or a slice into a category. Saves to and Browses set the folders; they are remembered.'],
  ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];
+const valueKeys=[
+ ['Drag a knob','Up and down turns it; hold Shift or Ctrl for finer moves. Every knob on every page works the same.'],
+ ['Double-tap a knob','Back to its default.'],
+ ['Value box: click, then wheel','The wheel moves the value; Shift is bigger steps, Ctrl finer. It counts as one change when the wheel rests.'],
+ ['Value box: hold and drag','On touch, hold it a moment then drag: up and down in normal steps, left and right in fine steps. A mouse drags at once.'],
+ ['Value box: two slow clicks','Type a number (Enter keeps it, Esc drops it). Arrow keys step a focused box.'],
+ ['Right-click / touch-hold a knob','The radial menu: edit value, reset, link to a macro or mod pad.'],
+ ['Steps, inversion, octave, song and block length','These are value boxes too: no − / + buttons. The small list button beside Steps offers the usual lengths.'],
+];
 function KeyTable({rows}:{rows:string[][]}){
  return <table><tbody>{rows.map(([key,action])=><tr key={key}><th scope="row">{key}</th><td>{action}</td></tr>)}</tbody></table>;
 }
@@ -89,11 +98,14 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
    <p><strong>Pattern ↔ Song.</strong> The direct buttons name the track, open clip and pattern. Pattern → Song adds notes and repeats to fill the clip. Song → Pattern replaces the named pattern, preserving exact timing where the division, gate and tie range allow it. Incompatible copies are rejected; one Undo restores the transfer.</p>
    <p><strong>Song.</strong> Choose a track and an open clip (A–H), record a loop, or place clips on the arrangement timeline. The global transport controls playback and recording.</p>
    <p><strong>Drum Rack.</strong> The lower step lane edits the selected pad’s MIDI pitch in the named open Song clip. Its 16 steps cover one bar of sixteenth notes; use the bar arrows for longer clips. Tap a step to add or remove a hit. Audition previews the selected pad without recording it. Undo restores the last edit.</p>
-   <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically, hold Shift for finer changes, or tap the numeric value.</p>
-   <p><strong>Drum Rack pads.</strong> Tap a pad to hear it and edit it under Pad Sound. Trim, Envelope and Tone show the sound with points to drag; knobs and points are heard while you move them, and letting go is one undo step. With Decay off, Hold at the end of the sound means the pad plays to the end. Crop to Start–End keeps only the part you hear in a new WAV (the pad sounds the same; Undo brings the full sample back). The bin button clears the pad. An empty pad has Record: play the piano or sing into the input and the take lands on that pad; the radial menu has Record into pad and Clear pad for any pad. Kits, under the pads, loads a kit or swaps single sounds; Save kit puts these 16 pads, with their names and sound settings, into your library under My kits.</p>
+   <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically (Shift for finer), double-tap to reset, and use the value box under each knob: click and scroll, hold and drag, or two slow clicks to type. See Knobs and value boxes below.</p>
+   <p><strong>Drum Rack pads.</strong> Tap a pad to hear it and edit it under Pad Sound. Trim, Envelope and Tone show the sound with points to drag; knobs and points are heard while you move them, and letting go is one undo step. With Decay off, Hold at the end of the sound means the pad plays to the end. Crop to Start–End keeps only the part you hear in a new WAV (the pad sounds the same; Undo brings the full sample back). The bin button clears the pad. Choke opens a grid of groups: pads in the same group cut each other off. <strong>Hold rec</strong> in the PADS bar records straight onto pads: hold a pad and it records the input (the one last chosen in Record) while your finger is down, and the take lands on that pad when you let go; a quick tap only picks the pad. Tap Hold rec again, or Esc, to play the pads again. An empty pad has Record: play the piano or sing into the input and the take lands on that pad; the radial menu has Record into pad and Clear pad for any pad. Kits, under the pads, loads a kit or swaps single sounds; Save kit puts these 16 pads, with their names and sound settings, into your library under My kits.</p>
    <p><strong>Perform: Seq, Arp and Chord.</strong> Seq records and plays patterns, Arp plays held notes in turn and Chord turns each key into the chord you tapped last. Chord pads, chord types, Voices and Bass build the chord; My chords keeps up to 8 of your own. Arp Steps and Seq Steps use the same pick list.</p>
-   <p><strong>Modulation.</strong> On the Link page, pick a mod pad or macro, then tap the knobs to link. Shape sets the movement, Rate goes up to 32 bars, and Edit points lets you drag the curve; Done sits in the same place when you finish. Link depth can be positive or negative.</p>
+   <p><strong>Modulation.</strong> On the Link page, pick a mod pad or macro, then tap the knobs to link. The shapes sit right under the graph, five pages of ten (Basic, Curves, Envelopes, Gates, Random): tap one to use it. Rate goes up to 32 bars, and Edit points lets you drag the curve; Done sits in the same place when you finish. Link depth can be positive or negative.</p>
    <p><strong>Window.</strong> Decksynth fills the screen without a title bar. Settings › Window has Full screen on/off, Minimise and Quit; F11 and Ctrl+Q do the same from the keyboard.</p>
+   <p><strong>Drum piano roll.</strong> On Perform a Drum Rack shows 12 of its 16 pad rows, from the kick up; scroll or drag the octave control for the rest.</p>
+   <h3>Knobs and value boxes</h3>
+   <KeyTable rows={valueKeys}/>
    <h3>Support Decksynth</h3>
    <p>Contribute to development through <span className="support-url">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</span>. For contact, use Discord: <strong>zerolitter</strong>.</p>
    <h3>Transport and tracks</h3>
