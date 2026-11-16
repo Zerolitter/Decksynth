@@ -127,6 +127,7 @@ export type DeckApi = {
   available: true;
   send(command: string, args?: unknown): void;
   onMessage(callback: (message: BridgeMessage) => void): () => void;
+  windowAction?(op:'quit'|'minimize'|'fullscreen'):void;
   chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder'): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }

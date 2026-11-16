@@ -392,6 +392,79 @@ class SamplerEngine:
             rec.saved()
         self.sampler_tasks.submit(('record', track), work, commit, fail, 'Recording not saved: ')
 
+    def export_drum_kit(self, track, kit_id, name, root=None, done=None):
+        """Save the 16 pads as a kit folder in the library (Sir, 16 Nov): <root>/My kits/<name>/, one WAV per pad
+        (its Start-End part) and decksynth-kit.json with the pad names and sound settings, so loading the folder
+        from Kits gives the same kit back. Other apps just see the WAVs."""
+        import json
+        from .drum_library import KIT_FILE
+        track = track_index(track); kit = self.drum_target(track, kit_id)
+        if not root: raise ValueError('Choose a sample library folder first (Kits, then the folder button)')
+        clean = lambda s, fallback: re.sub(r'[^\w .()-]+', '', str(s or '')).strip()[:60] or fallback
+        title = clean(name or kit.get('name'), 'My kit')
+        base = Path(root) / 'My kits'; folder = base / title; n = 2
+        while folder.exists(): folder = base / ('%s %d' % (title, n)); n += 1
+        files = []; side = dict(version=1, name=folder.name, pads=[None] * len(kit['pads']))
+        for i, p in enumerate(kit['pads']):
+            raw = self.drums[track].raw[i]
+            if p['source'] is None or raw is None: continue
+            shape = dict(p.get('shape') or {}); frames = raw.frames
+            lo = max(0, min(frames - 1, int(float(shape.get('start', 0.)) * frames)))
+            hi = max(lo + 1, min(frames, int(round(float(shape.get('end', 1.)) * frames))))
+            file = '%02d %s.wav' % (i + 1, clean(p['name'], 'Pad %d' % (i + 1)))
+            files.append((file, raw.data[lo:hi], raw.rate))
+            if shape: shape.update(start=0., end=1.)
+            side['pads'][i] = dict(file=file, name=p['name'], gain=p['gain'], velocity=p['velocity'], tune=p['tune'],
+                                   choke=p['choke'], **(dict(shape=shape) if shape else {}))
+        if not files: raise ValueError('The kit has no sounds to save')
+
+        def work():
+            folder.mkdir(parents=True)
+            for file, data, rate in files: chopper.write_wav(folder / file, data, rate)
+            (folder / KIT_FILE).write_text(json.dumps(side, indent=1))
+            return folder
+
+        def commit(path):
+            if done is not None:
+                try: done()
+                except ValueError: pass
+            return 'Kit saved to the library as My kits / %s (%d sound%s). Find it under Kits' % (path.name, len(files), '' if len(files) == 1 else 's')
+        self.sampler_tasks.submit(('export_kit', track), work, commit, None, 'Kit not saved: ')
+        return str(folder)
+
+    def crop_drum_pad(self, track, kit_id, pad):
+        """Crop a pad to its Start-End (Sir, 16 Nov): the part outside is dropped from a new WAV, the pad plays
+        that file with Start and End back at the edges. Same sound, one undo step; the old file stays on disk."""
+        track = track_index(track); kit = self.drum_target(track, kit_id, pad)
+        p = kit['pads'][pad]; shape = p.get('shape') or {}; raw = self.drums[track].raw[pad]
+        if p['source'] is None or raw is None: raise ValueError('Load a sample on this pad first')
+        start, end = float(shape.get('start', 0.)), float(shape.get('end', 1.))
+        if start <= 0 and end >= 1: raise ValueError('Move Start or End first: the whole sample is in use')
+        if self.sample_cache is None or self.chop_directory is None: raise ValueError('No data folder for cropped samples')
+        n = raw.frames; lo = max(0, min(n - 1, int(start * n))); hi = max(lo + 1, min(n, int(round(end * n))))
+        data = raw.data[lo:hi]; rate = raw.rate; cache = self.sample_cache
+        stem = re.sub(r'[^\w .-]+', '', p['name']).strip()[:60] or 'Pad %d' % (pad + 1)
+        path = Path(self.chop_directory) / 'Samples' / 'Cropped' / ('%s crop %s.wav' % (stem, time.strftime('%d %b %H-%M-%S')))
+        source = p['source']
+
+        def work():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            chopper.write_wav(path, data, rate)
+            return cache.load(str(path))
+
+        def commit(sample):
+            now = self.project.tracks[track].get('drum_rack')
+            if now is None or now['id'] != kit_id or now['pads'][pad]['source'] != source:
+                return 'Cropped copy saved as ' + path.name + '; the pad changed, so it was not swapped'
+            candidate = copy.deepcopy(now); q = candidate['pads'][pad]
+            q['source'] = sample.source; q['shape'] = dict(q.get('shape') or {}, start=0., end=1.)
+            clean = validate_kit(candidate)
+            self.snapshot(); self.project.tracks[track]['drum_rack'] = clean
+            self.drums[track].configure(clean); self.drums[track].bind(pad, sample)
+            return 'Pad %d cropped to %.2f s (was %.2f s). Undo brings the full sample back' % (pad + 1, sample.frames / rate, n / rate)
+        self.sampler_tasks.submit(('crop', track), work, commit, None, 'Not cropped: ')
+        return str(path)
+
     def save_sample_to_library(self, track, sampler_id, what, index, name, category):
         """Save to library: the whole sample, its trim (Start to End) or one slice, as a WAV in the library's save folder
         (<save>/<category>/<name>.wav). Written in the background; the library rescans when it is done."""

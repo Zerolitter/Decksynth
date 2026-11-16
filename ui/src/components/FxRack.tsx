@@ -141,14 +141,14 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
             if(p.editor==='gate')return <div key={p.key} className="fx-grid-cell fx-gate-cell" style={at(p)}><GateStrip params={state.params} runtime={live?.gate} onOpen={()=>setGateOpen(true)}/></div>;
             if(p.editor==='track'){const v=Math.round(state.params[p.key]??p.init);
               return <div key={p.key} className="fx-track-pick" style={at(p)}>
-                <span className="fx-choice-label">{p.label}</span>
+                <span className="fx-choice-label">{p.label}
+                  {v===selected||v>=tracks.length?<small className="fx-track-warn" title="A track can't drive itself">Pick another track</small>:null}</span>
                 <div className="fx-segment fx-track-buttons" role="radiogroup" aria-label={def.name+' '+p.label}>
                   {tracks.map((name,i)=><button key={i} type="button" role="radio" aria-checked={v===i} disabled={i===selected}
                     className={v===i?'active':''} title={i===selected?'This track: a track can\'t drive itself':'Track '+(i+1)+' · '+name}
                     aria-label={'Track '+(i+1)+', '+name+(i===selected?' (this track)':'')} onClick={()=>setParam(state.id,p.key,i)}>
                     <b>{i+1}</b><span>{name}</span></button>)}
                 </div>
-                {v===selected||v>=tracks.length?<small className="fx-track-warn">Pick another track: a track can't drive itself.</small>:null}
               </div>;}
             const routes=routesFor(state.id,p.key);
             const routed=!!armed&&sourceTargets(chain,armed).some(t=>t.module===state.id&&t.param===p.key);

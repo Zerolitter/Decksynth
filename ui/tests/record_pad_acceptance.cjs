@@ -70,6 +70,39 @@ with wave.open(sys.argv[1],'wb') as w:
   await sheet.waitFor();
   await p.keyboard.press('Escape');
   await sheet.waitFor({state:'detached'});
+
+  // Batch 2 (Sir, 16 Nov): crop to Start-End, save the kit to the library, clear a pad.
+  const kitId=await p.evaluate(t=>window.__rp.state.tracks[t].drum_rack.id,tr);
+  const padState=()=>p.evaluate(([t,i])=>window.__rp.state.tracks[t].drum_rack.pads[i],[tr,empty]);
+  const full=(await padState()).source.frames;
+  assert.equal(await p.getByRole('button',{name:'Crop to Start–End'}).count(),0,'no Crop while the whole sample plays');
+  await p.evaluate(([t,k,i])=>window.deckApi.send('drum_edit',[t,k,i,'shape',{start:.5,end:1}]),[tr,kitId,empty]);
+  const crop=p.getByRole('button',{name:'Crop to Start–End'});await crop.waitFor();
+  const cb=await crop.boundingBox();assert.ok(cb.height>=44,'Crop is 44 px');
+  await shot('crop-button');
+  await crop.click();
+  await p.waitForFunction(([t,i,n])=>window.__rp.state.tracks[t].drum_rack.pads[i].source.frames<n*.6,[tr,empty,full],{timeout:15000});
+  assert.equal((await padState()).shape.start,0,'Start back at the edge after the crop');
+  const lib=path.join(tmp,'library');fs.mkdirSync(lib);
+  await p.evaluate(dir=>window.deckApi.send('drum_library_root',dir),lib);
+  await p.waitForFunction(()=>!!window.__rp.drum_library?.root&&!window.__rp.drum_library.scanning);
+  const save=p.getByRole('button',{name:'Save this kit to the library'});
+  assert.ok((await save.boundingBox()).height>=44,'Save kit is 44 px');
+  await save.click();
+  for(let i=0;i<100&&!(fs.existsSync(path.join(lib,'My kits'))&&fs.readdirSync(path.join(lib,'My kits')).some(d=>fs.existsSync(path.join(lib,'My kits',d,'decksynth-kit.json'))));i++)await p.waitForTimeout(100);
+  const saved=fs.readdirSync(path.join(lib,'My kits'));
+  assert.equal(saved.length,1,'one kit folder');
+  await p.waitForFunction(()=>window.__rp.drum_library.folders.some(f=>f.id.startsWith('My kits/')),null,{timeout:10000});
+  await shot('kit-saved');
+  await p.getByRole('button',{name:'Clear this pad'}).click();
+  await p.waitForFunction(([t,i])=>!window.__rp.state.tracks[t].drum_rack.pads[i].source,[tr,empty]);
+  assert.ok(await p.locator('.drum-wave-empty').isVisible(),'the cleared pad shows its drop zone again');
+  // Settings has the window controls now that there is no title bar.
+  await p.getByRole('button',{name:'Settings'}).click();
+  const win=p.getByRole('group',{name:'Window'});await win.waitFor();
+  for(const n of ['Full screen','Minimise','Quit'])assert.ok((await win.getByRole('button',{name:n}).boundingBox()).height>=44,n);
+  await shot('settings-window');
+  await p.keyboard.press('Escape');
   assert.deepEqual(errors,[],'no renderer errors');
   console.log('record_pad_acceptance: ok at 1280x'+H);
  }finally{await app.close();fs.rmSync(tmp,{recursive:true,force:true});}

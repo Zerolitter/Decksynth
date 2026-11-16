@@ -49,14 +49,15 @@ with wave.open(sys.argv[1],'wb') as f:
   const rail=p.getByRole('radiogroup',{name:'Waveform view'});
   for(const n of ['Trim','Envelope','Tone']){const r=await rail.getByRole('radio',{name:n}).boundingBox();assert.ok(r.height>=44,n+' tab is 44 px');}
 
-  // Envelope: drag Hold to the right: one committed edit, heard live while dragging.
+  // Envelope: with Decay off, Hold starts at the end of the sound (plays to the end); drag it left: one committed edit, heard live while dragging.
   await rail.getByRole('radio',{name:'Envelope'}).click();
   const env=p.getByRole('group',{name:/^Envelope: drag/});
   await env.waitFor();
   const before=await shape();
   const hold=env.locator('[data-handle=hold]'),hb=await hold.boundingBox(),eb=await env.boundingBox();
   await p.mouse.move(hb.x+hb.width/2,hb.y+hb.height/2);await p.mouse.down();
-  for(let i=1;i<=6;i++)await p.mouse.move(hb.x+hb.width/2+i*eb.width*.04,hb.y+hb.height/2);
+  assert.ok(hb.x+hb.width/2>eb.x+eb.width*.6,'Hold sits at the end while the pad plays to the end');
+  for(let i=1;i<=6;i++)await p.mouse.move(hb.x+hb.width/2-i*eb.width*.04,hb.y+hb.height/2);
   assert.equal(JSON.stringify(await shape()),JSON.stringify(before),'nothing saved while dragging');
   await p.mouse.up();
   await p.waitForFunction(()=>(window.__drumLatest.state.tracks[0].drum_rack.pads[0].shape?.hold??0)>.05);

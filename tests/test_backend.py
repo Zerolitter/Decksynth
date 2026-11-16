@@ -126,7 +126,7 @@ class BackendTests(unittest.TestCase):
             receive(lambda o:'state' in o)
             commands.put(('perform_step',[0,[dict(note=60,velocity=100,tie=1)],True]))
             commands.put(('perform_action',['mutate',1.]))
-            receive(lambda o:o.get('message')=='Performance: mutate')
+            receive(lambda o:o.get('message')=='Pattern mutated')
             with tempfile.TemporaryDirectory() as directory:
                 path=str(Path(directory)/'mutated.decksynth')
                 commands.put(('save',path));receive(lambda o:o.get('message')=='Saved '+path)

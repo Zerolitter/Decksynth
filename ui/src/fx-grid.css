@@ -34,7 +34,14 @@
 /* gate steps take two columns and both lines */
 .harness-shell .frame-fx .fx-grid-body>.fx-gate-cell{display:flex}
 .harness-shell .frame-fx .fx-grid-body>.fx-gate-cell .gate-strip{flex:1;height:auto;min-height:94px;margin:0}
-.harness-shell .frame-fx .fx-grid-body>.fx-track-pick{height:44px;display:flex;align-items:center;gap:6px}
+.harness-shell .frame-fx .fx-grid-body>.fx-track-pick{height:44px;display:flex;flex-direction:row;align-items:center;gap:6px;overflow:hidden}
+/* Vocoder/Ducking track pick (Sir, 16 Nov: it overlapped the knobs): one line, the name on the left, the warning under the name */
+.harness-shell .frame-fx .fx-track-pick .fx-choice-label{flex:none;display:flex;flex-direction:column;gap:2px;margin:0;max-width:78px;font-size:10.5px;line-height:12px;
+  font-weight:700;letter-spacing:0;text-transform:none;color:#9aa0a6;text-align:left}
+.harness-shell .frame-fx .fx-track-pick .fx-track-warn{font-size:10.5px;line-height:12px;font-weight:600}
+.harness-shell .frame-fx .fx-track-pick .fx-track-buttons{flex:1;min-width:0;height:44px;display:grid;grid-auto-flow:column;grid-template-columns:none;
+  grid-auto-columns:minmax(44px,1fr);gap:3px;padding:0;border:0;background:none}
+.harness-shell .frame-fx .fx-track-pick .fx-track-buttons button{height:44px;min-height:44px;min-width:44px;padding:2px 6px}
 
 /* Add effect fills what is left of the last row */
 .harness-shell .frame-fx .fx-cards>.fx-add-card{width:auto;min-width:0;max-width:none;min-height:52px;height:auto;margin:0;display:flex;flex:none}

@@ -245,6 +245,11 @@ def worker(commands,updates):
                     elif cmd=='set_device':engine.set_device(*args)
                     elif cmd=='drum_note':engine.drum_note(*args)
                     elif cmd=='drum_edit':engine.edit_drum_pad(*args)
+                    elif cmd=='drum_draft':engine.drum_draft(*args)
+                    elif cmd=='drum_crop':engine.crop_drum_pad(*args)
+                    elif cmd=='drum_export':engine.export_drum_kit(*args,root=library.snapshot()['root'],done=library.refresh)
+                    elif cmd=='drum_clear':
+                        if engine.clear_drum_pad(*args):send(dict(message='Pad %d cleared. Undo brings it back.'%(int(args[2])+1)))
                     elif cmd=='sampler_make':
                         made=engine.make_sampler(*args); engine.select(made['track'])
                         send(dict(message='Track %d plays %s on the keys'%(made['track']+1,engine.project.tracks[made['track']]['sampler']['name'])))
@@ -344,12 +349,15 @@ def worker(commands,updates):
                         if not isinstance(args,list) or len(args) not in (2,3):raise ValueError('Invalid performance action')
                         engine.perform_action(*args)
                         action=args[0]
-                        message='Performance: '+action
+                        message={'clear':'Pattern cleared','double':'Pattern doubled','nudge':'Pattern nudged',
+                            'octave':'Pattern moved an octave','mutate':'Pattern mutated','reset_mutate':'Pattern back to before mutate',
+                            'arp_to_seq':'Arp copied to the sequencer','paste_pattern':'Pattern pasted',
+                            'load_factory':'Pattern bank loaded','learn_chord':'Chord learned'}.get(action)
                         if action=='capture_song':message=transfer_message(engine.transfer_report)
                         elif action=='commit_song':
                             message={'add':'Pattern added to open Song clip','replace':'Open Song clip replaced with pattern',
                                 'fill':'Open Song clip filled with pattern'}.get(args[1],'Pattern sent to open Song clip')
-                        send(dict(message=message))
+                        if message:send(dict(message=message))
                     elif cmd=='cleanup':
                         engine.cleanup(str(args)); audio and args=='all' and audio.clear()
                         send(dict(message={'effects':'Effects removed','sound':'Sound reset','mods':'Mod pads cleared',

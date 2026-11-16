@@ -904,8 +904,27 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         """Validated UI parameter changes; does not erase recorded song notes."""
         if section not in ('seq','arp','chord','scale','sync'):
             raise ValueError('Unknown performance section')
-        state=copy.deepcopy(self.project.performance)
-        if key not in state[section]:raise ValueError('Unknown performance parameter')
+        current=self.project.performance
+        if key not in current[section]:raise ValueError('Unknown performance parameter')
+        if section!='seq':
+            # Arp, chord, scale and sync never touch the 64 patterns: check them without copying and
+            # re-checking every pattern (about 7 ms a change with full banks, on the audio loop).
+            probe=dict(current,patterns={}); probe[section]=dict(copy.deepcopy(current[section]),**{key:value})
+            if section=='arp' and key=='enabled' and value:probe['seq']=dict(copy.deepcopy(current['seq']),enabled=False,recording=False)
+            state=validate_performance(probe); state['patterns']=current['patterns']
+            if section=='arp' and key=='hold':self.perform_held.set_hold(value)
+            if section=='sync' and key=='source':
+                self.clock_times.clear();self.clock_following=False;self.clock_last_ts=0.
+            self.project.performance=state
+            if section=='arp':self.release_performance('perf_arp')
+            if section=='arp' and key=='enabled':
+                for synth in self.synths:
+                    for token in list(synth.voices):
+                        if isinstance(token,tuple) and str(token[0]).startswith('perf_'):
+                            synth.off(0,token)
+                for sampler in self.samplers:sampler.cancel_sources(('perf_seq','perf_arp'))
+            return state[section][key]
+        state=copy.deepcopy(current)
         state[section][key]=value
         if section=='seq' and key in ('bank','slot'):
             addr=slot_key(state['seq']['bank'],state['seq']['slot'])
@@ -1015,6 +1034,13 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             if action not in ('capture_song','commit_song'):raise ValueError('Only note transfers accept a transfer target')
             transfer_pattern=self._validate_transfer(action,expected)
         if action in ('arp_stop','arp_pause'):return self.arp_interrupt(action)
+        if action=='save_chord':
+            # Chord memory changes on every chord tap: no undo step, no full-project copy, no note release.
+            if not isinstance(value,list) or not 1<=len(value)<=16:
+                raise ValueError('Chord memory needs 1-16 notes')
+            root=int(value[0]); chord=self.project.performance['chord']
+            chord['user']=[max(-48,min(48,int(x)-root)) for x in value]; chord['preset']='User'
+            return action
         if action in ('rec_cursor','rec_rest','rec_back'):
             length=current_pattern(self.project.performance)['length']
             if action=='rec_cursor':

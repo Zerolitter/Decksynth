@@ -18,8 +18,10 @@ const H=Number(process.env.HEIGHT||718);
   await app.evaluate(({BrowserWindow},h)=>BrowserWindow.getAllWindows()[0].setContentSize(1280,h),H);
   await p.getByRole('tab',{name:/^FX$/}).click();
   const add=async name=>{
-    await p.getByRole('button',{name:'Add effect'}).click();
-    const sheet=p.getByRole('dialog',{name:'Add effect'});
+    // An empty FX page shows the picker itself; later effects come from the Add effect sheet.
+    const empty=p.locator('.fx-empty-picker');
+    const sheet=await empty.count()?empty:p.getByRole('dialog',{name:'Add effect'});
+    if(!await empty.count())await p.getByRole('button',{name:'Add effect'}).click();
     const b=sheet.getByRole('button',{name:'Add '+name});
     await b.scrollIntoViewIfNeeded();
     const r=await b.boundingBox();assert.ok(r.height>=44,name+' button is 44 px');
@@ -44,13 +46,13 @@ const H=Number(process.env.HEIGHT||718);
   const opts=pick.getByRole('radio');
   assert.ok(await opts.count()>=4,'every track is listed');
   assert.ok(await opts.first().isDisabled(),'its own track is not a choice');
-  assert.ok(await duck.getByText(/can't drive itself/).isVisible(),'hint while it points at itself');
+  assert.ok(await duck.getByText(/Pick another track/).isVisible(),'hint while it points at itself');
   const r=await opts.nth(1).boundingBox();assert.ok(r.height>=44,'track buttons are 44 px');
   await opts.nth(1).click();
   await p.waitForTimeout(300);
   assert.equal(await opts.nth(1).getAttribute('aria-checked'),'true','ducked by track 2');
   assert.match(await opts.nth(1).innerText(),/Bass/,'tracks show their names');
-  assert.equal(await duck.getByText(/can't drive itself/).count(),0,'hint gone');
+  assert.equal(await duck.getByText(/Pick another track/).count(),0,'hint gone');
   assert.ok(await duck.getByRole('meter',{name:'Ducking now'}).isVisible(),'ducking meter');
 
   const voc=p.locator('[data-panel="fx-vocoder"]');
@@ -58,6 +60,11 @@ const H=Number(process.env.HEIGHT||718);
   await vpick.getByRole('radio').nth(2).click();await p.waitForTimeout(300);
   assert.equal(await vpick.getByRole('radio').nth(2).getAttribute('aria-checked'),'true');
   for(const k of ['Response','Formant','Air'])assert.ok(await voc.getByText(k,{exact:true}).count(),k);
+  // Sir, 16 Nov: the Voice from picker and its hint overlapped the knobs.
+  await voc.scrollIntoViewIfNeeded();
+  const pb=await voc.locator('.fx-track-pick').boundingBox();
+  for(const cell of await voc.locator('.fx-knob-cell').all()){const c=await cell.boundingBox();
+    assert.ok(c.y>=pb.y+pb.height-1||c.x>=pb.x+pb.width-1||c.x+c.width<=pb.x+1,'track picker does not overlap '+await cell.innerText());}
 
   await pitch.scrollIntoViewIfNeeded();
   await p.screenshot({path:path.join(OUT,`fx-round2-${H}.png`)});
