@@ -19,6 +19,7 @@ finish-args:
                                    # which is all the raw ALSA MIDI input (/dev/snd/midiC*D*) needs
   - --device=dri                   # GPU for the Electron UI
   - --device=input                 # game controllers (SDL): the Deck's buttons and pads
+  - --require-version=1.16.0       # --device=input: Flathub asks for Flatpak 1.16 or newer (SteamOS has 1.18)
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
   # No --share=network: app is fully offline (stdin/stdout bridge, no server)
   # No --filesystem=home: sample import goes through file dialogs/portals;
@@ -35,6 +36,7 @@ modules:
   # SDL2 audio library the Python engine dlopens (libSDL2-2.0.so.0)
   - name: SDL2
     buildsystem: cmake-ninja
+    builddir: true                 # SDL refuses in-tree builds
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DSDL_STATIC=OFF

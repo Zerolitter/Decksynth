@@ -16,7 +16,19 @@ flatpak install --user packaging/flatpak/dist/Decksynth.flatpak
 flatpak run io.github.zerolitter.Decksynth
 ```
 
-The local manifest bundles the Electron app, Python 3.13, SDL2, and the five generated Luna demo kits. `--device=all` is required by the current raw Linux MIDI implementation; replace it with a narrower MIDI portal/device design before public distribution.
+The local manifest bundles the Electron app, Python 3.13, SDL2, and the five generated Luna demo kits.
+
+## Flathub recipe
+
+`packaging/flatpak/io.github.zerolitter.Decksynth.yml` builds from a tagged release, fully offline:
+
+- `node-generated-sources.json` holds the npm cache for `ui/package-lock.json`. Regenerate it whenever the lockfile changes:
+  `flatpak run --command=flatpak-node-generator org.flatpak.Builder npm ui/package-lock.json -o packaging/flatpak/node-generated-sources.json`
+- `tools/build-native.sh decksynth/native/prebuilt` builds the FX library and the cached kernels (filter, spectral, drums, sampler) like the release download; the Flatpak launcher copies them into the app's cache on start.
+- Permissions: `--socket=pulseaudio` (audio; Flatpak also exposes `/dev/snd` with it, which is what raw ALSA MIDI input needs), `--device=dri` (GPU) and `--device=input` (game controllers). No `--device=all`, no network, no home folder.
+- After tagging a release, point the recipe at it: `packaging/flatpak/pin-release.sh vX.Y.Z` sets the tag and its commit.
+
+Test the recipe locally with `flatpak run --command=flathub-build org.flatpak.Builder <manifest>` and `flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest <manifest>`.
 
 Support development: https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE
 
