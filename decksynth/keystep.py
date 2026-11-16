@@ -49,10 +49,16 @@ ARP_OCTAVE_MODES = ('Up', 'Down', 'UpDown')
 STRUM_SYNC = {'Off': 0., '1/64': .0625, '1/32': .125, '1/16': .25, '1/8': .5, '1/4': 1.}
 # Settings added after the first saved projects: older files get these defaults on load.
 ADDED_KEYS = {'arp': dict(velocity='As played', spice_seed=1, octave_mode='Up', restart_bar=False), 'chord': dict(strum_sync='Off', bass=0, slots=[[] for _ in range(8)],
-                                    inversion=0, ext='triad', follow=False, advance='Key')}
+                                    inversion=0, ext='triad', follow=False, advance='Key',
+                                    loop=False, loop_rate='1/4', tension=0)}
 CHORD_EXTS = ('triad', '7', '9', '11', 'sus2', 'sus4', '5', 'oct')
 # What moves My chords on to the next chord while "Play in order" is on.
 CHORD_ADVANCE = {'Key': 0, '1 bar': 1, '2 bars': 2}
+# Loop: how often a held chord strums again (beats). Up-Down strums forward, then back.
+CHORD_LOOP_RATES = {'1/8': .5, '1/4': 1., '1/2': 2., '1 bar': 4.}
+STRUM_TYPES = ('Up', 'Down', 'Alt Up', 'Alt Down', 'Up-Down')
+# The lowest pitch a Bass note goes to: lower notes are moved up an octave (they only rumble on keys and pads).
+BASS_FLOOR = 33
 CHORD_SLOTS = 8
 CHORDS = {
     'User': [0, 4, 7], 'Octave': [0, 12], '5th': [0, 7],
@@ -85,7 +91,8 @@ def defaults():
         chord=dict(enabled=False, preset='Major Triad', user=[0, 4, 7],
                    spread=0, strum_ms=0, strum_type='Up', voicing=False,
                    strum_sync='Off', bass=0, slots=[[] for _ in range(8)],
-                   inversion=0, ext='triad', follow=False, advance='Key'),
+                   inversion=0, ext='triad', follow=False, advance='Key',
+                   loop=False, loop_rate='1/4', tension=0),
         scale=dict(name='Chromatic', root=0, octave=0, velocity_curve='Linear',
                    input_channel=0),
         sync=dict(source='Internal',receive_transport=True),
@@ -173,10 +180,12 @@ def validate_state(value):
         raise ValueError('Invalid arpeggiator velocity or dice')
     if chord['strum_sync'] not in STRUM_SYNC or type(chord['bass']) is not int or not 0<=chord['bass']<=3:
         raise ValueError('Invalid strum sync or bass note')
-    if chord['strum_type'] not in ('Up','Down','Alt Up','Alt Down'):
+    if chord['strum_type'] not in STRUM_TYPES:
         raise ValueError('Unknown strum direction')
     if (not integer(chord['inversion'],-3,3) or chord['ext'] not in CHORD_EXTS
-            or type(chord['follow']) is not bool or chord['advance'] not in CHORD_ADVANCE):
+            or type(chord['follow']) is not bool or chord['advance'] not in CHORD_ADVANCE
+            or type(chord['loop']) is not bool or chord['loop_rate'] not in CHORD_LOOP_RATES
+            or not integer(chord['tension'],0,6)):
         raise ValueError('Invalid chord inversion, type or order')
     if scale['name'] not in SCALES or scale['velocity_curve'] not in ('Linear','Logarithmic','Exponential','Fixed 100'):
         raise ValueError('Unknown scale/velocity curve')
@@ -276,7 +285,11 @@ def voice_chord(notes,chord,previous=None):
         out=best
     else:out=invert(out,chord.get('inversion',0))
     upper=sorted(set(max(0,min(127,n)) for n in out))
-    bass=[root-12*chord['bass']] if chord.get('bass') else []
+    bass=[]
+    if chord.get('bass'):
+        low=root-12*chord['bass']
+        while low<BASS_FLOOR and low+12<upper[0]:low+=12
+        bass=[low]
     return sorted(set(max(0,min(127,n)) for n in [*bass,*upper]))
 
 

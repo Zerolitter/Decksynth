@@ -88,6 +88,7 @@ export type PerformanceState = {
     enabled:boolean;preset:string;user:number[];spread:number;strum_ms:number;
     strum_type:string;voicing:boolean;strum_sync?:string;bass?:number;slots?:number[][];
     inversion?:number;ext?:string;follow?:boolean;advance?:'Key'|'1 bar'|'2 bars';
+    loop?:boolean;loop_rate?:'1/8'|'1/4'|'1/2'|'1 bar';tension?:number;
   };
   scale:{
     name:string;root:number;octave:number;velocity_curve:string;input_channel:number;

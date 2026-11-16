@@ -148,12 +148,49 @@ class ChordRefinementTests(unittest.TestCase):
         e.perform_set('chord', 'bass', 1)
         self.assertEqual(self.sounding((0, 61)), [49, 61, 65, 68])
 
+    def test_play_in_order_by_bar_without_the_transport(self):
+        e = self.e
+        e.perform_action('save_slot', [0, [60, 64, 67]])
+        e.perform_action('save_slot', [1, [65, 69, 72]])
+        e.perform_set('chord', 'follow', True); e.perform_set('chord', 'advance', '1 bar')
+        self.assertFalse(e.playing)
+        e.midi(0x90, 60, 100)
+        e.render(int(e.fpb * 4) - 400)
+        self.assertEqual(self.sounding(), [60, 64, 67])
+        e.render(800)
+        self.assertEqual(self.sounding(), [65, 69, 72], 'a bar after the first key, stopped transport')
+
+    def test_loop_strums_again_and_up_down_turns_round(self):
+        e = self.e
+        e.perform_action('save_chord', [60, 64, 67])
+        e.perform_set('chord', 'strum_type', 'Up-Down'); e.perform_set('chord', 'loop', True)
+        e.midi(0x90, 60, 100)
+        self.assertEqual(e.live_note_map[(0, 60)], [60, 64, 67])
+        e.render(int(e.fpb) + 200)
+        self.assertEqual(e.live_note_map[(0, 60)], [67, 64, 60], 'the second strum goes back down')
+        self.assertEqual(e.chord_loops[(0, 60)][1], 2)
+        e.midi(0x80, 60, 0)
+        self.assertNotIn((0, 60), e.chord_loops)
+        e.perform_set('chord', 'loop', False)
+        e.midi(0x90, 60, 100); e.render(int(e.fpb) * 2)
+        self.assertNotIn((0, 60), e.chord_loops, 'Loop off: one strum, then the chord holds')
+
+    def test_bass_comes_first_and_stays_out_of_the_rumble(self):
+        e = self.e
+        e.perform_set('scale', 'octave', -1); e.perform_set('chord', 'bass', 3)
+        e.perform_action('save_chord', [60, 64, 67])
+        e.perform_set('chord', 'strum_ms', 100)
+        e.midi(0x90, 60, 100)
+        notes = e.live_note_map[(0, 60)]
+        self.assertEqual(notes[0], 36, 'C1 would be 12: moved up to C2, the first note of the strum')
+        self.assertTrue(all(item[2] != 36 for item in e.scheduled_live), 'the bass is not strummed')
+
     def test_new_chord_settings_load_on_old_projects(self):
         old = defaults()
-        for k in ('inversion', 'ext', 'follow', 'advance'): del old['chord'][k]
+        for k in ('inversion', 'ext', 'follow', 'advance', 'loop', 'loop_rate', 'tension'): del old['chord'][k]
         state = validate_state(old)
         self.assertEqual((state['chord']['inversion'], state['chord']['follow'], state['chord']['advance']), (0, False, 'Key'))
-        for key, bad in (('inversion', 4), ('ext', 'x'), ('advance', '3 bars'), ('follow', 1)):
+        for key, bad in (('inversion', 4), ('ext', 'x'), ('advance', '3 bars'), ('follow', 1), ('loop', 1), ('loop_rate', '1/3'), ('tension', 7)):
             with self.assertRaises(ValueError): self.e.perform_set('chord', key, bad)
 
 

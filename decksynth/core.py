@@ -29,8 +29,8 @@ from .keystep import (defaults as performance_defaults, validate_state as valida
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes, clip_to_pattern, MAX_STEPS,
                       velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS,
                       reconcile_pattern_timing, STRUM_SYNC, arp_view,
-                      chord_upper, follow_chord, CHORD_ADVANCE)
-CHORD_ADDED_16NOV=dict(inversion=0,ext='triad',follow=False,advance='Key')
+                      chord_upper, follow_chord, CHORD_ADVANCE, CHORD_LOOP_RATES)
+CHORD_ADDED_16NOV=dict(inversion=0,ext='triad',follow=False,advance='Key',loop=False,loop_rate='1/4',tension=0)
 
 PRESETS = {
     'Atmospheric Pad': ([1,.4,.25,.14,.12,.08,.06,.05,.04,.03,.02,.02,.01,.01,0,0], .7,.8,.75,1.8,.65,.25),
@@ -592,7 +592,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         # Chords (runtime only): the chord before the last key (Voice lead), the last chord, the
         # My chords position for Play in order (next to play, now sounding), keys that carry exact pad notes.
         self.lead_from=None; self.last_chord=None; self.chord_step=0; self.chord_now=-1
-        self.explicit_keys=set(); self.pad_keys=set(); self.live_velocity={}; self.chord_key_frame=-10**9
+        self.explicit_keys=set(); self.pad_keys=set(); self.live_velocity={}
+        self.chord_loops={}; self.chord_phrase_frame=0; self.chord_key_frame=-10**9
         self.scheduled_live=[]; self.absolute_frame=0
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
@@ -1313,27 +1314,11 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 # A new phrase (or every key with Retrigger) starts on the pattern's first step.
                 if fresh or state['arp']['retrigger']:self.arp_anchor_beat=self.beat
             else:
-                order=notes[:]
-                strum=state['chord']['strum_ms'] if state['chord']['enabled'] or explicit or pad else 0
-                direction=state['chord']['strum_type']
-                if direction in ('Down','Alt Down'):order.reverse()
-                if direction in ('Alt Up','Alt Down') and len(order)>2:
-                    order=order[::2]+order[1::2]
-                self.live_note_map[key]=order[:]
-                for i,pitch in enumerate(order):
-                    token=('live',ch,note,pitch)
-                    sync=STRUM_SYNC.get(state['chord'].get('strum_sync','Off'),0.) if state['chord']['enabled'] or explicit or pad else 0.
-                    delay=max(0,round(sync*i*self.fpb)) if sync else max(0,round(strum*i*self.rate/1000))
-                    if delay:
-                        self.scheduled_live.append((self.absolute_frame+delay,self.selected,pitch,velocity,key,token))
-                    else:
-                        self.voice_on(self.selected,pitch,velocity,token)
-                        if self.capturing_song():self.pending[(ch,note,pitch)]=(self.frame,velocity,self.selected)
-                        elif self.count_end is not None and self.count_end-self.absolute_frame<=self.fpb/8:
-                            self.count_early.append(((ch,note,pitch),velocity,self.selected))
+                if fresh:self.chord_phrase_frame=self.absolute_frame
+                self.strike(key,notes,velocity,state['chord']['enabled'] or explicit or pad,chorded=not explicit)
             if state['seq']['recording']:self.step_record(notes,velocity)
         elif kind==0x80 or (kind==0x90 and value==0):
-            self.down.discard(key);self.live_velocity.pop(key,None)
+            self.down.discard(key);self.live_velocity.pop(key,None);self.chord_loops.pop(key,None)
             if key not in self.perform_held.latched_keys or not self.perform_held.hold:self.explicit_keys.discard(key)
             if state['arp']['enabled'] and not self.perform_held.hold:self.release_performance('perf_arp')
             self.perform_held.off(key)
@@ -1356,6 +1341,49 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # Channel/poly-aftertouch mapped to expressive synth modulation.
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
+    def strike(self,key,notes,velocity,strummed,chorded=True,count=0):
+        """Sound one key's chord: the Bass note first and a little softer, the rest strummed in the
+        chosen order. With Loop on the chord strums again every Loop rate while the key is down."""
+        ch,note=key;chord=self.project.performance['chord']
+        order=sorted(notes)
+        bass=order.pop(0) if chorded and chord['enabled'] and chord.get('bass') and len(order)>1 else None
+        direction=chord['strum_type']
+        if direction=='Up-Down':direction='Down' if count%2 else 'Up'
+        if direction in ('Down','Alt Down'):order.reverse()
+        if direction in ('Alt Up','Alt Down') and len(order)>2:order=order[::2]+order[1::2]
+        self.live_note_map[key]=([bass] if bass is not None else [])+order
+        strum=chord['strum_ms'] if strummed else 0
+        sync=STRUM_SYNC.get(chord.get('strum_sync','Off'),0.) if strummed else 0.
+        hits=([(bass,round(velocity*.85),0)] if bass is not None else [])+[(p,velocity,i) for i,p in enumerate(order)]
+        for pitch,vel,i in hits:
+            token=('live',ch,note,pitch)
+            delay=max(0,round(sync*i*self.fpb)) if sync else max(0,round(strum*i*self.rate/1000))
+            if delay:
+                self.scheduled_live.append((self.absolute_frame+delay,self.selected,pitch,max(1,vel),key,token))
+            else:
+                self.voice_on(self.selected,pitch,max(1,vel),token)
+                if self.capturing_song():self.pending[(ch,note,pitch)]=(self.frame,max(1,vel),self.selected)
+                elif self.count_end is not None and self.count_end-self.absolute_frame<=self.fpb/8:
+                    self.count_early.append(((ch,note,pitch),max(1,vel),self.selected))
+        if strummed and chorded and chord['enabled'] and chord.get('loop'):
+            self.chord_loops[key]=(self.absolute_frame+max(1,round(CHORD_LOOP_RATES[chord['loop_rate']]*self.fpb)),count+1)
+        else:self.chord_loops.pop(key,None)
+    def chord_loop_tick(self,abs_end):
+        """Loop on: strum the held chords again when their time comes (block accurate)."""
+        state=self.project.performance
+        if not self.chord_loops:return
+        if state['arp']['enabled'] or not state['chord']['loop'] or not state['chord']['enabled']:
+            self.chord_loops.clear();return
+        for key,(due,count) in list(self.chord_loops.items()):
+            if due>=abs_end:continue
+            if key not in self.down or key not in self.live_note_map:self.chord_loops.pop(key,None);continue
+            ch,note=key
+            self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key]
+            notes=self.live_note_map[key]
+            for pitch in notes:
+                self.voice_off(self.selected,pitch,('live',ch,note,pitch))
+                if (ch,note,pitch) in self.pending:self.close_note((ch,note,pitch))
+            self.strike(key,notes,self.live_velocity.get(key,100),True,chorded=key not in self.explicit_keys,count=count)
     def key_chord(self,note,press=False,pad=False):
         """The notes one key plays: chord mode (with Voice lead from the chord before), or with
         Play in order the next My chords chord. `press` is a new key: it moves Voice lead and the order on."""
@@ -1398,15 +1426,21 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         if self.capturing_song():self.pending[(ch,note,pitch)]=(self.frame,velocity,self.selected)
                 self.live_note_map[key]=[p for p in old if p in new]+[p for p in new if p not in old]
         self.perform_held.remap(notes_for)
-    def chord_bar_advance(self,start,end):
-        """Play in order by bars: move to the next saved chord on each 1 or 2 bar line while keys are down.
+    def chord_bar_advance(self,start,end,abs_start,abs_end):
+        """Play in order by bars: move to the next saved chord every 1 or 2 bars while keys are down.
+        Transport running: on the bar lines. Stopped: counted from the first key of the phrase.
         A key pressed just before the line (half a beat) already chose this bar's chord."""
         chord=self.project.performance['chord'];bars=CHORD_ADVANCE[chord['advance']]
         if not (chord['enabled'] and chord['follow'] and bars):return
         if not self.perform_held.keys and not (self.perform_held.hold and self.perform_held.latched_keys):return
         span=round(bars*4*self.fpb)
-        line=math.ceil(start/span)*span
-        if not start<=line<end or line==0:return
+        if self.playing:
+            line=math.ceil(start/span)*span
+            if not start<=line<end or line==0:return
+        else:
+            k=math.ceil((abs_start-self.chord_phrase_frame)/span)
+            line=self.chord_phrase_frame+k*span
+            if k<1 or not abs_start<=line<abs_end:return
         if self.absolute_frame-self.chord_key_frame<self.fpb/2:return
         filled=sum(1 for c in chord['slots'] if c)
         if not filled:return
@@ -1495,6 +1529,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     # Keys, arp and chords played live on the track keep sounding.
                     self.synths[tr].cancel_sources(('loop',));self.drums[tr].cancel_source('loop');self.samplers[tr].cancel_sources(('loop',))
                 self._frozen_on[tr]=on
+            self.chord_bar_advance(start,end,abs_start,abs_end);self.chord_loop_tick(abs_end)
             if self.playing:self.freeze_ring.clear()
             if self.playing:
                 loop=self.project.beats*self.fpb
@@ -1520,7 +1555,6 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                             on=round(cycle*loop+note['start']*self.fpb); off=round(cycle*loop+(note['start']+note['duration'])*self.fpb)
                             for when,action in ((off,0),(on,1)):
                                 if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
-                self.chord_bar_advance(start,end)
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
                 if self.playing and not self.freeze_render and not self.project.tracks[self.selected]['mute']:

@@ -8,7 +8,7 @@ import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb } from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { ValueBox } from './ValueBox';
@@ -24,7 +24,8 @@ const RATE_BEATS:Record<string,number>={'1/2D':3,'1/2':2,'1/2T':4/3,'1/4D':1.5,'
 const MODES=['Up','Down','UpDown','Order','Random','Poly','Short 1','Short 2','Long 1','Long 2','Long 3','Poly 1','Poly 2','Poly 3','Poly 4','User Sequence'];
 const ARP_VELOCITY=['As played','Fixed 100','Accent first'] as const;
 const STRUM_SYNC=['Off','1/64','1/32','1/16','1/8','1/4'];
-const STRUM_ORDER=['Up','Down','Alt Up','Alt Down'];
+const STRUM_ORDER=['Up','Down','Alt Up','Alt Down','Up-Down'];
+const LOOP_RATES=['1/8','1/4','1/2','1 bar'] as const;
 const VOICES=[0,2,3,4,5,6];
 const BLACK=new Set([1,3,6,8,10]);
 const SHEET_TITLE={midi:'MIDI and keyboard',library:'Pattern library and chain',scale:'Key and scale',mutate:'Pattern tools'} as const;
@@ -257,6 +258,12 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   const following=chord.enabled&&!!chord.follow&&filledSlots.length>0;
   const nowSlot=following&&held.length&&chordNow>=0?filledSlots[chordNow%filledSlots.length]:-1;
   const nextSlot=following?filledSlots[chordStep%filledSlots.length]:-1;
+  // Suggestions: the pads Tension steps above and below the last chord tapped (Sir, 16 Nov).
+  const tension=chord.tension??0;
+  const baseDegree=!active?-1:active.id.startsWith('pad-')?Number(active.id.slice(4))
+    :pads.findIndex(c=>((c.raw[0]-active.raw[0])%12+12)%12===0);
+  const suggestions=tension&&baseDegree>=0&&pads.length>1?[...new Set([(baseDegree+tension)%pads.length,((baseDegree-tension)%pads.length+pads.length)%pads.length])]
+    .filter(d=>d!==baseDegree):[];
   const outline=following?shown(slots[nowSlot>=0?nowSlot:nextSlot]):active?shown(active.raw):null;
   // A new chord type, key or scale reshapes the tapped pad: chord on, the engine gets the new shape (heard live).
   const activePadRaw=active?.id.startsWith('pad-')?padRaw(Number(active.id.slice(4))).join(','):'';
@@ -380,6 +387,16 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       {STRUM_SYNC.map(o=><button key={o} type="button" aria-pressed={(chord.strum_sync??'Off')===o}
         className={(chord.strum_sync??'Off')===o?'on':''} onClick={()=>set('chord','strum_sync',o)}>{o}</button>)}
     </div>
+    <div className="cb-loop" role="group" aria-label="Strum loop">
+      <button type="button" className={'pf-btn cb-loop-btn'+(chord.loop?' on':'')} aria-pressed={!!chord.loop} aria-label="Loop the strum"
+        disabled={arp.enabled} title={arp.enabled?'The arp plays the held chord; Loop is for Chord without the arp'
+          :chord.loop?'Loop on: the held chord strums again every '+(chord.loop_rate??'1/4'):'Loop off: one strum, then the chord holds'}
+        onClick={()=>set('chord','loop',!chord.loop)}><Repeat size={18}/></button>
+      <div className="pf-seg" role="group" aria-label="Loop rate">
+        {LOOP_RATES.map(r=><button key={r} type="button" aria-pressed={(chord.loop_rate??'1/4')===r} className={(chord.loop_rate??'1/4')===r?'on':''}
+          disabled={!chord.loop||arp.enabled} onClick={()=>set('chord','loop_rate',r)}>{r==='1 bar'?'Bar':r}</button>)}
+      </div>
+    </div>
   </>;}
   else controls=null;
 
@@ -423,7 +440,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     {transposeTool}
   </>;
   const chordTools=<><div className="pf-seg" role="group" aria-label="Strum order">
-    {STRUM_ORDER.map(o=><button key={o} type="button" aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''}
+    {STRUM_ORDER.map(o=><button key={o} type="button" aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''} title={o==='Up-Down'?'Forward, then back: with Loop the strum turns round each time':undefined}
       onClick={()=>set('chord','strum_type',o)}>{o}</button>)}
   </div>{transposeTool}</>;
 
@@ -556,7 +573,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         style={{['--pads' as string]:pads.length}}>
         {pads.map(c=>{const id='pad-'+c.degree;
           return <button key={id} type="button" data-src={id} data-raw={JSON.stringify(padRaw(c.degree))} data-chord={JSON.stringify(c.notes)} data-testid={'cb-pad-'+c.roman} aria-label={'Play '+c.roman+' '+c.name}
-            className={'cb-pad'+(active?.id===id?' on':'')+(pressed===id?' sounding':'')}>
+            className={'cb-pad'+(active?.id===id?' on':'')+(pressed===id?' sounding':'')+(suggestions.includes(c.degree)?' suggest':'')}>
+            {suggestions.includes(c.degree)?<em className="cb-hint-badge"><Lightbulb size={11}/></em>:null}
             <b>{c.roman}</b><strong>{c.name}</strong><span>{chordText(c.notes)}</span></button>;})}
       </div>
       <div className="cb-row">
@@ -617,6 +635,19 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
             <button type="button" role="menuitem" className="danger" onClick={()=>{action('clear_slot',slotMenu);setSlotMenu(null);}}>Clear</button>
             <button type="button" role="menuitem" aria-label="Close" onClick={()=>setSlotMenu(null)}><X size={16}/></button>
           </div>:null}
+        </div>
+      </div>
+      <div className="cb-suggest" role="group" aria-label="Chord suggestions">
+        <span className="pf-group-label">Suggest</span>
+        <ValueBox label="Tension" hideLabel className={'pf-vbox cb-tension'+(tension?' on':'')} value={tension} min={0} max={6} step={1} coarse={1} live
+          title="How far the suggested chords are from the last one: scale steps up and down (0 is off). Click, then scroll · hold and drag · two slow clicks to type"
+          format={n=>n?'Tension '+n:'Tension off'} onChange={v=>set('chord','tension',Math.max(0,Math.min(6,Math.round(v))))}/>
+        <span className="cb-suggest-info">{!tension?'Turn Tension up to see chords that can follow':baseDegree<0?'Tap a chord to get suggestions'
+          :'After '+pads[baseDegree].name+' · '+tension+' step'+(tension>1?'s':'')+' away'}</span>
+        <div {...swipe(false)} className="cb-suggest-chips">
+          {suggestions.map(d=>{const c=pads[d],id='pad-'+d;return <button key={id} type="button" data-src={id} data-raw={JSON.stringify(padRaw(d))}
+            className={'cb-chip'+(pressed===id?' sounding':'')} aria-label={'Play suggested '+c.roman+' '+c.name}>
+            <Lightbulb size={13}/><b>{c.roman}</b><strong>{c.name}</strong></button>;})}
         </div>
       </div>
     </div>;
