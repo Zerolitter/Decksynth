@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# Local source history: metadata stays in a writable project directory.
-set -euo pipefail
-source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-exec git --git-dir="$source_root/artifacts/source-history.git" --work-tree="$source_root" "$@"

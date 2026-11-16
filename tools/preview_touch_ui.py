@@ -11,7 +11,7 @@ ui.mp.Process=NoWorker
 root=tk.Tk()
 app=ui.App(root)
 p=example_state()
-out=Path('/home/deck/Projects/deck-app/artifacts')
+out=Path(__file__).resolve().parent.parent/'artifacts'
 out.mkdir(parents=True,exist_ok=True)
 
 app.updates.put_nowait(dict(

@@ -1,6 +1,6 @@
 """Per-track FX chain (16 modules) backed by the small native library in native/libdsfx.so.
 
-The chain model mirrors ui-next/src/fx.ts. If the library cannot load, FX are bypassed
+The chain model mirrors ui/src/fx.ts. If the library cannot load, FX are bypassed
 and the synth keeps working exactly as before.
 """
 import ctypes
@@ -70,7 +70,7 @@ SHAPES = ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smoot
           'sh16', 'drift']
 # Mod-pad rates in beats per cycle: 4 bars, 2 bars, 1 bar, 1/2, 1/4, 1/8, 1/16, then 8 bars and 16 bars
 # (added 15 Nov at the end so saved rate numbers keep their meaning; the editor shows them slowest first).
-RATES = [16, 8, 4, 2, 1, .5, .25, 32, 64]
+RATES = [16, 8, 4, 2, 1, .5, .25, 32, 64, 128]  # index 9: 32 bars (Morph pad paths, Sir 16 Nov)
 # Feel: straight, triplet (2/3 of the time) or dotted (1.5 times)
 FEELS = {'': 1., 'T': 2 / 3, 'D': 1.5}
 STEP_COUNTS = (4, 8, 16)
@@ -329,7 +329,7 @@ def _ad(p): return p / .15 if p < .15 else math.exp(-5 * (p - .15) / .85)
 def _trap(p): return p / .2 if p < .2 else 1. if p < .6 else 1 - (p - .6) / .2 if p < .8 else 0.
 def _pump(p): return 1 - math.exp(-6 * p)
 def _beat(p): return min(1., math.exp(-((p - .1) / .04) ** 2) + .7 * math.exp(-((p - .28) / .04) ** 2))
-# Same maths as ui-next/src/fx.ts EXTRA_SHAPES (the editor draws what the engine plays).
+# Same maths as ui/src/fx.ts EXTRA_SHAPES (the editor draws what the engine plays).
 _EXTRA = {
     'cosine': lambda p, s: math.cos(2 * math.pi * p),
     'half_sine': lambda p, s: _uni(math.sin(math.pi * p)),

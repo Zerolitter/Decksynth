@@ -1,7 +1,7 @@
 #!/bin/sh
 # DeckSynth audio report: the machine, the sound server, and how hard the engine works here.
-# Run it with DeckSynth closed:  sh ~/Projects/deck-app/diagnose-audio.sh
-# It prints a report and saves it to ~/decksynth-audio-report.txt. Paste that file to Claude.
+# Run it with DeckSynth closed:  sh ~/Projects/Decksynth/diagnose-audio.sh
+# It prints a report and saves it to ~/decksynth-audio-report.txt. Attach that file when you report an audio problem.
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$HOME/decksynth-audio-report.txt"
 {

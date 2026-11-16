@@ -1,0 +1,53 @@
+/* FX page as an even grid (Sir, 16 Nov). 9 columns; each card spans whole columns (FxRack fxGridSpans)
+   and holds its controls in two lines of compact cells, the same cells as Sound and the Sampler. */
+.harness-shell .frame-fx .fx-cards.frame-rack{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));grid-auto-rows:auto;
+  align-content:start;align-items:stretch;gap:8px;flex-wrap:nowrap}
+.harness-shell .frame-fx .fx-cards>.ds-panel{width:auto;min-width:0;max-width:none;flex:none;margin:0;display:flex;flex-direction:column}
+.harness-shell .frame-fx .fx-cards>.ds-panel>.ds-panel-body{flex:1;min-height:0}
+.harness-shell .frame-fx .fx-cards>.fx-empty-picker{grid-column:1 / -1}
+
+/* card body: whole columns, two lines */
+.harness-shell .frame-fx .fx-grid-body{display:grid;grid-auto-rows:44px;grid-auto-flow:row dense;gap:6px 8px;align-content:start;
+  padding:6px 8px 8px;overflow:visible;flex-wrap:nowrap}
+.harness-shell .frame-fx .fx-grid-body>*{min-width:0;margin:0;width:auto}
+
+/* knob cells: the dial on the left, the name over its value in a 76 px box (rule 45) */
+.harness-shell .frame-fx .fx-grid-body>.fx-knob-cell{position:relative;width:auto;height:44px;padding:0;border:0;background:none;display:block}
+.harness-shell .frame-fx .fx-grid-body .tactile-knob{position:relative;display:grid;grid-template-columns:44px 76px;grid-template-rows:44px;gap:0 5px;
+  align-items:stretch;justify-content:start;width:126px;height:44px;transform:none;margin:0}
+.harness-shell .frame-fx .fx-grid-body .tactile-knob .knob-heading{grid-column:2;grid-row:1;align-self:start;z-index:1;padding:3px 0 0 7px;text-align:left;
+  font-size:10.5px;line-height:12px;white-space:nowrap;overflow:hidden;text-overflow:clip;max-width:72px;pointer-events:none;color:#9aa0a6;margin:0}
+.harness-shell .frame-fx .fx-grid-body .tactile-knob .knob-target{grid-column:1;grid-row:1;width:44px;height:44px;min-width:44px;min-height:44px}
+.harness-shell .frame-fx .fx-grid-body .tactile-knob .knob-value,.harness-shell .frame-fx .fx-grid-body .tactile-knob .knob-entry{grid-column:2;grid-row:1;
+  width:76px;height:44px;min-height:44px;padding:13px 4px 0 7px;justify-content:flex-start;font-size:12.5px;margin:0}
+.harness-shell .frame-fx .fx-grid-body .fx-route-dots{position:absolute;left:2px;bottom:-2px}
+
+/* choices: a small name on the left, the buttons fill the rest */
+.harness-shell .frame-fx .fx-grid-body>.fx-choice{display:flex;flex-direction:row;align-items:center;gap:6px;height:44px;padding:0;border:0;background:none}
+.harness-shell .frame-fx .fx-grid-body>.fx-choice .fx-choice-label{flex:none;margin:0;font-size:10.5px;line-height:12px;font-weight:700;letter-spacing:0;
+  text-transform:none;color:#9aa0a6;white-space:nowrap}
+.harness-shell .frame-fx .fx-grid-body>.fx-choice .fx-segment{flex:1;min-width:0;display:flex;gap:3px;padding:0;border:0;background:none;height:44px}
+.harness-shell .frame-fx .fx-grid-body>.fx-choice .fx-segment button{flex:1 1 auto;min-width:0;height:44px;min-height:44px;padding:0 6px;white-space:nowrap;font-size:12px;font-weight:700;
+  border-radius:7px;border:1px solid var(--line-soft);background:var(--raised);color:#c9cdd2}
+.harness-shell .frame-fx .fx-grid-body>.fx-choice .fx-segment button.active{background:color-mix(in srgb,var(--fx-color) 24%,var(--raised));border-color:var(--fx-color);color:#fff}
+
+/* gate steps take two columns and both lines */
+.harness-shell .frame-fx .fx-grid-body>.fx-gate-cell{display:flex}
+.harness-shell .frame-fx .fx-grid-body>.fx-gate-cell .gate-strip{flex:1;height:auto;min-height:94px;margin:0}
+.harness-shell .frame-fx .fx-grid-body>.fx-track-pick{height:44px;display:flex;align-items:center;gap:6px}
+
+/* Add effect fills what is left of the last row */
+.harness-shell .frame-fx .fx-cards>.fx-add-card{width:auto;min-width:0;max-width:none;min-height:52px;height:auto;margin:0;display:flex;flex:none}
+.harness-shell .frame-fx .fx-cards>.fx-add-card .fx-add-open{flex:1;width:auto;height:auto;min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px}
+.harness-shell .frame-fx .fx-cards>.fx-add-card[style*="span 9"] .fx-add-open{flex-direction:row}
+
+/* Link mode on Sound and FX (Sir, 16 Nov: "the text becomes hard to read"): no dashed boxes over names and values.
+   Only the dial gets the dashed ring in the source colour, as on the Sampler and Drum Rack; a linked dial is a solid ring. */
+.harness-shell .is-assigning .fx-knob-cell,.harness-shell .frame-rack.is-assigning .rack-card-body .fx-knob-cell,
+.harness-shell .is-assigning .fx-knob-cell.routed-here,.harness-shell .frame-rack.is-assigning .fx-knob-cell.routed-here{outline:none;background:none}
+.harness-shell .is-assigning .fx-knob-cell .knob-target{outline:2px dashed var(--armed);outline-offset:1px;border-radius:50%;cursor:copy}
+.harness-shell .is-assigning .fx-knob-cell.routed-here .knob-target{outline-style:solid}
+.harness-shell .is-assigning .fx-choice{outline:none}
+.harness-shell .is-assigning .fx-choice .fx-choice-label{text-decoration:underline dashed var(--armed);text-underline-offset:4px}
+.harness-shell .is-assigning .fx-choice.routed-here .fx-choice-label{color:var(--armed);text-decoration-style:solid}
+.harness-shell .fx-route-dots{pointer-events:none}

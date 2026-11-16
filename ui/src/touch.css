@@ -1,0 +1,22 @@
+/* Touch targets (UI rules 10 and 15), checked by tests/touch_target_acceptance.cjs at 1280x718.
+   Small visuals keep their look and get an invisible 44 px hit zone through ::after. */
+
+/* Perform: the head row's tabs, page, tool and key buttons are 44 tall */
+.harness-shell .pf-head button,.harness-shell .pf-head .pf-tool,.harness-shell .pf-head .pf-seg button{min-height:44px}
+/* Perform: a slightly wider left column so the four bank buttons are 44 wide */
+.harness-shell .pf-body{grid-template-columns:252px minmax(0,1fr)}
+.harness-shell .pf .pf-banks{grid-template-columns:48px repeat(4,1fr)}
+/* Perform: Pitch, Mod and AT strips are 44 wide */
+.harness-shell .pf-strip-track{width:44px;border-radius:22px}
+.harness-shell .pf-strip-track b{left:4px;right:4px}
+/* Perform: Swing, Gate and Spice value boxes */
+.harness-shell .pf-bar-knobs .knob-value{min-width:44px;position:relative}
+.harness-shell .pf-bar-knobs .knob-value::after{content:"";position:absolute;top:-11px;right:0;bottom:-11px;left:0}
+
+/* Link page: macro and mod pad name lips keep their size, with a 44 px hit zone */
+.harness-shell .link-page .fx-src-arm,.harness-shell .link-page .fx-pad-label{position:relative;overflow:visible}
+.harness-shell .link-page .fx-src-arm::after,.harness-shell .link-page .fx-pad-label::after{content:"";position:absolute;top:-6px;right:0;bottom:-12px;left:0}
+/* Link page Morph pad: path speed buttons and knob value boxes */
+.harness-shell .lp-morph .morph-rate button{width:44px;min-width:44px;height:44px}
+.harness-shell .lp-morph .knob-value{min-width:44px;position:relative}
+.harness-shell .lp-morph .knob-value::after{content:"";position:absolute;top:-10px;right:0;bottom:-10px;left:0}

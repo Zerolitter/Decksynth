@@ -1,44 +1,52 @@
 # Decksynth
 
-Native touch-friendly synthesizer, sampler, sequencer, and drum machine for
-Steam Deck and Linux desktops.
+A touch-first synthesizer, sampler, sequencer and drum machine for the Steam Deck
+and Linux desktops. Built to be played with fingers on the Deck's screen.
 
 ## Features
 
-- Python/SDL2 synth and four-track MIDI looper.
-- Touch-first SOUND and SONG views.
-- Sixteen-pad Drum Rack with MIDI notes 36–51.
-- USB MIDI input and SDL audio output.
-- User-imported WAV libraries and kits.
+- Spectral synth with 16 editable partials, filter morph and envelopes you drag.
+- Sixteen-pad Drum Rack and a sampler with chop, trim and envelope.
+- Pattern sequencer, arpeggiator and chord builder with a playable keyboard.
+- Song view with tracks, blocks and freeze-to-audio.
+- FX rack and a Link panel for modulation, shown live on every knob.
+- USB MIDI input, SDL/PipeWire audio output, WAV export.
+- Five bundled demo kits, plus your own WAV libraries and kits.
 
-## Quick start
+## Install
 
-From a desktop-mode terminal:
+On SteamOS, Decksynth is packaged as a Flatpak (`io.github.zerolitter.Decksynth`).
+The recipe is in [`packaging/flatpak/`](packaging/flatpak/) and
+[docs/FLATPAK-DISTRIBUTION.md](docs/FLATPAK-DISTRIBUTION.md) explains it.
+
+### Run from source
+
+From a Desktop Mode terminal:
 
 ```sh
-cd ~/Projects/deck-app
-./launch.sh
+git clone https://github.com/Zerolitter/Decksynth.git ~/Projects/Decksynth
+cd ~/Projects/Decksynth/ui
+npm ci && npm run build
+cd .. && ./launch.sh
 ```
 
-Run the local checks with:
+You need Python 3, `libSDL2-2.0.so.0` and Node.js 22.12 or newer.
+`Decksynth.desktop` adds a desktop shortcut (edit its paths if you cloned elsewhere).
 
-```sh
-./check.sh
-```
-
-The native interface uses Python 3, Tk, and SDL2.
+Run the checks with `./check.sh` (engine) and `cd ui && npm test` (UI).
 
 ## Project layout
 
-- `decksynth/` — application engine and desktop interface.
-- `tests/` — automated checks.
-- `tools/` — development and diagnostic utilities.
+- `decksynth/` the audio engine (Python, with optional C kernels in `native/`).
+- `ui/` the touch interface (Electron + React).
+- `tests/` engine tests. `ui/tests/` UI tests.
+- `tools/` development and diagnostic scripts.
+- `packaging/flatpak/` Flatpak recipe, launcher, desktop entry and icon.
+- `docs/` packaging and demo-kit notes.
 
 ## Support
 
-Development donations:
-
-https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE
+Development donations: https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE
 
 Discord: `zerolitter`
 

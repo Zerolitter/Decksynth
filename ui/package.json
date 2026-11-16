@@ -1,0 +1,43 @@
+{
+  "name": "decksynth-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev:ui": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "launch": "electron .",
+    "test": "node --test tests/*.mjs",
+    "test:ui": "node tests/desktop_acceptance.cjs && node tests/knob_drag_acceptance.cjs && node tests/touch_target_acceptance.cjs && node tests/performance_ui_acceptance.cjs && node tests/perform_fixes_acceptance.cjs && node tests/seq_patterns_acceptance.cjs && node tests/chord_builder_acceptance.cjs && node tests/fx_mods_acceptance.cjs && node tests/visuals_depth_acceptance.cjs && node tests/song_timeline_acceptance.cjs && node tests/voice_cards_acceptance.cjs && node tests/gate_acceptance.cjs && node tests/arp_interrupt_acceptance.cjs",
+    "test:bridge": "python3 tests/bridge_acceptance.py && node tests/live_ui_bridge_acceptance.cjs && node tests/live_performance_acceptance.cjs && node tests/mutation_transactions_acceptance.cjs && node tests/live_fx_acceptance.cjs",
+    "test:spectral-s4": "node tests/spectral_s4_acceptance.cjs",
+    "test:spectral-s3": "node tests/spectral_s3_acceptance.cjs",
+    "test:spectral-s2": "node tests/spectral_s2_acceptance.cjs",
+    "test:spectral-s1": "node tests/spectral_s1_acceptance.cjs",
+    "test:rack-direct": "node tests/rack_direct_acceptance.cjs",
+    "test:ui-patch": "node tests/ui_patch_acceptance.cjs",
+    "test:drums": "node tests/drum_rack_acceptance.cjs",
+    "test:drum-library": "node tests/drum_library_acceptance.cjs",
+    "test:spectral-s5": "node tests/spectral_s5_acceptance.cjs",
+    "test:spectral-s6": "node tests/spectral_s6_acceptance.cjs",
+    "test:spectral-s7": "node ../tools/check-spectral-s7.cjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.69.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "^39.0.0",
+    "playwright": "^1.65.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.0"
+  },
+  "allowScripts": {
+    "electron@39.8.10": true,
+    "esbuild@0.28.2": true
+  }
+}

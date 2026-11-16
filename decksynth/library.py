@@ -3,7 +3,7 @@
 Every preset is a plain instrument dict (the project schema) plus an FX chain that uses the
 11-module rack, two named macros (so the Morph pad does something useful) and, where the
 sound should move, mod pads routed to FX parameters. All data is generated here so that the
-Python engine and the UI (ui-next/src/library.json, written by `python -m decksynth.library`)
+Python engine and the UI (ui/src/library.json, written by `python -m decksynth.library`)
 always agree.
 """
 import copy
@@ -505,7 +505,7 @@ def ui_data():
     return dict(categories=CATEGORIES, presets=presets, banks=BANKS,
                 patterns=[[p['name'] for p in bank] for bank in FACTORY_PATTERNS])
 
-UI_JSON = Path(__file__).resolve().parent.parent / 'ui-next' / 'src' / 'library.json'
+UI_JSON = Path(__file__).resolve().parent.parent / 'ui' / 'src' / 'library.json'
 
 def ui_json():
     return json.dumps(ui_data(), separators=(',', ':'), sort_keys=True) + '\n'

@@ -3,7 +3,7 @@
 const path=require('node:path');
 const fs=require('node:fs');
 const {execFileSync}=require('node:child_process');
-const ROOT=path.resolve(__dirname,'../ui-next');
+const ROOT=path.resolve(__dirname,'../ui');
 const {_electron}=require(path.join(ROOT,'node_modules/playwright'));
 const OUT=process.argv[4]?path.resolve(process.argv[4]):path.resolve(__dirname,'../artifacts/recovery/drum-rack-m1');
 const folder=process.argv[3];

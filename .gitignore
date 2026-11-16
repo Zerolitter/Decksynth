@@ -3,13 +3,39 @@ __pycache__/
 *.decksynth.tmp
 *.dspreset.tmp
 
-# Local recovery history, snapshots and generated validation evidence.
-artifacts/source-history.git/
-artifacts/backups/
-artifacts/recovery/
+# Build output
+node_modules/
+ui/dist/
+ui/.runtime/
+decksynth/native/*.so
+packaging/flatpak/builddir/
+packaging/flatpak/dist/
+packaging/flatpak/repo/
+.flatpak-builder/
+*.flatpak
+*.log
 
-# Imported/private evaluation audio and local build/workflow artifacts.
+# Audio and screenshots stay local
 *.wav
 *.WAV
-decksynth/native/*.so
+!ui/demo-kits/**/*.wav
+*.png
+!packaging/flatpak/*.png
+artifacts/
+
+# Private build notes never go public (they live in ~/Projects/Decksynth-private)
+*.patch
+AGENTS.md
+CLAUDE.md
+NEXT_SESSION.md
+PLAN.md
+UI-RULES.md
+*CHECKPOINT*.md
+*HANDOFF*.md
 .superpowers/
+.impeccable/
+.claude/
+.codex/
+ui/docs/
+ui/reference/
+ui/references/

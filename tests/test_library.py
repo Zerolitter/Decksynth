@@ -27,7 +27,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_ui_copy_is_up_to_date(self):
         self.assertEqual(Path(UI_JSON).read_text(), ui_json(),
-                         'run: python -m decksynth.library to refresh ui-next/src/library.json')
+                         'run: python -m decksynth.library to refresh ui/src/library.json')
 
     @unittest.skipUnless(available(), 'native FX library not built')
     def test_every_preset_renders_finite_and_audible(self):

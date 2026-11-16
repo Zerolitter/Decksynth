@@ -10,7 +10,7 @@ class DiagnosisSourceTests(unittest.TestCase):
     def test_engine_source_is_included_but_numeric_core_dumps_are_not(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / 'source'
-            paths = ['decksynth/core.py', 'ui-next/src/App.tsx', 'core.1234',
+            paths = ['decksynth/core.py', 'ui/src/App.tsx', 'core.1234',
                      'core.123.456', 'core.pyc', '.env.local', 'reference/private.wav']
             for name in paths:
                 p = root / name
@@ -21,7 +21,7 @@ class DiagnosisSourceTests(unittest.TestCase):
             self.assertEqual((out / 'workspace/decksynth/core.py').read_bytes(),
                              (root / 'decksynth/core.py').read_bytes())
             self.assertEqual({x['path'] for x in report['files']},
-                             {'decksynth/core.py', 'ui-next/src/App.tsx'})
+                             {'decksynth/core.py', 'ui/src/App.tsx'})
             self.assertEqual(len(report['excluded']), 5)
             verify_source_inventory(root, out, paths, report)
 

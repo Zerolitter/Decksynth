@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Decksynth
+GenericName=Steam Deck music workstation
+Comment=Decksynth MIDI and audio workstation
+Exec=/home/deck/Projects/Decksynth/launch.sh
+Path=/home/deck/Projects/Decksynth/ui
+Icon=audio-x-generic
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupNotify=true

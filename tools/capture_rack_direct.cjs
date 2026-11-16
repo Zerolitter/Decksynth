@@ -1,7 +1,7 @@
 // Native visual evidence only: isolated settings, disabled hardware MIDI, dummy SDL audio.
 'use strict';
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const ROOT=path.resolve(__dirname,'../ui-next'),OUT=path.resolve(__dirname,'../artifacts/recovery/rack-direct/native-screen');
+const ROOT=path.resolve(__dirname,'../ui'),OUT=path.resolve(__dirname,'../artifacts/recovery/rack-direct/native-screen');
 const {_electron}=require(path.join(ROOT,'node_modules/playwright')),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'rack-screen-'));
 let app,p;const errors=[];
 async function send(c,a){await p.evaluate(([cmd,args])=>window.deckApi.send(cmd,args),[c,a]);}

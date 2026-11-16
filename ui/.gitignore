@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.log
+.runtime/
+# Arturia's copyrighted manual/text is local study material, never redistribute.
+reference/

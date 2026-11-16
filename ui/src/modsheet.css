@@ -1,0 +1,129 @@
+/* New FX cards, effect picker sheet, mod pad sheet (patch: decksynth-fx-mods). */
+.harness-shell .frame{position:relative}
+/* Sheets cover the window and rack rows of the frame, never the mod band above them. */
+.harness-shell .fx-picker-sheet,.harness-shell .mod-sheet-backdrop{position:absolute;z-index:40;left:0;right:0;top:180px;bottom:0;
+  display:flex;background:#0b1012b3;backdrop-filter:blur(2px)}
+.harness-shell .fx-picker-sheet .fx-picker{position:static;flex:1;margin:0;display:flex;flex-direction:column;gap:8px;padding:10px 12px;
+  background:var(--panel);border:1.5px solid var(--c-fx);border-radius:12px;box-shadow:0 18px 40px #000a}
+.harness-shell .fx-picker-head{display:flex;align-items:center;gap:10px}
+.harness-shell .fx-picker-head strong{font-size:14px}
+.harness-shell .fx-picker-head button{width:44px;height:44px;display:grid;place-items:center;border-radius:9px;background:var(--raised);border:1px solid var(--line);color:#d6e3df}
+.harness-shell .fx-picker-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;align-content:start}
+.harness-shell .fx-picker-grid button{min-height:52px;border-left:3px solid var(--fx-color)}
+.harness-shell .fx-window-pick{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:8px 10px}
+.harness-shell .fx-window-pick p{margin:0;font-size:12px;color:#9cadaa}
+
+/* compact pad editor */
+.harness-shell .pe-graph-open{position:relative;padding:0;border:1px solid #26353a;cursor:pointer}
+.harness-shell .pe-graph-icon{position:absolute;right:6px;top:6px;color:var(--src);opacity:.8}
+.harness-shell .pe-controls{justify-content:flex-start}
+.harness-shell .pe-pick{min-height:44px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:0 10px;border-radius:9px;
+  background:var(--raised);border:1px solid color-mix(in srgb,var(--src) 40%,var(--line));color:#e6efec;text-align:left}
+.harness-shell .pe-pick span{font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--soft);letter-spacing:.4px}
+.harness-shell .pe-pick strong{font-size:13px;color:var(--src)}
+.harness-shell .pe-links{overflow:hidden}
+.harness-shell .fx-targets.compact{height:100%;display:flex;flex-direction:column;gap:4px}
+.harness-shell .fx-targets.compact .mod-group-label{display:block;font-size:10.5px;font-weight:800;color:var(--soft);text-transform:uppercase}
+.harness-shell .link-chip{display:flex;align-items:center;gap:6px;min-height:22px;font-size:11.5px;color:#d6e3df;white-space:nowrap;overflow:hidden}
+.harness-shell .link-chip i{width:7px;height:7px;border-radius:50%;background:var(--fx-color);flex:none}
+.harness-shell .link-chip b{margin-left:auto;color:var(--src);font-size:11px}
+.harness-shell .link-more{font-size:11px;color:var(--soft)}
+.harness-shell .fx-targets.compact .fx-add{margin-top:auto;min-height:44px;flex-shrink:0;border-color:color-mix(in srgb,var(--src) 50%,#44555b);color:#fff}
+.harness-shell .fx-targets.compact .fx-add svg{color:var(--src)}
+
+/* mod pad sheet */
+.harness-shell .mod-sheet{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:12px;background:var(--panel);
+  border:1.5px solid var(--src);box-shadow:0 18px 40px #000a;overflow:hidden}
+.harness-shell .mod-sheet-bar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line)}
+.harness-shell .mod-sheet-bar strong{font-size:14px}
+.harness-shell .mod-sheet-bar .frame-tabs button.active{background:color-mix(in srgb,var(--src) 22%,var(--panel));border-color:var(--src);color:#fff}
+.harness-shell .mod-sheet-done{min-height:44px;min-width:88px;border-radius:9px;background:color-mix(in srgb,var(--src) 24%,var(--panel));border:1px solid var(--src);color:#fff;font-weight:800}
+.harness-shell .mod-sheet-body{flex:1;min-height:0;display:grid;gap:10px;padding:8px 10px}
+.harness-shell .mod-sheet-body.shape{grid-template-columns:minmax(0,1fr) 520px}
+.harness-shell .mod-sheet-body.links{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.harness-shell .mod-sheet-graph{min-width:0;min-height:0;display:flex;flex-direction:column;gap:4px}
+.harness-shell .pad-graph-editor{flex:1;min-height:0;border-radius:9px;background:var(--inset);border:1px solid var(--line);overflow:hidden;touch-action:none}
+.harness-shell .pad-graph-editor svg{display:block;cursor:crosshair}
+.harness-shell .pad-grid .g{stroke:#ffffff10}
+.harness-shell .pad-grid .g.beat{stroke:#ffffff22}
+.harness-shell .pad-grid .zero{stroke:#ffffff30}
+.harness-shell .pad-point{cursor:grab}
+.harness-shell .mod-sheet-tip{margin:0;font-size:11.5px;color:var(--soft)}
+.harness-shell .mod-sheet-side{min-width:0;display:flex;flex-direction:column;gap:5px}
+.harness-shell .mod-group-label{font-size:10.5px;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.4px}
+.harness-shell .mod-shape-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.harness-shell .mod-shape-grid button{min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:2px;
+  border-radius:8px;background:var(--raised);border:1px solid var(--line);color:#c9d6d2;font-size:11px;font-weight:760}
+.harness-shell .mod-shape-grid button.active{background:color-mix(in srgb,var(--src) 22%,var(--panel));border-color:var(--src);color:#fff}
+.harness-shell .mod-rate-row{display:flex;gap:6px}
+.harness-shell .mod-rate-row .fx-segment{flex-wrap:nowrap}
+.harness-shell .mod-rate-row .fx-segment:first-child{flex:1}
+.harness-shell .mod-rate-row .fx-segment button{min-width:0;min-height:44px;font-size:11.5px;padding:0 4px}
+.harness-shell .mod-rate-row .fx-segment:last-child button{min-width:40px}
+.harness-shell .mod-tools-row{display:flex;align-items:center;gap:6px}
+.harness-shell .mod-tools-row .fx-segment button{min-width:48px;min-height:44px}
+.harness-shell .mod-tool{min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:9px;background:var(--raised);border:1px solid var(--line);color:#d6e3df;font-weight:760}
+.harness-shell .mod-tool.on{background:color-mix(in srgb,var(--src) 22%,var(--panel));border-color:var(--src);color:#fff}
+.harness-shell .mod-tool svg{color:var(--src)}
+.harness-shell .mod-link-pick{min-width:0;display:flex;flex-direction:column;gap:6px}
+.harness-shell .mod-link-modules{flex-wrap:wrap}
+.harness-shell .mod-link-modules button{flex:0 0 auto;min-height:44px}
+.harness-shell .mod-link-params{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.harness-shell .mod-link-params button{min-height:44px;border-radius:8px;background:var(--raised);border:1px solid var(--line);color:#d6e3df;font-weight:740;font-size:12px}
+.harness-shell .mod-link-params button.on{background:color-mix(in srgb,var(--src) 24%,var(--panel));border-color:var(--src);color:#fff}
+.harness-shell .mod-link-list{min-width:0;min-height:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto}
+.harness-shell .mod-link{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,1.4fr) 44px;align-items:center;gap:8px}
+.harness-shell .mod-link>span{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:740;color:#d6e3df;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .mod-link>span i{width:8px;height:8px;border-radius:50%;background:var(--fx-color);flex:none}
+.harness-shell .mod-link>button{width:44px;height:44px;display:grid;place-items:center;border-radius:9px;background:var(--raised);border:1px solid var(--line);color:#d6e3df}
+
+/* bipolar depth bar (UI-RULES §6) */
+.harness-shell .bipolar{position:relative;height:44px;min-width:240px;border-radius:9px;background:var(--inset);border:1px solid var(--line);touch-action:none;cursor:ew-resize}
+.harness-shell .bipolar-zero{position:absolute;left:50%;top:6px;bottom:6px;width:2px;margin-left:-1px;background:#ffffff40}
+.harness-shell .bipolar-fill{position:absolute;top:10px;bottom:10px;border-radius:5px;background:var(--src)}
+.harness-shell .bipolar-fill.neg{background:repeating-linear-gradient(135deg,var(--src) 0 6px,color-mix(in srgb,var(--src) 45%,#000) 6px 12px)}
+.harness-shell .bipolar-value{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#fff;text-shadow:0 1px 2px #000}
+.harness-shell .bipolar-bubble{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);padding:4px 10px;border-radius:8px;
+  background:var(--inset);border:1px solid var(--src);color:#fff;font-size:13px;white-space:nowrap;z-index:2}
+@media (max-height:780px){
+  .harness-shell .mod-sheet-body{padding:6px 8px;gap:8px}
+  .harness-shell .mod-shape-grid button{min-height:44px}
+}
+/* one picker at a time: the sheet hides the empty window's grid */
+.harness-shell .frame:has(.fx-picker-sheet) .fx-window-pick{visibility:hidden}
+.harness-shell .pad-graph-editor .step-slot{fill:#ffffff07;stroke:#ffffff14}
+
+/* Source settings are compact and anchored; Envelope/Gate/Add FX keep their own focus surfaces. */
+.harness-shell .source-inspector{position:absolute;z-index:40;flex:none;min-height:0;border-width:1px}
+.harness-shell .source-inspector .mod-sheet-bar{flex:none;min-height:56px;padding:4px 8px;gap:8px}
+.harness-shell .source-inspector .mod-sheet-bar .frame-tabs button{min-height:44px;min-width:72px}
+.harness-shell .source-inspector .mod-sheet-body{flex:1 1 auto;min-height:0;overflow:hidden;padding:8px;gap:12px}
+.harness-shell .source-inspector .mod-sheet-body.links{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+.harness-shell .source-inspector .mod-link-pick,.harness-shell .source-inspector .mod-sheet-side{min-height:0;max-height:284px;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain;padding-right:3px}
+.harness-shell .source-inspector .mod-link-list{max-height:284px;align-self:start;overscroll-behavior:contain;scrollbar-width:thin}
+.harness-shell .source-inspector .mod-link{grid-template-columns:minmax(0,1fr) 44px;gap:4px 6px;flex:none}
+.harness-shell .source-inspector .mod-link>span{grid-column:1 / -1;min-height:22px}
+.harness-shell .source-inspector .bipolar{min-width:0;width:100%}
+.harness-shell .source-inspector .mod-empty{margin:0;padding:4px 0;color:var(--soft);font-size:12px;line-height:1.5}
+.harness-shell .source-inspector .mod-sheet-body.shape{grid-template-columns:minmax(200px,1fr) minmax(380px,1.1fr)}
+.harness-shell .source-inspector .mod-sheet-graph{min-height:220px}
+.harness-shell .source-inspector .mod-rate-row{flex-direction:column;gap:4px}
+.harness-shell .source-inspector .mod-rate-row .fx-segment button{min-width:44px;min-height:44px;flex:1}
+.harness-shell .source-inspector .mod-shape-grid button{min-height:48px}
+.harness-shell .source-inspector .mod-tools-row{flex-wrap:wrap}
+.harness-shell .source-inspector .pe-title-input{min-height:44px}
+.harness-shell .source-inspector .links.no-routes{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+.harness-shell .source-inspector .no-routes .mod-link-list{grid-row:1}
+.harness-shell .source-inspector .no-routes .mod-link-pick{grid-row:2;max-height:248px}
+.harness-shell .link-chip .link-label{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:1}
+.harness-shell .link-chip b{flex:none}
+.harness-shell .source-inspector button{min-width:44px;min-height:44px}
+.harness-shell .source-inspector .bipolar.typing{height:48px;padding:1px 6px}
+.harness-shell .source-inspector .bipolar.typing input{height:44px;min-height:44px}
+/* 15 Nov round 3: 42 shapes in pages of 2 x 5, picked with numbered page buttons. */
+.harness-shell .mod-shape-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.harness-shell .mod-shape-pages button{min-width:44px;min-height:44px;padding:0;font-weight:800}
+.harness-shell .mod-shape-pages button.holds:not(.active){box-shadow:inset 0 -3px 0 var(--src)}
+.harness-shell .source-inspector .mod-sheet-body.shape{grid-template-columns:minmax(200px,.8fr) minmax(430px,1.25fr)}
+.harness-shell .source-inspector .mod-rate-row .fx-segment button{min-width:44px;padding:0 2px}
+.harness-shell .source-inspector .mod-tools-row .fx-segment button{min-width:44px}

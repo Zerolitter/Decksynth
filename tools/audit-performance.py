@@ -121,7 +121,7 @@ def probe_results():
 
 if __name__ == '__main__':
     paths = ['decksynth/core.py', 'decksynth/keystep.py', 'decksynth/backend.py',
-             'ui-next/src/components/Performance.tsx']
+             'ui/src/components/Performance.tsx']
     fingerprints = {p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in paths}
     results = probe_results()
     print(json.dumps(dict(kind='offline_gap_audit', physical_audio=False,

@@ -1,0 +1,156 @@
+/* Link page and the top bar Link box (Sir, 16 Nov). Imported last, so it wins over the older layers. */
+:root{--c-link:#f0849e}
+.harness-shell .page-tab-link{--sec:var(--c-link)}
+
+/* ---- Link box: a black box like the BPM display; lit in the armed source's colour ---- */
+.harness-shell .link-box{flex:none;display:flex;align-items:center;justify-content:center;gap:7px;height:44px;min-width:78px;padding:0 10px;
+  border:1px solid #3a3d41;border-radius:8px;background:#0e1012;box-shadow:inset 0 1px 3px #000c;color:#6b717a;cursor:pointer;user-select:none}
+.harness-shell .link-box:hover{border-color:#5a5f66;color:#9aa0a6}
+.harness-shell .link-box-label{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.harness-shell .link-box.lit{min-width:118px;border-color:var(--src);color:#fff;background:color-mix(in srgb,var(--src) 24%,#101214);
+  box-shadow:0 0 14px color-mix(in srgb,var(--src) 45%,transparent),inset 0 1px 0 #ffffff22;animation:link-box-in .22s ease-out}
+.harness-shell .link-box.lit svg{color:var(--src);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--src) 70%,transparent))}
+.harness-shell .link-box-who{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;min-width:0}
+.harness-shell .link-box-who b{font-size:12px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .link-box-who em{font-style:normal;font-size:9.5px;font-weight:700;color:#d6d9dd}
+@keyframes link-box-in{from{transform:scale(.94)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.harness-shell .link-box.lit{animation:none}}
+
+/* ---- Link page ---- */
+.harness-shell .link-page{flex:1;min-height:0;height:100%;display:grid;grid-template-columns:600px minmax(0,1fr);gap:8px;user-select:none}
+.harness-shell .lp-left{display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;min-height:0}
+.harness-shell .lp-card{border:1px solid var(--line-soft);border-radius:10px;background:var(--panel);padding:8px 10px;min-height:0;display:flex;flex-direction:column;gap:6px}
+.harness-shell .link-page .lp-sources.mod-band{display:flex;grid-template-columns:none}
+.harness-shell .lp-head{display:flex;align-items:center;gap:10px;min-height:20px}
+.harness-shell .lp-title{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:800;color:#d8dbdf}
+.harness-shell .lp-hint{font-size:11px;color:#8b929a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.harness-shell .lp-head .lp-tool{margin-left:auto}
+.harness-shell .lp-macros,.harness-shell .lp-pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
+.harness-shell .lp-macros{height:80px}
+.harness-shell .lp-pads{height:84px}
+.harness-shell .link-page .fx-src-arm small,.harness-shell .link-page .fx-pad-label small{font-size:inherit;opacity:.8}
+.harness-shell .link-page .fx-pad-label,.harness-shell .link-page .fx-src-arm{min-height:26px}
+
+/* Morph pad in the left column: the XY square on the left, its controls in a column on the right */
+.harness-shell .lp-morph .morph-v2{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);
+  grid-template-areas:"pad controls" "pad knobs" "pad sources";gap:8px 12px;min-height:0}
+.harness-shell .lp-morph .morph-v2 .morph-pad{grid-area:pad;height:100%;max-height:320px;min-height:0;aspect-ratio:1;width:auto}
+.harness-shell .lp-morph .morph-controls{grid-area:controls;min-width:0}
+.harness-shell .lp-morph .morph-symbols{grid-template-columns:repeat(5,44px)}
+.harness-shell .lp-morph .morph-row{flex-wrap:wrap;gap:6px}
+.harness-shell .lp-morph .morph-knobs{grid-area:knobs;display:flex;gap:6px;justify-content:flex-start}
+.harness-shell .lp-morph .morph-sources{grid-area:sources;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-content:start}
+.harness-shell .lp-morph .morph-source{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:#aab0b6}
+.harness-shell .lp-morph .morph-source select{min-height:44px;width:100%}
+
+/* Editor of the tapped source */
+.harness-shell .lp-editor{border-color:color-mix(in srgb,var(--src) 45%,var(--line-soft));gap:8px}
+.harness-shell .lp-editor.linking{box-shadow:0 0 0 1px var(--src),0 0 18px color-mix(in srgb,var(--src) 25%,transparent)}
+.harness-shell .lp-ed-head{display:flex;align-items:center;gap:8px;min-height:44px}
+.harness-shell .lp-ed-head strong{font-size:14px;color:#fff;letter-spacing:.02em}
+.harness-shell .lp-ed-head .pe-title-input{font-size:14px;min-height:40px;max-width:220px}
+.harness-shell .lp-ed-head .pe-sub{font-size:12px;color:#9aa0a6}
+.harness-shell .lp-ed-head .pe-gap{flex:1}
+.harness-shell .lp-arm{display:flex;align-items:center;gap:7px;height:44px;padding:0 14px;border-radius:8px;border:1px solid color-mix(in srgb,var(--src) 55%,var(--line));
+  background:color-mix(in srgb,var(--src) 10%,var(--raised));color:#f1f2f4;font-weight:800;font-size:12.5px}
+.harness-shell .lp-arm svg{color:var(--src)}
+.harness-shell .lp-arm.on{background:color-mix(in srgb,var(--src) 32%,var(--raised));border-color:var(--src);box-shadow:0 0 12px color-mix(in srgb,var(--src) 35%,transparent)}
+.harness-shell .lp-arm.on svg{color:#fff}
+.harness-shell .lp-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:8px;border:1px solid var(--line-soft);background:var(--raised);color:#c9cdd2}
+.harness-shell .lp-icon:disabled{opacity:.35}
+.harness-shell .lp-tool{display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line-soft);background:var(--raised);color:#d7dade;font-weight:700;font-size:12px}
+.harness-shell .lp-tool.on{border-color:var(--src);color:#fff;background:color-mix(in srgb,var(--src) 18%,var(--raised))}
+.harness-shell .lp-tool:disabled{opacity:.4}
+.harness-shell .lp-shape{display:flex;flex-direction:column;gap:6px;flex:none}
+.harness-shell .lp-shape .pad-graph-editor{height:150px;border:1px solid var(--line-soft);border-radius:8px;background:var(--inset);overflow:hidden}
+.harness-shell .lp-shape-tools{display:flex;gap:6px;align-items:stretch;flex-wrap:nowrap}
+.harness-shell .lp-shape-tools .fx-segment button{min-width:44px;min-height:44px}
+.harness-shell .lp-pick{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:#d7dade;min-width:170px}
+.harness-shell .lp-pick span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8b929a;font-weight:800}
+.harness-shell .lp-pick strong{color:var(--src);font-size:13px;margin-right:auto}
+.harness-shell .lp-rates{display:grid;grid-template-columns:repeat(9,minmax(0,1fr))}
+.harness-shell .lp-rates button{min-height:44px;font-size:12px}
+.harness-shell .lp-links{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+.harness-shell .lp-link-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.harness-shell .lp-link{grid-template-columns:minmax(0,1fr) minmax(240px,1.3fr) 44px;min-height:52px;border-bottom:1px solid #24272b;padding:3px 0}
+.harness-shell .lp-link-name{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#eef0f2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .lp-link-name i{width:9px;height:9px;border-radius:50%;background:var(--fx-color,var(--src));flex:none}
+.harness-shell .lp-link-name small{font-size:11.5px;font-weight:600;color:#9aa0a6;min-width:62px}
+.harness-shell .lp-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed color-mix(in srgb,var(--src) 40%,var(--line));
+  border-radius:10px;background:transparent;color:#aab0b6;font-size:12.5px}
+.harness-shell .lp-empty svg{color:var(--src)}
+.harness-shell .lp-empty b{color:#eef0f2;font-size:13.5px}
+/* Morph pad, compact: pad 230 square; symbols, motion, speed, knobs and puck sources stacked beside it */
+.harness-shell .lp-morph .morph-v2{grid-template-columns:minmax(0,230px) minmax(0,1fr);grid-template-rows:auto auto auto;grid-template-areas:"pad controls" "pad knobs" "pad sources";align-content:start}
+.harness-shell .lp-morph .morph-v2 .morph-pad{width:100%;height:auto;max-height:none;aspect-ratio:1;align-self:start}
+.harness-shell .lp-morph .morph-controls{display:flex;flex-direction:column;gap:6px}
+.harness-shell .lp-morph .morph-controls>.mod-group-label{display:none}
+.harness-shell .lp-morph .morph-symbols{grid-template-columns:repeat(5,44px);gap:4px}
+.harness-shell .lp-morph .morph-row{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
+.harness-shell .lp-morph .morph-modes{flex:1;min-width:0}
+.harness-shell .lp-morph .morph-modes button{min-height:44px;padding:0 6px;font-size:11.5px}
+.harness-shell .lp-morph .morph-rate{flex:none;display:flex;align-items:center;gap:2px}
+.harness-shell .lp-morph .morph-rate strong{min-width:52px;text-align:center;font-size:12px}
+.harness-shell .lp-morph .morph-knobs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.harness-shell .lp-morph .morph-knobs .tactile-knob{transform:none;margin:0}
+.harness-shell .lp-morph .morph-sources{grid-template-columns:repeat(3,minmax(0,1fr))}
+.harness-shell .lp-morph .morph-source span{display:flex;justify-content:space-between;gap:4px;white-space:nowrap}
+/* Morph pad tile under the mod pads; it opens the pad in the editor area */
+.harness-shell .lp-morph-tile{display:flex;align-items:center;gap:9px;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line-soft);
+  background:var(--raised);color:#d7dade;font-size:12px;text-align:left}
+.harness-shell .lp-morph-tile svg:first-child{color:#b79cf0;flex:none}
+.harness-shell .lp-morph-tile b{font-size:12.5px;color:#eef0f2;flex:none}
+.harness-shell .lp-morph-tile span{color:#9aa0a6;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .lp-morph-tile.open{border-color:#b79cf0;background:color-mix(in srgb,#b79cf0 16%,var(--raised))}
+.harness-shell .lp-left{grid-template-rows:auto minmax(0,1fr)}
+.harness-shell .lp-left .lp-links{min-height:0}
+/* Morph pad in the editor area */
+.harness-shell .lp-editor.lp-morph .morph-v2{grid-template-columns:minmax(0,340px) minmax(0,1fr)}
+.harness-shell .lp-macro{flex:1;display:flex;align-items:center;gap:28px;padding:10px 24px;border:1px solid var(--line-soft);border-radius:10px;background:var(--inset);min-height:0}
+.harness-shell .lp-macro .tactile-knob{transform:scale(1.5);transform-origin:center;margin:30px 20px}
+.harness-shell .lp-macro-text{display:flex;flex-direction:column;gap:8px;font-size:13px;color:#aab0b6;line-height:1.45;max-width:380px}
+.harness-shell .lp-macro-text b{font-size:15px;color:#f1f2f4}
+.harness-shell .lp-macro-text i{font-style:normal;color:var(--src);font-weight:700}
+.harness-shell .lp-editor.lp-morph .morph-v2{grid-template-columns:minmax(0,400px) minmax(0,1fr)}
+.harness-shell .lp-morph .morph-row{flex-direction:column;align-items:stretch}
+.harness-shell .lp-morph .morph-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.harness-shell .lp-morph .morph-rate{justify-content:space-between}
+/* Link mode on Sampler and Drum Rack knobs: a dashed ring in the armed colour says "tap me to link" */
+.harness-shell .parameter-knob.link-ready .knob-target{outline:2px dashed var(--link-src);outline-offset:1px;border-radius:50%;cursor:copy}
+/* the By name sheet covers the editor (data-cover), so the editor keeps its full height */
+.harness-shell .lp-macro{flex:none;padding:18px 28px}
+/* Mod pad graph fills the editor's free height. The SVG is placed absolutely so it can't feed its own size back
+   (Sir's screencast, 16 Nov: the graph grew every second and pushed Shape and the rates off screen). */
+.harness-shell .lp-shape{flex:1 1 auto;min-height:0}
+.harness-shell .lp-shape .pad-graph-editor{flex:1 1 0;min-height:120px;height:auto;position:relative}
+.harness-shell .lp-shape .pad-graph-editor>svg{position:absolute;inset:0}
+.harness-shell .link-page>.source-inspector[style*="height"]{border-color:var(--src);box-shadow:0 12px 30px #0009}
+.harness-shell .link-page{position:relative}
+/* By name sheet over the Link editor: its lists use the full height */
+.harness-shell .link-page>.source-inspector[style*="height"]{display:flex;flex-direction:column}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-body{flex:1;min-height:0}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-link-pick,.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-side,
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-link-list,.harness-shell .link-page>.source-inspector[style*="height"] .no-routes .mod-link-pick{max-height:none;min-height:0}
+/* Sir, 16 Nov: a smaller graph and Morph pad, so their options and buttons get the room */
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-body.shape{grid-template-columns:minmax(0,1fr);grid-template-rows:180px minmax(0,1fr)}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-graph{min-height:0}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-side{max-height:none;overflow-y:auto}
+.harness-shell .lp-editor.lp-morph .morph-v2{grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:14px}
+.harness-shell .lp-morph .morph-sources{display:flex;flex-direction:column;gap:5px}
+.harness-shell .lp-morph .morph-source{display:flex;flex-direction:row;align-items:center;gap:8px;min-height:48px;padding:2px 3px 2px 10px}
+.harness-shell .lp-morph .morph-source>span{flex:1;flex-direction:row;align-items:baseline;gap:6px}
+.harness-shell .lp-morph .morph-source select{flex:0 0 58%;width:58%;min-height:44px}
+/* Sir, 16 Nov: the big mod pad graph was annoying to operate; it matches the sheet's graph height now */
+.harness-shell .lp-shape{flex:none}
+.harness-shell .lp-shape .pad-graph-editor{flex:none;height:190px;min-height:0}
+.harness-shell .link-page .fx-pad-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+/* By name: knob names grouped by their card, in the card's colour */
+.harness-shell .mod-link-group{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px;align-items:start;padding:6px 0;border-top:1px solid #24272b}
+.harness-shell .mod-link-group:first-of-type{border-top:0}
+.harness-shell .mod-link-group-name{padding-top:14px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--grp)}
+.harness-shell .mod-link-group .mod-link-params button{border-left:3px solid var(--grp);color:color-mix(in srgb,var(--grp) 35%,#e6e8ea)}
+.harness-shell .mod-link-group .mod-link-params button.on{color:#fff}
+/* By name over the editor: the links list already sits on the left of the Link page (rule 3), so the sheet shows only the picker, full width */
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-body.links{display:flex;flex-direction:column;grid-template-columns:none}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-sheet-body.links .mod-link-list{display:none}
+.harness-shell .link-page>.source-inspector[style*="height"] .mod-link-pick{flex:1;min-height:0;overflow-y:auto}

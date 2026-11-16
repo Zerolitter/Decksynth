@@ -1,0 +1,34 @@
+# Local build manifest. Human review and a clean source release are required before any Flathub submission.
+id: io.github.zerolitter.Decksynth
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: decksynth
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=all
+  - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
+modules:
+  - name: decksynth
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/decksynth /app/share/decksynth/ui
+      - cp -a ui/dist ui/electron ui/demo-kits ui/node_modules ui/package.json ui/package-lock.json /app/share/decksynth/ui/
+      - install -d /app/share/decksynth/ui/src
+      - install -Dm644 ui/src/preview-state.json /app/share/decksynth/ui/src/preview-state.json
+      - cp -a decksynth /app/share/decksynth/
+      - install -Dm755 packaging/flatpak/decksynth /app/bin/decksynth
+      - install -Dm644 packaging/flatpak/io.github.zerolitter.Decksynth.desktop /app/share/applications/io.github.zerolitter.Decksynth.desktop
+      - install -Dm644 packaging/flatpak/io.github.zerolitter.Decksynth.metainfo.xml /app/share/metainfo/io.github.zerolitter.Decksynth.metainfo.xml
+      - install -Dm644 packaging/flatpak/io.github.zerolitter.Decksynth.svg /app/share/icons/hicolor/scalable/apps/io.github.zerolitter.Decksynth.svg
+      - install -Dm755 /usr/bin/python3.13 /app/bin/python3
+      - cp -a /usr/lib/python3.13 /app/lib/
+      - install -Dm755 /usr/lib/x86_64-linux-gnu/libpython3.13.so.1.0 /app/lib/x86_64-linux-gnu/libpython3.13.so.1.0
+      - ln -sf libpython3.13.so.1.0 /app/lib/x86_64-linux-gnu/libpython3.13.so
+      - install -Dm755 /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 /app/lib/x86_64-linux-gnu/libSDL2-2.0.so.0
+    sources:
+      - type: dir
+        path: .

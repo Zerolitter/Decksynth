@@ -2,7 +2,7 @@
 // Attach to the owned development app. Synthetic MIDI and short real-output checks are labelled explicitly.
 // This disconnects from CDP without closing the user's app, and restores the prior project/output.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process');
-const ROOT=path.resolve(__dirname,'..'),{chromium}=require(path.join(ROOT,'ui-next/node_modules/playwright'));
+const ROOT=path.resolve(__dirname,'..'),{chromium}=require(path.join(ROOT,'ui/node_modules/playwright'));
 const OUT=path.join(ROOT,'artifacts/recovery/spectral-s7'),SCREENS=path.join(ROOT,'decksynth/screens/spectral-s7');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{

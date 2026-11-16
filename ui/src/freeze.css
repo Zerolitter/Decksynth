@@ -1,0 +1,54 @@
+/* Freeze a track to audio (components/Freeze.tsx). Ice blue is the freeze section colour. */
+:root{--c-freeze:#9fe3ff}
+.harness-shell .lane-freeze{position:relative;flex:none;align-self:center;width:44px;height:44px;min-width:44px;border-radius:8px;
+  display:grid;place-items:center;border:1px solid #3b3d43;background:#25262b;color:#9aa6b2;padding:0}
+.harness-shell .lane-freeze:hover{color:var(--c-freeze);border-color:color-mix(in srgb,var(--c-freeze) 45%,#3b3d43)}
+.harness-shell .lane-freeze.is-frozen{background:color-mix(in srgb,var(--c-freeze) 22%,#1d2328);border-color:var(--c-freeze);color:#e9f8ff;
+  box-shadow:0 0 10px color-mix(in srgb,var(--c-freeze) 35%,transparent)}
+.harness-shell .lane-freeze.is-stale,.harness-shell .lane-freeze.is-missing{border-style:dashed;border-color:var(--c-freeze);color:var(--c-freeze)}
+.harness-shell .lane-freeze.is-rendering{color:#e9f8ff;border-color:transparent}
+.harness-shell .lane-freeze .lf-ring{position:absolute;left:4px;bottom:4px;height:4px;border-radius:2px;pointer-events:none;
+  width:calc((100% - 8px) * var(--p) / 100);background:var(--c-freeze)}
+.harness-shell .lane-freeze.is-rendering{background:#1d2328;border-color:color-mix(in srgb,var(--c-freeze) 60%,#3b3d43)}
+.harness-shell .freeze-overlay{position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:inherit}
+.harness-shell .freeze-overlay.is-frozen{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--c-freeze) 70%,transparent);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--c-freeze) 7%,transparent),color-mix(in srgb,var(--c-freeze) 14%,transparent))}
+.harness-shell .freeze-overlay.is-frozen.other-mode{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--c-freeze) 30%,transparent);background:none}
+.harness-shell .freeze-overlay.is-stale{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--c-freeze) 55%,transparent);
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 6px}
+.harness-shell .fo-wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:62%;opacity:.55}
+.harness-shell .fo-wave polygon{fill:var(--c-freeze)}
+.harness-shell .fo-chip{position:absolute;right:6px;top:4px;display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:10px;
+  font-size:11px;font-weight:700;color:#0d1a20;background:var(--c-freeze);white-space:nowrap}
+.harness-shell .freeze-overlay.other-mode .fo-chip{background:#26323a;color:var(--c-freeze)}
+.harness-shell .freeze-overlay.is-stale .fo-chip{position:static;background:#26323a;color:var(--c-freeze)}
+.harness-shell .fo-btn{pointer-events:auto;height:44px;min-width:44px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:8px;
+  border:1px solid var(--c-freeze);background:#1d2328;color:#e9f8ff;font-weight:700;font-size:12.5px}
+.harness-shell .freeze-overlay.is-rendering{background:color-mix(in srgb,#000 25%,transparent)}
+.harness-shell .fo-progress{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--c-freeze) 22%,transparent);
+  box-shadow:inset -2px 0 0 var(--c-freeze);transition:width .2s linear}
+@media (prefers-reduced-motion:reduce){.harness-shell .fo-progress{transition:none}}
+/* The lane head got a fourth button: give the track name the room back. */
+.harness-shell .arr-row{grid-template-columns:300px minmax(0,1fr)}
+.harness-shell .arr-title .track-glyph{display:none}
+.harness-shell .clip-lane .fo-chip{top:auto;bottom:4px}
+/* The Freeze sheet from the top bar (15 Nov evening). */
+.harness-shell .freeze-top{position:relative}
+.harness-shell .freeze-top>button.is-on{color:var(--c-freeze);border-color:var(--c-freeze);box-shadow:0 0 10px color-mix(in srgb,var(--c-freeze) 35%,transparent)}
+.harness-shell .freeze-top>button .ft-count{position:absolute;right:3px;top:3px;min-width:15px;height:15px;border-radius:8px;background:var(--c-freeze);color:#0d1a20;font-size:10px;font-weight:800;display:grid;place-items:center}
+.harness-shell .freeze-sheet{position:absolute;z-index:120;top:52px;right:0;width:470px;padding:8px;border-radius:12px;border:1px solid color-mix(in srgb,var(--c-freeze) 60%,#2b3036);
+  background:#171a1e;box-shadow:0 16px 36px #000a;display:flex;flex-direction:column;gap:6px}
+.harness-shell .freeze-sheet header{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--c-freeze)}
+.harness-shell .freeze-sheet header strong{font-size:13px;letter-spacing:.4px;text-transform:uppercase}
+.harness-shell .freeze-sheet header span{flex:1;font-size:11px;color:#9fb0b8;line-height:1.3}
+.harness-shell .freeze-sheet button{min-height:44px;min-width:44px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border-radius:8px;border:1px solid #3b4249;background:#22262b;color:#e3eaee;font:inherit;font-size:12.5px;font-weight:700}
+.harness-shell .freeze-sheet .fs-go{border-color:var(--c-freeze);color:#e9f8ff;background:color-mix(in srgb,var(--c-freeze) 14%,#1d2328)}
+.harness-shell .fs-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:9px;background:#1e2226;border:1px solid #2b3036}
+.harness-shell .fs-row.is-frozen{border-color:color-mix(in srgb,var(--c-freeze) 55%,#2b3036);background:color-mix(in srgb,var(--c-freeze) 7%,#1e2226)}
+.harness-shell .fs-no{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:6px;border:1px solid var(--track-accent);color:var(--track-accent);font-size:11px;font-weight:800}
+.harness-shell .fs-text{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.harness-shell .fs-text strong{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .fs-text small{font-size:11px;color:#9fb0b8}
+.harness-shell .fs-row.is-frozen .fs-text small{color:var(--c-freeze)}
+.harness-shell .fs-bar{position:absolute;left:0;bottom:-3px;height:3px;border-radius:2px;background:var(--c-freeze)}
+.harness-shell .page-track-ice{flex:none;color:var(--c-freeze);display:grid;place-items:center}
