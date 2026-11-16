@@ -11,6 +11,10 @@ import math
 import time
 
 
+# Values a turning knob may preview (numbers only; never the sample, the slices or the play mode).
+LIVE = frozenset(('tune', 'fine', 'gain', 'velocity', 'glide', 'cutoff', 'resonance', 'f_env', 'f_attack', 'f_decay', 'f_velocity',
+                  'p_env', 'p_decay', 'attack', 'decay', 'sustain', 'release'))
+
 class SamplerEngine:
     def init_samplers(self):
         self.samplers = [Sampler(self.rate, self.sample_cache) for _ in range(4)]
@@ -82,6 +86,14 @@ class SamplerEngine:
         self.snapshot(); self.project.tracks[track]['sampler'] = clean
         if clean['mode'] != spec['mode'] or clean['poly'] != spec['poly']: self.samplers[track].panic()
         self.samplers[track].configure(clean)
+
+    def preview_sampler(self, track, sampler_id, changes):
+        """A knob that is still turning: the playing Sampler follows; the project and undo wait for the release."""
+        spec = self.sampler_target(track, sampler_id)
+        if not isinstance(changes, dict) or not changes or not set(changes) <= LIVE:
+            raise ValueError('Unknown Sampler parameter')
+        candidate = copy.deepcopy(spec); candidate.update(changes)
+        self.samplers[track].configure(validate_sampler(candidate))
 
     def clear_sampler(self, track, sampler_id):
         """Clear sample: the Sampler goes back to empty (one undo step). The WAV file stays on disk."""

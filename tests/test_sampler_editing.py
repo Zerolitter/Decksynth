@@ -1,3 +1,4 @@
+import copy
 """Sampler editing and gesture controls (Sir, 15 Nov evening). Stage 6: record on any track, louder takes, Clear sample."""
 import math,unittest
 from array import array
@@ -121,3 +122,27 @@ class LinkSamplerAndDrumKnobs(SamplerTrack,unittest.TestCase):
         self.assertAlmostEqual(v.gain,p['gain']/2)
         self.assertAlmostEqual(v.gl,0.,places=6)
         d.panic()
+
+
+class LiveKnobs(SamplerTrack,unittest.TestCase):
+    """Round 2 (16 Nov): a Sampler knob is heard while it turns; the project and undo wait for the release."""
+    def test_preview_retunes_a_held_note_without_an_undo_step(self):
+        e=self.e;self.load();s=e.samplers[1];sid=e.project.tracks[1]['sampler']['id']
+        s.on(60,100);v=next(v for v in s.voices if v.active);step=v.step
+        undo=len(e.undo_stack) if hasattr(e,'undo_stack') else None
+        before=copy.deepcopy(e.project.tracks[1]['sampler'])
+        e.preview_sampler(1,sid,dict(tune=12.))
+        self.assertAlmostEqual(v.step,step*2.,places=6)
+        self.assertEqual(e.project.tracks[1]['sampler'],before,'the project waits for the release')
+        if undo is not None:self.assertEqual(len(e.undo_stack),undo)
+        e.preview_sampler(1,sid,dict(tune=0.))
+        self.assertAlmostEqual(v.step,step,places=6)
+        e.preview_sampler(1,sid,dict(gain=before['gain']/2))
+        e.edit_sampler(1,sid,'tune',7.)
+        self.assertAlmostEqual(v.step,step*2.**(7/12.),places=6)
+        self.assertEqual(e.project.tracks[1]['sampler']['gain'],before['gain'],'a preview never reaches the project')
+
+    def test_preview_only_takes_knob_values(self):
+        e=self.e;self.load();sid=e.project.tracks[1]['sampler']['id']
+        for bad in [dict(mode='loop'),dict(slices=[]),dict(name='x'),{},dict(tune=1.,root=3)]:
+            with self.assertRaises(ValueError,msg=bad):e.preview_sampler(1,sid,bad)

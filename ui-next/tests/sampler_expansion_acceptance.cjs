@@ -35,7 +35,7 @@ let app,page;
   assert.ok(b.y+b.height<=H+1&&b.x+b.width<=1281,what+' inside the window: '+JSON.stringify(b));
   const hit=await loc.evaluate(e=>{const r=e.getBoundingClientRect();const t=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !!t&&(e===t||e.contains(t))?'':(t?t.tagName+'.'+t.className+' '+(t.textContent||'').slice(0,40):'nothing');});
   assert.ok(!hit,what+' is not covered (under '+hit+')');};
- globalThis.T={p,send,latest,inside,H,OUT,DATA,assert,errors};
+ globalThis.T={p,send,latest,inside,H,OUT,DATA,assert,errors,app};
 
  if(STAGES.includes('1')){
   await p.getByRole('tab',{name:/^Sound$/}).click();
@@ -89,6 +89,7 @@ let app,page;
  if(STAGES.includes('9'))await require(path.join(__dirname,'sampler_editing_stage9.cjs'))(globalThis.T);
  if(STAGES.includes('10'))await require(path.join(__dirname,'sampler_editing_stage10.cjs'))(globalThis.T);
  if(STAGES.includes('11'))await require(path.join(__dirname,'sampler_editing_stage11.cjs'))(globalThis.T);
+ if(STAGES.includes('13'))await require(path.join(__dirname,'sampler_round2_a.cjs'))(globalThis.T);
  assert.deepEqual(errors,[]);
  await app.close();console.log('PASS sampler expansion at '+H);
 })().catch(async e=>{console.error(e);try{await page?.screenshot({path:path.join(OUT,'failure-'+H+'.png')});}catch{}try{await app?.close();}catch{}process.exit(1);});

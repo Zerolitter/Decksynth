@@ -29,7 +29,8 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
   const latest=useRef(value),original=useRef(value),dirty=useRef(false),pointer=useRef(false);
   const commitRef=useRef(onCommit);commitRef.current=onCommit;
   const draftRef=useRef(onDraft);draftRef.current=onDraft;
-  const mounted=useRef(true);
+  const mounted=useRef(true),wrap=useRef<HTMLDivElement>(null);
+  useEffect(()=>{const el=wrap.current;if(!el)return;const settle=()=>finish();el.addEventListener('knob-settle',settle);return()=>el.removeEventListener('knob-settle',settle);});
   useEffect(()=>{if(!pointer.current){latest.current=value;original.current=value;dirty.current=false;setDraft(value);}},[value]);
   const finish=()=>{
     if(!mounted.current)return;
@@ -46,7 +47,7 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
     document.addEventListener('pointerup',up,true);document.addEventListener('pointercancel',abort,true);window.addEventListener('blur',abort);
     return()=>{mounted.current=false;document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',abort,true);window.removeEventListener('blur',abort);};
   },[]);
-  return <div className="drum-committed-knob" onPointerDownCapture={()=>{pointer.current=true;}}
+  return <div ref={wrap} className="drum-committed-knob" onPointerDownCapture={()=>{pointer.current=true;}}
     onKeyUpCapture={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End','PageUp','PageDown','Enter'].includes(e.key))setTimeout(finish,0);}}
     // Exact numeric entry commits on Enter and then unmounts its input, so neither keyup nor blur reaches this wrapper.
     onKeyDownCapture={e=>{if(e.key==='Enter')setTimeout(finish,0);}}
@@ -121,7 +122,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const families=[...new Set(kinds.filter((_,i)=>!!pads[i].source))];
   // The Sampler's waveform editor shows the pad: Start and End are its tag markers (one drag, one undo step).
   const waveSpec={start:shown.start,end:shown.end,loop_start:shown.start,loop_end:shown.end,mode:'oneshot',slices:[]} as unknown as SamplerSpec;
-  const waveRuntime={peaks:live?.peaks??[],seconds,playing:[]} as unknown as SamplerRuntime;
+  const waveRuntime={peaks:live?.peaks??[],seconds,playing:live?.at??[]} as unknown as SamplerRuntime;
   return <section className="drum-rack drum-smp" aria-label="Drum Rack" style={{['--drum-accent' as string]:TRACK_COLORS[trackIndex%TRACK_COLORS.length],['--pad-accent' as string]:pad.source?selectedKind.color:DRUM_KINDS.other.color}}>
     <header className="drum-device-bar">
       <div className="drum-device-title"><Grid2X2 size={21}/><h1>Drum Rack</h1><span>Track {trackIndex+1}</span></div>
@@ -131,7 +132,8 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
       {browsing?<DrumKitBrowser library={library} selectedPad={selected} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary}
         onBrowseFolder={onBrowseFolder} onPreviewSample={onPreviewSample} onStopPreview={onStopPreview} onReplaceSample={onReplaceSample}
         onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
-        <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span></div>
+        <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span>
+          <button type="button" className="drum-kits-button" aria-label="Browse drum kits" aria-expanded={browsing} title={kit.name||'Choose a kit folder'} onClick={()=>setBrowsing(!browsing)}><FolderOpen size={16}/><span>{kit.name||'Kits'}</span></button></div>
         <div {...context} className="drum-pads" role="group" aria-label="Sixteen sample pads">
           {pads.map((p,i)=>{
             const state=runtime?.pads[i]?.status??(p.source?'LOADING':'EMPTY'),silenced=p.mute||(anySolo&&!p.solo),hit=flashes.has(i);

@@ -65,6 +65,7 @@ export function ValueBox({ label, value, onChange, list, min = -Infinity, max = 
     const wheel = (e: WheelEvent) => {
       e.preventDefault(); e.stopPropagation();
       const d = e.deltaY || e.deltaX; if (!d) return;            // Shift+wheel arrives as deltaX in Chromium
+      lastClick.current = 0;                                      // a click after scrolling never opens entry
       commitSoon(move(latest.current, d < 0 ? 1 : -1, e.shiftKey ? 'coarse' : e.ctrlKey || e.metaKey ? 'fine' : 'normal'));
     };
     el.addEventListener('wheel', wheel, { passive: false });

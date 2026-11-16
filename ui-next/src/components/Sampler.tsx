@@ -257,9 +257,7 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
         {mode === 'chop' ? shown.map(([a, b], i) => <rect key={'s' + i} className={'smp-slice' + (i % 2 ? ' odd' : '') + (i === selected ? ' on' : '')}
           x={x(a) * W} y={0} width={Math.max(.5, (x(b) - x(a)) * W)} height={120} />) : null}
         <path d="M0 60H512" className="smp-zero" />
-        {peaks.map((p, i) => { const u = pv[0] + (i + .5) / peaks.length * pspan, px = x(u) * W;
-          return px < -2 || px > W + 2 ? null : <line key={i} x1={px} x2={px}
-            y1={60 - Math.max(-1, Math.min(1, p[1])) * 56} y2={60 - Math.max(-1, Math.min(1, p[0])) * 56} strokeWidth={Math.max(1, W / peaks.length * .75 * pspan / span)} />; })}
+        <path className="smp-wave-fill" d={wavePath(peaks, u => x(u) * W, pv[0], pspan)} />
         {mode === 'trim' ? <>
           <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(t.start) * W)} height={120} />
           <rect className="smp-cut" x={x(t.end) * W} y={0} width={Math.max(0, (1 - x(t.end)) * W)} height={120} />
@@ -290,6 +288,18 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
     <span className="smp-caption">{secs ? (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
       + (vb - va < .999 ? (mode === 'trim' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
   </div>;
+}
+
+/** The waveform as one closed outline: the highs left to right, then the lows back. Smooth at any zoom. */
+function wavePath(peaks: number[][], px: (u: number) => number, a: number, span: number): string {
+  if (!peaks.length) return '';
+  const n = peaks.length, y = (v: number) => (60 - Math.max(-1, Math.min(1, v)) * 56).toFixed(2);
+  const at = (i: number) => px(a + (i + .5) / n * span).toFixed(2);
+  let d = 'M' + px(a).toFixed(2) + ' 60';
+  for (let i = 0; i < n; i++) d += 'L' + at(i) + ' ' + y(Math.max(peaks[i][1], 0.004));
+  d += 'L' + px(a + span).toFixed(2) + ' 60';
+  for (let i = n - 1; i >= 0; i--) d += 'L' + at(i) + ' ' + y(Math.min(peaks[i][0], -0.004));
+  return d + 'Z';
 }
 
 const fmtS = (s: number) => s < 10 ? s.toFixed(2) + ' s' : s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
@@ -349,7 +359,7 @@ function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
   onSend(target: number, mode: 'kit' | 'pad', options: Record<string, unknown>): void; onClose(): void;
 }) {
   const slices = spec.slices ?? [];
-  const others = [0, 1, 2, 3].filter(i => i !== trackIndex && tracks[i]);
+  const others = tracks.map((_, i) => i).filter(i => i !== trackIndex);
   const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'drum_rack') ?? others[0]);
   const kit = tracks[target]?.device === 'drum_rack' ? tracks[target]?.drum_rack : undefined;
   const [what, setWhat] = useState<'kit' | 'pad'>('kit');
@@ -455,7 +465,7 @@ function SamplerKeys({ spec, onMidi }: { spec: SamplerSpec; onMidi: (s: number, 
 }
 
 /** Amp card: the envelope you drag, with the same four values as knobs. A drag is one undo step. */
-function AmpCard({ spec, id, onEdit }: { spec: SamplerSpec; id: string; onEdit: Edit }) {
+function AmpCard({ spec, id, onEdit, onLive }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit }) {
   const [draft, setDraft] = useState<Partial<Env>>({});
   const held = useRef(false), latest = useRef<Partial<Env>>({});
   const env: Env = { attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release };
@@ -470,13 +480,13 @@ function AmpCard({ spec, id, onEdit }: { spec: SamplerSpec; id: string; onEdit: 
     <CommittedKnob id={id + '-' + key} defaultValue={AMP_DEFAULTS[key]} name={name} value={spec[key]} min={0} max={max} step={key === 'sustain' ? .01 : .001}
       suffix={key === 'sustain' ? '%' : 's'} precision={key === 'sustain' ? 0 : 3} description={description}
       format={key === 'sustain' ? n => Math.round(n * 100) + '%' : n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'}
-      onCommit={n => onEdit(key, n)} />;
+      onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
   return <section className="smp-card" aria-label="Amp">
     <h2>Amp</h2>
     <div className="smp-amp">
       <div className="smp-env" onPointerDownCapture={() => { held.current = true; }}>
         <EnvEditor compact env={shown} color="var(--pad-accent)" onChange={(k, value) => {
-          if (held.current) { latest.current = { ...latest.current, [k]: value }; setDraft(d => ({ ...d, [k]: value })); }
+          if (held.current) { latest.current = { ...latest.current, [k]: value }; setDraft(d => ({ ...d, [k]: value })); onLive(k, value); }
           else onEdit(k, value);
         }} />
       </div>
@@ -532,6 +542,8 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const apply = (s: ChopSettings) => chop(s.mode, s.mode === 'threshold' ? { threshold: s.threshold, min_ms: s.min_ms }
     : s.mode === 'regions' ? { count: s.count } : { bpm: s.bpm, beats: s.beats });
   const setView = (a: number, b: number) => send('sampler_view', [trackIndex, spec.id, Math.max(0, a), Math.min(1, b)]);
+  /** A knob that is still turning: the engine plays the value now; the edit (and its undo step) comes on release. */
+  const onLive: Edit = (key, value) => send('sampler_live', [trackIndex, spec.id, { [key]: value }]);
   const toMode = (m: 'trim' | 'chop') => setMode(m);   // the zoom stays: F (or Fit) shows the whole sample
   const familyLabel = spec.family in DRUM_KINDS && spec.family !== 'other' ? DRUM_KINDS[spec.family as DrumKind].label : /^Recording/.test(spec.name) ? 'Recordings' : 'Samples';
   return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}>
@@ -592,10 +604,10 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           </div>
           <div className="smp-knobs two">
             <CommittedKnob id={id + '-glide'} defaultValue={0} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
-              description="Mono only: slide from the held note to the next one" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('glide', n)} />
-            <CommittedKnob id={id + '-gain'} defaultValue={1} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onCommit={n => onEdit('gain', n)} />
+              description="Mono only: slide from the held note to the next one" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('glide', n)} onCommit={n => onEdit('glide', n)} />
+            <CommittedKnob id={id + '-gain'} defaultValue={1} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onDraft={n => onLive('gain', n)} onCommit={n => onEdit('gain', n)} />
             <CommittedKnob id={id + '-velocity'} defaultValue={1} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
-              description="How much softer soft notes are: 0 is fixed level, 1 is linear" onCommit={n => onEdit('velocity', n)} />
+              description="How much softer soft notes are: 0 is fixed level, 1 is linear" onDraft={n => onLive('velocity', n)} onCommit={n => onEdit('velocity', n)} />
             <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
           </div>
         </section>
@@ -617,12 +629,12 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             {spec.keymap !== 'slices' ? <button type="button" className="smp-detect" title="Find the note the sample sounds at" onClick={onDetect}><ScanSearch size={16} />Detect</button> : null}
           </div>}
           <div className="smp-knobs two">
-            <CommittedKnob id={id + '-tune'} defaultValue={0} name="Tune" value={spec.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Shift every key by semitones" onCommit={n => onEdit('tune', n)} />
-            <CommittedKnob id={id + '-fine'} defaultValue={0} name="Fine" value={spec.fine} min={-100} max={100} step={1} suffix="ct" precision={0} description="Fine tuning in cents" onCommit={n => onEdit('fine', n)} />
+            <CommittedKnob id={id + '-tune'} defaultValue={0} name="Tune" value={spec.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Shift every key by semitones" onDraft={n => onLive('tune', n)} onCommit={n => onEdit('tune', n)} />
+            <CommittedKnob id={id + '-fine'} defaultValue={0} name="Fine" value={spec.fine} min={-100} max={100} step={1} suffix="ct" precision={0} description="Fine tuning in cents" onDraft={n => onLive('fine', n)} onCommit={n => onEdit('fine', n)} />
             <CommittedKnob id={id + '-p_env'} defaultValue={0} name="Pitch env" value={spec.p_env ?? 0} min={-24} max={24} step={.1} suffix="st" precision={1}
-              description="Each note starts this many semitones away and settles to its pitch" format={n => Math.abs(n) < .05 ? 'Off' : (n > 0 ? '+' : '') + n.toFixed(1) + ' st'} onCommit={n => onEdit('p_env', n)} />
+              description="Each note starts this many semitones away and settles to its pitch" format={n => Math.abs(n) < .05 ? 'Off' : (n > 0 ? '+' : '') + n.toFixed(1) + ' st'} onDraft={n => onLive('p_env', n)} onCommit={n => onEdit('p_env', n)} />
             <CommittedKnob id={id + '-p_decay'} defaultValue={0.15} name="Env time" value={spec.p_decay ?? .15} min={0} max={3} step={.001} suffix="s" precision={3}
-              description="How long the pitch envelope takes to settle" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('p_decay', n)} />
+              description="How long the pitch envelope takes to settle" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('p_decay', n)} onCommit={n => onEdit('p_decay', n)} />
           </div>
         </section>
         <section className={'smp-card smp-filter' + ((spec.filter ?? 'off') === 'off' ? ' off' : '')} aria-label="Filter">
@@ -632,20 +644,20 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           </div>
           <div className="smp-knobs two">
             <CommittedKnob id={id + '-cutoff'} defaultValue={Math.log2(100)} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
-              description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
+              description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onDraft={n => onLive('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
             <CommittedKnob id={id + '-resonance'} defaultValue={0.2} name="Resonance" value={spec.resonance ?? .2} min={0} max={1} step={.01} suffix="%" precision={0}
-              description="A peak at the cutoff" format={n => Math.round(n * 100) + '%'} onCommit={n => onEdit('resonance', n)} />
+              description="A peak at the cutoff" format={n => Math.round(n * 100) + '%'} onDraft={n => onLive('resonance', n)} onCommit={n => onEdit('resonance', n)} />
             <CommittedKnob id={id + '-f_env'} defaultValue={0} name="Env" value={spec.f_env ?? 0} min={-1} max={1} step={.01} suffix="%" precision={0}
-              description="How far the filter's envelope moves the cutoff (100% is five octaves)" format={n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%'} onCommit={n => onEdit('f_env', n)} />
+              description="How far the filter's envelope moves the cutoff (100% is five octaves)" format={n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%'} onDraft={n => onLive('f_env', n)} onCommit={n => onEdit('f_env', n)} />
             <CommittedKnob id={id + '-f_velocity'} defaultValue={0} name="Velocity" value={spec.f_velocity ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
-              description="Soft notes are darker: up to four octaves lower" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onCommit={n => onEdit('f_velocity', n)} />
+              description="Soft notes are darker: up to four octaves lower" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onDraft={n => onLive('f_velocity', n)} onCommit={n => onEdit('f_velocity', n)} />
             <CommittedKnob id={id + '-f_attack'} defaultValue={0} name="Attack" value={spec.f_attack ?? 0} min={0} max={3} step={.001} suffix="s" precision={3}
-              description="Time for the filter envelope to rise" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_attack', n)} />
+              description="Time for the filter envelope to rise" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('f_attack', n)} onCommit={n => onEdit('f_attack', n)} />
             <CommittedKnob id={id + '-f_decay'} defaultValue={0.3} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
-              description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onCommit={n => onEdit('f_decay', n)} />
+              description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('f_decay', n)} onCommit={n => onEdit('f_decay', n)} />
           </div>
         </section>
-        <AmpCard spec={spec} id={id} onEdit={onEdit} />
+        <AmpCard spec={spec} id={id} onEdit={onEdit} onLive={onLive} />
       </div>
       <SamplerKeys spec={spec} onMidi={onMidi} />
       {sending && mode === 'chop' ? <SendSheet spec={spec} selected={sel} trackIndex={trackIndex} tracks={tracks} onClose={() => setSending(false)}
@@ -745,8 +757,9 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
   padName: string; family: DrumKind; sourceTrack: number; tracks: Track[];
   onMake(target: number, root: number | null): void; onClose(): void;
 }) {
-  const others = [0, 1, 2, 3].filter(i => i !== sourceTrack);
-  const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'sampler') ?? others[0]);
+  // The pad's own track is a choice too: when one sound is all you need, the kit makes way for it (Undo brings the kit back).
+  const others = tracks.map((_, i) => i);
+  const [target, setTarget] = useState(others.find(i => i !== sourceTrack && tracks[i]?.device === 'sampler') ?? others.find(i => i !== sourceTrack) ?? sourceTrack);
   const [root, setRoot] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -761,7 +774,7 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
       <p>Which track should play it? That track becomes a Sampler.</p>
       <div className="smp-targets" role="radiogroup" aria-label="Track">
         {others.map(i => <button key={i} type="button" role="radio" aria-checked={target === i} onClick={() => setTarget(i)}>
-          <b>Track {i + 1}</b><span>{what(i)}</span></button>)}
+          <b>Track {i + 1}{i === sourceTrack ? ' · this one' : ''}</b><span>{i === sourceTrack ? 'Only this sound: the kit makes way' : what(i)}</span></button>)}
       </div>
       <div className="smp-root" role="group" aria-label="Root note">
         <span>Root note</span>

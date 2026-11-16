@@ -15,7 +15,7 @@ let backend = null;
 let lastMessage = { bridge: 'starting' };
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
- 'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_import','sampler_make','sampler_edit','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','song','clip','perform_set','perform_step','perform_action',
+ 'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','song','clip','perform_set','perform_step','perform_action',
  'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','undo','quantize',
  'clear','device','audio_device','preset','parameter','edit_note','note_edit','editor_note','catalog_action','track','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
  'metronome','save','load','export','export_wav','freeze','unfreeze','save_preset','load_preset']);
@@ -33,7 +33,7 @@ function startBackend() {
     publish({ ...fixture, preview: true });
     return;
   }
-  backend = spawn('python3', ['-u', path.join(__dirname, 'bridge.py')], {
+  backend = spawn(process.env.DECKSYNTH_PYTHON || 'python3', ['-u', path.join(__dirname, 'bridge.py')], {
     cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, DECKSYNTH_DEMO_KITS_DIR: path.join(UI_ROOT, 'demo-kits') },
   });

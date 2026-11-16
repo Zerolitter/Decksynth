@@ -169,6 +169,19 @@ class Sampler:
         self.spec = spec
         self.reshape()
         self._params()
+        if prior is not None and spec is not None and prior['id'] == spec['id'] and prior['source'] == spec['source']:
+            self._retune(prior, spec)
+
+    def _retune(self, prior, spec):
+        """Notes that are sounding follow Tune, Fine and Gain at once (a knob can be heard while it turns)."""
+        shift = (spec['tune']-prior['tune']) + (spec['fine']-prior['fine'])/100.
+        level = spec['gain']/prior['gain'] if prior['gain'] > 1e-6 and spec['gain'] != prior['gain'] else 1.
+        if not shift and level == 1.: return
+        ratio = 2.**(shift/12.)
+        for v in self.voices:
+            if not v.active: continue
+            if shift: v.step *= ratio; v.target *= ratio; v.glide *= ratio
+            if level != 1.: v.gain *= level
 
     def bind(self, sample):
         self.raw = sample; self.loading = False; self.error = None; self.shaped_key = None

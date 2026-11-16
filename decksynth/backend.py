@@ -239,6 +239,7 @@ def worker(commands,updates):
                         made=engine.make_sampler(*args); engine.select(made['track'])
                         send(dict(message='Track %d plays %s on the keys'%(made['track']+1,engine.project.tracks[made['track']]['sampler']['name'])))
                     elif cmd=='sampler_edit':engine.edit_sampler(*args)
+                    elif cmd=='sampler_live':engine.preview_sampler(*args)
                     elif cmd=='sampler_detect':
                         found=engine.detect_sampler_root(*args)
                         send(dict(message='No clear pitch in this sample; the root stays where it was' if found is None else 'Root set to '+note_label(found)))

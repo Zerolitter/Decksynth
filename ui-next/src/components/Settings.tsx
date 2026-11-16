@@ -15,11 +15,13 @@ type Props = {
   settings:AppSettings; onSettings:(s:AppSettings)=>void;
   trackName:string; onCleanup:(c:Cleanup)=>void;
   devices:string[]; audioOutput:string; audioOutputs:string[];
+  /** The connected MIDI keyboard (null: none) and the engine link, shown here instead of the top bar. */
+  midiName?:string|null; bridgeStatus?:string;
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
 };
 
 /** Settings: layout, clean-up and audio/MIDI routing in one place behind the gear icon. */
-export function Settings({settings,onSettings,trackName,onCleanup,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
   const [confirm,setConfirm]=useState(false);
   const item=(c:Cleanup,icon:React.ReactNode,title:string,sub:string)=><button type="button" className="clean-item"
     onClick={()=>{onCleanup(c);onClose();}}>{icon}<span><strong>{title}</strong><small>{sub}</small></span></button>;
@@ -36,6 +38,8 @@ export function Settings({settings,onSettings,trackName,onCleanup,devices,audioO
             onChange={e=>onSettings({...settings,noAutoFold:e.target.checked})}/>
         </label>
         <h3><Radio size={15}/> Audio and MIDI</h3>
+        <div className={'setting-midi-status'+(midiName?' connected':'')} role="status" aria-label="MIDI keyboard"><i/>
+          <strong>{midiName??'No MIDI keyboard'}</strong>{bridgeStatus?<span className={bridgeStatus==='ERROR'?'error':''}>{bridgeStatus}</span>:null}</div>
         <label className="setting-field"><span><Radio size={16}/> MIDI INPUT</span>
           <select value="Auto" onChange={e=>onDevice(e.target.value)}>
             <option value="Auto">Auto detect</option>

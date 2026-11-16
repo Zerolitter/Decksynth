@@ -53,6 +53,35 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(String(value));
   const input=useRef<HTMLInputElement>(null);
+  // Value box (UI-RULES 36): one click arms the mouse wheel, two slow clicks (0.4-1.6 s apart) open number entry.
+  const [armed,setArmed]=useState(false);
+  const valueBox=useRef<HTMLButtonElement>(null),lastValueClick=useRef(0),openOnClick=useRef(false),wheelSettle=useRef<number|undefined>(undefined);
+  const valueDown=(e:React.PointerEvent)=>{
+    if(e.button!==0)return;
+    const now=performance.now(),since=now-lastValueClick.current;lastValueClick.current=now;
+    // Entry opens on the click (release): opening on the press would hand the focus back to the box and close it again.
+    if(armed&&since>=400&&since<=1600){lastValueClick.current=0;openOnClick.current=true;return;}
+    openOnClick.current=false;
+    setArmed(true);
+  };
+  useEffect(()=>{
+    const el=valueBox.current;if(!el||!armed)return;
+    const wheel=(e:WheelEvent)=>{
+      e.preventDefault();e.stopPropagation();const d=e.deltaY||e.deltaX;if(!d)return;
+      lastValueClick.current=0;   // a click after scrolling arms again; it never opens entry
+      const range=max-min,size=e.shiftKey?Math.max(step,range/10):e.ctrlKey||e.metaKey?step:Math.max(step,range/100);
+      const n=knobQuantize(Math.max(min,Math.min(max,latest.current+(d<0?size:-size))),min,max,step);
+      if(n===latest.current)return;
+      latest.current=n;setLocal(n);beginGesture();onChangeRef.current(n);reveal();
+      window.clearTimeout(wheelSettle.current);
+      // A run of wheel ticks is one change: it ends (one undo step) when the wheel rests.
+      wheelSettle.current=window.setTimeout(()=>{endGesture();hideLater();el.dispatchEvent(new CustomEvent('knob-settle',{bubbles:true}));},350);
+    };
+    const away=(e:PointerEvent)=>{if(!el.contains(e.target as Node))setArmed(false);};
+    el.addEventListener('wheel',wheel,{passive:false});document.addEventListener('pointerdown',away,true);
+    return()=>{el.removeEventListener('wheel',wheel);document.removeEventListener('pointerdown',away,true);};
+  });
+  useEffect(()=>()=>window.clearTimeout(wheelSettle.current),[]);
   const readoutTimeout=useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const batch=useMemo(()=>createFrameBatch<number>(n=>onChangeRef.current(n)),[]);
@@ -204,7 +233,9 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
         onChange={e=>setDraft(e.target.value)}
         onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter')commit();if(e.key==='Escape'){setEditing(false);hideLater();}}}
         onBlur={commit}/>:
-      <button type="button" className="knob-value" title="Tap for exact numeric entry"
-        onClick={()=>setEditing(true)}>{show(local)}</button>}
+      <button ref={valueBox} type="button" className={'knob-value'+(armed?' armed':'')} aria-label={name+' value box'}
+        title="Click, then scroll (Shift: bigger steps, Ctrl: finer) · two slow clicks to type a number"
+        onPointerDown={valueDown} onClick={()=>{if(openOnClick.current){openOnClick.current=false;setArmed(false);setEditing(true);}}} onBlur={()=>setArmed(false)}
+        onKeyDown={e=>{if(e.key==='Enter'||e.key==='F2'){e.preventDefault();setArmed(false);setEditing(true);}}}>{show(local)}</button>}
   </div>;
 }

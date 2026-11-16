@@ -226,3 +226,7 @@
 .smp-library .lib-folder{display:inline-flex;align-items:center;gap:4px;padding:2px 2px 2px 10px;border-radius:16px;background:#23262b;border:1px solid #3a3d43}
 .smp-library .lib-folder button{min-height:40px;width:40px;padding:0;justify-content:center;border:0;background:none}
 .smp-library .lib-error{color:#e78d88;margin:0}
+
+/* Round 2: the waveform is a filled outline (smooth), in the pad's colour. */
+.smp-wave .smp-wave-fill{fill:color-mix(in srgb,var(--pad-accent) 78%,transparent);stroke:var(--pad-accent);stroke-width:.6;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.smp-wave .smp-playhead{stroke:#fff;stroke-width:1.6;opacity:.95}

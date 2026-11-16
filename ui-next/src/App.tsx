@@ -484,10 +484,7 @@ function App() {
         </div>;})():null}
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
-        :<div className={'device-pill'+(snapshot?.connected?' connected':'')} title={renderMIDI(snapshot?.connected||null)}>
-          <span className="pill-led"/><span className="pill-name">{snapshot?.connected?renderMIDI(snapshot.connected):'No MIDI'}</span>
-          <span className={'footer-status'+(bridgeStatus==='ERROR'?' error':'')}>{bridgeStatus}</span>
-        </div>}
+        :<span className={'footer-status midi-hidden-status'+(bridgeStatus==='ERROR'?' error':'')}>{bridgeStatus}</span>}
       <div className="file-menu">
         <button className="icon-button" aria-label="Project files" title="Open, save, export"
           aria-expanded={fileMenu} onClick={()=>setFileMenu(v=>!v)}><FolderOpen size={19}/></button>
@@ -500,8 +497,8 @@ function App() {
         </div>:null}
       </div>
       <button className="icon-button" aria-label="Help" title="Help" aria-haspopup="dialog" onClick={e=>openHelp(e.currentTarget)}><CircleHelp size={19}/></button>
-      <button className="icon-button" aria-label="Settings" title="Settings"
-        onClick={()=>setDialog('settings')}><SettingsIcon size={19}/></button>
+      <button className="icon-button has-midi" aria-label="Settings" title={'Settings · '+(bridgeStatus==='ERROR'?'engine not connected':snapshot?.connected?renderMIDI(snapshot.connected):'no MIDI keyboard')}
+        onClick={()=>setDialog('settings')}><SettingsIcon size={19}/>{bridgeStatus==='ERROR'?<i className="gear-dot error"/>:snapshot?.connected?<i className="gear-dot"/>:null}</button>
     </header>
 
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} beat={project.song?.on?songBeat:playhead} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
@@ -516,7 +513,7 @@ function App() {
             <button type="button" aria-label="Edit automation" aria-pressed={automationEdit!==undefined} onClick={()=>setAutomationEdit(automationEdit===undefined?null:undefined)}>Auto</button>
           </div>:null}
           <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
-          {track.device==='drum_rack'?<button type="button" className="instrument-kit-browser" aria-label="Browse drum kits" aria-expanded={kitBrowserTrack===selected} title={track.drum_rack?.name??'Choose a kit folder'} onClick={()=>setKitBrowserTrack(kitBrowserTrack===selected?null:selected)}><FolderOpen size={17}/><span><small>Kits</small><strong>{track.drum_rack?.name??'Choose kit folder'}</strong></span></button>:null}
+          {/* The kit button sits next to the pads now (Sir, 16 Nov). */}
           {(track.device??'synth')==='synth'?<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
           <button type="button" className="page-tool-icon" aria-label="Save patch" title="Save patch"
             onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>:null}
@@ -628,6 +625,7 @@ function App() {
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
         trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>command('cleanup',c)}
+        midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'Deck speakers'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
         onClose={()=>setDialog(null)}/>

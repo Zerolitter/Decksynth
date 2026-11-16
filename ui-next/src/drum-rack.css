@@ -264,3 +264,10 @@
 .drum-smp .drum-card-graph path{fill:none;stroke:var(--pad-accent);stroke-width:1.6}
 .drum-smp .drum-card-comp.off .smp-knobs{opacity:.6}
 .drum-smp .drum-pad-sound{gap:0}
+
+/* Round 2: the kit button next to the pads. */
+.drum-pads-panel .drum-section-bar .drum-kits-button{margin-left:auto;display:flex;align-items:center;gap:6px;min-height:44px;max-width:180px;padding:0 12px;border-radius:8px;background:#23262b;border:1px solid #3a3d43;color:#e3e6ea;font-size:12px;font-weight:700}
+.drum-pads-panel .drum-section-bar .drum-kits-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drum-pads-panel .drum-section-bar .drum-kits-button svg{color:var(--accent);flex:none}
+.drum-pads-panel .drum-section-bar .drum-kits-button[aria-expanded=true]{border-color:var(--accent);background:#3a3224}
+.drum-pads-panel .drum-section-bar>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

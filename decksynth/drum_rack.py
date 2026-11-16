@@ -241,8 +241,10 @@ class DrumRack:
             muted = bool(p and (p['mute'] or any(x['solo'] for x in self.kit['pads']) and not p['solo']))
             status = ('LOADING' if self.loading[i] else 'EMPTY' if not p or not p['source'] else
                       'MISSING' if sample is None else 'MUTED' if muted else 'PLAYING' if playing else 'READY')
+            at = [round(v.pos/sample.frames, 4) for v in self.voices
+                  if sample is not None and v.sample is sample and v.pad == i and sample.frames][:4]
             pads.append(dict(status=status, peaks=sample.peaks if sample else [],
-                             event=self.events[i], playing=playing, error=self.errors[i]))
+                             event=self.events[i], playing=playing, error=self.errors[i], at=at))
         return dict(pads=pads, voices=self.active_count, voice_limit=VOICE_LIMIT, output='stereo',
                     accelerated=self._native is not None,
                     native_warning=native_error() if self._native is None else None)
