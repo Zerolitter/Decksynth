@@ -16,7 +16,7 @@ const note:Entry[]=[
  group('harmony','Harmony',['invert','spread',group('chordTypeMenu','Chord type',['major','minor'])])];
 const shortcuts:Partial<Record<Capability,string>>={copy:'Ctrl+C',cut:'Ctrl+X',paste:'Ctrl+V',duplicate:'Ctrl+D',delete:'Del',selectAll:'Ctrl+A',samePitch:'Ctrl+Shift+A',quantize:'Q',octaveUp:'Ctrl+↑',octaveDown:'Ctrl+↓',pitchUp:'↑',pitchDown:'↓',earlier:'←',later:'→',shorter:'Shift+←',longer:'Shift+→',zoomIn:'+',zoomOut:'−',zoomFit:'F',split:'S',join:'J'};
 const kinds:Record<ContextKind,Entry[]>={
- 'seq.empty':[group('fill','Fill / Repeat',['fillQuarter','fillEighth','fillSixteenth']),'buildChord',group('edit','Edit',['selectAll','samePitch']),'paste','open'], 'seq.note':note,'song.note':note,
+ 'seq.empty':[group('fill','Fill / Repeat',['fillQuarter','fillEighth','fillSixteenth']),group('edit','Edit',['selectAll','samePitch']),'paste','open'], 'seq.note':note,'song.note':note,
  'song.empty':[group('edit','Edit',['selectAll','samePitch']),'open','paste'],
  'song.clip':[group('clipTiming','Clip timing',['quantize','earlier','later']),group('clipPitch','Transpose clip',['pitchUp','pitchDown','octaveUp','octaveDown']),'duplicate','open'],
  'chord.key':['play',group('voicing','Voicing',['invert','spread']),'chordType','saveChord'],

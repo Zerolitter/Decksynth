@@ -273,7 +273,37 @@
 .harness-shell .cb-slot.on{border-color:var(--c-chord)}
 .harness-shell .cb-slot strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .harness-shell .cb-slot span{font-size:9.5px;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.harness-shell .cb-slot-menu{left:auto;right:0;top:auto;bottom:56px;width:200px}
+.harness-shell .cb-slot-menu{left:auto;right:0;top:auto;bottom:calc(100% + 6px);width:220px}
+/* Chords rework (16 Nov): a live display of what the keys play, swipeable pads, My chords as a playable row */
+.harness-shell .cb-display{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:8px;background:#0b0d0f;
+  border:1px solid #3a3d41;text-align:center;min-width:0}
+.harness-shell .cb-display span{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#8d9499;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.harness-shell .cb-display strong{font-size:26px;line-height:1.1;font-weight:850;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.harness-shell .cb-display em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--c-chord);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.harness-shell .cb-pads{height:auto;flex:1 1 92px;min-height:76px;max-height:116px;touch-action:none}
+.harness-shell .cb-pad{user-select:none}
+.harness-shell .cb-seq{flex:none;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:10px;background:#11181a;border:1px solid #263236}
+.harness-shell .cb-seq.following{border-color:color-mix(in srgb,var(--c-chord) 45%,#263236)}
+.harness-shell .cb-seq-head{display:flex;align-items:center;gap:8px;min-width:0}
+.harness-shell .cb-seq-head .pf-group-label{padding-left:2px}
+.harness-shell .cb-seq-head .pf-seg button{min-width:72px}
+.harness-shell .cb-seq-head .pf-seg button:disabled{opacity:.4}
+.harness-shell .cb-follow{padding:0 12px;font-size:12.5px;white-space:nowrap}
+.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 24%,#172124);border-color:var(--c-chord);color:#fff}
+.harness-shell .cb-follow.on svg{color:var(--c-chord)}
+.harness-shell .cb-follow:disabled{opacity:.45}
+.harness-shell .cb-save-held{margin-left:auto;min-height:44px;white-space:nowrap}
+.harness-shell .cb-slots{grid-template-columns:repeat(8,minmax(0,1fr));touch-action:none}
+.harness-shell .cb-slot{position:relative;min-height:58px;user-select:none}
+.harness-shell .cb-slot i{position:absolute;left:6px;top:4px;font-style:normal;font-size:10px;font-weight:800;color:#6f7f84}
+.harness-shell .cb-slot.full strong{font-size:15px}
+.harness-shell .cb-slot em{position:absolute;right:5px;top:4px;font-style:normal;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--c-chord)}
+.harness-shell .cb-slot.next{border-color:var(--c-chord);border-style:dashed}
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 36%,#172124);border-color:var(--c-chord);
+  box-shadow:0 0 14px color-mix(in srgb,var(--c-chord) 45%,transparent)}
+.harness-shell .cb-slot.now i{color:#fff}
+.harness-shell .cb-auto{min-height:44px;min-width:92px;padding:0 10px;font-size:12px;font-weight:800;color:var(--pf-text)}
+@media (prefers-reduced-motion:reduce){.harness-shell .cb-slot.now,.harness-shell .cb-pad.sounding{box-shadow:none;transform:none}}
 
 /* ---------- section D: arp ---------- */
 .harness-shell .pf-ctl-arp{gap:6px}

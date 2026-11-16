@@ -551,7 +551,7 @@ def worker(commands,updates):
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
-                          meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,
+                          meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,chord_step=engine.chord_step,chord_now=engine.chord_now,
                           arp_view=dict(arp_view(engine.project.performance,engine.perform_held.held(),engine.beat,engine.arp_anchor_beat),
                                         **(dict(step=-1,phase=-1) if engine.arp_paused else {}),paused=engine.arp_paused)
                           if engine.project.performance['arp']['enabled'] else None,song_beat=round(engine.beat,4)))

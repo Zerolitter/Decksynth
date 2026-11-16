@@ -28,7 +28,9 @@ from .keystep import (defaults as performance_defaults, validate_state as valida
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes, clip_to_pattern, MAX_STEPS,
                       velocity_transform, HeldNotes, schedule_notes, arp_groups, DIVISIONS,
-                      reconcile_pattern_timing, STRUM_SYNC, arp_view)
+                      reconcile_pattern_timing, STRUM_SYNC, arp_view,
+                      chord_upper, follow_chord, CHORD_ADVANCE)
+CHORD_ADDED_16NOV=dict(inversion=0,ext='triad',follow=False,advance='Key')
 
 PRESETS = {
     'Atmospheric Pad': ([1,.4,.25,.14,.12,.08,.06,.05,.04,.03,.02,.02,.01,.01,0,0], .7,.8,.75,1.8,.65,.25),
@@ -134,10 +136,17 @@ class Project:
         # Shared send settings are saved once changed, so older projects stay byte-for-byte the same.
         if self.sends!=send_buses.defaults():d['sends']=self.sends
         return d
+    def saved_data(self):
+        """The file form: chord settings added on 16 Nov are written once they differ from their
+        defaults, so older projects stay byte-for-byte the same (loading fills them in again)."""
+        d=self.data();chord=self.performance['chord']
+        fresh={k:v for k,v in CHORD_ADDED_16NOV.items() if chord.get(k)==v}
+        if fresh:d['performance']=dict(d['performance'],chord={k:v for k,v in chord.items() if k not in fresh})
+        return d
     def save(self,path):
         path=Path(path); temp=path.with_suffix(path.suffix+'.tmp')
         with temp.open('w') as f:
-            json.dump(self.data(),f,indent=2,allow_nan=False); f.flush(); os.fsync(f.fileno())
+            json.dump(self.saved_data(),f,indent=2,allow_nan=False); f.flush(); os.fsync(f.fileno())
         os.replace(temp,path)
     @classmethod
     def load(cls,path):
@@ -580,6 +589,10 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.rec_armed=None; self.count_end=None; self.count_start=0; self.count_track=0; self.count_early=[]
         self.perform_held=HeldNotes(); self.live_note_map={}; self.mutation_sessions={}; self.arp_anchor_beat=0.
         self.arp_paused=False; self.arp_resume_phase=0
+        # Chords (runtime only): the chord before the last key (Voice lead), the last chord, the
+        # My chords position for Play in order (next to play, now sounding), keys that carry exact pad notes.
+        self.lead_from=None; self.last_chord=None; self.chord_step=0; self.chord_now=-1
+        self.explicit_keys=set(); self.pad_keys=set(); self.live_velocity={}; self.chord_key_frame=-10**9
         self.scheduled_live=[]; self.absolute_frame=0
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
@@ -896,7 +909,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             s.cancel_sources(('live','perf_seq','perf_arp','editor'),cut=('live',))
             self.samplers[self.selected].cancel_sources(('live','perf_seq','perf_arp','editor')); self.samplers[self.selected].pedal(False)
             s.pedal(False); s.bend=1.; self.down.clear(); self.capture_sustain.clear()
-            self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear(); self.selected=track
+            self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear(); self.selected=track
     def close_note(self,key,at=None):
         if key in self.pending:
             start,vel,track=self.pending.pop(key)
@@ -920,7 +933,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         for fx in self.fx:fx.clear_gate_events()
         for keys in self.drum_gate_keys:keys.clear()
         self.drum_keys.clear(); self.freeze_ring.clear()
-        self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
+        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear()
     def release_performance(self,prefix):
         for synth in self.synths:synth.cancel_sources((prefix,))
         for sampler in self.samplers:sampler.cancel_sources((prefix,))
@@ -941,6 +954,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             if section=='sync' and key=='source':
                 self.clock_times.clear();self.clock_following=False;self.clock_last_ts=0.
             self.project.performance=state
+            if section=='chord' and key in ('follow','advance'):self.chord_step=0;self.chord_now=-1
+            if section in ('chord','scale'):self.rechord()
             if section=='arp':self.release_performance('perf_arp')
             if section=='arp' and key=='enabled':
                 for synth in self.synths:
@@ -1065,6 +1080,13 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 raise ValueError('Chord memory needs 1-16 notes')
             root=int(value[0]); chord=self.project.performance['chord']
             chord['user']=[max(-48,min(48,int(x)-root)) for x in value]; chord['preset']='User'
+            self.rechord()
+            return action
+        if action=='chord_goto':
+            # Play in order: the next key plays this My chords chord (counted over the saved ones).
+            filled=[c for c in self.project.performance['chord']['slots'] if c]
+            if type(value) is not int or not 0<=value<max(1,len(filled)):raise ValueError('Choose a saved chord')
+            self.chord_step=value
             return action
         if action in ('rec_cursor','rec_rest','rec_back'):
             length=current_pattern(self.project.performance)['length']
@@ -1194,6 +1216,10 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             else:self.project.tracks[self.selected]['notes'].extend(song_notes)
         elif action=='quantize':self.project.tracks[self.selected]['notes']=song_notes
         self.project.performance=validated
+        if action in ('save_slot','clear_slot'):
+            filled=sum(1 for c in validated['chord']['slots'] if c)
+            self.chord_step=self.chord_step%filled if filled else 0
+            if validated['chord']['follow']:self.rechord()
         return action
 
     def receive_midi_clock(self,status,timestamp=None):
@@ -1248,6 +1274,10 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         if (status&0xf0)==0x90 and value and (not channel or (status&15)==channel-1):self.first_note()
         if self.drum_midi(status,note,value):return
         kind=status&0xf0; ch=status&15; s=self.synths[self.selected]; key=(ch,note)
+        # notes='chord': a chord pad or My chords slot in chord mode. Its key is the chord root, played
+        # through chord mode (no scale snap, not Play in order), so option changes re-voice it live.
+        pad=notes=='chord'
+        if pad:notes=None
         explicit=notes is not None
         if explicit:
             if (not isinstance(notes,list) or not 1<=len(notes)<=8 or
@@ -1261,9 +1291,14 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             for old in self.live_note_map.pop(key,[]):
                 self.voice_off(self.selected,old,('live',ch,note,old))
             self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key]
-            if notes is None:notes=chord_notes(state,note,value)
+            if notes is None:
+                self.explicit_keys.discard(key)
+                if pad:self.pad_keys.add(key)
+                else:self.pad_keys.discard(key)
+                notes=self.key_chord(note,press=True,pad=pad)
+            else:self.explicit_keys.add(key)
             velocity=velocity_transform(value,state['scale']['velocity_curve'])
-            self.down.add(key)
+            self.down.add(key);self.live_velocity[key]=velocity;self.chord_key_frame=self.absolute_frame
             fresh=not self.perform_held.keys
             if state['arp']['enabled']:self.release_performance('perf_arp')
             self.perform_held.on(key,notes,velocity)
@@ -1279,7 +1314,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 if fresh or state['arp']['retrigger']:self.arp_anchor_beat=self.beat
             else:
                 order=notes[:]
-                strum=state['chord']['strum_ms'] if state['chord']['enabled'] or explicit else 0
+                strum=state['chord']['strum_ms'] if state['chord']['enabled'] or explicit or pad else 0
                 direction=state['chord']['strum_type']
                 if direction in ('Down','Alt Down'):order.reverse()
                 if direction in ('Alt Up','Alt Down') and len(order)>2:
@@ -1287,7 +1322,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 self.live_note_map[key]=order[:]
                 for i,pitch in enumerate(order):
                     token=('live',ch,note,pitch)
-                    sync=STRUM_SYNC.get(state['chord'].get('strum_sync','Off'),0.) if state['chord']['enabled'] or explicit else 0.
+                    sync=STRUM_SYNC.get(state['chord'].get('strum_sync','Off'),0.) if state['chord']['enabled'] or explicit or pad else 0.
                     delay=max(0,round(sync*i*self.fpb)) if sync else max(0,round(strum*i*self.rate/1000))
                     if delay:
                         self.scheduled_live.append((self.absolute_frame+delay,self.selected,pitch,velocity,key,token))
@@ -1298,7 +1333,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                             self.count_early.append(((ch,note,pitch),velocity,self.selected))
             if state['seq']['recording']:self.step_record(notes,velocity)
         elif kind==0x80 or (kind==0x90 and value==0):
-            self.down.discard(key)
+            self.down.discard(key);self.live_velocity.pop(key,None)
+            if key not in self.perform_held.latched_keys or not self.perform_held.hold:self.explicit_keys.discard(key)
             if state['arp']['enabled'] and not self.perform_held.hold:self.release_performance('perf_arp')
             self.perform_held.off(key)
             self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key]
@@ -1320,6 +1356,63 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # Channel/poly-aftertouch mapped to expressive synth modulation.
             s.mod_wheel=max(0.,min(1.,(note if kind==0xd0 else value)/127))
         elif kind==0xb0 and note in (120,123):self.panic()
+    def key_chord(self,note,press=False,pad=False):
+        """The notes one key plays: chord mode (with Voice lead from the chord before), or with
+        Play in order the next My chords chord. `press` is a new key: it moves Voice lead and the order on."""
+        state=self.project.performance;chord=state['chord']
+        if press:self.lead_from=self.last_chord
+        notes=None
+        if chord['enabled'] and chord['follow'] and not pad:
+            filled=sum(1 for c in chord['slots'] if c)
+            if filled:
+                if press or self.chord_now<0:self.chord_now=self.chord_step%filled
+                notes,_=follow_chord(state,self.chord_now,self.lead_from)
+                if press and CHORD_ADVANCE[chord['advance']]==0:self.chord_step=(self.chord_now+1)%filled
+        if notes is None:notes=chord_notes(state,note,previous=self.lead_from,snap=not pad)
+        if chord['enabled']:self.last_chord=chord_upper(notes,chord)
+        return notes
+    def rechord(self):
+        """A chord option changed (type, voices, inversion, bass, voice lead, octave, key, order):
+        the keys still down sound the new chord straight away, without pressing them again."""
+        state=self.project.performance
+        if not self.perform_held.keys and not self.perform_held.latched_keys:return
+        fresh={}
+        def notes_for(key,old):
+            if key in self.explicit_keys:return old
+            if key not in fresh:fresh[key]=self.key_chord(key[1],pad=key in self.pad_keys)
+            return fresh[key]
+        if not state['arp']['enabled']:
+            for key in list(self.live_note_map):
+                if key not in self.down or key in self.explicit_keys:continue
+                ch,note=key;old=self.live_note_map[key];new=notes_for(key,old)
+                if sorted(old)==sorted(new):continue
+                velocity=self.live_velocity.get(key,100)
+                self.scheduled_live=[item for item in self.scheduled_live if item[4]!=key or item[2] in new]
+                for pitch in old:
+                    if pitch not in new:
+                        self.voice_off(self.selected,pitch,('live',ch,note,pitch))
+                        if (ch,note,pitch) in self.pending:self.close_note((ch,note,pitch))
+                for pitch in new:
+                    if pitch not in old:
+                        self.voice_on(self.selected,pitch,velocity,('live',ch,note,pitch))
+                        if self.capturing_song():self.pending[(ch,note,pitch)]=(self.frame,velocity,self.selected)
+                self.live_note_map[key]=[p for p in old if p in new]+[p for p in new if p not in old]
+        self.perform_held.remap(notes_for)
+    def chord_bar_advance(self,start,end):
+        """Play in order by bars: move to the next saved chord on each 1 or 2 bar line while keys are down.
+        A key pressed just before the line (half a beat) already chose this bar's chord."""
+        chord=self.project.performance['chord'];bars=CHORD_ADVANCE[chord['advance']]
+        if not (chord['enabled'] and chord['follow'] and bars):return
+        if not self.perform_held.keys and not (self.perform_held.hold and self.perform_held.latched_keys):return
+        span=round(bars*4*self.fpb)
+        line=math.ceil(start/span)*span
+        if not start<=line<end or line==0:return
+        if self.absolute_frame-self.chord_key_frame<self.fpb/2:return
+        filled=sum(1 for c in chord['slots'] if c)
+        if not filled:return
+        self.chord_now=(max(0,self.chord_now)+1)%filled;self.chord_step=self.chord_now
+        self.lead_from=self.last_chord
+        self.rechord()
     def step_record(self,notes,velocity):
         """Step rec: a key (synth) or pad (Drum Rack) writes the step under the rec cursor of the open
         SEQ pattern, then the cursor moves on. Keys pressed together (within 80 ms, earlier ones still
@@ -1346,7 +1439,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.midi_learn=None
         self.cancel_count()
         self.finish_record(); self.down.clear(); self.capture_sustain.clear()
-        self.perform_held.reset(); self.live_note_map.clear(); self.scheduled_live.clear()
+        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear()
         for s in self.synths:s.panic()
         for rack in self.drums:rack.panic()
         for sampler in self.samplers:sampler.panic()
@@ -1427,6 +1520,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                             on=round(cycle*loop+note['start']*self.fpb); off=round(cycle*loop+(note['start']+note['duration'])*self.fpb)
                             for when,action in ((off,0),(on,1)):
                                 if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
+                self.chord_bar_advance(start,end)
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
                 if self.playing and not self.freeze_render and not self.project.tracks[self.selected]['mute']:

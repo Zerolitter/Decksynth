@@ -64,5 +64,98 @@ class ChordPadTests(unittest.TestCase):
         self.assertEqual(b['chord']['slots'][0], [], 'defaults are not shared between projects')
 
 
+class ChordRefinementTests(unittest.TestCase):
+    """Chords rework (16 Nov): one voicing order, live changes, Play in order."""
+    def setUp(self):
+        self.e = Engine(1000)
+        self.e.perform_set('chord', 'enabled', True)
+
+    def sounding(self, key=(0, 60)):
+        return sorted(self.e.live_note_map[key])
+
+    def test_option_changes_reach_the_held_chord(self):
+        e = self.e
+        e.perform_action('save_chord', [60, 64, 67, 71])
+        e.midi(0x90, 60, 100); e.render(10)
+        self.assertEqual(self.sounding(), [60, 64, 67, 71])
+        e.perform_set('chord', 'spread', 3)
+        self.assertEqual(self.sounding(), [60, 64, 67], 'Voices applies without pressing the key again')
+        e.perform_set('chord', 'inversion', 1)
+        self.assertEqual(self.sounding(), [64, 67, 72])
+        e.perform_set('chord', 'bass', 1)
+        self.assertEqual(self.sounding(), [48, 64, 67, 72])
+        e.perform_set('scale', 'octave', 1)
+        self.assertEqual(self.sounding(), [60, 76, 79, 84])
+        e.perform_action('save_chord', [57, 60, 64])
+        self.assertEqual(self.sounding(), [60, 75, 79, 84], 'a new chord shape replaces the sounding one')
+
+    def test_bass_is_added_once_below_the_chord_root(self):
+        e = self.e
+        e.perform_set('chord', 'bass', 2)
+        e.perform_action('save_chord', [57, 60, 64])
+        e.midi(0x90, 57, 100)
+        self.assertEqual(self.sounding((0, 57)), [33, 57, 60, 64])
+
+    def test_voice_lead_picks_the_nearest_inversion(self):
+        e = self.e
+        e.perform_set('chord', 'voicing', True)
+        e.perform_action('save_chord', [60, 64, 67])
+        e.midi(0x90, 60, 100); e.midi(0x80, 60, 0)
+        e.midi(0x90, 65, 100)
+        self.assertEqual(self.sounding((0, 65)), [60, 65, 69], 'F after C keeps its voices close: C F A')
+
+    def test_play_in_order_steps_through_my_chords(self):
+        e = self.e
+        e.perform_action('save_slot', [0, [60, 64, 67]])
+        e.perform_action('save_slot', [2, [57, 60, 64]])
+        e.perform_set('chord', 'follow', True)
+        played = []
+        for _ in range(3):
+            e.midi(0x90, 72, 100); played.append(self.sounding((0, 72))); e.midi(0x80, 72, 0)
+        self.assertEqual(played, [[60, 64, 67], [57, 60, 64], [60, 64, 67]])
+        e.perform_action('chord_goto', 1)
+        e.midi(0x90, 40, 100)
+        self.assertEqual(self.sounding((0, 40)), [57, 60, 64])
+
+    def test_play_in_order_by_bar_changes_the_held_chord(self):
+        e = self.e
+        e.perform_action('save_slot', [0, [60, 64, 67]])
+        e.perform_action('save_slot', [1, [65, 69, 72]])
+        e.perform_set('chord', 'follow', True); e.perform_set('chord', 'advance', '1 bar')
+        e.playing = True
+        e.midi(0x90, 60, 100)
+        self.assertEqual(self.sounding(), [60, 64, 67])
+        e.render(int(e.fpb * 4) + 300)
+        self.assertEqual(self.sounding(), [65, 69, 72])
+
+    def test_arp_follows_a_changed_chord(self):
+        e = self.e
+        e.perform_set('arp', 'enabled', True)
+        e.perform_action('save_chord', [60, 64, 67])
+        e.midi(0x90, 60, 100)
+        self.assertEqual(sorted(e.perform_held.held()), [60, 64, 67])
+        e.perform_set('chord', 'bass', 1)
+        self.assertEqual(sorted(e.perform_held.held()), [48, 60, 64, 67])
+
+    def test_chord_pad_key_skips_scale_snap_and_play_in_order(self):
+        e = self.e
+        e.perform_set('scale', 'name', 'Major')
+        e.perform_action('save_slot', [0, [60, 64, 67]])
+        e.perform_set('chord', 'follow', True)
+        e.perform_action('save_chord', [61, 65, 68])
+        e.midi(0x90, 61, 100, 'chord')
+        self.assertEqual(self.sounding((0, 61)), [61, 65, 68], 'a C# pad is not snapped into C major or replaced by My chords')
+        e.perform_set('chord', 'bass', 1)
+        self.assertEqual(self.sounding((0, 61)), [49, 61, 65, 68])
+
+    def test_new_chord_settings_load_on_old_projects(self):
+        old = defaults()
+        for k in ('inversion', 'ext', 'follow', 'advance'): del old['chord'][k]
+        state = validate_state(old)
+        self.assertEqual((state['chord']['inversion'], state['chord']['follow'], state['chord']['advance']), (0, False, 'Key'))
+        for key, bad in (('inversion', 4), ('ext', 'x'), ('advance', '3 bars'), ('follow', 1)):
+            with self.assertRaises(ValueError): self.e.perform_set('chord', key, bad)
+
+
 if __name__ == '__main__':
     unittest.main()
