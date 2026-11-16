@@ -4,15 +4,18 @@ Folder entries describe direct WAV files, not factory presets. Scanning reads
 names and metadata only. Preparing a selection decodes at most sixteen sources;
 the caller commits the returned kit atomically after its own stale-job checks.
 """
+import json
 import os
 from pathlib import Path
 import re
 
-from .drum_rack import PAD_COUNT, new_kit
+from .drum_rack import PAD_COUNT, new_kit, validate_kit
 from .samples import SampleCache
 
 
 MAX_WAV_FILES = 20000
+# A kit saved from Decksynth (Save kit): which file goes on which pad, with names and sound settings.
+KIT_FILE = 'decksynth-kit.json'
 MAX_FOLDERS = 2048
 MAX_DEPTH = 12
 
@@ -152,6 +155,11 @@ class LibraryIndex:
             raise ValueError('Unknown sample library folder')
         root = Path(self.root)
         selected = _select(self._paths[folder_id])
+        saved = self._saved_kit(root, folder_id)
+        if saved is not None:
+            by_name = {path.name: path for path in self._paths[folder_id]}
+            selected = [by_name.get(entry['file']) if isinstance(entry, dict) and isinstance(entry.get('file'), str) else None
+                        for entry in saved['pads']]
         if not any(path is not None for path in selected):
             raise ValueError('Folder contains reference audio only; choose a one-shot kit or import a sample explicitly')
         # Resolve every chosen path before any decode; this also rejects a
@@ -183,7 +191,27 @@ class LibraryIndex:
             if sample is not None:
                 pad['name'] = path.stem[:80] or path.name[:80]
                 pad['source'] = sample.source
+        if saved is not None:
+            if isinstance(saved.get('name'), str) and saved['name'].strip(): kit['name'] = saved['name'].strip()[:80]
+            for pad, entry, sample in zip(kit['pads'], saved['pads'], samples):
+                if sample is None or not isinstance(entry, dict): continue
+                for key in ('name', 'gain', 'velocity', 'tune', 'choke', 'shape'):
+                    if key in entry: pad[key] = entry[key]
+            try: kit = validate_kit(kit)
+            except (ValueError, TypeError, KeyError) as exc:
+                raise ValueError('The saved kit settings in this folder are damaged') from exc
         return kit, samples
+
+    @staticmethod
+    def _saved_kit(root, folder_id):
+        side = (root if folder_id == '.' else root / folder_id) / KIT_FILE
+        try:
+            if not side.is_file() or side.is_symlink() or side.stat().st_size > 262144: return None
+            data = json.loads(side.read_text())
+        except (OSError, ValueError): return None
+        if not isinstance(data, dict) or data.get('version') != 1 or not isinstance(data.get('pads'), list) or len(data['pads']) != PAD_COUNT:
+            return None
+        return data
 
 
 def scan_library(root: str | Path) -> LibraryIndex:

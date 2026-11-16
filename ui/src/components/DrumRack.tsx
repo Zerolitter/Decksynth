@@ -1,6 +1,6 @@
 import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
-import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, Power, RotateCcw, Undo2 } from 'lucide-react';
+import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, Mic, Power, RotateCcw, Save, Trash2, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
@@ -8,8 +8,8 @@ import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import { CompMeter, EnvelopeView, ToneView } from './DragGraphs';
 import '../drum-rack.css';
 import '../sampler.css';
-import { SampleWindow } from './Sampler';
-import type { SamplerSpec, SamplerRuntime } from '../types';
+import { RecordSheet, SampleWindow } from './Sampler';
+import type { SamplerSpec, SamplerRuntime, SamplerRecord } from '../types';
 
 export { envelopePath } from '../drum-shape-graph';
 export type { DrumPad, DrumRuntime } from '../types';
@@ -18,7 +18,9 @@ type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Tra
   onStopPreview?:()=>void;onReplaceSample?:(folderId:string,index:number,pad:number)=>void;
   steps?:(pad:import('../types').DrumPad)=>ReactNode;
   /** Opens the sheet that makes a Sampler track from this pad. */
-  onPlayOnKeys?:(pad:number)=>void};
+  onPlayOnKeys?:(pad:number)=>void;
+  /** Record into a pad (16 Nov): the shared record state and the worker command. Left out, there is no Record. */
+  record?:SamplerRecord;send?:(cmd:string,args:unknown)=>void};
 
 /** The shared knob previews locally (and reports the live value with onDraft); only the end of its gesture reaches the worker. */
 export function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,format,onCommit,onDraft,defaultValue}:{
@@ -60,7 +62,10 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
 const panText=(n:number)=>Math.round(n)===0?'C':Math.round(n)<0?'L'+Math.round(-n):'R'+Math.round(n);
 const ms=(n:number)=>n<1000?Math.round(n)+' ms':(n/1000).toFixed(2)+' s';
 
-function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys}:Props) {
+function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys,record,send}:Props) {
+  // The pad the Record sheet is open for (null: closed).
+  const [recordPad,setRecordPad]=useState<number|null>(null);
+  const canRecord=!!send;
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
   const [localBrowsing,setLocalBrowsing]=useState(false);
@@ -81,7 +86,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
     },120));});
   },[runtime]);
   useEffect(()=>()=>{timers.current.forEach(clearTimeout);timers.current.clear();},[]);
-  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
+  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(canRecord?{record:()=>{setSelected(i);setRecordPad(i);}}:{}),...(p.source?{relink:()=>onImport(i,true),...(send?{clearPad:()=>send('drum_clear',[trackIndex,kit.id,i])}:{})}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
   const pad=pads[selected],live=runtime?.pads[selected];
   const status=live?.status??(pad?.source?'LOADING':'EMPTY');
   const sourceReady=!!pad?.source&&!['EMPTY','MISSING','LOADING','ERROR'].includes(status);
@@ -96,6 +101,20 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const lastRatio=useRef<Record<number,number>>({});   // Comp Off remembers the ratio for On
   const committed=JSON.stringify([selected,pad?.shape,pad?.tune]);
   useEffect(()=>{setDrafts({});},[committed]);
+  // Sir, 16 Nov: the sound lagged behind the knob. While a knob or point moves, the engine hears the draft
+  // (about 14 times a second, no undo step); letting go still saves it once.
+  const liveDraft=useRef<{t:number;timer:number|null}>({t:0,timer:null});
+  const liveShape=Object.fromEntries(Object.entries(drafts).filter(([k])=>k!=='tune'));
+  const liveKey=Object.keys(liveShape).length?JSON.stringify([selected,liveShape]):'';
+  useEffect(()=>{
+    if(!liveKey||!send||!kit||!pad)return;
+    const fire=()=>{liveDraft.current.t=performance.now();liveDraft.current.timer=null;
+      send('drum_draft',[trackIndex,kit.id,selected,{...DEFAULT_DRUM_SHAPE,...pad.shape,...liveShape}]);};
+    if(liveDraft.current.timer!==null)window.clearTimeout(liveDraft.current.timer);
+    const wait=70-(performance.now()-liveDraft.current.t);
+    if(wait<=0)fire();else liveDraft.current.timer=window.setTimeout(fire,wait);
+  },[liveKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>()=>{if(liveDraft.current.timer!==null)window.clearTimeout(liveDraft.current.timer);},[]);
   if(!kit||!pad)return <section className="drum-rack drum-rack-loading" aria-label="Drum Rack"><AudioWaveform size={24}/><p>Preparing Drum Rack…</p></section>;
   const shape:DrumShape={...DEFAULT_DRUM_SHAPE,...pad.shape};
   const {tune:tuneDraft,...shapeDrafts}=drafts;
@@ -136,8 +155,13 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           })}
         </div>
         <div className="drum-family-legend" aria-label="Drum families">{families.map(kind=><span key={kind} style={{['--family' as string]:DRUM_KINDS[kind].color}}><i/>{DRUM_KINDS[kind].label}</span>)}</div>
+        <div className="drum-kits-row">
         <button type="button" className="drum-kits-wide" aria-label="Browse drum kits" aria-expanded={browsing} title="Load another kit, or swap single sounds" onClick={()=>setBrowsing(!browsing)}>
           <FolderOpen size={18}/><span><small>Kits</small><strong>{kit.name||'Choose a kit'}</strong></span></button>
+        {send?<button type="button" className="drum-kit-save" aria-label="Save this kit to the library" disabled={!pads.some(p=>p.source)}
+          title="Save these 16 pads, with their names and sound settings, as a kit in your library (My kits)"
+          onClick={()=>send('drum_export',[trackIndex,kit.id,kit.name||''])}><Save size={17}/>Save kit</button>:null}
+        </div>
         {steps?.(pad)}
       </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">
@@ -153,6 +177,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           {onPlayOnKeys?<button type="button" className="drum-play-keys" aria-label="Play this pad on the keys" title="Make a Sampler track that plays this sound on the keys" disabled={!sourceReady} onClick={()=>onPlayOnKeys(selected)}><KeyboardMusic size={17}/></button>:null}
           <button type="button" aria-label="Browse and audition sample sounds" title="Listen to library sounds and swap this pad" onClick={()=>setBrowsing(true)}><ListMusic size={17}/></button>
           <button type="button" aria-label={pad.source?'Import replacement WAV file':'Import WAV file'} title="Choose a WAV file directly" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/></button>
+          {pad.source&&send?<button type="button" className="drum-clear-pad" aria-label="Clear this pad" title="Take the sample off this pad (Undo brings it back)" onClick={()=>send('drum_clear',[trackIndex,kit.id,selected])}><Trash2 size={17}/></button>:null}
           {pad.source&&status==='MISSING'?<button type="button" className="drum-relink" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Relink WAV</button>:null}
         </div></div>
         <div className={'drum-wave-shell drum-smp-wave view-'+view}>
@@ -167,8 +192,11 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
               <span>{status==='MISSING'?'Point it at the original WAV again':status==='LOADING'||status==='ERROR'?(fileName??''):'Drop in a WAV, or pick one from the library'}</span></div>
             {status==='MISSING'?<button type="button" className="drum-empty-main" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Find the WAV</button>
             :!pad.source?<><button type="button" className="drum-empty-main" title="Choose a WAV file for this pad" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>Choose a WAV</button>
+              {canRecord?<button type="button" className="drum-empty-alt drum-empty-rec" title="Record the piano or a mic onto this pad" onClick={()=>setRecordPad(selected)}><Mic size={17}/>Record</button>:null}
               <button type="button" className="drum-empty-alt" onClick={()=>setBrowsing(true)}><ListMusic size={17}/>Browse sounds</button></>:null}
           </div>}
+          {sourceReady&&send&&view==='trim'&&(shape.start>0||shape.end<1)?<button type="button" className="drum-crop" title="Keep only Start to End in a new WAV; the pad sounds the same and Undo brings the full sample back"
+            onClick={()=>send('drum_crop',[trackIndex,kit.id,selected])}><Crop size={16}/>Crop to Start–End</button>:null}
         </div>
         {live?.error?<p className="drum-source-error" title={live.error} role="status">{live.error}</p>:null}
         <div className="smp-cards drum-cards" key={selected} data-testid="drum-shape">
@@ -240,7 +268,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
         </div>
       </section>
     </div>
-
+    {recordPad!==null&&send&&kit?<RecordSheet spec={{id:kit.id}} trackIndex={trackIndex} pad={recordPad} record={record} send={send} onClose={()=>setRecordPad(null)}/>:null}
   </section>;
 }
 

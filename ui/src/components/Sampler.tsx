@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowRight, ArrowUp, AudioWaveform, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
+import { Activity, ArrowRight, ArrowUp, AudioWaveform, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -729,15 +729,20 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
 }
 
 const LENGTHS = [10, 20, 30, 60, 120, 300, 600];
+/** A pad is a hit or a phrase: 5 s to a minute (MPC's default is 20 s). */
+const PAD_LENGTHS = [5, 10, 20, 30, 60];
 const parseClock = (t: string) => { const m = /^(\d+):(\d{1,2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) : Number.isFinite(Number(t)) ? Number(t) : null; };
 const clock = (s: number) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
-/** Record the piano (or any input) into this Sampler: pick the input, watch its level, arm, play. The take goes into Chop. */
-function RecordSheet({ spec, trackIndex, record, send, onClose }: {
-  spec: SamplerSpec; trackIndex: number; record?: SamplerRecord; send(cmd: string, args: unknown): void; onClose(): void;
+/** Record the piano (or any input) into this Sampler, or onto a Drum Rack pad (pad given, 16 Nov): pick the input,
+ *  watch its level, arm, play. A Sampler take goes into Chop; a pad take goes onto the pad. */
+export function RecordSheet({ spec, trackIndex, record, send, onClose, pad }: {
+  spec: { id: string }; trackIndex: number; record?: SamplerRecord; send(cmd: string, args: unknown): void; onClose(): void; pad?: number;
 }) {
+  const onPad = pad !== undefined;
+  const lengths = onPad ? PAD_LENGTHS : LENGTHS;
   const [threshold, setThreshold] = useState(record?.threshold ?? -40);
-  const [length, setLength] = useState(record?.length && LENGTHS.includes(record.length) ? record.length : 60);
+  const [length, setLength] = useState(record?.length && lengths.includes(record.length) ? record.length : onPad ? 20 : 60);
   const [gainDb, setGainDb] = useState(record?.gain ?? 0);
   const [normalize, setNormalize] = useState(record?.normalize ?? true);
   const close = useRef(onClose); close.current = onClose;
@@ -753,24 +758,25 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
   useEffect(() => { sendNow.current('sampler_record', ['level', threshold, length, gainDb, normalize]); }, [threshold, length, gainDb, normalize]);
   const state = record?.state ?? 'idle';
   // Another track's live take never blocks this one: Arm or Record now here keeps that take and starts this one.
-  const other = record?.track !== null && record?.track !== undefined && record.track !== trackIndex && (state === 'armed' || state === 'recording');
+  const other = record?.track !== null && record?.track !== undefined && (record.track !== trackIndex || (record.pad ?? undefined) !== pad) && (state === 'armed' || state === 'recording');
   const mine = !other;
   const busy = mine && (state === 'armed' || state === 'recording');
   const peak = record?.peak ?? -90;
   const inputs = record?.inputs ?? [];
   const level = Math.max(-60, record?.level ?? -90);
   const pct = (d: number) => Math.max(0, Math.min(100, (d + 60) / 60 * 100)) + '%';
-  const go = (how: 'arm' | 'now') => send('sampler_record', [how, trackIndex, spec.id, threshold, length]);
+  const go = (how: 'arm' | 'now') => send('sampler_record', onPad ? [how, trackIndex, spec.id, threshold, length, pad] : [how, trackIndex, spec.id, threshold, length]);
+  const where = (t: number, p?: number | null) => p !== null && p !== undefined ? 'Pad ' + (p + 1) + ' on track ' + (t + 1) : 'Track ' + (t + 1);
   const words = !inputs.length ? 'No input found. Plug in the piano\'s USB audio, or an audio interface, then tap Look again.'
     : record?.error && state === 'idle' ? record.error
-    : !mine ? 'Track ' + ((record?.track ?? 0) + 1) + (state === 'armed' ? ' is armed. Arm here to take over.' : ' is recording. Arm or Record now here keeps that take and starts this one.')
+    : !mine ? where(record?.track ?? 0, record?.pad) + (state === 'armed' ? ' is armed. Arm here to take over.' : ' is recording. Arm or Record now here keeps that take and starts this one.')
     : state === 'armed' ? 'Waiting for sound above ' + threshold + ' dB. Play now.'
     : state === 'recording' ? 'Recording ' + clock(record?.seconds ?? 0) + ' of ' + clock(length) + (record?.clipped ? '. It clipped: turn the input down.' : '')
     : state === 'saving' ? 'Saving the take…'
-    : 'Arm waits for you to play: the take starts when the level passes the threshold, and goes into Chop when you stop.';
+    : 'Arm waits for you to play: the take starts when the level passes the threshold, and goes ' + (onPad ? 'onto pad ' + ((pad ?? 0) + 1) : 'into Chop') + ' when you stop.';
   return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="smp-sheet smp-record" role="dialog" aria-label="Record into the Sampler">
-      <header><Mic size={20} /><h2>Record into <em>Track {trackIndex + 1}</em></h2>
+    <div className="smp-sheet smp-record" role="dialog" aria-label={onPad ? 'Record into the pad' : 'Record into the Sampler'}>
+      <header><Mic size={20} /><h2>Record into <em>{onPad ? 'Pad ' + ((pad ?? 0) + 1) : 'Track ' + (trackIndex + 1)}</em></h2>
         <button type="button" className="smp-done" onClick={onClose}>Done</button></header>
       {inputs.length ? <div className="smp-targets smp-inputs" role="radiogroup" aria-label="Input">
         {inputs.map(name => <button key={name} type="button" role="radio" aria-checked={record?.input === name} disabled={busy} title={name}
@@ -793,7 +799,7 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
           description="Lifts a quiet input before the meter and the threshold (the piano's line out is low)" format={n => '+' + n.toFixed(1) + ' dB'} onCommit={setGainDb} />
         <ValueBox label="Threshold" value={threshold} min={-60} max={-6} step={1} coarse={6} fine={.5} format={dB} onChange={setThreshold}
           title="Arm starts the take when the level passes this. Click, then scroll (Shift big, Ctrl fine) · two slow clicks to type" />
-        <ValueBox label="Longest" value={length} list={LENGTHS} format={clock} disabled={busy} onChange={setLength} parse={parseClock}
+        <ValueBox label="Longest" value={length} list={lengths} format={clock} disabled={busy} onChange={setLength} parse={parseClock}
           title="The take stops by itself at this length" />
         <button type="button" className="smp-toggle" aria-pressed={normalize} title="Bring each take's loudest peak to -1 dB when it is saved (at most +24 dB)"
           onClick={() => setNormalize(v => !v)}><Maximize2 size={15} />Normalize take</button>
@@ -801,7 +807,7 @@ function RecordSheet({ spec, trackIndex, record, send, onClose }: {
       {peak > -90 && peak < -18 && !busy ? <em className="rec-hint">Quiet input: raise Input gain</em> : peak >= -0.5 ? <em className="rec-hint hot">Clipping: lower Input gain</em> : null}
       <p role="status" className={'smp-record-words ' + state}>{words}</p>
       <footer>
-        {state === 'recording' && mine ? <button type="button" className="smp-make smp-stop" onClick={() => send('sampler_record', ['stop'])}><Scissors size={18} />Stop and chop</button> : <>
+        {state === 'recording' && mine ? <button type="button" className="smp-make smp-stop" onClick={() => send('sampler_record', ['stop'])}>{onPad ? <><Square size={16} />Stop and keep</> : <><Scissors size={18} />Stop and chop</>}</button> : <>
           {state === 'armed' && mine ? <button type="button" onClick={() => send('sampler_record', ['cancel'])}>Disarm</button> : null}
           <button type="button" disabled={!record?.input || (state === 'saving' && mine)} onClick={() => go('now')}>Record now</button>
           {state !== 'armed' || !mine ? <button type="button" className="smp-make" disabled={!record?.input || (state === 'saving' && mine)} onClick={() => go('arm')}><Mic size={18} />Arm</button> : null}

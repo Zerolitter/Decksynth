@@ -381,3 +381,18 @@
   color:var(--drum-accent);background:color-mix(in srgb,var(--drum-accent) 14%,transparent)}
 .drum-pads-panel .drum-section-bar .drum-ready.is-none{color:#9aa0a6;background:#ffffff0a}
 .kit-card-text strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}
+.drum-wave-empty .drum-empty-rec svg{color:#ff6b5e}
+/* Crop to Start-End (Sir, 16 Nov) and Clear pad */
+.drum-rack .drum-wave-shell .drum-crop{position:absolute;right:8px;bottom:8px;z-index:3;min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;
+  border-radius:8px;border:1px solid var(--pad-accent,#6fb9a6);background:color-mix(in srgb,#11181a 86%,transparent);color:#e9f4f1;font-weight:700;font-size:12px}
+.drum-rack .drum-import-actions .drum-clear-pad svg{color:#ffb4ab}
+/* Save kit to the library, beside Kits (Sir, 16 Nov) */
+.drum-kits-row{display:flex;gap:8px;margin:8px 12px 0;align-items:stretch}
+.drum-kits-row .drum-kits-wide{flex:1;min-width:0;margin:0}
+.drum-kit-save{flex:none;display:flex;align-items:center;gap:7px;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:8px;
+  background:var(--panel-2,#24272c);color:var(--text,#f1f2f4);font-weight:700;font-size:12.5px}
+.drum-kit-save svg{color:var(--accent)}
+.drum-kit-save:disabled{opacity:.45}
+/* The file name gives way so the pad buttons (with Clear) always fit */
+.drum-pad-sound .drum-section-bar>.drum-source-file{flex:1 1 0;min-width:0}
+.drum-pad-sound .drum-section-bar>.drum-import-actions,.drum-pad-sound .drum-section-bar>.drum-status{flex:none}

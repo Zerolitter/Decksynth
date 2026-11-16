@@ -179,7 +179,7 @@
 
 /* ---------- section B: pattern pads, timing bar, tool rail, key/scale sheet ---------- */
 .harness-shell .pf-ctl-seq{gap:6px}
-.harness-shell .pf-banks{display:grid;grid-template-columns:repeat(4,1fr) 44px;gap:4px}
+.harness-shell .pf-banks{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr)) 44px;gap:3px}
 .harness-shell .pf-banks button,.harness-shell .pf-pads button,.harness-shell .pf-rail button,.harness-shell .pf-bar .pf-seg button,
 .harness-shell .pf-roots button,.harness-shell .pf-scales button,.harness-shell .pf-pad-menu button{
   min-height:44px;border-radius:8px;background:#1d282b;border:1px solid #3a4b51;color:#d6e3df;font-weight:760;font-size:13px;
@@ -212,7 +212,6 @@
 .harness-shell .pf-bar .pf-seg{display:flex;gap:3px;align-items:center}
 .harness-shell .pf-bar .pf-seg button{min-width:44px;padding:0 4px;font-size:12px}
 .harness-shell .pf-bar .pf-seg button:disabled{opacity:.35}
-.harness-shell .pf-steps-n{min-width:22px;text-align:center;font-size:12px;font-weight:800;color:var(--pf-text)}
 .harness-shell .pf-bar-knobs{display:flex;gap:2px;margin-left:auto}
 .harness-shell .pf-bar-knobs .parameter-knob{display:grid;grid-template-columns:44px auto;grid-template-rows:auto auto;column-gap:4px;align-items:center}
 .harness-shell .pf-bar-knobs .knob-heading{grid-column:2;grid-row:1;font-size:10.5px;text-align:left}

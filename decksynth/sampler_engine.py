@@ -22,7 +22,7 @@ class SamplerEngine:
         self.sample_envs = {}          # sha -> chop envelope, made once per sample on the worker
         self.chop_directory = None     # where sliced WAVs are written (the backend sets the data folder)
         self.recorder = None           # the take being armed or recorded, and which Sampler it goes to
-        self.record_target = None      # (track, sampler id)
+        self.record_target = None      # (track, sampler id, None) or (track, drum rack id, pad)
         self.record_gain = 0.          # input gain in dB (Record sheet)
         self.record_normalize = True   # bring each take to -1 dBFS when it is saved
         self.record_inputs = []        # capture devices the backend found; record_input is the open one
@@ -305,11 +305,14 @@ class SamplerEngine:
     # Recording a take into a Sampler (Stage 5). The backend opens the input and feeds it here.
     def sampler_record(self, action, *args):
         """arm [track, id, threshold dB, length s] waits for the level; now [...] records at once;
-        level [threshold, length] changes them; stop keeps the take; cancel drops it."""
+        level [threshold, length] changes them; stop keeps the take; cancel drops it.
+        With a fifth value, a pad (0-15), the id is a Drum Rack's and the take goes onto that pad (16 Nov)."""
         if action in ('arm', 'now'):
-            if len(args) != 4: raise ValueError('Record needs a track, a Sampler, a threshold and a length')
-            track, sampler_id, threshold, length = args
-            track = track_index(track); self.sampler_target(track, sampler_id)
+            if len(args) not in (4, 5): raise ValueError('Record needs a track, a Sampler or Drum Rack, a threshold and a length')
+            track, sampler_id, threshold, length = args[:4]; pad = args[4] if len(args) == 5 else None
+            track = track_index(track)
+            if pad is None: self.sampler_target(track, sampler_id)
+            else: self.drum_target(track, sampler_id, pad)
             if self.record_input is None: raise ValueError('Choose an input first')
             if self.sampler_tasks.busy(('record', track)) or self.sampler_tasks.busy(('load', track)): raise ValueError('The last take is still being saved')
             # Record here takes over: a take on another track is kept (saved to its Sampler), and this one starts fresh.
@@ -321,7 +324,7 @@ class SamplerEngine:
                 self.recorder = Recorder(self.rate, old.threshold_db, old.max_seconds)
             if self.recorder is None: self.recorder = Recorder(self.rate)
             self.recorder.set_threshold(threshold); self.recorder.set_length(length)
-            self.record_target = (track, sampler_id)
+            self.record_target = (track, sampler_id, pad)
             self.recorder.arm() if action == 'arm' else self.recorder.start()
         elif action == 'level':
             if self.recorder is None: self.recorder = Recorder(self.rate)
@@ -356,7 +359,7 @@ class SamplerEngine:
         if rec is None or rec.state != 'recording':
             if rec is not None: rec.cancel()
             return
-        track, sampler_id = self.record_target
+        track, sampler_id, pad = self.record_target
         clipped = rec.clipped; data = rec.take()
         if self.sample_cache is None or self.chop_directory is None:
             rec.saved(); raise ValueError('No data folder for recordings')
@@ -374,8 +377,12 @@ class SamplerEngine:
 
         def commit(result):
             rec.saved()
-            if self._still(track, sampler_id) is None: return 'Recording saved as ' + path.name + '; the Sampler changed, so it was not loaded'
-            note = self.install_sampler_sample(track, sampler_id, *result).replace('Loaded', 'Recorded', 1)
+            if pad is not None:
+                try: self.commit_drum_sample(track, sampler_id, pad, result[0], name=path.stem[:80])
+                except ValueError: return 'Recording saved as ' + path.name + '; the Drum Rack changed, so it was not put on the pad'
+                note = 'Recorded %.1f s onto pad %d' % (result[0].frames / rate, pad + 1)
+            elif self._still(track, sampler_id) is None: return 'Recording saved as ' + path.name + '; the Sampler changed, so it was not loaded'
+            else: note = self.install_sampler_sample(track, sampler_id, *result).replace('Loaded', 'Recorded', 1)
             if lift[0] >= .5: note += ', normalized +%.0f dB' % lift[0]
             if clipped: note += '. It clipped: turn the input down'
             if lost: note += '. The input went away, so the take ends there'
@@ -384,6 +391,79 @@ class SamplerEngine:
         def fail(exc):
             rec.saved()
         self.sampler_tasks.submit(('record', track), work, commit, fail, 'Recording not saved: ')
+
+    def export_drum_kit(self, track, kit_id, name, root=None, done=None):
+        """Save the 16 pads as a kit folder in the library (Sir, 16 Nov): <root>/My kits/<name>/, one WAV per pad
+        (its Start-End part) and decksynth-kit.json with the pad names and sound settings, so loading the folder
+        from Kits gives the same kit back. Other apps just see the WAVs."""
+        import json
+        from .drum_library import KIT_FILE
+        track = track_index(track); kit = self.drum_target(track, kit_id)
+        if not root: raise ValueError('Choose a sample library folder first (Kits, then the folder button)')
+        clean = lambda s, fallback: re.sub(r'[^\w .()-]+', '', str(s or '')).strip()[:60] or fallback
+        title = clean(name or kit.get('name'), 'My kit')
+        base = Path(root) / 'My kits'; folder = base / title; n = 2
+        while folder.exists(): folder = base / ('%s %d' % (title, n)); n += 1
+        files = []; side = dict(version=1, name=folder.name, pads=[None] * len(kit['pads']))
+        for i, p in enumerate(kit['pads']):
+            raw = self.drums[track].raw[i]
+            if p['source'] is None or raw is None: continue
+            shape = dict(p.get('shape') or {}); frames = raw.frames
+            lo = max(0, min(frames - 1, int(float(shape.get('start', 0.)) * frames)))
+            hi = max(lo + 1, min(frames, int(round(float(shape.get('end', 1.)) * frames))))
+            file = '%02d %s.wav' % (i + 1, clean(p['name'], 'Pad %d' % (i + 1)))
+            files.append((file, raw.data[lo:hi], raw.rate))
+            if shape: shape.update(start=0., end=1.)
+            side['pads'][i] = dict(file=file, name=p['name'], gain=p['gain'], velocity=p['velocity'], tune=p['tune'],
+                                   choke=p['choke'], **(dict(shape=shape) if shape else {}))
+        if not files: raise ValueError('The kit has no sounds to save')
+
+        def work():
+            folder.mkdir(parents=True)
+            for file, data, rate in files: chopper.write_wav(folder / file, data, rate)
+            (folder / KIT_FILE).write_text(json.dumps(side, indent=1))
+            return folder
+
+        def commit(path):
+            if done is not None:
+                try: done()
+                except ValueError: pass
+            return 'Kit saved to the library as My kits / %s (%d sound%s). Find it under Kits' % (path.name, len(files), '' if len(files) == 1 else 's')
+        self.sampler_tasks.submit(('export_kit', track), work, commit, None, 'Kit not saved: ')
+        return str(folder)
+
+    def crop_drum_pad(self, track, kit_id, pad):
+        """Crop a pad to its Start-End (Sir, 16 Nov): the part outside is dropped from a new WAV, the pad plays
+        that file with Start and End back at the edges. Same sound, one undo step; the old file stays on disk."""
+        track = track_index(track); kit = self.drum_target(track, kit_id, pad)
+        p = kit['pads'][pad]; shape = p.get('shape') or {}; raw = self.drums[track].raw[pad]
+        if p['source'] is None or raw is None: raise ValueError('Load a sample on this pad first')
+        start, end = float(shape.get('start', 0.)), float(shape.get('end', 1.))
+        if start <= 0 and end >= 1: raise ValueError('Move Start or End first: the whole sample is in use')
+        if self.sample_cache is None or self.chop_directory is None: raise ValueError('No data folder for cropped samples')
+        n = raw.frames; lo = max(0, min(n - 1, int(start * n))); hi = max(lo + 1, min(n, int(round(end * n))))
+        data = raw.data[lo:hi]; rate = raw.rate; cache = self.sample_cache
+        stem = re.sub(r'[^\w .-]+', '', p['name']).strip()[:60] or 'Pad %d' % (pad + 1)
+        path = Path(self.chop_directory) / 'Samples' / 'Cropped' / ('%s crop %s.wav' % (stem, time.strftime('%d %b %H-%M-%S')))
+        source = p['source']
+
+        def work():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            chopper.write_wav(path, data, rate)
+            return cache.load(str(path))
+
+        def commit(sample):
+            now = self.project.tracks[track].get('drum_rack')
+            if now is None or now['id'] != kit_id or now['pads'][pad]['source'] != source:
+                return 'Cropped copy saved as ' + path.name + '; the pad changed, so it was not swapped'
+            candidate = copy.deepcopy(now); q = candidate['pads'][pad]
+            q['source'] = sample.source; q['shape'] = dict(q.get('shape') or {}, start=0., end=1.)
+            clean = validate_kit(candidate)
+            self.snapshot(); self.project.tracks[track]['drum_rack'] = clean
+            self.drums[track].configure(clean); self.drums[track].bind(pad, sample)
+            return 'Pad %d cropped to %.2f s (was %.2f s). Undo brings the full sample back' % (pad + 1, sample.frames / rate, n / rate)
+        self.sampler_tasks.submit(('crop', track), work, commit, None, 'Not cropped: ')
+        return str(path)
 
     def save_sample_to_library(self, track, sampler_id, what, index, name, category):
         """Save to library: the whole sample, its trim (Start to End) or one slice, as a WAV in the library's save folder
@@ -414,6 +494,7 @@ class SamplerEngine:
                    **(self.recorder.status() if self.recorder is not None else dict(state='idle', level=-90., peak=-90., threshold=-40., length=60., seconds=0., clipped=False)))
         # Only a live take belongs to a track; an old, saved take never blocks another Sampler.
         out['track'] = self.record_target[0] if self.record_target and out['state'] != 'idle' else None
+        out['pad'] = self.record_target[2] if out['track'] is not None else None
         out['gain'] = self.record_gain; out['normalize'] = self.record_normalize
         return out
 

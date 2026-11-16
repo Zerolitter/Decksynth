@@ -187,7 +187,7 @@ class PadShaper:
     _cache = OrderedDict(); _lock = threading.Lock(); _pool = None
 
     @classmethod
-    def submit(cls, sample, shape, rate, done, step=1.):
+    def submit(cls, sample, shape, rate, done, step=1., wanted=None, keep=True):
         key = (sample.sha256, sample.frames, render_key(shape), round(step, 9))
         with cls._lock:
             hit = cls._cache.get(key)
@@ -197,7 +197,10 @@ class PadShaper:
         if cls._pool is None: cls._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='pad-shape')
 
         def work():
+            # A knob being turned queues many renders: skip the ones a newer edit has replaced.
+            if wanted is not None and not wanted(): return
             shaped = render_shape(sample, shape, rate, step)
+            if not keep: done(shaped); return  # a knob draft: heard now, not kept
             with cls._lock:
                 cls._cache[key] = shaped
                 while len(cls._cache) > 24: cls._cache.popitem(last=False)

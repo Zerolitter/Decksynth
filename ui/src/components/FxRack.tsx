@@ -2,12 +2,11 @@ import {RackScrollControls,useRackNavigation} from './RackNavigation';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
-import { ChevronsDownUp, ChevronsUpDown, Minus, Plus, RotateCcw, X } from 'lucide-react';
+import { Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
-import { Panel, markUsed, setFold, useAutoFold,usePanelScope } from './Panel';
+import { Panel, useAutoFold } from './Panel';
 import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxParamDef, type FxTarget } from '../fx';
-import { MorphPad } from './MorphPad';
 import { GateSheet, GateStrip } from './GateSheet';
 import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
@@ -31,45 +30,6 @@ function FxPickerGrid({chain,onAdd}:{chain:FxChain;onAdd:(id:FxModuleId)=>void})
       style={{['--fx-color' as string]:FX_MODULES[id].color}} onClick={()=>onAdd(id)}>
       <strong>{FX_MODULES[id].name}</strong><span>{BLURB[id]}</span></button>)}
   </div>;
-}
-
-function Stepper({label,name,value,min,max,color,onChange}:{label:string,name:string,value:number,min:number,max:number,color:string,onChange:(v:number)=>void}) {
-  const v=Math.round(value);
-  return <div className="fx-stepper" style={{['--fx-color' as string]:color}}>
-    <span className="fx-stepper-label">{label}</span>
-    <div><button type="button" aria-label={'Lower '+name} disabled={v<=min} onClick={()=>onChange(v-1)}><Minus size={15}/></button>
-      <strong>{v}</strong>
-      <button type="button" aria-label={'Raise '+name} disabled={v>=max} onClick={()=>onChange(v+1)}><Plus size={15}/></button></div>
-  </div>;
-}
-
-type WindowProps = {chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm?:number;
-  /** Morph pad folded to its title bar so the effect cards get the room (as on the Sound tab). */
-  folded?:boolean; onFold?:(folded:boolean)=>void};
-
-/** Morph is always in the middle; its existing header also names the cards in the bottom chain. */
-export function FxWindow({chain:raw,onChange,live,bpm,folded=false,onFold}:WindowProps) {
-  const chain=normalizeChain(raw);
-  const windowRef=useRef<HTMLElement>(null),scope=usePanelScope();
-  const reveal=(id:FxModuleId)=>{
-    const panel='fx-'+id,frame=windowRef.current?.closest('.frame');markUsed(panel,scope);setFold(panel,false,scope);
-    requestAnimationFrame(()=>{if(!frame?.isConnected)return;const card=frame.querySelector<HTMLElement>('[data-panel="'+panel+'"]');
-      card?.scrollIntoView({block:'nearest',inline:'nearest'});card?.querySelector<HTMLElement>('.ds-panel-title')?.focus({preventScroll:true});});
-  };
-  return <section ref={windowRef} className={'frame-window'+(folded?' is-folded':'')} data-window="fx" data-view="MORPH" aria-label="FX window">
-    <header className="frame-window-bar">
-      <span className="frame-window-label">Morph pad</span>
-      <div className="fx-chain-tags" role="group" aria-label="FX card tags">
-        {chain.modules.filter(m=>m.on).map(m=><button key={m.id} type="button" aria-label={'Show '+FX_MODULES[m.id].name+' card'}
-          style={{['--fx-color' as string]:FX_MODULES[m.id].color}} onClick={()=>reveal(m.id)}>
-          {FX_MODULES[m.id].name}{m.bypass?<small> · Off</small>:null}</button>)}
-      </div>
-      {onFold?<span className="frame-window-actions"><button type="button" className="frame-window-fold" aria-expanded={!folded}
-        title={folded?'Show the Morph pad':'Hide the Morph pad to give the effect cards more room'}
-        onClick={()=>onFold(!folded)}>{folded?<ChevronsUpDown size={16}/>:<ChevronsDownUp size={16}/>}{folded?'Show':'Hide'}</button></span>:null}
-    </header>
-    {folded?null:<div className="frame-window-body"><MorphPad chain={chain} onChange={onChange} live={live} bpm={bpm}/></div>}
-  </section>;
 }
 
 /** FX page grid (Sir, 16 Nov: "this can be done better"). The page is 9 even columns; a column fits one
@@ -181,14 +141,14 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
             if(p.editor==='gate')return <div key={p.key} className="fx-grid-cell fx-gate-cell" style={at(p)}><GateStrip params={state.params} runtime={live?.gate} onOpen={()=>setGateOpen(true)}/></div>;
             if(p.editor==='track'){const v=Math.round(state.params[p.key]??p.init);
               return <div key={p.key} className="fx-track-pick" style={at(p)}>
-                <span className="fx-choice-label">{p.label}</span>
+                <span className="fx-choice-label">{p.label}
+                  {v===selected||v>=tracks.length?<small className="fx-track-warn" title="A track can't drive itself">Pick another track</small>:null}</span>
                 <div className="fx-segment fx-track-buttons" role="radiogroup" aria-label={def.name+' '+p.label}>
                   {tracks.map((name,i)=><button key={i} type="button" role="radio" aria-checked={v===i} disabled={i===selected}
                     className={v===i?'active':''} title={i===selected?'This track: a track can\'t drive itself':'Track '+(i+1)+' · '+name}
                     aria-label={'Track '+(i+1)+', '+name+(i===selected?' (this track)':'')} onClick={()=>setParam(state.id,p.key,i)}>
                     <b>{i+1}</b><span>{name}</span></button>)}
                 </div>
-                {v===selected||v>=tracks.length?<small className="fx-track-warn">Pick another track: a track can't drive itself.</small>:null}
               </div>;}
             const routes=routesFor(state.id,p.key);
             const routed=!!armed&&sourceTargets(chain,armed).some(t=>t.module===state.id&&t.param===p.key);

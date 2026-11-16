@@ -81,7 +81,7 @@ class DrumRack:
         self.voices = [Voice() for _ in range(VOICE_LIMIT)]
         self.samples = [None]*PAD_COUNT  # what the pads play: the source PCM, or its shaped copy
         self.raw = [None]*PAD_COUNT      # the source PCM from the sample cache
-        self.shaping = [0]*PAD_COUNT; self.shaped_key = [None]*PAD_COUNT
+        self.shaping = [0]*PAD_COUNT; self.shaped_key = [None]*PAD_COUNT; self.drafts = {}
         self.precomp = [None]*PAD_COUNT  # the shaped copy without its compressor, for the live meter
         self.loading = [False]*PAD_COUNT; self.errors = [None]*PAD_COUNT
         self.events = [0]*PAD_COUNT; self.serial = 0; self.stamp = 0
@@ -94,7 +94,7 @@ class DrumRack:
         return sum(v.sample is not None or v.old_remaining > 0 for v in self.voices)
 
     def configure(self, kit):
-        previous = self.kit
+        previous = self.kit; self.drafts.clear()
         if previous is None or kit is None or previous['id'] != kit['id']:
             self.panic()
         self.kit = kit
@@ -123,6 +123,7 @@ class DrumRack:
         """Play the pad's shaped copy. Rendering happens off the audio path; until it is ready the
         previous copy (or the plain sample) keeps playing."""
         raw = self.raw[index]; shape = self.kit['pads'][index].get('shape') if self.kit else None
+        if self.kit and index in self.drafts: shape = self.drafts[index]  # heard while a knob is turned
         if raw is None:
             self.samples[index] = None; self.shaped_key[index] = None; return
         step = 2**(self.kit['pads'][index]['tune']/12.)
@@ -136,6 +137,7 @@ class DrumRack:
             self.samples[index] = raw  # a new sample never plays the previous sample's shaped copy
         if key[1] is None: return
 
+        wanted = lambda: self.shaping[index] == serial
         def ready(shaped):
             if self.shaping[index] == serial and self.raw[index] is raw: self.samples[index] = shaped
         self.precomp[index] = None
@@ -144,8 +146,8 @@ class DrumRack:
         if shape and shape.get('comp_ratio', 1.) > 1:
             plain = dict(shape, comp_ratio=1., comp_makeup=0.)
             if render_key(plain) is None: self.precomp[index] = raw
-            else: PadShaper.submit(raw, plain, self.rate, ready_pre, step)
-        PadShaper.submit(raw, shape, self.rate, ready, step)
+            else: PadShaper.submit(raw, plain, self.rate, ready_pre, step, wanted, index not in self.drafts)
+        PadShaper.submit(raw, shape, self.rate, ready, step, wanted, index not in self.drafts)
 
     def fade_pad(self, pad):
         for v in self.voices:

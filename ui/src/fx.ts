@@ -44,7 +44,7 @@ export const RANDOM_SHAPES=new Set<ModShape>(['random','smooth','sh16','drift'])
 /** Indexed by the saved rate number; 8 and 16 bars were added at the end (15 Nov) so old projects keep their rates. */
 export const MOD_RATES=['4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16','8 bars','16 bars','32 bars'];
 /** Rate numbers in the order the editor shows them: slowest first. */
-export const MOD_RATE_ORDER=[8,7,0,1,2,3,4,5,6];
+export const MOD_RATE_ORDER=[9,8,7,0,1,2,3,4,5,6];
 /** Morph pad path speeds use the original seven rates only. */
 export const PATH_RATE_COUNT=7;
 /** Morph pad path speeds, slowest first: 32 bars down to 1/16 (Sir, 16 Nov: 4 bars was too short). */

@@ -96,12 +96,14 @@ export function EnvelopeView({ shape, seconds, step, peaks, at, onDraft, onCommi
   const gain = (t: number) => t <= length ? padGain(shape, t, length) : 0;
   const line: string[] = [];
   for (let i = 0; i <= N; i++) { const t = T * i / N; line.push((i / N * W).toFixed(1) + ' ' + (LEVEL_Y(gain(t)) * H).toFixed(1)); }
-  const decayOff = shape.decay <= 0;
+  const decayOff = shape.decay <= 0, playsAll = decayOff && shape.hold <= 0;
   const fadeIn = Math.max(0, shape.fade_in), fadeOut = Math.max(0, shape.fade_out);
   const handles: DragHandle[] = [
     { key: 'attack', label: 'Attack', x: shape.attack / T, y: LEVEL_Y(1), axis: 'x', text: msText(shape.attack) },
-    { key: 'hold', label: 'Hold', x: (shape.attack + shape.hold) / T, y: LEVEL_Y(1), axis: 'x', text: msText(shape.hold) },
-    { key: 'decay', label: decayOff ? 'Decay off' : 'Decay', x: (shape.attack + shape.hold + Math.max(0, shape.decay)) / T, y: LEVEL_Y(0), axis: 'x', text: decayOff ? 'off, plays to the end' : msText(shape.decay) },
+    // With Decay off, Hold 0 means "plays to the end", so its point sits at the end of the sound, not at the start
+    // (Sir, 16 Nov: dragging Hold to the left edge made the whole sound jump back).
+    { key: 'hold', label: 'Hold', x: (playsAll ? span : shape.attack + shape.hold) / T, y: LEVEL_Y(1), axis: 'x', text: playsAll ? 'to the end' : msText(shape.hold) },
+    { key: 'decay', label: decayOff ? 'Decay off' : 'Decay', x: (playsAll ? span : shape.attack + shape.hold + Math.max(0, shape.decay)) / T, y: LEVEL_Y(0), axis: 'x', text: decayOff ? 'off, plays to the end' : msText(shape.decay) },
     // Round 4: the fades sit on the sound's middle line, at the start and the end of what plays.
     { key: 'fade_in', label: 'Fade in', x: Math.min(fadeIn, length) / T, y: .5, axis: 'x', text: msText(fadeIn) },
     { key: 'fade_out', label: 'Fade out', x: Math.max(0, length - fadeOut) / T, y: .5, axis: 'x', text: msText(fadeOut) },
@@ -110,8 +112,12 @@ export function EnvelopeView({ shape, seconds, step, peaks, at, onDraft, onCommi
     if (frozen === null) setFrozen(T);
     const t = x * T;
     if (key === 'attack') d.move({ attack: Math.round(clamp(t, 0, 1) * 1000) / 1000 });
-    if (key === 'hold') d.move({ hold: Math.round(clamp(t - shape.attack, 0, 4) * 1000) / 1000 });
-    if (key === 'decay') { const v = clamp(t - shape.attack - shape.hold, 0, 8); d.move({ decay: v < .005 ? 0 : Math.round(v * 1000) / 1000 }); }
+    // No drag flips the pad between "stops here" and "plays to the end": with Decay off, Hold reaches 0 (to the end)
+    // only at the end of the sound, and Decay never drops to off (double-click it to turn it off).
+    if (key === 'hold') d.move({ hold: decayOff
+      ? (t >= span - .002 ? 0 : Math.round(clamp(t - shape.attack, .005, 4) * 1000) / 1000)
+      : Math.round(clamp(t - shape.attack, 0, 4) * 1000) / 1000 });
+    if (key === 'decay') d.move({ decay: Math.round(clamp(t - shape.attack - shape.hold, .005, 8) * 1000) / 1000 });
     const fade = (v: number) => { const c = clamp(v, 0, Math.min(2, length)); return c < .002 ? 0 : Math.round(c * 1000) / 1000; };
     if (key === 'fade_in') d.move({ fade_in: fade(t) });
     if (key === 'fade_out') d.move({ fade_out: fade(length - t) });

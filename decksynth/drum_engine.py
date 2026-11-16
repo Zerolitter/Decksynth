@@ -92,6 +92,29 @@ class DrumEngine:
         self.snapshot(); self.project.tracks[track]['drum_rack'] = clean
         self.drums[track].configure(clean)
 
+    def clear_drum_pad(self, track, kit_id, pad):
+        """Empty one pad: no sample, the pad's own name and settings back to new (Sir, 16 Nov). One undo step."""
+        from .drum_rack import new_kit
+        kit = self.drum_target(track, kit_id, pad)
+        candidate = copy.deepcopy(kit); fresh = new_kit()['pads'][pad]
+        candidate['pads'][pad] = fresh
+        clean = validate_kit(candidate)
+        if clean == kit: return False
+        self.snapshot(); self.project.tracks[track]['drum_rack'] = clean
+        self.drums[track].configure(clean)
+        return True
+
+    def drum_draft(self, track, kit_id, pad, shape):
+        """Hear a pad shape while a knob or graph point is moving: no undo step, nothing saved.
+        The release sends drum_edit, which replaces the draft. shape None drops it."""
+        self.drum_target(track, kit_id, pad)
+        rack = self.drums[track]
+        if shape is None: rack.drafts.pop(pad, None)
+        else:
+            from .drum_shape import validate_shape
+            rack.drafts[pad] = validate_shape(shape)
+        rack.reshape(pad)
+
     def commit_drum_sample(self, track, kit_id, pad, sample, epoch=None, restore=False, source=None, name=None):
         kit = self.drum_target(track, kit_id, pad)
         if epoch is not None and epoch != self.drum_epoch: return False

@@ -6,6 +6,8 @@ const transportKeys=[
  ['F6 / F7','Stop / start or finish recording.'],
  ['F8 / F9','Previous / next track.'],
  ['F10','Undo.'],
+ ['F11','Full screen on or off.'],
+ ['Ctrl+Q','Quit Decksynth.'],
 ];
 const noteKeys=[
  ['Ctrl+A','Select all notes in the current pattern or clip.'],
@@ -87,8 +89,11 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
    <p><strong>Pattern ↔ Song.</strong> The direct buttons name the track, open clip and pattern. Pattern → Song adds notes and repeats to fill the clip. Song → Pattern replaces the named pattern, preserving exact timing where the division, gate and tie range allow it. Incompatible copies are rejected; one Undo restores the transfer.</p>
    <p><strong>Song.</strong> Choose a track and an open clip (A–H), record a loop, or place clips on the arrangement timeline. The global transport controls playback and recording.</p>
    <p><strong>Drum Rack.</strong> The lower step lane edits the selected pad’s MIDI pitch in the named open Song clip. Its 16 steps cover one bar of sixteenth notes; use the bar arrows for longer clips. Tap a step to add or remove a hit. Audition previews the selected pad without recording it. Undo restores the last edit.</p>
-   <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four ADSR controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically, hold Shift for finer changes, or tap the numeric value.</p>
-   <p><strong>Modulation.</strong> Tap a pad’s label or a macro’s name, then the parameters to link. Shape and Links edit the selected source; Done, Escape or an empty-area tap ends linking. Link depth can be positive or negative.</p>
+   <p><strong>Sound and FX.</strong> Sound keeps Partials above the sound cards; edit all four controls inline. FX keeps Morph above the effect cards. Drag cards by their titles; double-tap a title to fold. Drag knobs vertically, hold Shift for finer changes, or tap the numeric value.</p>
+   <p><strong>Drum Rack pads.</strong> Tap a pad to hear it and edit it under Pad Sound. Trim, Envelope and Tone show the sound with points to drag; knobs and points are heard while you move them, and letting go is one undo step. With Decay off, Hold at the end of the sound means the pad plays to the end. Crop to Start–End keeps only the part you hear in a new WAV (the pad sounds the same; Undo brings the full sample back). The bin button clears the pad. An empty pad has Record: play the piano or sing into the input and the take lands on that pad; the radial menu has Record into pad and Clear pad for any pad. Kits, under the pads, loads a kit or swaps single sounds; Save kit puts these 16 pads, with their names and sound settings, into your library under My kits.</p>
+   <p><strong>Perform: Seq, Arp and Chord.</strong> Seq records and plays patterns, Arp plays held notes in turn and Chord turns each key into the chord you tapped last. Chord pads, chord types, Voices and Bass build the chord; My chords keeps up to 8 of your own. Arp Steps and Seq Steps use the same pick list.</p>
+   <p><strong>Modulation.</strong> On the Link page, pick a mod pad or macro, then tap the knobs to link. Shape sets the movement, Rate goes up to 32 bars, and Edit points lets you drag the curve; Done sits in the same place when you finish. Link depth can be positive or negative.</p>
+   <p><strong>Window.</strong> Decksynth fills the screen without a title bar. Settings › Window has Full screen on/off, Minimise and Quit; F11 and Ctrl+Q do the same from the keyboard.</p>
    <h3>Support Decksynth</h3>
    <p>Contribute to development through <span className="support-url">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</span>. For contact, use Discord: <strong>zerolitter</strong>.</p>
    <h3>Transport and tracks</h3>

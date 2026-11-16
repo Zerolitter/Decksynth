@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDot, Eraser, Headphones, LayoutGrid, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
+import { CircleDot, Eraser, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
@@ -23,6 +23,7 @@ type Props = {
 /** Settings: layout, clean-up and audio/MIDI routing in one place behind the gear icon. */
 export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
   const [confirm,setConfirm]=useState(false);
+  const win=window.deckApi?.windowAction;
   const item=(c:Cleanup,icon:React.ReactNode,title:string,sub:string)=><button type="button" className="clean-item"
     onClick={()=>{onCleanup(c);onClose();}}>{icon}<span><strong>{title}</strong><small>{sub}</small></span></button>;
   return <section className="settings-dialog settings-panel" role="dialog" aria-label="Settings" aria-modal="true">
@@ -37,6 +38,13 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
           <input type="checkbox" role="switch" checked={settings.noAutoFold}
             onChange={e=>onSettings({...settings,noAutoFold:e.target.checked})}/>
         </label>
+        {win?<><h3><Maximize size={15}/> Window</h3>
+        <div className="setting-seg setting-window" role="group" aria-label="Window">
+          <button type="button" onClick={()=>win('fullscreen')}><Maximize size={16}/> Full screen</button>
+          <button type="button" onClick={()=>{onClose();win('minimize');}}><Minus size={16}/> Minimise</button>
+          <button type="button" className="danger" onClick={()=>win('quit')}><Power size={16}/> Quit</button>
+        </div>
+        <small className="setting-hint">F11 switches full screen, Ctrl+Q quits.</small></>:null}
         <h3><Radio size={15}/> Audio and MIDI</h3>
         <div className={'setting-midi-status'+(midiName?' connected':'')} role="status" aria-label="MIDI keyboard"><i/>
           <strong>{midiName??'No MIDI keyboard'}</strong>{bridgeStatus?<span className={bridgeStatus==='ERROR'?'error':''}>{bridgeStatus}</span>:null}</div>

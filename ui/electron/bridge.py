@@ -25,7 +25,7 @@ def diagnostic_worker(commands, updates):
 COMMANDS = {
     'drum_library_root', 'drum_library_refresh', 'drum_load_folder',
     'drum_list_samples', 'drum_preview_sample', 'drum_preview_stop', 'drum_replace_sample',
-    'set_device', 'drum_note', 'drum_edit', 'drum_import', 'sampler_make', 'sampler_edit', 'sampler_live', 'sampler_detect', 'spectral_seed',
+    'set_device', 'drum_note', 'drum_edit', 'drum_draft', 'drum_clear', 'drum_crop', 'drum_export', 'drum_import', 'sampler_make', 'sampler_edit', 'sampler_live', 'sampler_detect', 'spectral_seed',
     'sampler_load_wav', 'sampler_clear', 'add_track', 'remove_track', 'sample_save', 'sample_library_folder', 'sample_library_scan', 'sample_library_browse', 'sample_library_preview', 'sample_library_stop', 'sample_library_load', 'sampler_chop', 'sampler_view', 'sampler_audition', 'sampler_audition_stop', 'sampler_send', 'sampler_slice_roots', 'sampler_inputs', 'sampler_record',
     'perform_set', 'perform_step', 'perform_action',
     'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'record_options', 'undo', 'quantize',
@@ -67,6 +67,16 @@ def main():
 
     reader = threading.Thread(target=accept_input,daemon=True)
     reader.start()
+
+    # If Electron is killed (no clean stdin close), the bridge is re-parented: stop, so the finally below
+    # tells the worker to quit, and the worker also checks its own parent.
+    electron = os.getppid()
+    def watch_parent():
+        while alive.is_set():
+            if os.getppid() != electron:
+                alive.clear(); break
+            time.sleep(.25)
+    threading.Thread(target=watch_parent,daemon=True).start()
     print(encode({'bridge':'ready','process':process.pid}),flush=True)
     try:
         while alive.is_set() and process.is_alive():

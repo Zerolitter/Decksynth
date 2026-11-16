@@ -39,7 +39,8 @@ export function pointsFrom(m:FxModSource):[number,number][]{
 }
 
 /** The pad's graph as an editor: drag points (Drawn) or bars (Steps); everything snaps to the grid when Snap is on. */
-export function PadGraphEditor({mod,color,phase,live,snap,onChange}:{mod:FxModSource;color:string;phase:number;live?:number;snap:boolean;
+export function PadGraphEditor({mod,color,phase,live,snap,editing=true,onChange}:{mod:FxModSource;color:string;phase:number;live?:number;snap:boolean;
+  /** Drawn points show their handles and take taps only while editing (the Link page's Edit points / Done). */ editing?:boolean;
   onChange:(patch:Partial<FxModSource>)=>void}){
   const [ref,{w,h}]=useSize<HTMLDivElement>();
   const drag=useRef<number|null>(null);const lastTap=useRef({i:-1,t:0,moved:false});
@@ -49,7 +50,7 @@ export function PadGraphEditor({mod,color,phase,live,snap,onChange}:{mod:FxModSo
     let x=clamp((e.clientX-r.left)/r.width,0,1),y=clamp((mid-(e.clientY-r.top))/amp,-1,1);
     if(snap){x=snapTo(x,SNAP_X);y=snapTo(y,SNAP_Y);}return [Math.min(x,.999),y] as [number,number];};
   const count=mod.count??16;
-  const curve=mod.shape==='curve', steps=mod.shape==='steps';
+  const curve=mod.shape==='curve'&&editing, steps=mod.shape==='steps';
   const pts=mod.points??DEFAULT_POINTS;
   const N=Math.max(64,Math.round(w/3));
   const path=Array.from({length:N+1},(_,i)=>{const x=i/N;return (i?'L':'M')+X(x).toFixed(1)+' '+Y(shapeValue(mod.shape,x,mod.steps,0,count,pts)).toFixed(1);}).join(' ');

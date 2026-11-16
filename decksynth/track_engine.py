@@ -83,7 +83,7 @@ class TrackEngine:
         if rec is not None and target is not None and rec.state != 'idle':
             if target[0] == track: rec.cancel()                       # a take on the removed track goes with it
             elif rec.state == 'saving': raise ValueError('Wait until the take is saved')
-        if target is not None and target[0] > track: self.record_target = (target[0]-1, target[1])
+        if target is not None and target[0] > track: self.record_target = (target[0]-1,) + tuple(target[1:])
         self.stop(); self.snapshot()
         for name in self._runtime():
             items = getattr(self, name, None)

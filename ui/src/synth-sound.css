@@ -1,13 +1,13 @@
 /* The synth's Sound page (Sir, 16 Nov): partials, big graph and tool rack on top; eight module cards in four columns. */
 .harness-shell .synth-sound{flex:1;min-height:0;height:100%;display:flex;flex-direction:column;gap:8px;user-select:none}
-.harness-shell .ss-top{flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:540px minmax(0,1fr) 206px;gap:8px}
+.harness-shell .ss-top{flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:620px minmax(0,1fr) 206px;gap:8px}
 .harness-shell .ss-graph-label{display:flex;align-items:baseline;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--c-sound);
   position:absolute;left:10px;top:7px;z-index:1;pointer-events:none}
 .harness-shell .ss-graph-label span{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:#8b929a}
 
 /* Partials: 16 bars to draw, the heard level as a white line, the starting shapes under them */
 .harness-shell .ss-partials{position:relative;display:flex;flex-direction:column;gap:6px;padding:28px 10px 8px;border:1px solid var(--line-soft);border-radius:10px;background:var(--inset);min-height:0}
-.harness-shell .ss-bars{flex:1;min-height:60px;display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:4px;touch-action:none;cursor:crosshair;padding-bottom:14px}
+.harness-shell .ss-bars{flex:1;min-height:60px;display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;touch-action:none;cursor:crosshair;padding-bottom:14px}
 .harness-shell .ss-bar{position:relative;border-radius:4px;background:#ffffff08}
 .harness-shell .ss-bar-fill{position:absolute;left:0;right:0;bottom:0;height:calc(var(--v) * 100%);border-radius:4px;
   background:linear-gradient(180deg,color-mix(in srgb,var(--accent-track) 80%,#fff 0%),color-mix(in srgb,var(--accent-track) 40%,#000));opacity:.62}

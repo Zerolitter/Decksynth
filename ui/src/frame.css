@@ -101,12 +101,9 @@
 .harness-shell .fx-cards .fx-order button{width:32px;height:28px}
 .harness-shell .rack-card-body{flex:1;min-height:0;display:flex;align-items:center;gap:6px}
 .harness-shell .fx-cards .fx-choice{gap:2px}
-.harness-shell .fx-cards .fx-choice-label,.harness-shell .fx-cards .fx-stepper-label{font-size:9.5px}
+.harness-shell .fx-cards .fx-choice-label{font-size:9.5px}
 .harness-shell .fx-cards .fx-segment{flex-wrap:nowrap;padding:2px;gap:2px}
 .harness-shell .fx-cards .fx-segment button{min-height:40px;min-width:40px;font-size:10.5px;padding:0 5px;flex:0 0 auto}
-.harness-shell .fx-cards .fx-stepper{gap:2px}
-.harness-shell .fx-cards .fx-stepper button{width:36px;height:40px}
-.harness-shell .fx-cards .fx-stepper strong{min-width:22px;font-size:15px}
 .harness-shell .fx-add-card{flex:0 0 140px;border-radius:11px;border:2px dashed #3d5056;background:var(--panel);display:flex}
 .harness-shell .fx-add-card.empty{flex:0 0 260px}
 .harness-shell .fx-add-open{flex:1;flex-direction:column;gap:2px;padding:4px}
@@ -221,8 +218,6 @@
    The rack only takes the rows it uses (one card row, two at most), so the focus window above it
    gets the rest of the height on every page and nothing in the window can spill over the rack. */
 .harness-shell .frame{grid-template-rows:172px minmax(0,1fr) 176px}
-.harness-shell .fx-chain-tags{display:flex;align-items:center;gap:4px;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none}
-.harness-shell .fx-chain-tags button{flex:none;min-height:44px;min-width:44px;padding:0 10px;border:1px solid color-mix(in srgb,var(--fx-color) 55%,var(--line));border-radius:7px;background:var(--inset);color:var(--fx-color);font-size:12px;font-weight:750}
 .harness-shell .frame-fx .morph-source select,.harness-shell .frame-fx .morph-modes button,.harness-shell .frame-fx .morph-rate button,.harness-shell .frame-fx .morph-knobs .knob-value{min-height:44px}
 .harness-shell .frame-fx .morph-rate button{min-width:44px}
 .harness-shell .frame-rack{height:176px;min-height:176px;max-height:176px;padding-bottom:4px;scroll-padding:4px}
@@ -276,7 +271,6 @@
 .harness-shell .frame-rack>.rack-card{border-color:color-mix(in srgb,var(--panel-tag,var(--line)) 48%,var(--line));background:linear-gradient(180deg,#ffffff03,transparent 22px),var(--panel);box-shadow:0 3px 7px #0004}
 .harness-shell .frame-rack .ds-panel-bar{background:transparent}
 .harness-shell .frame-rack .rack-card button,.harness-shell .frame-rack .rack-card .fx-segment button{min-width:44px;min-height:44px}
-.harness-shell .frame-rack .rack-card .fx-stepper button{width:44px;height:44px}
 
 /* Shape seeds are one committed action with a finger-sized target. */
 .harness-shell .shape-chips button{min-height:44px;min-width:44px}
@@ -310,3 +304,8 @@
 .setting-choice strong{white-space:nowrap}
 .setting-rec .setting-seg button{min-width:52px;padding:0 9px}
 .setting-rec{gap:4px;padding:6px 10px}
+/* Window controls in Settings (Sir, 16 Nov: the app runs without a title bar) */
+.setting-window{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:4px 0 2px}
+.setting-window button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:0 6px;white-space:nowrap;font-size:12px;background:#1d282b;border-color:#3a4b51}
+.setting-window button.danger{color:#ffb4ab;border-color:#7a3d38}
+.setting-hint{display:block;color:#8e9a97;font-size:11.5px;margin:0 0 6px}
