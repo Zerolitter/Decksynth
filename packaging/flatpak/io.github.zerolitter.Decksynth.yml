@@ -7,7 +7,7 @@ sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '26.08'
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node24   # Node for tsc + vite build (Vite 7 needs >=22.12)
+  - org.freedesktop.Sdk.Extension.node24  
 
 command: decksynth
 
@@ -19,24 +19,24 @@ finish-args:
                                    # which is all the raw ALSA MIDI input (/dev/snd/midiC*D*) needs
   - --device=dri                   # GPU for the Electron UI
   - --device=input                 # game controllers (SDL): the Deck's buttons and pads
-  - --require-version=1.16.0       # --device=input: Flathub asks for Flatpak 1.16 or newer (SteamOS has 1.18)
+  - --require-version=1.16.0       
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
-  # No --share=network: app is fully offline (stdin/stdout bridge, no server)
+  # No --share=network: app is local hosted (stdin/stdout bridge, no server)
   # No --filesystem=home: sample import goes through file dialogs/portals;
-  # add --filesystem=xdg-music:ro only if folder browsing proves insufficient
+  # add --filesystem=xdg-music:ro only if browsing proves not workable
 
 build-options:
   append-path: /usr/lib/sdk/node24/bin
   env:
     npm_config_nodedir: /usr/lib/sdk/node24
-    ELECTRON_SKIP_BINARY_DOWNLOAD: '1'      # electron zip is a verified source below
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # dev-only, never at runtime
+    ELECTRON_SKIP_BINARY_DOWNLOAD: '1'      # electron zip is verified below
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # dev-only
 
 modules:
   # SDL2 audio library the Python engine dlopens (libSDL2-2.0.so.0)
   - name: SDL2
     buildsystem: cmake-ninja
-    builddir: true                 # SDL refuses in-tree builds
+    builddir: true       # SDL refuses 
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DSDL_STATIC=OFF
@@ -49,14 +49,14 @@ modules:
   - name: decksynth
     buildsystem: simple
     build-commands:
-      # 1) Build the Electron/React UI fully offline from the lockfile-pinned cache
+      # 1) Build Electron/React UI locally from the lockfile-pinned cache
       - cd ui && npm ci --offline --ignore-scripts --audit=false --fund=false
         --cache="$FLATPAK_BUILDER_BUILDDIR/flatpak-node/npm-cache"
-      - cd ui && npm run build          # tsc --noEmit && vite build
+      - cd ui && npm run build  # tsc --noEmit && vite build
 
       # 1b) Native kernels, like the release download: the FX library (decksynth/native/libdsfx.so) and the
       #     cached kernels for pitch shift, vocoder, gate and the fast voices (filter, spectral, drums, sampler)
-      #     into decksynth/native/prebuilt; the launcher copies them where the engine looks
+      #     To decksynth/native/prebuilt; the launcher copies them where the engine looks
       - tools/build-native.sh decksynth/native/prebuilt
 
       # 2) Install app tree (engine + built UI + bundled Luna demo kits)
@@ -66,7 +66,7 @@ modules:
         /app/share/decksynth/ui/
       - install -Dm644 ui/src/preview-state.json /app/share/decksynth/ui/src/preview-state.json
 
-      # 3) Electron binary from the official release zip (matches lockfile pin 39.8.10)
+      # 3) Electron from the official release (matches lockfile pin 39.8.10)
       - cp -a "$FLATPAK_BUILDER_BUILDDIR/electron/." /app/share/decksynth/ui/node_modules/electron/dist/
       - chmod +x /app/share/decksynth/ui/node_modules/electron/dist/electron
 
@@ -92,7 +92,8 @@ modules:
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
-      # Offline npm cache, generated from ui/package-lock.json by flatpak-node-generator
+          
+      # Offline npm cache, generated from ui/package-lock.json 
       - node-generated-sources.json
       - type: archive
         url: https://github.com/electron/electron/releases/download/v39.8.10/electron-v39.8.10-linux-x64.zip
