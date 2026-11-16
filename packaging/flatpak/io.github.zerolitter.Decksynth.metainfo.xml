@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.zerolitter.Decksynth</id>
+  <name>Decksynth</name>
+  <summary>Touch-friendly synth, sampler, sequencer and drum machine</summary>
+  <developer id="io.github.zerolitter"><name>zerolitter</name></developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-Proprietary</project_license>
+  <description>
+    <p>Decksynth is a Steam Deck-focused music workstation with a synthesizer, sampler, MIDI sequencer, drum rack and four-track song workflow.</p>
+    <p>Includes five generated Luna demo kits with sixteen ready-to-play pads each.</p>
+  </description>
+  <url type="homepage">https://github.com/Zerolitter/Decksynth</url>
+  <url type="vcs-browser">https://github.com/Zerolitter/Decksynth</url>
+  <url type="donation">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</url>
+  <launchable type="desktop-id">io.github.zerolitter.Decksynth.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-16"/>
+  </releases>
+</component>

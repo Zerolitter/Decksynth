@@ -110,7 +110,8 @@ function stopBackend() {
 }
 
 // A preview must never prevent the live musician's window from launching.
-const profile = path.join(UI_ROOT, '.runtime', PREVIEW ? 'preview' : 'live');
+const runtimeRoot = process.env.DECKSYNTH_RUNTIME_DIR || path.join(UI_ROOT, '.runtime');
+const profile = path.join(runtimeRoot, PREVIEW ? 'preview' : 'live');
 mkdirSync(profile, { recursive: true });
 app.setPath('userData', profile);
 app.isQuitting = false;
