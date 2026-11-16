@@ -2,6 +2,10 @@
 
 A touch-first synthesizer, sampler, sequencer and drum machine for the Steam Deck
 and Linux desktops. Built to be played with fingers on the Deck's screen.
+<img width="1410" height="930" alt="Preview1" src="https://github.com/user-attachments/assets/e9a29140-31b3-46db-bc74-5fbfdbca9b38" />
+<img width="1410" height="930" alt="Preview2" src="https://github.com/user-attachments/assets/975f0d8d-6c74-4004-b02d-425a6e877bd9" />
+<img width="1410" height="930" alt="Preview3" src="https://github.com/user-attachments/assets/a9681098-7b80-45a7-88f1-ae274cc70c35" />
+<img width="1410" height="930" alt="Preview4" src="https://github.com/user-attachments/assets/3aea7580-1c7c-403f-8ef1-ae632e8adf6d" />
 
 ## Features
 
