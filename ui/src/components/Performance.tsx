@@ -370,31 +370,35 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>
   </>;
   else if(mode==='chord'){
-    const shownRaw=following?slots[nowSlot>=0?nowSlot:nextSlot]:active?.raw??(chord.preset==='User'?chord.user.map(n=>60+n):[]);
+    const strumShort:Record<string,string>={'Up':'Up','Down':'Down','Alt Up':'Alt ↑','Alt Down':'Alt ↓','Up-Down':'↑↓'};
     controls=<>
     {power(chord.enabled,'Chord',()=>set('chord','enabled',!chord.enabled))}
-    <div className="cb-display" aria-live="polite" data-testid="cb-display">
-      <span>{!chord.enabled?'Tap a chord to hear it':following?(nowSlot>=0?'Playing '+(nowSlot+1)+' of My chords':'Next key plays '+(nextSlot+1)):'Every key plays'}</span>
-      <strong>{nameOf(shownRaw)||'—'}</strong>
-      <em>{shownRaw.length?chordText(shown(shownRaw)):chord.enabled?'Tap a chord pad':'Chord on: one key plays it'}</em>
-    </div>
-    <div className="pf-knobs pf-knobs-1">
-      <Knob id="pf-strum" name="Strum" value={chord.strum_ms} min={0} max={500} step={5} defaultValue={0} format={n=>Math.round(n)+' ms'}
-        onChange={n=>set('chord','strum_ms',Math.round(n))}/>
-    </div>
-    <span className="pf-group-label">Strum sync</span>
-    <div className="pf-seg pf-seg-grid" role="group" aria-label="Strum sync">
-      {STRUM_SYNC.map(o=><button key={o} type="button" aria-pressed={(chord.strum_sync??'Off')===o}
-        className={(chord.strum_sync??'Off')===o?'on':''} onClick={()=>set('chord','strum_sync',o)}>{o}</button>)}
-    </div>
-    <div className="cb-loop" role="group" aria-label="Strum loop">
-      <button type="button" className={'pf-btn cb-loop-btn'+(chord.loop?' on':'')} aria-pressed={!!chord.loop} aria-label="Loop the strum"
-        disabled={arp.enabled} title={arp.enabled?'The arp plays the held chord; Loop is for Chord without the arp'
-          :chord.loop?'Loop on: the held chord strums again every '+(chord.loop_rate??'1/4'):'Loop off: one strum, then the chord holds'}
-        onClick={()=>set('chord','loop',!chord.loop)}><Repeat size={18}/></button>
-      <div className="pf-seg" role="group" aria-label="Loop rate">
-        {LOOP_RATES.map(r=><button key={r} type="button" aria-pressed={(chord.loop_rate??'1/4')===r} className={(chord.loop_rate??'1/4')===r?'on':''}
-          disabled={!chord.loop||arp.enabled} onClick={()=>set('chord','loop_rate',r)}>{r==='1 bar'?'Bar':r}</button>)}
+    <div className="cb-strum">
+      <span className="pf-group-label">Strum</span>
+      <div className="pf-knobs pf-knobs-1">
+        <Knob id="pf-strum" name="Time" value={chord.strum_ms} min={0} max={500} step={5} defaultValue={0} format={n=>Math.round(n)+' ms'}
+          onChange={n=>set('chord','strum_ms',Math.round(n))}/>
+      </div>
+      <div className="pf-seg cb-fill" role="group" aria-label="Strum order">
+        {STRUM_ORDER.map(o=><button key={o} type="button" aria-label={o} aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''}
+          title={o==='Up-Down'?'Up, then down: with Loop the strum turns round each time':o}
+          onClick={()=>set('chord','strum_type',o)}>{strumShort[o]}</button>)}
+      </div>
+      <span className="pf-group-label">Sync to tempo</span>
+      <div className="pf-seg pf-seg-grid" role="group" aria-label="Strum sync">
+        {STRUM_SYNC.map(o=><button key={o} type="button" aria-pressed={(chord.strum_sync??'Off')===o}
+          className={(chord.strum_sync??'Off')===o?'on':''} onClick={()=>set('chord','strum_sync',o)}>{o}</button>)}
+      </div>
+      <span className="pf-group-label">Loop</span>
+      <div className="cb-loop" role="group" aria-label="Strum loop">
+        <button type="button" className={'pf-btn cb-loop-btn'+(chord.loop?' on':'')} aria-pressed={!!chord.loop} aria-label="Loop the strum"
+          disabled={arp.enabled} title={arp.enabled?'The arp plays the held chord; Loop is for Chord without the arp'
+            :chord.loop?'Loop on: the held chord strums again every '+(chord.loop_rate??'1/4'):'Loop off: one strum, then the chord holds'}
+          onClick={()=>set('chord','loop',!chord.loop)}><Repeat size={18}/></button>
+        <div className="pf-seg" role="group" aria-label="Loop rate">
+          {LOOP_RATES.map(r=><button key={r} type="button" aria-pressed={(chord.loop_rate??'1/4')===r} className={(chord.loop_rate??'1/4')===r?'on':''}
+            disabled={!chord.loop||arp.enabled} onClick={()=>set('chord','loop_rate',r)}>{r==='1 bar'?'Bar':r}</button>)}
+        </div>
       </div>
     </div>
   </>;}
@@ -439,10 +443,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
           onClick={()=>set('arp','division',ab.base+f)}>{short}</button>)}</div>
     {transposeTool}
   </>;
-  const chordTools=<><div className="pf-seg" role="group" aria-label="Strum order">
-    {STRUM_ORDER.map(o=><button key={o} type="button" aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''} title={o==='Up-Down'?'Forward, then back: with Loop the strum turns round each time':undefined}
-      onClick={()=>set('chord','strum_type',o)}>{o}</button>)}
-  </div>{transposeTool}</>;
+  const chordTools=<>{transposeTool}</>;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[],raw=key.dataset.raw?JSON.parse(key.dataset.raw) as number[]:notes.map(n=>n-12*keysOct);return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion(inversion>=3?0:inversion+1),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(raw)}};});
   const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beat={clipMode?clipBeat:currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
@@ -568,6 +569,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       onContextMenu:(e:React.MouseEvent)=>e.preventDefault(),
     });
     const advance=chord.advance??'Key';
+    const readRaw=following?slots[nowSlot>=0?nowSlot:nextSlot]:active?.raw??[];
     laneView=<div className="cb">
       <div {...chordContext} {...swipe(false)} className="cb-pads" role="group" aria-label={'Chords in '+ROOTS[scale.root]+' '+(scale.name==='Chromatic'?'major':scale.name)}
         style={{['--pads' as string]:pads.length}}>
@@ -578,7 +580,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
             <b>{c.roman}</b><strong>{c.name}</strong><span>{chordText(c.notes)}</span></button>;})}
       </div>
       <div className="cb-row">
-        <div className="pf-seg" role="group" aria-label="Chord type">
+        <span className="pf-group-label cb-label">Type</span>
+        <div className="pf-seg cb-fill" role="group" aria-label="Chord type">
           {CHORD_EXTS.map(([id,label])=><button key={id} type="button" aria-pressed={ext===id} className={ext===id?'on':''}
             onClick={()=>setExt(id)}>{label}</button>)}
         </div>
@@ -592,20 +595,20 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
           title="Move chord voices as little as possible between chords" onClick={()=>set('chord','voicing',!chord.voicing)}>Voice lead</button>
       </div>
       <div className="cb-row">
-        <span className="pf-group-label">Voices</span>
-        <div className="pf-seg" role="group" aria-label="Voices">
+        <span className="pf-group-label cb-label">Voices</span>
+        <div className="pf-seg cb-fill" role="group" aria-label="Voices">
           {VOICES.map(v=>{const on=chord.spread===v||(v===0&&chord.spread>6);return <button key={v} type="button" aria-pressed={on} className={on?'on':''}
             onClick={()=>set('chord','spread',v)}>{v?v:'All'}</button>;})}
         </div>
-        <span className="pf-group-label">Bass</span>
-        <div className="pf-seg" role="group" aria-label="Bass note">
+        <span className="pf-group-label cb-label cb-label-mid">Bass</span>
+        <div className="pf-seg cb-fill" role="group" aria-label="Bass note">
           {[0,1,2,3].map(v=><button key={v} type="button" aria-pressed={(chord.bass??0)===v} className={(chord.bass??0)===v?'on':''}
             aria-label={v?'Bass −'+v+' octave':'Bass off'} onClick={()=>set('chord','bass',v)}>{v?'−'+v:'Off'}</button>)}
         </div>
       </div>
       <div className={'cb-seq'+(following?' following':'')}>
         <div className="cb-seq-head">
-          <span className="pf-group-label">My chords</span>
+          <span className="pf-group-label cb-label">My chords</span>
           <button type="button" className={'pf-power cb-follow'+(chord.follow?' on':'')} aria-pressed={!!chord.follow} data-testid="cb-follow"
             disabled={!chord.follow&&!filledSlots.length} title={filledSlots.length?'Each key plays the next saved chord':'Save a chord first'}
             onClick={()=>{if(!chord.enabled&&!chord.follow)set('chord','enabled',true);set('chord','follow',!chord.follow);}}><ListMusic size={16}/>Play in order</button>
@@ -613,6 +616,10 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
             {CHORD_ADVANCE.map(o=><button key={o} type="button" aria-pressed={advance===o} className={advance===o?'on':''} disabled={!chord.follow}
               title={o==='Key'?'Every new key plays the next chord':'While a key is down, the chord changes every '+o+' (transport running)'}
               onClick={()=>set('chord','advance',o)}>{o==='Key'?'Each key':'Every '+o}</button>)}
+          </div>
+          <div className="cb-readout" aria-live="polite" data-testid="cb-display" title="What the keys play">
+            <span>{!chord.enabled?'Chord off':following?(nowSlot>=0?'Playing '+(nowSlot+1):'Next '+(nextSlot+1)):'Keys play'}</span>
+            <strong>{nameOf(readRaw)||'—'}</strong><em>{readRaw.length?chordText(shown(readRaw)):''}</em>
           </div>
           <button type="button" className="pf-btn cb-save-held" disabled={!held.length}
             title="Hold keys, then tap to keep them in My chords"
@@ -638,7 +645,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
         </div>
       </div>
       <div className="cb-suggest" role="group" aria-label="Chord suggestions">
-        <span className="pf-group-label">Suggest</span>
+        <span className="pf-group-label cb-label">Suggest</span>
         <ValueBox label="Tension" hideLabel className={'pf-vbox cb-tension'+(tension?' on':'')} value={tension} min={0} max={6} step={1} coarse={1} live
           title="How far the suggested chords are from the last one: scale steps up and down (0 is off). Click, then scroll · hold and drag · two slow clicks to type"
           format={n=>n?'Tension '+n:'Tension off'} onChange={v=>set('chord','tension',Math.max(0,Math.min(6,Math.round(v))))}/>
