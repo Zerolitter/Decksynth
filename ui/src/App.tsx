@@ -21,8 +21,6 @@ import {transportPosition,clipPlayback} from './transport-clock';
 import {LoopBars} from './components/LoopBars';
 import {DrumSteps} from './components/DrumSteps';
 import { AudioScope } from './components/AudioScope';
-import { SoundWindow } from './components/SoundLab';
-import { SoundCards } from './components/Rack';
 import { DrumRack } from './components/DrumRack';
 import { SamplerPage, PlayOnKeysSheet, padChoices } from './components/Sampler';
 import { drumKind, padLabel } from './drum-kinds';
@@ -569,7 +567,8 @@ function App() {
         onStopPreview={()=>command('drum_preview_stop')}
         onReplaceSample={(folder,index,pad)=>{if(track.drum_rack){pendingSwap.current={track:selected,id:track.drum_rack.id,pad,source:track.drum_rack.pads[pad].source?.path??null};command('drum_replace_sample',[selected,track.drum_rack.id,pad,folder,index]);}}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}
-        onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}/>
+        onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}
+        record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)}/>
       :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
         runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
         library={snapshot?.sample_library} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}

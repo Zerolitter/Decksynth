@@ -1,6 +1,6 @@
 import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
-import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, Power, RotateCcw, Undo2 } from 'lucide-react';
+import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, Mic, Power, RotateCcw, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
@@ -8,8 +8,8 @@ import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
 import { CompMeter, EnvelopeView, ToneView } from './DragGraphs';
 import '../drum-rack.css';
 import '../sampler.css';
-import { SampleWindow } from './Sampler';
-import type { SamplerSpec, SamplerRuntime } from '../types';
+import { RecordSheet, SampleWindow } from './Sampler';
+import type { SamplerSpec, SamplerRuntime, SamplerRecord } from '../types';
 
 export { envelopePath } from '../drum-shape-graph';
 export type { DrumPad, DrumRuntime } from '../types';
@@ -18,7 +18,9 @@ type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Tra
   onStopPreview?:()=>void;onReplaceSample?:(folderId:string,index:number,pad:number)=>void;
   steps?:(pad:import('../types').DrumPad)=>ReactNode;
   /** Opens the sheet that makes a Sampler track from this pad. */
-  onPlayOnKeys?:(pad:number)=>void};
+  onPlayOnKeys?:(pad:number)=>void;
+  /** Record into a pad (16 Nov): the shared record state and the worker command. Left out, there is no Record. */
+  record?:SamplerRecord;send?:(cmd:string,args:unknown)=>void};
 
 /** The shared knob previews locally (and reports the live value with onDraft); only the end of its gesture reaches the worker. */
 export function CommittedKnob({id,name,value,min,max,step,suffix,precision,description,format,onCommit,onDraft,defaultValue}:{
@@ -60,7 +62,10 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
 const panText=(n:number)=>Math.round(n)===0?'C':Math.round(n)<0?'L'+Math.round(-n):'R'+Math.round(n);
 const ms=(n:number)=>n<1000?Math.round(n)+' ms':(n/1000).toFixed(2)+' s';
 
-function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys}:Props) {
+function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys,record,send}:Props) {
+  // The pad the Record sheet is open for (null: closed).
+  const [recordPad,setRecordPad]=useState<number|null>(null);
+  const canRecord=!!send;
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
   const [localBrowsing,setLocalBrowsing]=useState(false);
@@ -81,7 +86,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
     },120));});
   },[runtime]);
   useEffect(()=>()=>{timers.current.forEach(clearTimeout);timers.current.clear();},[]);
-  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
+  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(canRecord?{record:()=>{setSelected(i);setRecordPad(i);}}:{}),...(p.source?{relink:()=>onImport(i,true)}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
   const pad=pads[selected],live=runtime?.pads[selected];
   const status=live?.status??(pad?.source?'LOADING':'EMPTY');
   const sourceReady=!!pad?.source&&!['EMPTY','MISSING','LOADING','ERROR'].includes(status);
@@ -167,6 +172,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
               <span>{status==='MISSING'?'Point it at the original WAV again':status==='LOADING'||status==='ERROR'?(fileName??''):'Drop in a WAV, or pick one from the library'}</span></div>
             {status==='MISSING'?<button type="button" className="drum-empty-main" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Find the WAV</button>
             :!pad.source?<><button type="button" className="drum-empty-main" title="Choose a WAV file for this pad" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>Choose a WAV</button>
+              {canRecord?<button type="button" className="drum-empty-alt drum-empty-rec" title="Record the piano or a mic onto this pad" onClick={()=>setRecordPad(selected)}><Mic size={17}/>Record</button>:null}
               <button type="button" className="drum-empty-alt" onClick={()=>setBrowsing(true)}><ListMusic size={17}/>Browse sounds</button></>:null}
           </div>}
         </div>
@@ -240,7 +246,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
         </div>
       </section>
     </div>
-
+    {recordPad!==null&&send&&kit?<RecordSheet spec={{id:kit.id}} trackIndex={trackIndex} pad={recordPad} record={record} send={send} onClose={()=>setRecordPad(null)}/>:null}
   </section>;
 }
 

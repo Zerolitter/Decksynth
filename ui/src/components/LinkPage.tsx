@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Eraser, Link2, Magnet, Orbit, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Eraser, Link2, Magnet, Orbit, Pencil, Plus, X } from 'lucide-react';
 import { Knob } from './Knob';
 import { MorphPad } from './MorphPad';
 import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, STEP_COUNTS, normalizeChain, rateLabel, targetInfo,
@@ -22,10 +22,12 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
   const page=useRef<HTMLElement>(null);
   const [sheet,setSheet]=useState<SheetTab|null>(null);
   const [snap,setSnap]=useState(true);
+  // Point editing is a mode (Sir, 16 Nov): Edit points turns into Done in the same spot, so the exit is where you went in.
+  const [pointsEdit,setPointsEdit]=useState(false);
   // The Morph pad is not kept on screen (Sir, 16 Nov): a slim tile opens it in the editor area; closed, it is not drawn.
   const [morph,setMorph]=useState(false);
   const pick=(s:Source)=>{setMorph(false);onEdit(s);};
-  useEffect(()=>{setSheet(null);},[selected,edit.kind,edit.index]);
+  useEffect(()=>{setSheet(null);setPointsEdit(false);},[selected,edit.kind,edit.index]);
   const phaseOf=(i:number)=>chain.mods[i].targets.length&&live?.phases?live.phases[i]
     :(beat/(RATE_BEATS[chain.mods[i].rate]*FEEL_FACTOR[chain.mods[i].feel??'']))%1;
   const isEdit=(k:Source['kind'],i:number)=>edit.kind===k&&edit.index===i;
@@ -66,7 +68,7 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
                 live={m.targets.length?live?.mods?.[i]:undefined} active={m.targets.length>0}/>
             </button>
             <button type="button" className="fx-pad-label" aria-pressed={isArmed('mod',i)} aria-label={'Link Mod pad '+(i+1)+' to knobs'}
-              onClick={()=>lip({kind:'mod',index:i})}>{i+1} · {rateLabel(m).replace('16 bars','16 bar')}{m.targets.length?<small> · {m.targets.length}</small>:null}</button>
+              onClick={()=>lip({kind:'mod',index:i})}>{i+1} · {rateLabel(m).replace(/(\d+) bars/,'$1 bar')}{m.targets.length?<small> · {m.targets.length}</small>:null}</button>
           </div>)}
         </div>
         <button type="button" className={'lp-morph-tile'+(morph?' open':'')} aria-pressed={morph} onClick={()=>setMorph(!morph)}
@@ -109,7 +111,7 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
           disabled={!targets.length} onClick={()=>setTargets([])}><Eraser size={16}/></button>
       </header>
       {mod?<div className="lp-shape">
-        <PadGraphEditor mod={mod} color={color} phase={phaseOf(edit.index)} live={mod.targets.length?live?.mods?.[edit.index]:undefined} snap={snap} onChange={setMod}/>
+        <PadGraphEditor mod={mod} color={color} phase={phaseOf(edit.index)} live={mod.targets.length?live?.mods?.[edit.index]:undefined} snap={snap} editing={pointsEdit} onChange={setMod}/>
         <div className="lp-shape-tools">
           <button type="button" className="lp-pick" aria-label={'Shape of '+label+': '+SHAPE_LABEL[mod.shape]} onClick={()=>setSheet('shape')}>
             <span>Shape</span><strong>{SHAPE_LABEL[mod.shape]}</strong><ChevronDown size={15}/></button>
@@ -121,8 +123,10 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
               {STEP_COUNTS.map(n=><button key={n} type="button" role="radio" aria-checked={(mod.count??16)===n} className={(mod.count??16)===n?'active':''}
                 onClick={()=>setMod({count:n})}>{n}</button>)}</div>:null}
           <button type="button" className={'lp-tool'+(snap?' on':'')} aria-pressed={snap} onClick={()=>setSnap(!snap)} title="Points and steps lock to the grid"><Magnet size={15}/>Snap</button>
-          {mod.shape!=='curve'&&mod.shape!=='steps'&&!RANDOM_SHAPES.has(mod.shape)?
-            <button type="button" className="lp-tool" onClick={()=>setMod({shape:'curve',points:pointsFrom(mod)})}><Pencil size={15}/>Edit points</button>:null}
+          {mod.shape!=='steps'&&!RANDOM_SHAPES.has(mod.shape)?(pointsEdit&&mod.shape==='curve'
+            ?<button type="button" className="lp-tool lp-points on" aria-pressed="true" title="Stop editing points" onClick={()=>setPointsEdit(false)}><Check size={15}/>Done</button>
+            :<button type="button" className="lp-tool lp-points" aria-pressed="false" title="Drag the points, tap the graph to add one, double-tap a point to remove it"
+              onClick={()=>{if(mod.shape!=='curve')setMod({shape:'curve',points:pointsFrom(mod)});setPointsEdit(true);}}><Pencil size={15}/>Edit points</button>):null}
         </div>
         <div className="lp-rates fx-segment" role="radiogroup" aria-label={'Rate of '+label}>
           {MOD_RATE_ORDER.map(i=><button key={i} type="button" role="radio" aria-checked={mod.rate===i} className={mod.rate===i?'active':''}

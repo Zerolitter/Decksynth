@@ -178,6 +178,9 @@ def reuse_freeze(path,engine,tr,mode,fp):
     except (OSError,ValueError,TypeError):return None
 
 def worker(commands,updates):
+    # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
+    import multiprocessing
+    parent=getattr(multiprocessing.parent_process(),'pid',None) or os.getppid()
     # Offline renders (WAV export, freeze) run in their own low-priority process (render_jobs.py),
     # so they never hold Python's lock while the audio is being made.
     renders={}  # 'export' or ('freeze', track) -> RenderJob
@@ -213,7 +216,14 @@ def worker(commands,updates):
         loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
+        # The worker belongs to the process that started it (the bridge). If that one dies without saying
+        # quit (the app was killed), the worker is handed to another parent: stop then, so nothing keeps playing.
+        parent_checked=time.monotonic()
         while running:
+            now_check=time.monotonic()
+            if now_check-parent_checked>.25:
+                parent_checked=now_check
+                if os.getppid()!=parent:running=False;break
             handled=False
             for _ in range(128):
                 try:cmd,args=commands.get_nowait()

@@ -476,10 +476,10 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       <div className="pf-bar" data-testid="arp-timing" data-length={arp.length} data-division={arp.division}>
         <span className="pf-group-label">Steps</span>
         <div className="pf-seg" role="group" aria-label="Arp steps">
-          {[4,8,16,32].map(n=><button key={n} type="button" aria-pressed={arp.length===n} className={arp.length===n?'on':''}
-            onClick={()=>set('arp','length',n)}>{n}</button>)}
+          {/* the same pick list as Seq (Sir, 16 Nov), up to the arp's 64 steps */}
+          <ChoiceList values={STEP_CHOICES.filter(n=>n<=64)} value={arp.length} onChange={n=>set('arp','length',n)} columns={4} testId="pf-arp-steps-list"
+            className="pf-steps-list" label="Arp steps list" title="Arp cycle length in steps" trigger={<><b aria-label="Arp steps count">{arp.length}</b> steps</>} choice={n=>String(n)}/>
           <button type="button" aria-label="Fewer arp steps" disabled={arp.length<=1} onClick={()=>set('arp','length',arp.length-1)}><Minus size={14}/></button>
-          <span className="pf-steps-n" aria-label="Arp steps count">{arp.length}</span>
           <button type="button" aria-label="More arp steps" disabled={arp.length>=64} onClick={()=>set('arp','length',arp.length+1)}><Plus size={14}/></button></div>
         <button type="button" className={'pf-btn'+(arp.restart_bar?' on':'')} aria-pressed={!!arp.restart_bar}
           title="Start the pattern again on every bar line" onClick={()=>set('arp','restart_bar',!arp.restart_bar)}><RotateCcw size={15}/>Restart on bar</button>

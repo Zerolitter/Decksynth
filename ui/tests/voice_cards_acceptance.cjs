@@ -1,5 +1,5 @@
-// Preview UI test for the Filter, Unison and Character cards (patch 24): buttons for the fixed choices,
-// knobs that show units, the filter's power button, mod pad links to the new knobs, and nothing off screen at 722 px.
+// Preview UI test for the Filter, Unison and Character cards on the Sound page (16 Nov layout): buttons for the fixed choices,
+// knobs that show units, the filter's On/Off switch, Reset in the radial menu, a mod pad link from the Link box, and nothing off screen at 722 px.
 'use strict';
 const {_electron}=require('playwright');
 const path=require('node:path');
@@ -13,28 +13,30 @@ const ROOT=path.resolve(__dirname,'..');
   const p=await app.firstWindow({timeout:15000});
   p.setDefaultTimeout(8000);
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1280,722));
+  // The window maximizes once it is ready to show; size it after that, and check it took.
+  for(let i=0;;i++){await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,722);});
+    await p.waitForTimeout(150);if(await p.evaluate(()=>innerWidth===1280&&innerHeight===722))break;if(i>30)throw Error('window did not take 1280x722');}
   await p.getByRole('tab',{name:/^Sound$/}).click();
   const checked=(group,name)=>p.getByRole('radiogroup',{name:group}).getByRole('radio',{name,exact:true}).getAttribute('aria-checked');
   const val=id=>p.locator(`[data-param="${id}"] .knob-value`).innerText();
 
   // Cards remain reachable within the rack; the page never scrolls sideways.
   for(const id of ['sound-filter','sound-unison','sound-character']){
-    const card=p.locator('[data-panel="'+id+'"]');if(await card.evaluate(n=>n.classList.contains('folded')))await card.getByRole('button',{name:/Unfold/}).click();await card.scrollIntoViewIfNeeded();const b=await card.boundingBox();
+    const b=await p.locator('[data-panel="'+id+'"]').boundingBox();
     assert.ok(b&&b.y+b.height<=722&&b.x+b.width<=1280,id+' is on screen: '+JSON.stringify(b));
   }
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no sideways scroll');
 
   // Filter: off by default; the power button turns on low-pass; BP/HP are buttons; cutoff shows Hz.
-  assert.equal(await p.locator('[data-panel="sound-filter"] .rack-knobs.is-off').count(),1,'filter starts off');
-  await p.getByRole('button',{name:'Turn on filter'}).click();
+  assert.equal(await p.locator('[data-panel="sound-filter"] .ss-knobs.is-off').count(),1,'filter starts off');
+  await p.getByRole('switch',{name:'Turn filter on'}).click();
   assert.equal(await checked('Filter type','Low-pass'),'true');
   await p.getByRole('radio',{name:'Band-pass',exact:true}).click();
   assert.equal(await checked('Filter type','Band-pass'),'true');
   assert.match(await val('0-vcf-cutoff'),/kHz|Hz/);
   assert.match(await val('0-vcf-env'),/oct/);
-  await p.getByRole('button',{name:'Turn off filter'}).click();
-  await p.getByRole('button',{name:'Turn on filter'}).click();
+  await p.getByRole('switch',{name:'Turn filter off'}).click();
+  await p.getByRole('switch',{name:'Turn filter on'}).click();
   assert.equal(await checked('Filter type','Band-pass'),'true','power remembers the last type');
 
   // Unison: voice count buttons, detune in cents.
@@ -51,15 +53,20 @@ const ROOT=path.resolve(__dirname,'..');
   assert.equal(await checked('Sub octave','Two octaves down'),'true');
 
   // Reset puts a card back to neutral.
-  await p.getByRole('button',{name:'Reset character'}).click();
+  await p.locator('[data-panel="sound-character"] .ss-card-head h2').click({button:'right'});
+  const menu=p.getByRole('menu',{name:/commands$/});await menu.waitFor();
+  await menu.getByRole('button',{name:'Action list',exact:true}).click();
+  await p.getByRole('menuitem',{name:'Reset default',exact:true}).click();
+  await menu.waitFor({state:'hidden'}).catch(()=>p.keyboard.press('Escape'));
   assert.equal(await val('0-formant'),'0%');
   assert.equal(await checked('Sub octave','One octave down'),'true');
 
-  // Mod pad links: the new knobs are in the Sound list.
-  await p.locator('.mod-band').getByRole('button',{name:/Add target|Edit links/}).first().click();
-  for(const name of ['Cutoff','Resonance','Detune','Formant','Vowel','Stretch','Sub'])
-    assert.ok(await p.locator('.mod-link-params').getByRole('button',{name,exact:true}).isVisible(),name+' can be linked');
-  await p.locator('.mod-link-params').getByRole('button',{name:'Cutoff',exact:true}).click();
+  // Mod pad links: arm Mod pad 1 on Link (the Link box lights), then a tap on Cutoff links it.
+  await p.getByRole('tab',{name:/^Link$/}).click();
+  await p.getByRole('button',{name:'Link Mod pad 1 to knobs'}).click();
+  await p.getByRole('tab',{name:/^Sound$/}).click();
+  assert.equal(await p.locator('.link-box.lit').count(),1,'Link box is lit');
+  await p.locator('[data-param="0-vcf-cutoff"] .knob-target').click();
   await p.keyboard.press('Escape');
   assert.ok(await p.locator('[data-panel="sound-filter"] .fx-route-dots').count()>0,'linked knob shows its route dot');
   await p.screenshot({path:path.join(ROOT,'docs/voice-cards-acceptance.png')});

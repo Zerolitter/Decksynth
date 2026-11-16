@@ -68,7 +68,7 @@
 .harness-shell .lp-pick{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:#d7dade;min-width:170px}
 .harness-shell .lp-pick span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8b929a;font-weight:800}
 .harness-shell .lp-pick strong{color:var(--src);font-size:13px;margin-right:auto}
-.harness-shell .lp-rates{display:grid;grid-template-columns:repeat(9,minmax(0,1fr))}
+.harness-shell .lp-rates{display:grid;grid-template-columns:repeat(10,minmax(0,1fr))}
 .harness-shell .lp-rates button{min-height:44px;font-size:12px}
 .harness-shell .lp-links{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
 .harness-shell .lp-link-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}

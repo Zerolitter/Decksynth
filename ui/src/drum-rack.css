@@ -381,3 +381,4 @@
   color:var(--drum-accent);background:color-mix(in srgb,var(--drum-accent) 14%,transparent)}
 .drum-pads-panel .drum-section-bar .drum-ready.is-none{color:#9aa0a6;background:#ffffff0a}
 .kit-card-text strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}
+.drum-wave-empty .drum-empty-rec svg{color:#ff6b5e}

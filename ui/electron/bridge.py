@@ -67,6 +67,16 @@ def main():
 
     reader = threading.Thread(target=accept_input,daemon=True)
     reader.start()
+
+    # If Electron is killed (no clean stdin close), the bridge is re-parented: stop, so the finally below
+    # tells the worker to quit, and the worker also checks its own parent.
+    electron = os.getppid()
+    def watch_parent():
+        while alive.is_set():
+            if os.getppid() != electron:
+                alive.clear(); break
+            time.sleep(.25)
+    threading.Thread(target=watch_parent,daemon=True).start()
     print(encode({'bridge':'ready','process':process.pid}),flush=True)
     try:
         while alive.is_set() and process.is_alive():

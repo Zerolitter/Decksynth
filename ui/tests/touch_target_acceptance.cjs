@@ -64,8 +64,10 @@ function scan(sel,MIN,SURFACE){
   try{
     const p=await app.firstWindow({timeout:18000});p.setDefaultTimeout(10000);
     p.on('pageerror',e=>{console.error('pageerror',e.message);fails++;});
-    await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,h);},H);
     await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),null,{timeout:20000});
+    // The window maximizes once it is ready to show; size it after that, and retry until it takes.
+    for(let i=0;i<30;i++){await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,h);},H);
+      await p.waitForTimeout(150);if(await p.evaluate(h=>innerWidth===1280&&innerHeight===h,H))break;}
     const size=await p.evaluate(()=>({w:innerWidth,h:innerHeight}));
     if(size.w!==1280||Math.abs(size.h-H)>2){console.error('FAIL window is',size);fails++;}
     const tab=n=>p.getByRole('tab',{name:new RegExp('^'+n+'$','i')}).first().click();

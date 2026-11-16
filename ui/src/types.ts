@@ -142,7 +142,7 @@ export function noteName(n: number) {
 export function clamp(n:number,low:number,high:number) { return Math.min(high,Math.max(low,n)); }
 
 export type SamplerRecord = {
-  inputs: string[]; input: string | null; error: string | null; track: number | null;
+  inputs: string[]; input: string | null; error: string | null; track: number | null; /** the Drum Rack pad a live take goes onto */ pad?: number | null;
   state: 'idle' | 'armed' | 'recording' | 'saving'; level: number; peak?: number; threshold: number; length: number; seconds: number; clipped: boolean;
   gain?: number; normalize?: boolean;
 };

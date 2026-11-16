@@ -192,18 +192,13 @@
 .fx-card-module .fx-graph-canvas{flex:1 1 auto;height:auto;min-height:44px}
 .fx-controls{display:flex;flex-direction:column;gap:8px;flex:0 0 auto}
 .fx-choice{display:flex;flex-direction:column;gap:4px;border-radius:8px;position:relative}
-.fx-choice-label,.fx-stepper-label{font-size:10px;font-weight:750;letter-spacing:.4px;text-transform:uppercase;color:var(--soft)}
+.fx-choice-label{font-size:10px;font-weight:750;letter-spacing:.4px;text-transform:uppercase;color:var(--soft)}
 .fx-segment{display:flex;gap:3px;padding:3px;border-radius:9px;background:var(--app);border:1px solid #2e3c41;flex-wrap:wrap}
 .fx-segment button{flex:1 1 0;min-width:44px;min-height:40px;padding:0 6px;border-radius:7px;border:1px solid transparent;background:transparent;
   color:#aebbb9;font-size:12px;font-weight:720;white-space:nowrap}
 .fx-segment button.active{background:color-mix(in srgb,var(--fx-color,var(--src,#d3a75f)) 26%,var(--raised));
   border-color:var(--fx-color,var(--src,#d3a75f));color:#f1f7f4}
 .fx-knobs{flex-wrap:wrap;justify-content:space-around;gap:4px}
-.fx-stepper{display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 0}
-.fx-stepper>div{display:flex;align-items:center;gap:4px}
-.fx-stepper button{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:#d7e3df}
-.fx-stepper button:disabled{opacity:.35}
-.fx-stepper strong{min-width:30px;text-align:center;font-size:17px;color:var(--fx-color)}
 .is-assigning .fx-choice{outline:1px dashed color-mix(in srgb,var(--armed) 60%,transparent);cursor:copy}
 .fx-add-card{flex:0 0 260px;display:flex;border-radius:12px;border:2px dashed #3d5056;background:var(--panel);scroll-snap-align:start}
 .fx-add-card.empty{flex:1 1 auto;min-width:300px}

@@ -36,7 +36,7 @@ export const PianoRoll=forwardRef<PianoRollHandle,Props>(function PianoRoll(
   const nav=usePianoViewport(grid,bounds.span,bounds.snap,edit.events,
     ()=>edit.active()||keyPointer.current!==null,
     {pitches,compact,firstPitch:compact?range.top:undefined,
-      rows:target.device==='drum_rack'?range.rows:scale?(SCALES[scale.name]??SCALES.Chromatic).length+1:13});
+      rows:target.device==='drum_rack'?range.rows:Math.min(9,scale?(SCALES[scale.name]??SCALES.Chromatic).length+1:9)});
   const {timePx,rowHeight}=nav;
 
   const stopKeys=(el:HTMLDivElement,pointer=keyPointer.current)=>{
