@@ -39,20 +39,21 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByTestId('pf-steps-list').click();await p.getByRole('listbox').getByRole('option',{name:'16',exact:true}).click();
 
   // Copy a pattern with a long-press and paste it into another pad.
-  await p.getByTestId('pf-cell-1-60').click();
+  // The roll shows about an octave around the notes (12 rows, scrolls); E4 is on screen.
+  await p.getByTestId('pf-cell-1-64').click();
   const pad=async id=>{const b=await p.getByTestId(id).boundingBox();await p.mouse.move(b.x+b.width/2,b.y+b.height/2);
     await p.mouse.down();await p.waitForTimeout(600);await p.mouse.up();};
   await pad('pf-pad-3-7');await p.getByRole('menuitem',{name:'Copy'}).click();
   assert.match(await p.getByTestId('pf-pad-3-7').getAttribute('class'),/full/,'pad with notes looks full');
   await pad('pf-pad-3-9');await p.getByRole('menuitem',{name:/^Paste/}).click();
   assert.equal(await p.getByTestId('pf-pad-3-9').getAttribute('aria-pressed'),'true');
-  assert.equal(await p.locator('[data-testid="pf-cell-1-60"] .pf-note').count(),1,'pasted note on pattern 3·9');
+  assert.equal(await p.locator('[data-testid="pf-cell-1-64"] .pf-note').count(),1,'pasted note on pattern 3·9');
 
   // Tool rail: Mutate and the rest are one tap; the More sheet holds amount, transpose, song and clear.
   for(const n of ['Mutate','Reset','×2 length','◀ Nudge','Nudge ▶','Oct −','Oct +','Dice'])
     assert.ok(await p.getByRole('button',{name:n,exact:true}).isVisible(),n+' on the rail');
   await p.getByRole('button',{name:'More pattern tools'}).click();
-  for(const n of ['Song → ptn','Ptn → song','Clear pattern'])assert.ok(await p.getByRole('button',{name:n}).isVisible());
+  for(const n of ['Song → Pattern','Pattern → Song','Clear pattern'])assert.ok(await p.getByRole('button',{name:n,exact:true}).isVisible(),n+' in More');
   assert.ok(await p.getByTestId('knob-pf-mutate').isVisible());
   await p.getByRole('dialog',{name:'Pattern tools'}).getByRole('button',{name:'Close'}).click();
 
@@ -68,7 +69,7 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('button',{name:'D',exact:true}).click();
   await p.getByRole('button',{name:'Dorian',exact:true}).click();
   assert.match(await p.getByRole('button',{name:'Key and scale'}).innerText(),/D\s*Dorian/);
-  assert.equal(await p.locator('.pf-row').count(),8);
+  // (The 8-row step grid became the piano roll; the key and scale show on the button above.)
 
   await p.screenshot({path:path.join(ROOT,'..','artifacts','seq-patterns-722.png')});
   assert.deepEqual(errs,[]);

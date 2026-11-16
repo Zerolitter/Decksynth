@@ -129,8 +129,11 @@ class Project:
     def clips_data(self):
         return dict(open=self.clips['open'],slots=[[self.clip_notes(tr,k) for k in range(songs.CLIPS)] for tr in range(len(self.tracks))])
     def data(self):
-        return dict(version=1,bpm=self.bpm,bars=self.bars,metronome=self.metronome,
-                    tracks=self.tracks,performance=self.performance,song=self.song,clips=self.clips_data(),sends=self.sends)
+        d=dict(version=1,bpm=self.bpm,bars=self.bars,metronome=self.metronome,
+               tracks=self.tracks,performance=self.performance,song=self.song,clips=self.clips_data())
+        # Shared send settings are saved once changed, so older projects stay byte-for-byte the same.
+        if self.sends!=send_buses.defaults():d['sends']=self.sends
+        return d
     def save(self,path):
         path=Path(path); temp=path.with_suffix(path.suffix+'.tmp')
         with temp.open('w') as f:
@@ -750,7 +753,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.stop(); d=self.history.pop(); self.project.tracks=d['tracks']; self.project.bpm=d['bpm']; self.project.bars=d['bars']
         self.project.song=d.get('song',self.project.song)
         if 'clips' in d:self.project.clips=d['clips']
-        if 'sends' in d:self.project.sends=d['sends']
+        self.project.sends=copy.deepcopy(d.get('sends',send_buses.defaults()))
         self.project.metronome=d['metronome']
         self.project.performance=copy.deepcopy(d.get('performance',performance_defaults()))
         self.project.performance['seq']['recording']=False
