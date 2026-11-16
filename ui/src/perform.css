@@ -402,10 +402,6 @@
 .harness-shell .pf-ctl-chord .cb-fill{padding:0;gap:0}.harness-shell .cb-strum{padding:6px}
 /* Chords style pass (Sir, 16 Nov: "that black panel gains most attention"): neutral charcoal like Arp and Seq,
    no extra boxes, pink only for chord names and what is sounding */
-.harness-shell .cb-readout{background:none;border:0;justify-content:flex-start;padding:0 4px;gap:6px}
-.harness-shell .cb-readout span{color:var(--pf-soft)}
-.harness-shell .cb-readout strong{font-size:15px;color:var(--pf-text)}
-.harness-shell .cb-readout em{color:var(--pf-soft)}
 .harness-shell .cb-seq,.harness-shell .cb-suggest{background:none;border:0;border-top:1px solid var(--pf-line);border-radius:0;padding:6px 0 0}
 .harness-shell .cb-seq.following{border-color:var(--pf-line)}
 .harness-shell .cb-strum{background:none;border:0;padding:0}
