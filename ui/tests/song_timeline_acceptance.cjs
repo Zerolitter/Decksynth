@@ -41,7 +41,8 @@ const ROOT=path.resolve(__dirname,'..');
   // Select a block: the block tools show; change its clip and length; Esc ends the selection.
   await blocks(3).first().click();
   assert.ok(await p.getByRole('group',{name:'Block',exact:true}).isVisible());
-  await p.getByRole('button',{name:'Shorter block'}).click();
+  {const len=p.getByRole('spinbutton',{name:'Block length'});await len.focus();await len.press('ArrowDown');}
+  await p.waitForTimeout(450);
   assert.deepEqual(await labels(3),['A, bars 1 to 15']);
   await p.getByRole('radiogroup',{name:'Block clip'}).getByRole('radio',{name:/^Clip C/}).click();
   assert.deepEqual(await labels(3),['C, bars 1 to 15']);
@@ -57,9 +58,10 @@ const ROOT=path.resolve(__dirname,'..');
   await tapBar(3,4);
   assert.deepEqual(await labels(3),['A, bars 4 to 4','A, bars 5 to 8'],'a tap on the last bar of a phrase is a one-bar fill');
   await blocks(3).first().click();
-  assert.match(await p.getByRole('group',{name:'Starts on clip bar'}).textContent(),/from 4\/4/,'the fill plays the clip\'s last bar');
-  await p.getByRole('button',{name:'Start on a later clip bar'}).click();
-  assert.match(await p.getByRole('group',{name:'Starts on clip bar'}).textContent(),/from 1\/4/,'clip bar wraps around');
+  const from=p.getByRole('spinbutton',{name:'Starts on clip bar'});
+  assert.match(await from.textContent(),/from 4\/4/,'the fill plays the clip\'s last bar');
+  await from.focus();await from.press('ArrowDown');await p.waitForTimeout(450);
+  assert.match(await from.textContent(),/from 3\/4/,'a value box moves the clip bar');
   // A blank tap ends the selection without placing anything.
   await tapBar(3,12);
   assert.equal(await p.getByRole('group',{name:'Block',exact:true}).count(),0,'a blank tap ends the selection');
@@ -98,8 +100,8 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('group',{name:'Marker',exact:true}).getByRole('button',{name:'Done'}).click();
 
   // Song length, repeat toggle, zoom and paging.
-  await p.getByRole('button',{name:'Longer song'}).click();
-  assert.match(await p.getByRole('group',{name:'Song length'}).textContent(),/20 bars/);
+  {const len=p.getByRole('spinbutton',{name:'Song length'});await len.focus();await len.press('Shift+ArrowUp');await p.waitForTimeout(450);
+  assert.match(await len.textContent(),/20 bars/);}
   const repeat=p.getByRole('button',{name:'Repeat song',exact:true});
   await repeat.click();
   assert.equal(await repeat.getAttribute('aria-pressed'),'false');

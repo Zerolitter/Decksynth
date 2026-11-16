@@ -66,7 +66,7 @@ for name,hz in [('Kick',90),('Snare',195),('_Demo Loop 124bpm',300)]:
   await page.locator('.arr-block[aria-label^="Track 1 block"]').first().click();
   await page.getByRole('radiogroup',{name:'Block clip',exact:true}).getByRole('radio',{name:'Clip B',exact:true}).click();
   await page.waitForFunction(()=>window.usabilityState.state.song.on&&window.usabilityState.state.song.lanes[0][0].clip===1);
-  await page.getByRole('button',{name:'Shorter block',exact:true}).click();
+  {const len=page.getByRole('spinbutton',{name:'Block length',exact:true});await len.focus();await len.press('ArrowDown');}
   await page.waitForFunction(()=>window.usabilityState.state.song.lanes[0][0].len===15);
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await dismiss();

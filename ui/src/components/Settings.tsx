@@ -3,8 +3,9 @@ import { CircleDot, Eraser, Headphones, LayoutGrid, Maximize, Minus, Power, Radi
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
-export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean};
-const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false};
+/** knobBubble: the value that pops up over a knob while it turns (Sir, 16 Nov: can be turned off; the value box stays). */
+export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean};
+const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true};
 const KEY='decksynth.settings';
 export function readSettings():AppSettings{
   try{return {...DEFAULTS,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return {...DEFAULTS};}
@@ -37,6 +38,12 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
             <small>On: cards only fold when you double-tap their title. Off: when the rack is full, the card you used longest ago folds by itself.</small></span>
           <input type="checkbox" role="switch" checked={settings.noAutoFold}
             onChange={e=>onSettings({...settings,noAutoFold:e.target.checked})}/>
+        </label>
+        <label className="setting-switch">
+          <span><strong>Knob pop-up value</strong>
+            <small>On: the value pops up over a knob while you turn it. Off: only the value box under the knob shows it.</small></span>
+          <input type="checkbox" role="switch" aria-label="Knob pop-up value" checked={settings.knobBubble}
+            onChange={e=>onSettings({...settings,knobBubble:e.target.checked})}/>
         </label>
         {win?<><h3><Maximize size={15}/> Window</h3>
         <div className="setting-seg setting-window" role="group" aria-label="Window">

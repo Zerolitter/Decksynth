@@ -321,3 +321,9 @@
 .harness-shell .pf-transpose>span.on b{color:var(--c-arp,#6bdfb7)}
 .harness-shell .pf-bar .pf-seg .pf-steps-list{display:flex;align-items:center;gap:5px;min-width:104px;min-height:44px;padding:0 10px;font-weight:700}
 .harness-shell .pf-steps-list b{font-size:14px;color:#e6fff6}
+/* Steps, inversion and the keys octave are value boxes (rule 36): click and scroll, hold and drag, two slow clicks to type.
+   The steps list stays as a small grid button for the common lengths. */
+.harness-shell .pf-bar .pf-seg .pf-steps-list{min-width:44px;padding:0 8px;justify-content:center}
+.harness-shell .pf-vbox{min-width:84px;padding:0 20px 0 10px;border:0;background:transparent}
+.harness-shell .pf-transpose .pf-vbox{min-width:72px}
+.harness-shell .pf-transpose .pf-vbox.on .vbox-value{color:var(--c-arp,#6bdfb7)}

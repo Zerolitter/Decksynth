@@ -33,8 +33,8 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('button',{name:'Straight'}).click();
   await p.getByRole('group',{name:'Pattern steps'}).getByRole('button',{name:'32',exact:true}).click();
   assert.equal(await bar.getAttribute('data-length'),'32');
-  await p.getByRole('button',{name:'Fewer steps'}).click();
-  assert.equal(await bar.getAttribute('data-length'),'31');
+  {const n=p.getByRole('spinbutton',{name:'Pattern steps'});await n.focus();await n.press('ArrowDown');}
+  await p.waitForFunction(()=>document.querySelector('[data-testid=pf-seq-timing]')?.dataset.length==='31');
   await p.getByRole('group',{name:'Pattern steps'}).getByRole('button',{name:'16',exact:true}).click();
 
   // Copy a pattern with a long-press and paste it into another pad.

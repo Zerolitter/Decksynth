@@ -67,6 +67,33 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
     if(armed&&since>=400&&since<=1600){lastValueClick.current=0;openOnClick.current=true;return;}
     openOnClick.current=false;
     setArmed(true);
+    // Hold and drag (rule 36, as Help says): up/down in normal steps, left/right in fine steps. Touch holds first,
+    // so a swipe across the screen still scrolls; a mouse drags at once.
+    const d={id:e.pointerId,x:e.clientX,y:e.clientY,start:latest.current,on:e.pointerType==='mouse',moved:false,timer:undefined as number|undefined};
+    if(!d.on)d.timer=window.setTimeout(()=>{if(boxDrag.current===d){d.on=true;reveal();}},220);
+    boxDrag.current=d;(e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const boxDrag=useRef<{id:number;x:number;y:number;start:number;on:boolean;moved:boolean;timer?:number}|null>(null);
+  const valueMove=(e:React.PointerEvent)=>{
+    const d=boxDrag.current;if(!d||d.id!==e.pointerId)return;
+    const dx=e.clientX-d.x,dy=d.y-e.clientY;
+    if(!d.on){if(Math.hypot(dx,dy)>10){window.clearTimeout(d.timer);boxDrag.current=null;}return;}
+    if(!d.moved&&Math.hypot(dx,dy)<4)return;
+    if(!d.moved){d.moved=true;dragging.current=true;beginGesture();}
+    const range=max-min,normal=Math.max(step,range/100)*(e.shiftKey?10:1),fine=Math.max(step,range/1000);
+    const n=knobQuantize(Math.max(min,Math.min(max,d.start+Math.trunc(dy/7)*normal+Math.trunc(dx/7)*fine)),min,max,step);
+    if(n!==latest.current){latest.current=n;setLocal(n);batch.push(n);}
+    reveal();
+  };
+  const valueUp=(cancel:boolean)=>(e:React.PointerEvent)=>{
+    const d=boxDrag.current;if(!d||d.id!==e.pointerId)return;
+    window.clearTimeout(d.timer);boxDrag.current=null;
+    if(!d.moved)return;
+    dragging.current=false;lastValueClick.current=0;openOnClick.current=false;
+    if(cancel){batch.discard();latest.current=d.start;setLocal(d.start);onChangeRef.current(d.start);}
+    else batch.flush();
+    endGesture(cancel);hideLater();
+    valueBox.current?.dispatchEvent(new CustomEvent('knob-settle',{bubbles:true}));
   };
   useEffect(()=>{
     const el=valueBox.current;if(!el||!armed)return;
@@ -178,7 +205,7 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
   return <div className={'parameter-knob tactile-knob'+(compact?' compact':'')+
     (engaged?' is-engaged':'')+(link?.armed&&/^(smp|drum)-/.test(id)&&linkTargetFor(id)?.track===link.track?' link-ready':'')}
     style={link?.armed?{['--link-src' as string]:(link.armed.kind==='macro'?MACRO_COLORS:MOD_COLORS)[link.armed.index]}:undefined}
-    data-param={id} {...context} title={description||name}
+    data-param={id} data-resettable={resetTarget()!==undefined?'1':'0'} {...context} title={description||name}
     onContextMenu={e=>{if((e.target as Element).closest('input,textarea,select,[contenteditable=true]'))return;if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
     <div className="knob-heading">{name}</div>{dots.length?<span className="knob-link-dots" data-linked={dots.length} title={'Moved by '+dots.length+(dots.length>1?' sources':' source')}>{dots.map((c,k)=><i key={k} style={{background:c}}/>)}</span>:null}{cc!==null?<span className="knob-midi-cc" data-midi-cc={cc}>CC{cc}</span>:null}
     <div role="slider" tabIndex={0} aria-orientation="vertical"
@@ -247,8 +274,8 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
         onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter')commit();if(e.key==='Escape'){setEditing(false);hideLater();}}}
         onBlur={commit}/>:
       <button ref={valueBox} type="button" className={'knob-value'+(armed?' armed':'')} aria-label={name+' value box'}
-        title="Click, then scroll (Shift: bigger steps, Ctrl: finer) · two slow clicks to type a number"
-        onPointerDown={valueDown} onClick={()=>{if(openOnClick.current){openOnClick.current=false;setArmed(false);setEditing(true);}}} onBlur={()=>setArmed(false)}
+        title="Click, then scroll (Shift: bigger steps, Ctrl: finer) · hold and drag: up/down, left/right finer · two slow clicks to type a number"
+        onPointerDown={valueDown} onPointerMove={valueMove} onPointerUp={valueUp(false)} onPointerCancel={valueUp(true)} onClick={()=>{if(openOnClick.current){openOnClick.current=false;setArmed(false);setEditing(true);}}} onBlur={()=>setArmed(false)}
         onKeyDown={e=>{if(e.key==='Enter'||e.key==='F2'){e.preventDefault();setArmed(false);setEditing(true);}}}>{show(local)}</button>}
   </div>;
 }

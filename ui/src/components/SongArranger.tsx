@@ -4,11 +4,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, GanttChart, Layers3, AudioWaveform, Minus, Pencil, Piano, Plus, RectangleHorizontal, RotateCw,
+  ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, GanttChart, Layers3, AudioWaveform, Pencil, Piano, RectangleHorizontal, RotateCw,
   Scissors, Sparkles, Trash2, Volume2, VolumeX, Copy,
 } from 'lucide-react';
 import { SONG_TRACK_COLORS, type FreezeInfo, type Note, type Project } from '../types';
 import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
+import { ValueBox } from './ValueBox';
 import {
   CLIP_NAMES, CLIPS, MARKER_NAMES, MAX_BARS, blockAt, changeBlock, clipNotes, clipsOf, deleteBlock, duplicateBlock,
   emptyClip, markerAt, moveBlock, nextMarkerName, phase, place, setLength, setMarker, splitBlock, type Block, type Song,
@@ -51,11 +52,9 @@ export function SongBar(props:BarProps) {
       {view==='arrange' ? <>
         <div className="song-length">
           <span className="song-label">Length</span>
-          <div className="song-stepper" role="group" aria-label="Song length">
-            <button type="button" aria-label="Shorter song" disabled={song.length <= 1} onClick={() => onSong(setLength(song, song.length - step, bars))}><Minus size={16}/></button>
-            <span aria-live="polite"><b>{song.length}</b> {song.length===1?'bar':'bars'}</span>
-            <button type="button" aria-label="Longer song" disabled={song.length >= MAX_BARS} onClick={() => onSong(setLength(song, song.length + step, bars))}><Plus size={16}/></button>
-          </div>
+          {/* value boxes, not steppers (rule 36): click and scroll, hold and drag, two slow clicks to type */}
+          <ValueBox label="Song length" hideLabel className="song-vbox" value={song.length} min={1} max={MAX_BARS} step={1} coarse={step}
+            format={n => n + (n===1 ? ' bar' : ' bars')} onChange={n => onSong(setLength(song, n, bars))}/>
           <button type="button" className="song-repeat" aria-label="Repeat song" aria-pressed={song.loop}
             title={song.loop ? 'Repeat on · click to play once' : 'Repeat off · click to loop the song'}
             onClick={() => onSong({...song, loop:!song.loop})}><RotateCw size={19} aria-hidden="true"/></button>
@@ -94,16 +93,11 @@ function ContextRow({project, song, onSong, sel, onSel, onClip, onEditClip}:BarP
           aria-label={'Clip ' + CLIP_NAMES[k] + (clipNotes(project, sel.track, k).length ? '' : ', empty')}
           className={(b.clip===k ? 'active' : '') + (clipNotes(project, sel.track, k).length ? '' : ' empty')} onClick={() => edit({clip:k})}>{CLIP_NAMES[k]}</button>)}
       </div>
-      <div className="song-stepper" role="group" aria-label="Block length">
-        <button type="button" aria-label="Shorter block" disabled={b.len <= 1} onClick={() => edit({len:b.len - 1})}><Minus size={16}/></button>
-        <span><b>{b.len}</b> {b.len===1 ? 'bar' : 'bars'}</span>
-        <button type="button" aria-label="Longer block" disabled={b.at + b.len >= MAX_BARS} onClick={() => edit({len:b.len + 1})}><Plus size={16}/></button>
-      </div>
-      {bars > 1 ? <div className="song-stepper" role="group" aria-label="Starts on clip bar" title="Which bar of the clip the block starts on">
-        <button type="button" aria-label="Start on an earlier clip bar" onClick={() => edit({off:(b.off ?? 0) - 1})}><Minus size={16}/></button>
-        <span>from <b>{first}</b>/{bars}</span>
-        <button type="button" aria-label="Start on a later clip bar" onClick={() => edit({off:(b.off ?? 0) + 1})}><Plus size={16}/></button>
-      </div> : null}
+      <ValueBox label="Block length" hideLabel className="song-vbox" value={b.len} min={1} max={MAX_BARS - b.at} step={1} coarse={bars || 4}
+        format={n => n + (n===1 ? ' bar' : ' bars')} onChange={n => edit({len:n})}/>
+      {bars > 1 ? <ValueBox label="Starts on clip bar" hideLabel className="song-vbox" value={first} min={1} max={bars} step={1}
+        title="Which bar of the clip the block starts on · click, then scroll · two slow clicks to type"
+        format={n => 'from ' + n + '/' + bars} onChange={n => edit({off:(b.off ?? 0) + n - first})}/> : null}
       <div className="song-tools">
         <button type="button" aria-label="Duplicate block" title="Copy this block right after it" onClick={() => { onSong(duplicateBlock(song, sel.track, b.at, bars)); onSel({...sel, at:b.at + b.len, bar:b.at + b.len}); }}><Copy size={17}/></button>
         <button type="button" aria-label="Split block" title="Cut in two at the bar you tapped" disabled={b.len < 2} onClick={() => onSong(splitBlock(song, sel.track, b.at, sel.bar, bars))}><Scissors size={17}/></button>

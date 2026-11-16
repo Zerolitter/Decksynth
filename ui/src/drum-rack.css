@@ -256,7 +256,8 @@
 .drum-smp .drum-cards .smp-seg button[aria-pressed=true]{background:color-mix(in srgb,var(--pad-accent) 26%,var(--panel));border-color:var(--pad-accent);color:#fff}
 .drum-smp .drum-cards .smp-toggle{min-height:44px}
 .drum-smp .drum-choke{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--soft);font-weight:700}
-.drum-smp .drum-choke select{flex:1;min-height:44px;padding:0 8px;border-radius:8px;border:1px solid #3a3d43;background:#23262b;color:#e3e6ea}
+.drum-smp .drum-choke .drum-choke-trigger{flex:1;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px;border-radius:8px;border:1px solid #3a3d43;background:#23262b;color:#e3e6ea;font-size:12px}
+.drum-smp .drum-choke .drum-choke-trigger:hover,.drum-smp .drum-choke .drum-choke-trigger[aria-expanded=true]{border-color:#9aa0a8}
 .drum-smp .drum-graph-row{display:flex;gap:6px;align-items:stretch}
 .drum-smp .drum-graph-row .drum-card-graph{flex:1;height:44px}
 .drum-smp .drum-card-reset{flex:none;width:44px;min-height:44px;padding:0;display:grid;place-items:center}
@@ -396,3 +397,18 @@
 /* The file name gives way so the pad buttons (with Clear) always fit */
 .drum-pad-sound .drum-section-bar>.drum-source-file{flex:1 1 0;min-width:0}
 .drum-pad-sound .drum-section-bar>.drum-import-actions,.drum-pad-sound .drum-section-bar>.drum-status{flex:none}
+
+/* Pad Hold recording (16 Nov): Hold rec in the PADS bar; a held pad records and glows red. */
+.drum-pads-panel .drum-section-bar .drum-pads-hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drum-hold-rec{display:flex;align-items:center;gap:6px;min-height:44px;min-width:44px;padding:0 10px;border-radius:8px;border:1px solid #3a3d43;background:#23262b;color:#e3e6ea;font-size:11.5px;font-weight:700;white-space:nowrap}
+.drum-hold-rec svg{color:#f2795a}
+.drum-hold-rec.on{background:#5a2620;border-color:#f2795a;color:#fff}
+.drum-hold-rec.on svg{color:#fff}
+.drum-hold-level{width:26px;height:6px;border-radius:3px;background:#2a1512;position:relative;overflow:hidden}
+.drum-hold-level::after{content:'';position:absolute;inset:0 auto 0 0;width:calc(var(--lvl) * 100%);background:linear-gradient(90deg,#5fd38a,#e5d75a 70%,#f27c7c)}
+.drum-section-bar.hold-rec .drum-pads-hint{color:#ffb3a3;font-weight:700}
+.drum-rack .drum-pads.hold-rec .drum-pad{border-style:dashed;border-color:#8a4a40}
+.harness-shell .drum-rack .drum-pads .drum-pad.is-recording{background:#c2412f;border-color:#ffd2c8;border-style:solid;color:#fff;animation:drum-rec-pulse .9s ease-in-out infinite alternate}
+.harness-shell .drum-rack .drum-pad.is-recording .drum-pad-top b,.harness-shell .drum-rack .drum-pad.is-recording .drum-pad-top>span,.harness-shell .drum-rack .drum-pad.is-recording .drum-pad-name{color:#fff}
+@keyframes drum-rec-pulse{from{box-shadow:0 0 0 0 #f2795a80}to{box-shadow:0 0 0 5px #f2795a00}}
+@media (prefers-reduced-motion:reduce){.harness-shell .drum-rack .drum-pads .drum-pad.is-recording{animation:none}}

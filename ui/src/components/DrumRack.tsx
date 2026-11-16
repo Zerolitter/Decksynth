@@ -2,6 +2,7 @@ import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
 import { Activity, ArrowUp, AudioWaveform, Crop, FolderOpen, SlidersHorizontal, Grid2X2, KeyboardMusic, Link2, ListMusic, Mic, Power, RotateCcw, Save, Trash2, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
+import { ChoiceList } from './LoopBars';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
 import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
@@ -66,6 +67,9 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   // The pad the Record sheet is open for (null: closed).
   const [recordPad,setRecordPad]=useState<number|null>(null);
   const canRecord=!!send;
+  // Pad Hold recording (16 Nov): with Hold rec on, holding a pad records the input onto it while the finger is down.
+  const [holdRec,setHoldRec]=useState(false);
+  const holding=useRef<{pad:number;id:number;t:number}|null>(null);
   const kit=track.drum_rack,pads=kit?.pads??[];
   const [selected,setSelected]=useState(0);
   const [localBrowsing,setLocalBrowsing]=useState(false);
@@ -86,8 +90,31 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
     },120));});
   },[runtime]);
   useEffect(()=>()=>{timers.current.forEach(clearTimeout);timers.current.clear();},[]);
-  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(canRecord?{record:()=>{setSelected(i);setRecordPad(i);}}:{}),...(p.source?{relink:()=>onImport(i,true),...(send?{clearPad:()=>send('drum_clear',[trackIndex,kit.id,i])}:{})}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
+  useEffect(()=>{
+    if(!holdRec||!send)return;
+    send('sampler_record',['open',record?.input??null]);
+    send('sampler_record',['level',record?.threshold??-40,60,record?.gain??0,record?.normalize??true]);
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();setHoldRec(false);}};
+    window.addEventListener('keydown',key);
+    // Leaving Hold rec keeps a take still running and closes the input.
+    return()=>{window.removeEventListener('keydown',key);holding.current=null;send('sampler_record',['close']);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[holdRec]);
+  const context=useContextTarget(el=>{const button=el.closest<HTMLElement>('[data-pad]');if(!button||!kit)return null;const i=Number(button.dataset.pad),p=pads[i],ready=['READY','PLAYING','MUTED'].includes(runtime?.pads[i]?.status??'');if(!p)return null;return {accent:DRUM_KINDS[drumKind(p.name,p.source?.path)].color,kind:'drum.pad',label:'Pad '+(i+1)+' · '+p.name,caps:{...(ready?{play:()=>{setSelected(i);onNote(i,100);}}:{}),open:()=>setSelected(i),import:()=>onImport(i,false),...(canRecord?{record:()=>{setHoldRec(false);setSelected(i);setRecordPad(i);}}:{}),...(p.source?{relink:()=>onImport(i,true),...(send?{clearPad:()=>send('drum_clear',[trackIndex,kit.id,i])}:{})}:{}),mute:()=>onEdit(i,'mute',!p.mute),solo:()=>onEdit(i,'solo',!p.solo),kit:()=>setBrowsing(true)}};});
   const pad=pads[selected],live=runtime?.pads[selected];
+  const recState=record?.state??'idle',recPad=record?.track===trackIndex&&(recState==='recording'||recState==='saving')?record?.pad??null:null;
+  const holdDown=(i:number,e:React.PointerEvent<HTMLButtonElement>)=>{
+    if(e.button!==0||!send||!kit||holding.current)return;
+    e.currentTarget.setPointerCapture(e.pointerId);setSelected(i);
+    holding.current={pad:i,id:e.pointerId,t:performance.now()};
+    send('sampler_record',['now',trackIndex,kit.id,record?.threshold??-40,60,i]);
+  };
+  const holdUp=(cancel:boolean)=>(e:React.PointerEvent)=>{
+    const h=holding.current;if(!h||h.id!==e.pointerId||!send)return;holding.current=null;
+    // A quick tap only picks the pad: nothing is kept.
+    send('sampler_record',[cancel||performance.now()-h.t<250?'cancel':'stop']);
+  };
+
   const status=live?.status??(pad?.source?'LOADING':'EMPTY');
   const sourceReady=!!pad?.source&&!['EMPTY','MISSING','LOADING','ERROR'].includes(status);
   const loaded=runtime?.pads.filter(p=>['READY','PLAYING','MUTED'].includes(p.status)).length??0;
@@ -125,7 +152,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const draft=(key:keyof DrumShape|'tune')=>(n:number)=>setDrafts(d=>({...d,[key]:n}));
   const knob=(key:keyof DrumShape,name:string,min:number,max:number,stepSize:number,suffix:string,precision:number,description:string,scale=1,format?:(n:number)=>string)=>
     <CommittedKnob id={`drum-${trackIndex}-${selected}-${key}`} name={name} value={(shape[key] as number)*scale} min={min} max={max} step={stepSize} suffix={suffix} precision={precision}
-      description={description} format={format} onDraft={n=>draft(key)(n/scale)} onCommit={n=>setShape(key,Math.round(n/scale*100000)/100000)}/>;
+      description={description} format={format} defaultValue={(DEFAULT_DRUM_SHAPE[key] as number)*scale} onDraft={n=>draft(key)(n/scale)} onCommit={n=>setShape(key,Math.round(n/scale*100000)/100000)}/>;
   const audition=(index:number,pressure=0)=>{setSelected(index);onNote(index,pressure>0?Math.max(1,Math.min(127,Math.round(pressure*127))):100);};
   const kinds=pads.map(p=>drumKind(p.name,p.source?.path));
   const selectedKind=DRUM_KINDS[kinds[selected]];
@@ -138,17 +165,23 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
       {browsing?<DrumKitBrowser library={library} selectedPad={selected} current={kit.name||undefined} onLoadFolder={onLoadFolder} onChooseLibrary={onChooseLibrary} onRefreshLibrary={onRefreshLibrary}
         onBrowseFolder={onBrowseFolder} onPreviewSample={onPreviewSample} onStopPreview={onStopPreview} onReplaceSample={onReplaceSample}
         onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
-        <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span>
+        <div className={'drum-section-bar'+(holdRec?' hold-rec':'')}><h2 id="drum-pads-title">PADS</h2>
+          <span className="drum-pads-hint">{holdRec?(record?.error&&recState==='idle'?record.error:!record?.input?'Opening the input…'
+            :recPad!==null&&recState==='recording'?'Recording pad '+(recPad+1)+' · '+(record?.seconds??0).toFixed(1)+' s':recState==='saving'?'Saving the take…':'Hold a pad to record'):'Touch to play · MIDI 36–51'}</span>
+          {canRecord?<button type="button" className={'drum-hold-rec'+(holdRec?' on':'')} aria-pressed={holdRec} aria-label="Hold to record"
+            title={holdRec?'Stop Hold rec (pads play again)':'Hold rec: hold a pad and it records the input while your finger is down'}
+            onClick={()=>setHoldRec(v=>!v)}><Mic size={15}/>{holdRec?<span className="drum-hold-level" style={{['--lvl' as string]:Math.max(0,Math.min(1,((record?.level??-90)+60)/60))}}/>:null}Hold rec</button>:null}
           <strong className={'drum-ready'+(loaded===16?' is-full':loaded===0?' is-none':'')} title={loaded+' of 16 pads have a sound ready'}>{loaded}/16 ready</strong></div>
-        <div {...context} className="drum-pads" role="group" aria-label="Sixteen sample pads">
+        <div {...context} className={'drum-pads'+(holdRec?' hold-rec':'')} role="group" aria-label={holdRec?'Hold a pad to record into it':'Sixteen sample pads'}>
           {pads.map((p,i)=>{
             const state=runtime?.pads[i]?.status??(p.source?'LOADING':'EMPTY'),silenced=p.mute||(anySolo&&!p.solo),hit=flashes.has(i);
             const kind=kinds[i],family=DRUM_KINDS[kind];
-            return <button type="button" key={p.note} style={{['--pad' as string]:p.source?family.color:DRUM_KINDS.other.color}} data-kind={p.source?kind:'empty'} className={'drum-pad'+(selected===i?' is-selected':'')+(hit?' is-triggered':'')+(silenced?' is-muted':'')+(state==='MISSING'?' is-missing':'')+(!p.source?' is-empty':'')}
+            return <button type="button" key={p.note} style={{['--pad' as string]:p.source?family.color:DRUM_KINDS.other.color}} data-kind={p.source?kind:'empty'} className={'drum-pad'+(selected===i?' is-selected':'')+(hit?' is-triggered':'')+(silenced?' is-muted':'')+(state==='MISSING'?' is-missing':'')+(!p.source?' is-empty':'')+(recPad===i?' is-recording':'')}
               data-pad={i} data-note={p.note} data-triggered={hit?'true':'false'} data-status={state}
               aria-label={'Pad '+(i+1)+', '+p.name+', MIDI '+p.note+', '+(silenced?'MUTED':state)} aria-pressed={selected===i}
-              onPointerDown={e=>{if(e.button===0)audition(i,e.pointerType==='touch'||e.pointerType==='pen'?e.pressure:0);}}
-              onClick={e=>{if(e.detail===0)audition(i);}}>
+              onPointerDown={e=>{if(holdRec){holdDown(i,e);return;}if(e.button===0)audition(i,e.pointerType==='touch'||e.pointerType==='pen'?e.pressure:0);}}
+              onPointerUp={holdRec?holdUp(false):undefined} onPointerCancel={holdRec?holdUp(true):undefined}
+              onClick={e=>{if(e.detail===0&&!holdRec)audition(i);}}>
               <span className="drum-pad-top"><b>{String(i+1).padStart(2,'0')}</b><span>{p.solo?'SOLO':p.mute?'MUTE':state==='EMPTY'?'':state==='READY'||state==='PLAYING'?noteName(p.note):state}</span></span>
               <strong className="drum-pad-name" title={p.name}>{padLabel(p.name,kit.name)||'Empty'}</strong>
             </button>;
@@ -192,7 +225,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
               <span>{status==='MISSING'?'Point it at the original WAV again':status==='LOADING'||status==='ERROR'?(fileName??''):'Drop in a WAV, or pick one from the library'}</span></div>
             {status==='MISSING'?<button type="button" className="drum-empty-main" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Find the WAV</button>
             :!pad.source?<><button type="button" className="drum-empty-main" title="Choose a WAV file for this pad" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>Choose a WAV</button>
-              {canRecord?<button type="button" className="drum-empty-alt drum-empty-rec" title="Record the piano or a mic onto this pad" onClick={()=>setRecordPad(selected)}><Mic size={17}/>Record</button>:null}
+              {canRecord?<button type="button" className="drum-empty-alt drum-empty-rec" title="Record the piano or a mic onto this pad" onClick={()=>{setHoldRec(false);setRecordPad(selected);}}><Mic size={17}/>Record</button>:null}
               <button type="button" className="drum-empty-alt" onClick={()=>setBrowsing(true)}><ListMusic size={17}/>Browse sounds</button></>:null}
           </div>}
           {sourceReady&&send&&view==='trim'&&(shape.start>0||shape.end<1)?<button type="button" className="drum-crop" title="Keep only Start to End in a new WAV; the pad sounds the same and Undo brings the full sample back"
@@ -215,7 +248,12 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
               <CommittedKnob id={`drum-${trackIndex}-${selected}-tune`} defaultValue={0} name="Tune" value={pad.tune} min={-24} max={24} step={1} suffix="st" precision={0} description="Pitch in semitones; envelope times and EQ stay where you set them" onDraft={draft('tune')} onCommit={n=>edit('tune',n)}/>
               {knob('pan','Pan',-100,100,1,'',0,'Place the pad left or right (C is the middle)',100,panText)}
             </div>
-            <label className="drum-choke">Choke<select aria-label="Choke group" value={pad.choke} onChange={e=>edit('choke',Number(e.target.value))}><option value={0}>None</option>{Array.from({length:16},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
+            <div className="drum-choke"><span>Choke</span>
+              {/* 17 choices: a grid that opens over the window, not a native select (UI rule 11) */}
+              <ChoiceList values={Array.from({length:17},(_,i)=>i)} value={pad.choke} onChange={n=>edit('choke',n)} columns={6}
+                className="drum-choke-trigger" label="Choke group" listLabel="Choke group: pads in the same group cut each other off" testId="drum-choke"
+                title="Pads in the same choke group cut each other off (an open hat stops when the closed hat plays)"
+                trigger={<b>{pad.choke?'Group '+pad.choke:'None'}</b>} choice={n=>n?String(n):'None'}/></div>
           </section>
           <section className="smp-card drum-card-shape" aria-label="Shape">
             <div className="drum-card-head"><h2>Shape</h2>

@@ -1,3 +1,4 @@
+import {soundDefault} from './parameter-registry';
 import {ContextWheelProvider,ContextAreaScope} from './components/ContextWheel';
 import {ModLinkProvider} from './components/ModLink';
 import {expectedWithEvents,type NoteTarget} from './note-ops';
@@ -430,7 +431,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>{if(t.module!=='sound')return undefined;const value=(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined)?.[t.param];return typeof value==='number'?value:undefined;}} onAutomation={setAutomationEdit}><ModLinkProvider track={selected} chain={track?.fx} armed={armed} onChain={chain=>command('fx',[selected,chain])}><main className="decksynth-shell harness-shell" data-page={page}>
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>t.module!=='sound'?undefined:soundDefault(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined,t.param)} onAutomation={setAutomationEdit}><ModLinkProvider track={selected} chain={track?.fx} armed={armed} onChain={chain=>command('fx',[selected,chain])}><main className={'decksynth-shell harness-shell'+(settings.knobBubble?'':' no-knob-bubble')} data-page={page}>
     <header className="app-header transport" aria-label="Music transport">
       <div className="transport-actions">
         <button type="button" className={'transport-pad play'+(snapshot?.playing?' engaged':'')}

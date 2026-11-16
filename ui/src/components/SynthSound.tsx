@@ -213,7 +213,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           <Seg name="Sub octave" value={vp('sub_oct')} onPick={v=>set('sub_oct',v)} options={[{label:'Sub −1 oct',value:1,aria:'One octave down'},{label:'Sub −2 oct',value:2,aria:'Two octaves down'}]}/>
         </>,{reset:()=>{set('character',0);(['formant','vowel','inharm','sub','sub_oct'] as VoiceKey[]).forEach(k=>set(k,VOICE_DEFAULTS[k]));}})}
         {card('rack-output','Output',TAGS.output,<div className="ss-knobs">
-          {cell('volume',m=><Knob id={selected+'-volume'} name="Volume" value={track.volume} min={0} max={1} step={.005} suffix="%" compact onChange={v=>onTrack('volume',v)} {...m}/>)}
+          {cell('volume',m=><Knob id={selected+'-volume'} name="Volume" value={track.volume} min={0} max={1} step={.005} defaultValue={.7} suffix="%" compact onChange={v=>onTrack('volume',v)} {...m}/>)}
           {K('pan','Pan',vp('pan'),-1,1,{step:.01,onChange:v=>set('pan',v)})}
         </div>,{power:{on:!track.mute,label:'track output',toggle:()=>onTrack('mute',!track.mute)}})}
       </div>

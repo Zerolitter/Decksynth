@@ -138,9 +138,9 @@ export function BipolarDepth({value,color,label,onChange}:{value:number;color:st
 }
 
 /** A starting pattern for Steps when the pad has none yet, so there is something to drag. */
-const STARTER_STEPS=[1,.25,-.5,.5,.75,-.25,.5,-1,1,.5,-.5,.25,.75,-.75,.25,-.25];
+export const STARTER_STEPS=[1,.25,-.5,.5,.75,-.25,.5,-1,1,.5,-.5,.25,.75,-.75,.25,-.25];
 
-const MiniShape=({shape,color}:{shape:ModShape;color:string})=>{
+export const MiniShape=({shape,color}:{shape:ModShape;color:string})=>{
   const pts=Array.from({length:33},(_,i)=>{const x=i/32;const st=[1,.5,-.5,.25,-1,.75,0,-.25,1,.5,-.5,.25,-1,.75,0,-.25];
     return (i?'L':'M')+(x*44).toFixed(1)+' '+(12-shapeValue(shape,x,st,0,16,DEFAULT_POINTS)*9).toFixed(1);}).join(' ');
   return <svg width={44} height={24} viewBox="0 0 44 24" aria-hidden="true"><path d={pts} fill="none" stroke={color} strokeWidth={2}/></svg>;
@@ -270,4 +270,20 @@ export function MacroSheet({chain,index,onChange,onClose,container,anchor}:Macro
       </header>
       <LinksBody chain={chain} targets={macro.targets} color={color} onTargets={targets=>set({targets})}/>
   </SourceInspector>;
+}
+
+/** Every mod pad shape, a page at a time, as tap buttons with a drawing of each (Link page: right under the graph,
+ *  Sir 16 Nov "show the shapes so they are directly available"). The page holding the current shape is marked. */
+export function ShapePicker({mod,color,label,onChange}:{mod:FxModSource;color:string;label:string;onChange:(patch:Partial<FxModSource>)=>void}){
+  const [page,setPage]=useState(()=>Math.max(0,SHAPE_PAGES.findIndex(p=>p.shapes.includes(mod.shape))));
+  return <div className="shape-picker" data-testid="shape-picker">
+    <div className="fx-segment shape-picker-pages" role="tablist" aria-label="Shape pages">
+      {SHAPE_PAGES.map((p,i)=><button key={p.name} type="button" role="tab" aria-selected={page===i}
+        className={(page===i?'active':'')+(p.shapes.includes(mod.shape)?' holds':'')} onClick={()=>setPage(i)}>{p.name.replace(' & rhythm','')}</button>)}
+    </div>
+    <div className="mod-shape-grid shape-picker-grid" role="radiogroup" aria-label={'Shape of '+label}>
+      {SHAPE_PAGES[page].shapes.map(sh=><button key={sh} type="button" role="radio" aria-checked={mod.shape===sh} className={mod.shape===sh?'active':''}
+        onClick={()=>onChange(sh==='steps'&&mod.steps.every(v=>Math.abs(v)<.01)?{shape:sh,steps:STARTER_STEPS}:{shape:sh})}><MiniShape shape={sh} color={color}/>{SHAPE_LABEL[sh]}</button>)}
+    </div>
+  </div>;
 }

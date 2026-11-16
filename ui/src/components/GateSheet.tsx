@@ -59,9 +59,9 @@ export function GateSheet({params,color,runtime,container,onParam,onClose}:Sheet
               aria-checked={(params.retrig??2)===i} className={(params.retrig??2)===i?'active':''}
               onClick={()=>onParam('retrig',i)}>{label}</button>)}
           </div>
-          <Knob id="gate-sheet-phase" name="Gate phase" value={params.phase??0} min={0} max={1} suffix="%" compact accent={color}
+          <Knob id="gate-sheet-phase" name="Gate phase" defaultValue={0} value={params.phase??0} min={0} max={1} suffix="%" compact accent={color}
             onChange={v=>onParam('phase',v)}/>
-          <Knob id="gate-sheet-notelen" name="Gate note length" value={params.notelen??1} min={0} max={1} suffix="%" compact accent={color}
+          <Knob id="gate-sheet-notelen" name="Gate note length" defaultValue={1} value={params.notelen??1} min={0} max={1} suffix="%" compact accent={color}
             onChange={v=>onParam('notelen',v)}/>
           <button type="button" className="panel-toggle" aria-pressed={!!params.hold} aria-label={params.hold?'Resume gate':'Hold gate'}
             onClick={()=>onParam('hold',params.hold?0:1)}>{params.hold?'Resume':'Hold'}</button>
