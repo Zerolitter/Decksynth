@@ -15,10 +15,11 @@ finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
-  - --socket=pulseaudio            # audio out (works with PipeWire's pulse server)
+  - --socket=pulseaudio            # audio out (PipeWire's pulse server); Flatpak also exposes /dev/snd with it,
+                                   # which is all the raw ALSA MIDI input (/dev/snd/midiC*D*) needs
   - --device=dri                   # GPU for the Electron UI
-  - --device=all                   # REQUIRED today: raw ALSA MIDI (/dev/snd/*), see
-                                   # docs/FLATPAK-DISTRIBUTION.md — must be narrowed before Flathub review
+  - --device=input                 # game controllers (SDL): the Deck's buttons and pads
+  - --require-version=1.16.0       # --device=input: Flathub asks for Flatpak 1.16 or newer (SteamOS has 1.18)
   - --env=ELECTRON_OZONE_PLATFORM_HINT=auto
   # No --share=network: app is fully offline (stdin/stdout bridge, no server)
   # No --filesystem=home: sample import goes through file dialogs/portals;
@@ -35,6 +36,7 @@ modules:
   # SDL2 audio library the Python engine dlopens (libSDL2-2.0.so.0)
   - name: SDL2
     buildsystem: cmake-ninja
+    builddir: true                 # SDL refuses in-tree builds
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DSDL_STATIC=OFF
@@ -52,8 +54,10 @@ modules:
         --cache="$FLATPAK_BUILDER_BUILDDIR/flatpak-node/npm-cache"
       - cd ui && npm run build          # tsc --noEmit && vite build
 
-      # 1b) Native FX library the engine loads (decksynth/native/libdsfx.so)
-      - cc -O2 -shared -fPIC -o decksynth/native/libdsfx.so decksynth/native/dsfx.c -lm
+      # 1b) Native kernels, like the release download: the FX library (decksynth/native/libdsfx.so) and the
+      #     cached kernels for pitch shift, vocoder, gate and the fast voices (filter, spectral, drums, sampler)
+      #     into decksynth/native/prebuilt; the launcher copies them where the engine looks
+      - tools/build-native.sh decksynth/native/prebuilt
 
       # 2) Install app tree (engine + built UI + bundled Luna demo kits)
       - install -d /app/share/decksynth/ui/node_modules/electron/dist
@@ -83,8 +87,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/Zerolitter/Decksynth.git
-        tag: v0.2.0
-        commit: TO_BE_SET_AT_RELEASE   # filled in once the v0.2.0 tag exists on GitHub
+        tag: v0.2.1
+        commit: 26a4dd81089344d5639f8240b92bb4277a3bbaf3   # set with packaging/flatpak/pin-release.sh <tag>
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$

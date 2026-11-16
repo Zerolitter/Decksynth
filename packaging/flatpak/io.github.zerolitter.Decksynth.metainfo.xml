@@ -7,15 +7,34 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>LicenseRef-Proprietary</project_license>
   <description>
-    <p>Decksynth is a Steam Deck-focused music workstation with a synthesizer, sampler, MIDI sequencer, drum rack and four-track song workflow.</p>
+    <p>Decksynth is a Steam Deck-focused music workstation with a synthesizer, sampler, MIDI sequencer, drum rack and a song workflow for four to eight tracks.</p>
     <p>Includes five generated Luna demo kits with sixteen ready-to-play pads each.</p>
   </description>
   <url type="homepage">https://github.com/Zerolitter/Decksynth</url>
   <url type="vcs-browser">https://github.com/Zerolitter/Decksynth</url>
   <url type="donation">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</url>
   <launchable type="desktop-id">io.github.zerolitter.Decksynth.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-synth.png</image>
+      <caption>The synth Sound page: draw the partials, shape the sound with knobs</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-drum-rack.png</image>
+      <caption>The Drum Rack: sixteen pads, the waveform editor and step sequencer</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-sends.png</image>
+      <caption>A shared reverb and delay every track can feed</caption>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.2" date="2026-11-16">
+      <description><p>Sends: a shared reverb and delay every track can feed.</p></description>
+    </release>
+    <release version="0.2.1" date="2026-11-16"/>
+    <release version="0.2.0" date="2026-11-16"/>
     <release version="0.1.0" date="2026-11-16"/>
   </releases>
 </component>

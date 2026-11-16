@@ -49,6 +49,7 @@ const sampleKeys=[
  ['Drag points','Drum Rack: Trim, Envelope and Tone beside the big waveform. Sampler: Envelope and Filter next to Trim and Chop. Drag a point to hear it change; letting go is one undo step. Shift drags finer, double-click resets a point, arrow keys nudge it. The compressor meter shows the level going in (coloured) and coming out (grey); drag its orange line to set the threshold.'],
  ['New effects','Pitch shift (semitones and cents), Auto-tune (pulls notes to the scale set on the Perform page), Ducking (another track pushes this one down, like a kick ducking the bass) and Vocoder (another track, such as a voice, shapes this one\'s tone). Ducking and Vocoder listen to the other track\'s own sound, even when it is muted.'],
  ['Library','The sample library: tap a card to load it (Undo brings the old sample back), ▶ to hear it first. Save the whole sample, its trim or a slice into a category. Saves to and Browses set the folders; they are remembered.'],
+ ['Sends','Every track has a Reverb and a Delay send on its Sound page (Synth: the Sends card; Drum Rack: under the kit buttons; Sampler: under Amp). They all feed one shared reverb and one shared delay, after the track\'s volume and pan. Shared opens their settings: Return level, Decay, Pre-delay, Lo and Hi cut, Width; delay Time, Feedback and Ping-pong.'],
  ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];
 const valueKeys=[

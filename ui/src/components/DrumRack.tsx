@@ -18,6 +18,7 @@ type Props = {browserOpen?:boolean;onBrowserOpen?:(open:boolean)=>void;track:Tra
   onBrowseFolder?:(folderId:string,page:number)=>void;onPreviewSample?:(folderId:string,index:number)=>void;
   onStopPreview?:()=>void;onReplaceSample?:(folderId:string,index:number,pad:number)=>void;
   steps?:(pad:import('../types').DrumPad)=>ReactNode;
+  /** the track's Reverb and Delay sends (Sends.tsx) */ sends?:ReactNode;
   /** Opens the sheet that makes a Sampler track from this pad. */
   onPlayOnKeys?:(pad:number)=>void;
   /** Record into a pad (16 Nov): the shared record state and the worker command. Left out, there is no Record. */
@@ -63,7 +64,7 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
 const panText=(n:number)=>Math.round(n)===0?'C':Math.round(n)<0?'L'+Math.round(-n):'R'+Math.round(n);
 const ms=(n:number)=>n<1000?Math.round(n)+' ms':(n/1000).toFixed(2)+' s';
 
-function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys,record,send}:Props) {
+function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,onEdit,onImport,library,onLoadFolder,onChooseLibrary,onRefreshLibrary,onBrowseFolder,onPreviewSample,onStopPreview,onReplaceSample,steps,onPlayOnKeys,record,send,sends}:Props) {
   // The pad the Record sheet is open for (null: closed).
   const [recordPad,setRecordPad]=useState<number|null>(null);
   const canRecord=!!send;
@@ -195,6 +196,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           title="Save these 16 pads, with their names and sound settings, as a kit in your library (My kits)"
           onClick={()=>send('drum_export',[trackIndex,kit.id,kit.name||''])}><Save size={17}/>Save kit</button>:null}
         </div>
+        {sends?<div className="drum-sends" aria-label="Sends">{sends}</div>:null}
         {steps?.(pad)}
       </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">

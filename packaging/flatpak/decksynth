@@ -5,5 +5,14 @@ export DECKSYNTH_PYTHON=/app/bin/python3
 export DECKSYNTH_DEMO_KITS_DIR="$APP/ui/demo-kits"
 export DECKSYNTH_RUNTIME_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/decksynth"
 export LD_LIBRARY_PATH=/app/lib:/app/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+# The Flatpak ships the native kernels prebuilt; put any missing ones where the engine looks.
+if [ -d "$APP/decksynth/native/prebuilt" ]; then
+  CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/decksynth/native"
+  mkdir -p "$CACHE"
+  for lib in "$APP"/decksynth/native/prebuilt/*.so; do
+    [ -e "$lib" ] || continue
+    [ -e "$CACHE/$(basename "$lib")" ] || cp "$lib" "$CACHE/"
+  done
+fi
 cd "$APP/ui"
 exec "$APP/ui/node_modules/electron/dist/electron" --no-sandbox .
