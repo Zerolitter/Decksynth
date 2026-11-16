@@ -421,6 +421,12 @@ def worker(commands,updates):
                         tr,key,value=args; engine.project.tracks[tr][key]=value
                         if key=='volume':engine.record_control(tr,'sound','volume',value)
                         if key=='mute':engine.synths[tr].panic();engine.drums[tr].panic();engine.samplers[tr].panic()
+                    elif cmd=='send':
+                        try:engine.set_send(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='send_setting':
+                        try:engine.set_send_setting(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='tempo':
                         # Stop before changing the beat-to-sample conversion.
                         engine.stop(); engine.project.bpm=max(30,min(240,float(args)))

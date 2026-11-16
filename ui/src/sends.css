@@ -1,0 +1,33 @@
+/* Sends (Sir, 16 Nov): each track's Reverb and Delay sends, and the shared settings sheet. */
+.harness-shell .sends-row .sends-open{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;height:44px;border-radius:8px;
+  border:1px solid var(--line-soft);background:var(--raised);color:#d6dade;font-size:12px;font-weight:700}
+.harness-shell .sends-row .sends-open svg{color:#8fb8ff}
+.harness-shell .sends-row .sends-open[aria-expanded=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--raised));color:#fff}
+.harness-shell .sends-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:0 16px 96px;background:rgba(8,9,11,.35)}
+.harness-shell .sends-sheet{width:min(940px,100%);display:flex;flex-direction:column;border-radius:12px;background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 18px 50px rgba(0,0,0,.55);animation:sends-in .16s ease-out}
+@media (prefers-reduced-motion:reduce){.harness-shell .sends-sheet{animation:none}}
+@keyframes sends-in{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+.harness-shell .sends-bar{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line)}
+.harness-shell .sends-bar strong{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#f0f2f4}
+.harness-shell .sends-bar span{flex:1;min-width:0;font-size:12px;color:#aab0b6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .sends-done{min-height:44px;min-width:88px;border-radius:9px;background:color-mix(in srgb,var(--accent) 24%,var(--panel));border:1px solid var(--accent);color:#fff;font-weight:800}
+.harness-shell .sends-body{display:grid;grid-template-columns:1.45fr 1fr;gap:10px;padding:10px}
+.harness-shell .sends-card .ss-card-head svg{color:var(--tag)}
+.harness-shell .sends-card .sends-knobs{grid-template-columns:repeat(3,126px)}
+.harness-shell .sends-card:last-child .sends-knobs{grid-template-columns:repeat(2,126px)}
+.harness-shell .sends-feeds{margin-left:auto;display:flex;gap:3px;align-items:center}
+.harness-shell .sends-feeds i{font-style:normal;min-width:18px;height:18px;padding:0 4px;border-radius:9px;display:grid;place-items:center;font-size:10.5px;font-weight:800;
+  background:color-mix(in srgb,var(--tag) 30%,var(--raised));color:#fff}
+.harness-shell .sends-feeds em{font-style:normal;font-size:11px;color:#8d949a}
+.harness-shell .sends-time button{font-size:12px}
+/* Drum Rack: the sends sit in one row under the kit buttons. */
+.harness-shell .drum-sends{box-sizing:border-box;min-width:0;margin:8px 12px 0;padding:6px 8px;border:1px solid color-mix(in srgb,#8fb8ff 35%,var(--line-soft));border-radius:10px;
+  background:linear-gradient(180deg,color-mix(in srgb,#8fb8ff 7%,var(--panel)),var(--panel) 70%)}
+.harness-shell .drum-sends .sends-row{grid-template-columns:126px 126px minmax(88px,1fr);gap:6px;justify-content:space-between;align-items:center;width:100%}
+.harness-shell .drum-sends .sends-row .sends-open{grid-column:auto}
+.harness-shell .smp-sends{margin:0;padding:4px 8px}
+/* The synth's Sends card: Shared sits in the title bar like the On/Off switch, with a 44 px hit zone. */
+.harness-shell .sends-open.small{margin-left:auto;position:relative;height:28px;min-height:28px;padding:0 8px;gap:5px;font-size:11px;font-weight:800;border:0;background:none;color:#8fb8ff;display:flex;align-items:center}
+.harness-shell .sends-open.small::after{content:"";position:absolute;inset:-8px -4px}
+.harness-shell .sends-open.small[aria-expanded=true]{color:var(--accent)}

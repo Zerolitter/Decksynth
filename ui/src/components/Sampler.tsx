@@ -531,12 +531,13 @@ const AMP_DEFAULTS: Record<keyof Env, number> = { attack: 0, decay: 0, sustain: 
 
 type PadChoice = { track: number; kit: string; pad: number; name: string; family: DrumKind };
 
-export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, bpm, onEdit, onDetect, onMake, onMidi, onLoadWav, send, library, onChooseFolder }: {
+export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, bpm, onEdit, onDetect, onMake, onMidi, onLoadWav, send, library, onChooseFolder, sends }: {
   track: Track; trackIndex: number; runtime?: SamplerRuntime | null; record?: SamplerRecord; pads: PadChoice[]; tracks: Track[]; bpm: number;
   onEdit: Edit; onDetect(): void; onMake(choice: PadChoice): void; onMidi(s: number, a: number, b: number): void;
   onLoadWav(): void; send(cmd: string, args: unknown): void;
   /** The sample library (stage 11) and the folder picker for its folders. */
   library?: SampleLibraryState | null; onChooseFolder?(): Promise<string | null>;
+  /** the track's Reverb and Delay sends (Sends.tsx) */ sends?: import('react').ReactNode;
 }) {
   const spec = track.sampler;
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -718,6 +719,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           {chopShown ? <ChopOut spec={spec} runtime={runtime} selected={sel} onSend={() => setSending(s => !s)} /> : null}
         </div>
         <AmpCard key={spec.id} spec={spec} id={id} onEdit={onEdit} onLive={onLive} shown={big === 'env'} onShow={() => setBig(big === 'env' ? 'wave' : 'env')} />
+        {sends ? <div className="drum-sends smp-sends" aria-label="Sends">{sends}</div> : null}
       </aside>
       </div>
       <SamplerKeys spec={spec} onMidi={onMidi} />

@@ -27,6 +27,7 @@ import { SamplerPage, PlayOnKeysSheet, padChoices } from './components/Sampler';
 import { drumKind, padLabel } from './drum-kinds';
 import { LinkPage } from './components/LinkPage';
 import { SynthSound } from './components/SynthSound';
+import { SendKnobs, SendsOpen, SendsSheet } from './components/Sends';
 import type { Source } from './components/ModParts';
 import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
 import { defaultFxChain, normalizeChain } from './fx';
@@ -39,7 +40,7 @@ import type { FxChain } from './fx';
 import { harmonicShape, nextSeed, type Shape } from './spectral-seeds';
 import { totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
-import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type StepNote } from './types';
+import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type SendBus, type StepNote } from './types';
 import previewState from './preview-state.json';
 import './styles.css';
 
@@ -413,6 +414,11 @@ function App() {
   };
   const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value,selected]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
+  // Sends: the shared Reverb and Delay sheet opens over any Sound page; it closes when the page or track changes.
+  const [sendsOpen,setSendsOpen]=useState(false);
+  useEffect(()=>setSendsOpen(false),[page,selected]);
+  const sendProps=track?{track,index:selected,open:sendsOpen,onSend:(bus:SendBus,v:number)=>command('send',[selected,bus,v]),onOpen:()=>setSendsOpen(o=>!o)}:null;
+  const sendKnobs=sendProps?<SendKnobs {...sendProps}/>:null;
 
   useEffect(()=>{
     const handler=(event:KeyboardEvent)=>{
@@ -502,6 +508,7 @@ function App() {
     </header>
 
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} beat={project.song?.on?songBeat:playhead} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
+    {sendsOpen&&project?<SendsSheet sends={project.sends} tracks={project.tracks} onSetting={(bus,key,value)=>command('send_setting',[bus,key,value])} onClose={()=>setSendsOpen(false)}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
       {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={selected}
@@ -569,7 +576,7 @@ function App() {
         onReplaceSample={(folder,index,pad)=>{if(track.drum_rack){pendingSwap.current={track:selected,id:track.drum_rack.id,pad,source:track.drum_rack.pads[pad].source?.path??null};command('drum_replace_sample',[selected,track.drum_rack.id,pad,folder,index]);}}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}
         onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}
-        record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)}/>
+        record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)} sends={sendKnobs}/>
       :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
         runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
         library={snapshot?.sample_library} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}
@@ -580,13 +587,13 @@ function App() {
         onEdit={(key,value)=>{if(track.sampler)command('sampler_edit',[selected,track.sampler.id,key,value]);}}
         onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
         onMake={p=>command('sampler_make',[p.track,p.kit,p.pad,selected,null,p.family])}
-        onMidi={(s,a,b)=>command('midi',[s,a,b])}/>
+        onMidi={(s,a,b)=>command('midi',[s,a,b])} sends={sendKnobs}/>
       :page==='SOUND'?<ContextAreaScope area="sound"><PanelScope scope={'track:'+selected}><SynthSound key={selected} track={track} selected={selected}
           onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} onShape={name=>command('spectral_seed',[selected,name])}
           onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={snapshot?.meter?.fx_live}
           preset={<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
             <button type="button" className="page-tool-icon ss-save" aria-label="Save patch" title="Save patch"
-              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>}/></PanelScope></ContextAreaScope>
+              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>} sends={sendProps?<SendKnobs {...sendProps} inHeader/>:null} sendsAction={<SendsOpen small open={sendsOpen} onOpen={()=>setSendsOpen(o=>!o)}/>}/></PanelScope></ContextAreaScope>
       :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx">
           <FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
             onReorder={ids=>command('fx_reorder',[selected,ids])}

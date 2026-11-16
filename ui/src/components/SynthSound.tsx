@@ -21,9 +21,10 @@ type Props={
   onShape:(shape:Shape)=>void;
   onChain:(c:FxChain)=>void; armed:Source|null; source?:Source; live?:Live;
   /** the preset name and Save, shown inside the tool rack (Sir, 16 Nov) */ preset?:ReactNode;
+  /** the track's Reverb and Delay sends (Sends.tsx), and the button for the shared settings in that card's title bar */ sends?:ReactNode; sendsAction?:ReactNode;
 };
 type View='wave'|'amp'|'filter';
-const TAGS={tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
+const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
 const SHAPE_NAME:Record<string,string>={SAW:'Saw',SQUARE:'Square',TRIANGLE:'Triangle',PULSE:'Pulse',GAUSSIAN:'Gauss',SPREAD:'Spread',RANDOM:'Random'};
 const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 const VIEW_KEY='decksynth.synth-view';
@@ -44,7 +45,7 @@ function Curve({kind}:{kind:number}){
 /** The synth's Sound page (Sir, 16 Nov): every sound-shaping editor in its own fixed place, nothing in tabs, nothing folded,
  *  no side scroll. Top: the 16 partials (draw them), the big graph (live wave, or the amp / filter envelope with points to drag)
  *  and a tool rack that picks the graph's view. Below: eight module cards in four columns. */
-export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed,source,live,preset}:Props){
+export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed,source,live,preset,sends,sendsAction}:Props){
   const p=track.instrument, accent=TRACK_COLORS[selected];
   const chain=normalizeChain(track.fx);
   const [view,setViewState]=useState<View>(()=>{try{return (localStorage.getItem(VIEW_KEY) as View)||'wave';}catch{return 'wave';}});
@@ -105,9 +106,9 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
     return {line:pts.join(' '),mid};},[heard,w,h]);
   const voices=Math.max(0,Math.round(live?.sound?.voices??0));
 
-  const card=(id:string,title:string,tag:string,body:ReactNode,opts:{power?:{on:boolean;label:string;toggle:()=>void};reset?:()=>void;cls?:string}={})=>{
+  const card=(id:string,title:string,tag:string,body:ReactNode,opts:{power?:{on:boolean;label:string;toggle:()=>void};reset?:()=>void;cls?:string;action?:ReactNode}={})=>{
     const l=linksInto(id);
-    return <Card key={id} id={id} title={title} tag={tag} links={l} power={opts.power} reset={opts.reset} cls={opts.cls}>{body}</Card>;};
+    return <Card key={id} id={id} title={title} tag={tag} links={l} power={opts.power} reset={opts.reset} cls={opts.cls} action={opts.action}>{body}</Card>;};
 
   return <section className={'synth-sound'+(armed?' is-assigning':'')} aria-label="Sound" style={{['--accent-track' as string]:accent,['--armed' as string]:armed?sourceColor(armed):'transparent'}}>
     <div className="ss-top">
@@ -181,6 +182,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
             {K('glide','Glide',vp('glide'),0,2,{step:.001,suffix:'s',onChange:v=>set('glide',v)})}
             {K('modulation','Movement',p.modulation,0,1,{id:'tone-motion',suffix:'%',description:'Vibrato and tremolo. The mod wheel adds to it.',onChange:v=>set('modulation',v)})}
           </div></>,{reset:()=>{set('modulation',.08);set('glide',0);set('play_mode',0);}})}
+        {sends?card('sound-sends','Sends',TAGS.sends,sends,{action:sendsAction}):null}
       </div>
       <div className="ss-col">
         {card('sound-filter','Filter',TAGS.filter,<>
@@ -223,14 +225,15 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
 }
 
 /** A module card: title in its section colour, the linked-mods badge, an optional On/Off switch; Reset is in the radial menu. */
-function Card({id,title,tag,links,power,reset,cls,children}:{id:string;title:string;tag:string;links:{n:number;colors:string[]};
-  power?:{on:boolean;label:string;toggle:()=>void};reset?:()=>void;cls?:string;children:ReactNode}){
+function Card({id,title,tag,links,power,reset,cls,action,children}:{id:string;title:string;tag:string;links:{n:number;colors:string[]};
+  power?:{on:boolean;label:string;toggle:()=>void};reset?:()=>void;cls?:string;action?:ReactNode;children:ReactNode}){
   const context=useContextTarget(()=>({area:'sound',kind:'rack.card',label:title,caps:{...(power?{bypass:power.toggle}:{}),...(reset?{reset}:{})}}));
   return <section {...context} className={'ss-card'+(cls?' '+cls:'')} data-panel={id} aria-label={title} style={{['--tag' as string]:tag}}>
     <header className="ss-card-head"><h2>{title}</h2>
       {links.n?<span className="ss-mods" title={links.n+' mod link'+(links.n>1?'s':'')}>{Array.from(new Set(links.colors)).map(c=><i key={c} style={{background:c}}/>)}{links.n}</span>:null}
       {power?<button type="button" role="switch" className="ss-power" aria-checked={power.on} aria-label={'Turn '+power.label+(power.on?' off':' on')}
         onClick={power.toggle}><Power size={13}/>{power.on?'On':'Off'}</button>:null}
+      {action}
     </header>
     <KnobTint.Provider value={tag}>{children}</KnobTint.Provider>
   </section>;

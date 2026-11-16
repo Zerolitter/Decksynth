@@ -45,7 +45,13 @@ export type Track = {
   freeze?: FreezeMeta;
   /** The Loop freeze next to a Song freeze: a frozen track stays frozen in both modes. */
   freeze_loop?: FreezeMeta;
+  /** How much of the track feeds the shared Reverb and Delay (decksynth/sends.py), 0..1, after volume and pan. */
+  sends?: Partial<Record<SendBus,number>>;
 };
+export type SendBus='reverb'|'delay';
+/** The shared Reverb and Delay every track can feed: their settings and Return level. */
+export type Sends={reverb:{params:{predelay:number;decay:number;locut:number;hicut:number;width:number};level:number};
+  delay:{params:{time:number;feedback:number;width:number};level:number}};
 export type SamplerMode='oneshot'|'hold'|'loop';
 export type SamplerSpec={version:1;id:string;name:string;family:string;source:DrumPad['source'];shape?:Partial<DrumShape>;
   root:number;tune:number;fine:number;mode:SamplerMode;start:number;end:number;loop_start:number;loop_end:number;
@@ -93,6 +99,7 @@ export type Project = {
   song?: import('./song').Song;
   /** Loops per track: the open one is in each track's own notes. */
   clips?: {open:number[];slots:Note[][][]};
+  sends?: Sends;
 };
 export type DeckUpdate = {
   pattern_library?:{roles:Record<string,number>;ready:Record<string,boolean>;preview:{id:string;track:number;step:number}|null};
