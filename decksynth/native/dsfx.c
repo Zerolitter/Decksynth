@@ -1,4 +1,4 @@
-/* DeckSynth FX chain: 16 mono effect modules processed in blocks.
+/* DeckSynth FX chain: 22 mono effect modules processed in blocks.
  * Written for DeckSynth; module set follows the user's PrismFX reference,
  * all DSP here is original and generic (SVF, Schroeder/Freeverb-style reverb, etc.).
  * Build: gcc -O2 -fPIC -shared -o libdsfx.so dsfx.c -lm
@@ -7,12 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define NMOD 18
+#define NMOD 22
 #define NPAR 6
 #define PI 3.14159265358979323846
 
 enum { STUTTER, FILTER, OVERDRIVE, BITCRUSH, VOLUME, PHASER, FLANGER, RINGMOD, DELAY, REVERB, TIMEFX,
-       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE, CLOUD };
+       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE, CLOUD, PITCH, AUTOTUNE, DUCK, VOCODER };
 
 #define DLY_LEN (48000*3)
 #define FLG_LEN 2048
@@ -24,6 +24,15 @@ static const int AP_LEN[2] = {556, 441};
 #define CHO_LEN 4096
 #define RES_STR 6
 #define RES_LEN 4096
+#define PS_LEN 8192
+#define AT_LEN 1024
+#define VOC_B 16
+#define SH_FADE 256
+#define SH_CORR 192
+#define SH_SEARCH 300
+/* pitch shifter: one read head plays; near the end of its range a second head starts where the
+ * sound looks the same (best correlation) and the two crossfade, so the splice keeps the waveform */
+typedef struct { float buf[PS_LEN]; int w; double d[2]; int act, fade, init; } Shifter;
 
 typedef struct {
     double rate;
@@ -69,6 +78,15 @@ typedef struct {
     double level[NMOD];
     int g_extended,g_hold; double g_phase,g_notelen;
     int g_events[256],g_event_count,g_event_index,g_offset;
+    /* pitch shifter and auto-tune: two crossfaded read heads, as in Time */
+    Shifter psh, ash;
+    /* auto-tune pitch detection: input decimated by 4 into a ring, YIN every 256 decimated samples */
+    float at_an[AT_LEN]; int at_an_w, at_dec_n, at_new; double at_dec_acc, at_ratio, at_target, at_note, at_heard;
+    int at_mask, at_root;
+    /* key inputs from another track, valid during one process call: [0] ducking, [1] vocoder */
+    const double *key[2]; int key_n[2];
+    double dk_env, dk_red;
+    double vc_c[VOC_B][2], vc_m[VOC_B][4], vc_env[VOC_B], vc_cenv[VOC_B], vc_hp, vc_hpx;
 } FxTrack;
 
 FxTrack *dsfx_create(double rate) {
@@ -77,13 +95,28 @@ FxTrack *dsfx_create(double rate) {
     return t;
 }
 void dsfx_destroy(FxTrack *t) { free(t); }
-void dsfx_reset(FxTrack *t) { double r = t->rate; memset(t, 0, sizeof(FxTrack)); t->rate = r; }
+void dsfx_reset(FxTrack *t) { double r = t->rate; int mask = t->at_mask, root = t->at_root;
+    memset(t, 0, sizeof(FxTrack)); t->rate = r; t->at_mask = mask; t->at_root = root; }
 void dsfx_levels(FxTrack *t, double *out) { memcpy(out, t->level, sizeof(t->level)); }
 /* Gain reduction of the compressor in dB, for its meter. */
 double dsfx_comp_gr(FxTrack *t) { return t->cmp_gr; }
 
 static double clampd(double x, double lo, double hi) { return x < lo ? lo : x > hi ? hi : x; }
 static double soft(double x) { return tanh(x); }
+
+/* Key audio from another track for ducking (slot 0) and the vocoder (slot 1); NULL clears it. */
+void dsfx_key(FxTrack *t, int slot, const double *key, int n) {
+    if (slot < 0 || slot > 1) return;
+    t->key[slot] = n > 0 ? key : NULL; t->key_n[slot] = n > 0 ? n : 0;
+}
+/* Project scale for auto-tune: bit k of mask = pitch class root+k is in the scale. */
+void dsfx_scale(FxTrack *t, int mask, int root) { t->at_mask = mask & 4095; t->at_root = ((root % 12) + 12) % 12; }
+/* Live readouts: out[0] auto-tune heard note (MIDI, 0 = none), out[1] its correction in cents,
+ * out[2] ducking gain reduction in dB. */
+void dsfx_readout(FxTrack *t, double *out) {
+    out[0] = t->at_heard; out[1] = t->at_ratio > 0 ? 1200 * log2(t->at_ratio) : 0;
+    out[2] = -20 * log10(fmax(1e-4, 1 - t->dk_red));
+}
 
 static void m_stutter(FxTrack *t, double *b, int n, const double *p, double bpm) {
     /* length 1..6: slice = 1/2^(L-1) beats; speed: replay rate 0.5..2; repeats 1..8 */
@@ -465,6 +498,174 @@ static void m_haas(FxTrack *t,double *b,int n,double delay) {
     }
 }
 
+/* ---- Round 2 effects (16 Nov): Pitch shift, Auto-tune, Ducking, Vocoder ---- */
+
+static double sh_read(const Shifter *s, double dist) {
+    double rp = s->w - dist; while (rp < 0) rp += PS_LEN;
+    int j = (int)rp; double fr = rp - j;
+    return s->buf[j % PS_LEN] * (1 - fr) + s->buf[(j + 1) % PS_LEN] * fr;
+}
+/* The distance near `target` whose recent past looks most like the past at `from`. */
+static double sh_match(const Shifter *s, double from, double target) {
+    int a = (int)from; double best = target, bestc = -1e30;
+    for (int k = -SH_SEARCH; k <= SH_SEARCH; k += 2) {
+        int b = (int)target + k;
+        if (b < 8 || b > PS_LEN - SH_CORR - 8) continue;
+        double c = 0, e = 1e-9;
+        for (int m = 0; m < SH_CORR; m += 2) {
+            float x = s->buf[(s->w - a - m + 2 * PS_LEN) % PS_LEN], y = s->buf[(s->w - b - m + 2 * PS_LEN) % PS_LEN];
+            c += x * y; e += y * y;
+        }
+        c /= sqrt(e);
+        if (c > bestc) { bestc = c; best = b + (from - a); }
+    }
+    return best;
+}
+/* The read head moves at `ratio` against the writer (2 = an octave up). At ratio 1 one head
+ * plays a clean copy about 18 ms late, with no splices at all. */
+static double shifter(Shifter *s, double x, double ratio) {
+    const double lo = 24, hi = 1700, jump = 900;
+    s->buf[s->w] = (float)x;
+    if (!s->init) { s->init = 1; s->d[0] = s->d[1] = jump; s->act = 0; s->fade = 0; }
+    double step = 1 - ratio;
+    int a = s->act;
+    s->d[0] = clampd(s->d[0] + step, 2, PS_LEN - 4); s->d[1] = clampd(s->d[1] + step, 2, PS_LEN - 4);
+    if (!s->fade) {
+        double margin = SH_FADE * fabs(step) + 4;
+        if ((step < 0 && s->d[a] < lo + margin) || (step > 0 && s->d[a] > hi - margin)) {
+            s->d[1 - a] = sh_match(s, s->d[a], step < 0 ? s->d[a] + jump : s->d[a] - jump);
+            s->fade = SH_FADE;
+        }
+    }
+    double y;
+    if (s->fade) {
+        double g = 0.5 - 0.5 * cos(PI * (1 - (double)s->fade / SH_FADE));
+        y = sh_read(s, s->d[a]) * (1 - g) + sh_read(s, s->d[1 - a]) * g;
+        if (--s->fade == 0) s->act = 1 - a;
+    } else y = sh_read(s, s->d[a]);
+    s->w = (s->w + 1) % PS_LEN;
+    return y;
+}
+
+static void m_pitch(FxTrack *t, double *b, int n, const double *p) {
+    /* semis -12..12, cents -100..100, mix */
+    double ratio = pow(2.0, (clampd(p[0], -12, 12) + clampd(p[1], -100, 100) / 100) / 12), mix = clampd(p[2], 0, 1);
+    for (int i = 0; i < n; i++) {
+        double y = shifter(&t->psh, b[i], ratio);
+        b[i] = b[i] * (1 - mix) + y * mix;
+    }
+}
+
+/* YIN on the decimated ring: returns the period in decimated samples, 0 when no clear pitch. */
+static double yin_period(FxTrack *t) {
+    enum { W = 384, LMIN = 15, LMAX = 300, N = W + LMAX };
+    float x[N]; double d[LMAX + 1], cum = 0, e = 0;
+    for (int i = 0; i < N; i++) x[i] = t->at_an[(t->at_an_w - N + i + 2 * AT_LEN) % AT_LEN];
+    for (int i = 0; i < W; i++) e += x[i] * x[i];
+    if (e < W * 1e-6) return 0;
+    d[0] = 1;
+    for (int tau = 1; tau <= LMAX; tau++) {
+        double s = 0;
+        for (int i = 0; i < W; i++) { double df = x[i] - x[i + tau]; s += df * df; }
+        cum += s; d[tau] = cum > 0 ? s * tau / cum : 1;
+    }
+    for (int tau = LMIN; tau < LMAX; tau++) if (d[tau] < 0.15) {
+        while (tau + 1 < LMAX && d[tau + 1] < d[tau]) tau++;
+        double a = d[tau - 1], c = d[tau + 1], den = a - 2 * d[tau] + c;
+        return tau + (fabs(den) > 1e-12 ? 0.5 * (a - c) / den : 0);
+    }
+    return 0;
+}
+
+static void m_autotune(FxTrack *t, double *b, int n, const double *p) {
+    /* speed 0 = instant (hard, robotic) .. 1 = slow and natural; amount: how far notes are pulled; mix */
+    double tau = 0.002 + 0.25 * clampd(p[0], 0, 1) * clampd(p[0], 0, 1), amount = clampd(p[1], 0, 1), mix = clampd(p[2], 0, 1);
+    double glide = 1 - exp(-1.0 / (t->rate * tau)), drate = t->rate / 4;
+    int mask = t->at_mask ? t->at_mask : 4095;
+    if (t->at_ratio <= 0) t->at_ratio = t->at_target = 1;
+    for (int i = 0; i < n; i++) {
+        t->at_dec_acc += b[i];
+        if (++t->at_dec_n == 4) {
+            t->at_an[t->at_an_w] = (float)(t->at_dec_acc / 4); t->at_an_w = (t->at_an_w + 1) % AT_LEN;
+            t->at_dec_acc = 0; t->at_dec_n = 0;
+            if (++t->at_new >= 256) {
+                t->at_new = 0;
+                double per = yin_period(t);
+                if (per > 0) {
+                    double note = 69 + 12 * log2(drate / per / 440), best = note, gap = 99;
+                    int r = (int)lround(note);
+                    for (int k = -6; k <= 6; k++) {
+                        int cand = r + k, pc = ((cand - t->at_root) % 12 + 12) % 12;
+                        if ((mask >> pc) & 1 && fabs(cand - note) < gap) { gap = fabs(cand - note); best = cand; }
+                    }
+                    t->at_note = best; t->at_heard = note;
+                    t->at_target = pow(2.0, (best - note) * amount / 12);
+                } else { t->at_target = 1; t->at_heard = 0; }
+            }
+        }
+        t->at_ratio += (t->at_target - t->at_ratio) * glide;
+        double y = shifter(&t->ash, b[i], t->at_ratio);
+        b[i] = b[i] * (1 - mix) + y * mix;
+    }
+}
+
+static void m_duck(FxTrack *t, double *b, int n, const double *p) {
+    /* p[0] source track (the engine routes its audio here), amount, sensitivity, attack, release */
+    double amount = clampd(p[1], 0, 1), sens = pow(10, 36 * clampd(p[2], 0, 1) / 20);
+    double att = exp(-1.0 / (t->rate * (0.0002 + 0.03 * clampd(p[3], 0, 1))));
+    double rel = exp(-1.0 / (t->rate * (0.02 + 0.8 * clampd(p[4], 0, 1))));
+    const double *k = t->key[0]; int kn = t->key_n[0];
+    for (int i = 0; i < n; i++) {
+        int at = t->g_offset + i;
+        double x = k && at < kn ? fabs(k[at]) : 0;
+        t->dk_env = x > t->dk_env ? att * t->dk_env + (1 - att) * x : rel * t->dk_env + (1 - rel) * x;
+        double g = 1 - amount * clampd(t->dk_env * sens, 0, 1);
+        t->dk_red = 1 - g;
+        b[i] *= g;
+    }
+}
+
+static double svf_bp(double s[2], double x, double g, double k) {
+    double a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
+    double v3 = x - s[1], v1 = a1 * s[0] + a2 * v3, v2 = s[1] + a2 * s[0] + a3 * v3;
+    s[0] = 2 * v1 - s[0]; s[1] = 2 * v2 - s[1];
+    return v1;
+}
+
+static void m_vocoder(FxTrack *t, double *b, int n, const double *p) {
+    /* this track is the carrier, the source track (key slot 1) the voice that shapes it.
+     * p[0] source, response (fast..smooth), formant shift (-1..1 octave), air (the voice's highs), mix */
+    const double *key = t->key[1]; int kn = t->key_n[1];
+    if (!key) { for (int j = 0; j < VOC_B; j++) t->vc_env[j] *= 0.5; return; }
+    double rel = exp(-1.0 / (t->rate * (0.008 + 0.15 * clampd(p[1], 0, 1)))), att = exp(-1.0 / (t->rate * 0.002));
+    double shift = pow(2.0, clampd(p[2], -1, 1)), air = clampd(p[3], 0, 1), mix = clampd(p[4], 0, 1);
+    double gm[VOC_B], gc[VOC_B], kq = 1 / 5.0, nyq = t->rate * 0.45;
+    for (int j = 0; j < VOC_B; j++) {
+        double f = 120 * pow(60.0, j / (double)(VOC_B - 1));
+        gm[j] = tan(PI * fmin(f, nyq) / t->rate);
+        gc[j] = tan(PI * fmin(f * shift, nyq) / t->rate);
+    }
+    double hp = exp(-2 * PI * 5000 / t->rate);
+    for (int i = 0; i < n; i++) {
+        int at = t->g_offset + i;
+        double m = at < kn ? key[at] : 0, c = b[i], wet = 0;
+        for (int j = 0; j < VOC_B; j++) {
+            /* the voice is split with two filters per band (steeper), each scaled to unity at its centre */
+            double bm = kq * svf_bp(&t->vc_m[j][2], kq * svf_bp(&t->vc_m[j][0], m, gm[j], kq), gm[j], kq);
+            double bc = svf_bp(t->vc_c[j], c, gc[j], kq);
+            double am = 2.2 * fabs(bm), ac = fabs(bc);
+            t->vc_env[j] = am > t->vc_env[j] ? att * t->vc_env[j] + (1 - att) * am : rel * t->vc_env[j] + (1 - rel) * am;
+            t->vc_cenv[j] = ac > t->vc_cenv[j] ? att * t->vc_cenv[j] + (1 - att) * ac : rel * t->vc_cenv[j] + (1 - rel) * ac;
+            /* each carrier band is levelled, then takes the voice's level in that band */
+            wet += bc * t->vc_env[j] / (t->vc_cenv[j] + 0.02);
+        }
+        /* air: the voice's own highs (s, t, breath) on top, so words stay clear */
+        t->vc_hp = hp * (t->vc_hp + m - t->vc_hpx); t->vc_hpx = m;
+        wet = wet * 0.9 + air * t->vc_hp;
+        b[i] = c * (1 - mix) + wet * mix;
+    }
+}
+
 static void run_module(FxTrack *t, int m, double *b, int n, const double *p, double bpm) {
     switch (m) {
         case STUTTER: m_stutter(t, b, n, p, bpm); break;
@@ -485,6 +686,10 @@ static void run_module(FxTrack *t, int m, double *b, int n, const double *p, dou
         case AUTOWAH: m_autowah(t, b, n, p); break;
         case RESONATOR: m_resonator(t, b, n, p); break;
         case AUDIOGATE: m_gate(t, b, n, p, bpm); break;
+        case PITCH: m_pitch(t, b, n, p); break;
+        case AUTOTUNE: m_autotune(t, b, n, p); break;
+        case DUCK: m_duck(t, b, n, p); break;
+        case VOCODER: m_vocoder(t, b, n, p); break;
     }
 }
 

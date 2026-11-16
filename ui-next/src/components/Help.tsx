@@ -44,6 +44,8 @@ const sampleKeys=[
  ['Space / Enter','Play the chosen slice.'],
  ['Right-click / touch-hold','Radial menu: Zoom in / out / Fit whole; in Chop also Split here, Join next, Audition, Save to library and Clear slices (the sample stays).'],
  ['Drum Rack Pad Sound','The same waveform editor: drag the Start / End tags, wheel and Ctrl+wheel, F / Z / + / −, and the radial menu. Play, Shape, Tone and Comp are compact cards like the Sampler\'s.'],
+ ['Drag points','Drum Rack: Trim, Envelope and Tone beside the big waveform. Sampler: Envelope and Filter next to Trim and Chop. Drag a point to hear it change; letting go is one undo step. Shift drags finer, double-click resets a point, arrow keys nudge it. The compressor meter shows the level going in (coloured) and coming out (grey); drag its orange line to set the threshold.'],
+ ['New effects','Pitch shift (semitones and cents), Auto-tune (pulls notes to the scale set on the Perform page), Ducking (another track pushes this one down, like a kick ducking the bass) and Vocoder (another track, such as a voice, shapes this one\'s tone). Ducking and Vocoder listen to the other track\'s own sound, even when it is muted.'],
  ['Library','The sample library: tap a card to load it (Undo brings the old sample back), ▶ to hear it first. Save the whole sample, its trim or a slice into a category. Saves to and Browses set the folders; they are remembered.'],
  ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];

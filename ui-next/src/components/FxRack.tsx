@@ -19,7 +19,9 @@ const BLURB:Record<FxModuleId,string>={
   flanger:'Jet-like comb sweep', ringmod:'Metallic, bell-like tones', delay:'Tempo-synced echoes',
   reverb:'Room to huge space', time:'Tape-style speed changes', chorus:'Wide, thick doubled voices',
   compressor:'Evens out loud and soft', eq:'Low, mid and high tone', autowah:'Opens up the harder you play',
-  resonator:'Strings that ring with your notes', gate:'Rhythmic on/off pattern on the beat'};
+  resonator:'Strings that ring with your notes', gate:'Rhythmic on/off pattern on the beat',
+  pitch:'Up or down in semitones and cents', autotune:'Pulls notes to the project scale',
+  duck:'Another track pushes this one down', vocoder:'Another track shapes this one\'s tone'};
 
 /** The effects you can still add, as big tap targets. Used in the empty FX window and in the Add sheet. */
 function FxPickerGrid({chain,onAdd}:{chain:FxChain;onAdd:(id:FxModuleId)=>void}){
@@ -72,11 +74,14 @@ export function FxWindow({chain:raw,onChange,live,bpm,folded=false,onFold}:Windo
 
 type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live;
   onReorder:(ids:FxModuleId[])=>void;
-  armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean};
+  armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean;
+  /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[]};
+const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const noteName=(m:number)=>NOTE_NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Math.round(m)/12)-1);
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[]}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -135,9 +140,21 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
               onClick={()=>remove(state.id)}><X size={15}/></button>
           </span>}>
         <div className="rack-card-body">
+          {state.id==='autotune'||state.id==='duck'?<FxReadout id={state.id} readout={live?.readout} color={def.color}/>:null}
           {def.params.map((p,j)=>{
             if(p.hidden)return null;
             if(p.editor==='gate')return <GateStrip key={p.key} params={state.params} runtime={live?.gate} onOpen={()=>setGateOpen(true)}/>;
+            if(p.editor==='track'){const v=Math.round(state.params[p.key]??p.init);
+              return <div key={p.key} className="fx-track-pick">
+                <span className="fx-choice-label">{p.label}</span>
+                <div className="fx-segment fx-track-buttons" role="radiogroup" aria-label={def.name+' '+p.label}>
+                  {tracks.map((name,i)=><button key={i} type="button" role="radio" aria-checked={v===i} disabled={i===selected}
+                    className={v===i?'active':''} title={i===selected?'This track: a track can\'t drive itself':'Track '+(i+1)+' · '+name}
+                    aria-label={'Track '+(i+1)+', '+name+(i===selected?' (this track)':'')} onClick={()=>setParam(state.id,p.key,i)}>
+                    <b>{i+1}</b><span>{name}</span></button>)}
+                </div>
+                {v===selected||v>=tracks.length?<small className="fx-track-warn">Pick another track: a track can't drive itself.</small>:null}
+              </div>;}
             const routes=routesFor(state.id,p.key);
             const routed=!!armed&&sourceTargets(chain,armed).some(t=>t.module===state.id&&t.param===p.key);
             const preferred=armed??source;
@@ -152,7 +169,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
               </div></div>;
             const liveValue=state.id==='gate'&&j>=NPAR?live?.gate?.values[p.key]:live?.params?.[idx*NPAR+j];
             return <div key={p.key} className={'fx-knob-cell'+cls} onPointerDownCapture={capture(state.id,p.key)}>
-              {p.precision===0?<Stepper label={p.label} value={state.params[p.key]??p.init} min={p.min} max={p.max}
+              {p.precision===0&&!p.knob?<Stepper label={p.label} value={state.params[p.key]??p.init} min={p.min} max={p.max}
                 name={def.name+' '+p.label} color={def.color} onChange={v=>setParam(state.id,p.key,v)}/>
               :<Knob id={selected+'-fx-'+state.id+'-'+p.key} name={p.label}
                 value={state.params[p.key]??p.init} min={p.min} max={p.max} suffix={p.suffix??''}
@@ -183,4 +200,15 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
       onParam={(k,v)=>setParam('gate',k,v)} onClose={()=>setGateOpen(false)}/>:null}
     {ring.bubble}
   </div>;
+}
+
+/** Auto-tune shows the note it hears and how far it pulls it; Ducking shows how far it pushes the track down now. */
+function FxReadout({id,readout,color}:{id:'autotune'|'duck';readout?:{note:number;cents:number;duck:number}|null;color:string}){
+  if(id==='duck'){const db=readout?.duck??0,fill=Math.min(1,db/24);
+    return <div className="fx-readout" role="meter" aria-label="Ducking now" aria-valuemin={0} aria-valuemax={24} aria-valuenow={Math.round(db*10)/10}>
+      <span>Ducking now</span><i className="fx-readout-bar"><b style={{width:(fill*100)+'%',background:color}}/></i><strong>{db>.05?'-'+db.toFixed(1)+' dB':'0 dB'}</strong></div>;}
+  const note=readout?.note??0,c=readout?.cents??0;
+  return <div className="fx-readout" role="status" aria-label="Auto-tune hears">
+    <span>Hears</span><strong>{note>0?noteName(note)+' '+(note-Math.round(note)>=0?'+':'')+Math.round((note-Math.round(note))*100)+' ct':'—'}</strong>
+    <span>Pull</span><strong style={{color}}>{note>0?(c>=0?'+':'')+Math.round(c)+' ct':'—'}</strong></div>;
 }

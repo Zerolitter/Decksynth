@@ -33,7 +33,7 @@ import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import {Help} from './components/Help';
 import { ValueBox } from './components/ValueBox';
-import { PageBar, PageTabs, type Page } from './components/PageBar';
+import { PageBar, PageTabs, deviceName, type Page } from './components/PageBar';
 import { FxCards, FxWindow } from './components/FxRack';
 import type { FxChain } from './fx';
 import { harmonicShape, nextSeed, type Shape } from './spectral-seeds';
@@ -598,7 +598,7 @@ function App() {
           <FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
             onReorder={ids=>command('fx_reorder',[selected,ids])}
             live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
-            beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false}/>
+            beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>
         </>}
       </div></PanelScope></ContextAreaScope>
       :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}

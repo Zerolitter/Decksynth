@@ -90,6 +90,7 @@ let app,page;
  if(STAGES.includes('10'))await require(path.join(__dirname,'sampler_editing_stage10.cjs'))(globalThis.T);
  if(STAGES.includes('11'))await require(path.join(__dirname,'sampler_editing_stage11.cjs'))(globalThis.T);
  if(STAGES.includes('13'))await require(path.join(__dirname,'sampler_round2_a.cjs'))(globalThis.T);
+ if(STAGES.includes('14'))await require(path.join(__dirname,'sampler_round2_b.cjs'))(globalThis.T);
  assert.deepEqual(errors,[]);
  await app.close();console.log('PASS sampler expansion at '+H);
 })().catch(async e=>{console.error(e);try{await page?.screenshot({path:path.join(OUT,'failure-'+H+'.png')});}catch{}try{await app?.close();}catch{}process.exit(1);});

@@ -271,3 +271,23 @@
 .drum-pads-panel .drum-section-bar .drum-kits-button svg{color:var(--accent);flex:none}
 .drum-pads-panel .drum-section-bar .drum-kits-button[aria-expanded=true]{border-color:var(--accent);background:#3a3224}
 .drum-pads-panel .drum-section-bar>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Round 2 (Sir's pictures, 16 Nov): Kits under the pads; the big panel shows Trim, Envelope or Tone. */
+.drum-kits-button{display:none}
+.drum-kits-wide{display:flex;align-items:center;gap:10px;margin:8px 12px 0;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2,#24272c);color:var(--text,#f1f2f4);text-align:left;cursor:pointer}
+.drum-kits-wide span{display:flex;flex-direction:column;min-width:0}
+.drum-kits-wide small{font-size:11px;color:var(--muted,#9aa0a8);text-transform:uppercase;letter-spacing:.06em}
+.drum-kits-wide strong{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drum-kits-wide[aria-expanded="true"]{border-color:var(--accent)}
+.drum-smp .drum-wave-shell.drum-smp-wave{gap:8px}
+.drum-view-rail{display:flex;flex-direction:column;gap:4px;flex:none;width:84px;margin-left:12px}
+.drum-view-rail button{flex:1;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--inset);color:var(--muted,#aeb3bb);font-size:12.5px;font-weight:600;cursor:pointer}
+.drum-view-rail button[aria-checked="true"]{border-color:var(--accent);color:var(--text,#f1f2f4);background:color-mix(in srgb,var(--accent) 16%,var(--inset))}
+.drum-smp .drum-smp-wave.view-trim .smp-wave-shell{margin-left:0}
+.drum-smp .drum-smp-wave.view-trim .smp-caption{margin-left:0}
+.drum-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.drum-card-head h2{margin:0}
+.drum-card-view{min-height:32px;border:1px dashed color-mix(in srgb,var(--pad-accent) 50%,var(--line));border-radius:8px;background:none;color:var(--muted,#aeb3bb);font-size:12px;cursor:pointer}
+.drum-card-view[aria-pressed="true"]{border-style:solid;color:var(--text,#f1f2f4)}
+.drum-comp-body{display:flex;gap:8px;min-height:0;flex:1}
+.drum-comp-body .smp-knobs{flex:1;min-width:0}

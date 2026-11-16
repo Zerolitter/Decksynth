@@ -5,7 +5,7 @@ import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
 import { DRUM_KINDS, drumKind, padLabel } from '../drum-kinds';
-import { compressorPath, envelopePath, responsePath } from '../drum-shape-graph';
+import { CompMeter, EnvelopeView, ToneView } from './DragGraphs';
 import '../drum-rack.css';
 import '../sampler.css';
 import { SampleWindow } from './Sampler';
@@ -57,18 +57,6 @@ export function CommittedKnob({id,name,value,min,max,step,suffix,precision,descr
   </div>;
 }
 
-/** Small live graph beside the EQ / filter / compressor knobs (no handles, so it may stretch). */
-function ShapeGraph({kind,shape}:{kind:'eq'|'comp';shape:DrumShape}){
-  const w=220,h=88;
-  return <svg data-testid={'drum-graph-'+kind} className="drum-shape-graph" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img"
-    aria-label={kind==='eq'?'EQ and filter response, 20 Hz to 20 kHz':'Compressor curve, input against output level'}>
-    {kind==='eq'?<>{[100,1000,10000].map(f=><line key={f} className="grid" x1={Math.log10(f/20)/3*w} x2={Math.log10(f/20)/3*w} y1={0} y2={h}/>)}
-      <line className="grid zero" x1={0} x2={w} y1={h/2} y2={h/2}/><path d={responsePath(shape,w,h)} vectorEffect="non-scaling-stroke"/></>
-    :<><line className="grid zero" x1={0} x2={w} y1={h} y2={h-48/72*h}/>
-      <line className="grid" x1={(shape.comp_threshold+48)/48*w} x2={(shape.comp_threshold+48)/48*w} y1={0} y2={h}/><path d={compressorPath(shape,w,h)} vectorEffect="non-scaling-stroke"/></>}
-  </svg>;
-}
-
 const panText=(n:number)=>Math.round(n)===0?'C':Math.round(n)<0?'L'+Math.round(-n):'R'+Math.round(n);
 const ms=(n:number)=>n<1000?Math.round(n)+' ms':(n/1000).toFixed(2)+' s';
 
@@ -101,6 +89,8 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
   const anySolo=pads.some(p=>p.solo),fileName=pad?.source?.path.split(/[\\/]/).pop();
   const edit=(key:string,value:unknown)=>onEdit(selected,key,value);
   const [toneTab,setToneTab]=useState<'eq'|'filter'>('eq');
+  // The big panel: trim markers, the envelope or the tone curve, each with points to drag.
+  const [view,setView]=useState<'trim'|'env'|'tone'>('trim');
   // Knob values while turning: the graphs follow them live; the engine gets the value on release.
   const [drafts,setDrafts]=useState<Partial<DrumShape>&{tune?:number}>({});
   const committed=JSON.stringify([selected,pad?.shape,pad?.tune]);
@@ -133,7 +123,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
         onBrowseFolder={onBrowseFolder} onPreviewSample={onPreviewSample} onStopPreview={onStopPreview} onReplaceSample={onReplaceSample}
         onBack={()=>setBrowsing(false)}/>:<section className="drum-pads-panel" aria-labelledby="drum-pads-title">
         <div className="drum-section-bar"><h2 id="drum-pads-title">PADS</h2><span>Touch to play · MIDI 36–51</span>
-          <button type="button" className="drum-kits-button" aria-label="Browse drum kits" aria-expanded={browsing} title={kit.name||'Choose a kit folder'} onClick={()=>setBrowsing(!browsing)}><FolderOpen size={16}/><span>{kit.name||'Kits'}</span></button></div>
+</div>
         <div {...context} className="drum-pads" role="group" aria-label="Sixteen sample pads">
           {pads.map((p,i)=>{
             const state=runtime?.pads[i]?.status??(p.source?'LOADING':'EMPTY'),silenced=p.mute||(anySolo&&!p.solo),hit=flashes.has(i);
@@ -149,6 +139,8 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           })}
         </div>
         <div className="drum-family-legend" aria-label="Drum families">{families.map(kind=><span key={kind} style={{['--family' as string]:DRUM_KINDS[kind].color}}><i/>{DRUM_KINDS[kind].label}</span>)}</div>
+        <button type="button" className="drum-kits-wide" aria-label="Browse drum kits" aria-expanded={browsing} title="Load another kit, or swap single sounds" onClick={()=>setBrowsing(!browsing)}>
+          <FolderOpen size={18}/><span><small>Kits</small><strong>{kit.name||'Choose a kit'}</strong></span></button>
         {steps?.(pad)}
       </section>}
       <section className="drum-pad-sound" aria-labelledby="drum-pad-sound-title">
@@ -162,8 +154,15 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           <button type="button" aria-label={pad.source?'Import replacement WAV file':'Import WAV file'} title="Choose a WAV file directly" onClick={()=>onImport(selected,false)}><FolderOpen size={17}/>{pad.source?null:'Import WAV'}</button>
           {pad.source&&status==='MISSING'?<button type="button" className="drum-relink" onClick={()=>onImport(selected,true)}><Link2 size={17}/>Relink WAV</button>:null}
         </div></div>
-        <div className="drum-wave-shell drum-smp-wave">
-          {sourceReady&&live?.peaks.length?<SampleWindow spec={waveSpec} runtime={waveRuntime} mode="trim" selected={-1} marker={null}
+        <div className={'drum-wave-shell drum-smp-wave view-'+view}>
+          <div className="drum-view-rail" role="radiogroup" aria-label="Waveform view">
+            {([['trim','Trim','Start and end of the sound'],['env','Envelope','Attack, hold and decay over the sound'],['tone','Tone','EQ and cut filters']] as const).map(([id,name,hint])=>
+              <button key={id} type="button" role="radio" aria-checked={view===id} title={hint} onClick={()=>setView(id)}>{name}</button>)}
+          </div>
+          {sourceReady&&live?.peaks.length&&view==='env'?<EnvelopeView shape={shown} seconds={seconds} step={step} peaks={live.peaks} at={live.at??[]}
+            onDraft={p=>setDrafts(d=>({...d,...p}))} onCommit={p=>edit('shape',{...shape,...p})}/>
+          :sourceReady&&view==='tone'?<ToneView shape={shown} onDraft={p=>setDrafts(d=>({...d,...p}))} onCommit={p=>edit('shape',{...shape,...p})}/>
+          :sourceReady&&live?.peaks.length?<SampleWindow spec={waveSpec} runtime={waveRuntime} mode="trim" selected={-1} marker={null}
             onSelect={()=>{}} onView={()=>{}} onChop={()=>{}} onAudition={()=>onNote(selected,100)}
             onEdit={(k,v)=>{if(k!=='patch')return;const p=v as Partial<Record<'start'|'end',number>>;edit('shape',{...shape,...(p.start!==undefined?{start:p.start}:{}),...(p.end!==undefined?{end:p.end}:{})});}}/>
           :<div className="drum-wave-empty"><AudioWaveform size={22}/><span>{status==='MISSING'?'Sample missing · relink the original WAV':status==='LOADING'?'Loading sample…':status==='ERROR'?'Sample could not load':'Import a WAV to see its waveform'}</span></div>}
@@ -188,11 +187,10 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
             <label className="drum-choke">Choke<select aria-label="Choke group" value={pad.choke} onChange={e=>edit('choke',Number(e.target.value))}><option value={0}>None</option>{Array.from({length:16},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
           </section>
           <section className="smp-card drum-card-shape" aria-label="Shape">
-            <h2>Shape</h2>
-            <div className="drum-graph-row"><svg data-testid="drum-envelope-graph" className="drum-card-graph" viewBox="0 0 512 96" preserveAspectRatio="none" role="img" aria-label="Level over time: attack, hold, decay and fades">
-              <path d={envelopePath(shown,seconds,step)} vectorEffect="non-scaling-stroke"/></svg>
+            <div className="drum-card-head"><h2>Shape</h2>
               <button type="button" className="smp-toggle drum-card-reset" aria-label="Reset shape" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)}
                 title="Back to the sample as recorded: trim, fades, envelope, EQ, filter, compressor and pan" onClick={()=>edit('shape',{...DEFAULT_DRUM_SHAPE})}><RotateCcw size={16}/></button></div>
+            <button type="button" className="drum-card-view" aria-pressed={view==='env'} onClick={()=>setView(view==='env'?'trim':'env')}>{view==='env'?'Envelope shown above':'Drag it above'}</button>
             <div className="smp-knobs two one">
               {knob('attack','Attack',0,1000,1,'ms',0,'Rise time at the start of the hit',1000)}
               {knob('hold','Hold',0,4000,1,'ms',0,'Full level after the attack. With Decay off the pad stops after the hold',1000,ms)}
@@ -207,7 +205,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
               <button type="button" role="radio" aria-checked={toneTab==='eq'} onClick={()=>setToneTab('eq')}>EQ</button>
               <button type="button" role="radio" aria-checked={toneTab==='filter'} onClick={()=>setToneTab('filter')}>Filter</button>
             </div>
-            <ShapeGraph kind="eq" shape={shown}/>
+            <button type="button" className="drum-card-view" aria-pressed={view==='tone'} onClick={()=>setView(view==='tone'?'trim':'tone')}>{view==='tone'?'Curve shown above':'Drag it above'}</button>
             {toneTab==='eq'?<div className="smp-knobs two one">
               {knob('eq_low','Low',-18,18,.5,'dB',1,'Low shelf at 200 Hz')}
               {knob('eq_high','High',-18,18,.5,'dB',1,'High shelf at 5 kHz')}
@@ -221,14 +219,14 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           </section>
           <section className={'smp-card drum-card-comp'+(shape.comp_ratio<=1?' off':'')} aria-label="Compressor">
             <h2>Comp</h2>
-            <ShapeGraph kind="comp" shape={shown}/>
-            <div className="smp-knobs two one">
+            <div className="drum-comp-body"><div className="smp-knobs two one">
               {knob('comp_threshold','Threshold',-48,0,.5,'dB',1,'Level where compression starts')}
               {knob('comp_ratio','Ratio',1,20,.1,':1',1,'1:1 is off')}
               {knob('comp_attack','Attack',.1,100,.1,'ms',1,'How fast it clamps down')}
               {knob('comp_release','Release',10,1000,1,'ms',0,'How fast it lets go')}
               {knob('comp_makeup','Gain',0,24,.5,'dB',1,'Make-up gain after compression')}
             </div>
+            <CompMeter shape={shown} level={live?.lvl} onDraft={p=>setDrafts(d=>({...d,...p}))} onCommit={p=>edit('shape',{...shape,...p})}/></div>
           </section>
         </div>
       </section>

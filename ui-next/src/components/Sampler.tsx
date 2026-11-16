@@ -3,12 +3,13 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Crop, Eraser, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
+import { Activity, BookOpen, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, ScanSearch, Scissors, Trash2, Undo2, ZoomIn } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
 import { ValueBox, parseNote } from './ValueBox';
 import { EnvEditor, type Env } from './EnvEditor';
+import { FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
 import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode } from '../types';
 import '../sampler.css';
@@ -514,6 +515,8 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const spec = track.sampler;
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mode, setMode] = useState<'trim' | 'chop'>(() => (spec?.slices?.length ? 'chop' : 'trim'));
+  // Round 2: the big panel can also show the amp envelope or the filter curve, with points to drag.
+  const [big, setBig] = useState<'wave' | 'env' | 'filter'>('wave');
   const [selected, setSelected] = useState(-1);
   const [marker, setMarker] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
@@ -544,7 +547,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const setView = (a: number, b: number) => send('sampler_view', [trackIndex, spec.id, Math.max(0, a), Math.min(1, b)]);
   /** A knob that is still turning: the engine plays the value now; the edit (and its undo step) comes on release. */
   const onLive: Edit = (key, value) => send('sampler_live', [trackIndex, spec.id, { [key]: value }]);
-  const toMode = (m: 'trim' | 'chop') => setMode(m);   // the zoom stays: F (or Fit) shows the whole sample
+  const toMode = (m: 'trim' | 'chop') => { setMode(m); setBig('wave'); };   // the zoom stays: F (or Fit) shows the whole sample
   const familyLabel = spec.family in DRUM_KINDS && spec.family !== 'other' ? DRUM_KINDS[spec.family as DrumKind].label : /^Recording/.test(spec.name) ? 'Recordings' : 'Samples';
   return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}>
     {libraryOpen ? <SampleLibrarySheet library={library} spec={spec} track={trackIndex} selectedSlice={mode === 'chop' ? sel : -1} defaultCategory={familyLabel}
@@ -552,8 +555,10 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
     <header className="drum-device-bar">
       <div className="drum-device-title"><KeyboardMusic size={21} /><h1>Sampler</h1><span>Track {trackIndex + 1}</span></div>
       {spec.source ? <div className="smp-seg smp-tabs" role="radiogroup" aria-label="Edit">
-        <button type="button" role="radio" aria-checked={mode === 'trim'} title="Where the sample starts and ends, and its loop" onClick={() => toMode('trim')}><Crop size={15} />Trim</button>
-        <button type="button" role="radio" aria-checked={mode === 'chop'} title="Cut it into slices for pads" onClick={() => toMode('chop')}><Scissors size={15} />Chop</button>
+        <button type="button" role="radio" aria-checked={big === 'wave' && mode === 'trim'} title="Where the sample starts and ends, and its loop" onClick={() => toMode('trim')}><Crop size={15} />Trim</button>
+        <button type="button" role="radio" aria-checked={big === 'wave' && mode === 'chop'} title="Cut it into slices for pads" onClick={() => toMode('chop')}><Scissors size={15} />Chop</button>
+        <button type="button" role="radio" aria-checked={big === 'env'} title="Drag Attack, Decay, Sustain and Release over the sound" onClick={() => setBig('env')}><Activity size={15} />Envelope</button>
+        <button type="button" role="radio" aria-checked={big === 'filter'} title="Drag the filter's cutoff and resonance" onClick={() => setBig('filter')}><SlidersHorizontal size={15} />Filter</button>
       </div> : null}
       <div className="drum-device-meta">
         <button type="button" className="smp-load smp-lib-open" aria-pressed={libraryOpen} onClick={() => setLibraryOpen(o => !o)} title="The sample library: load a saved sample, or save this one"><BookOpen size={16} />Library</button>
@@ -575,11 +580,16 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           onClick={() => onMake(p)}><b>Track {p.track + 1} · Pad {String(p.pad + 1).padStart(2, '0')}</b><span>{p.name}</span></button>)}</div></>
         : <p>Load a WAV (a bounce, a recording, up to 10 minutes), or load a kit on a Drum Rack track and pick a pad here.</p>}
     </div> : <>
-      <SampleWindow spec={spec} runtime={runtime} mode={mode} selected={sel} marker={marker} onEdit={onEdit}
+      {big === 'env' ? <div className="smp-drag-shell"><SamplerEnvView env={{ attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release }}
+        seconds={runtime?.seconds ?? 0} region={[spec.start, spec.end]} peaks={runtime?.peaks ?? []} view={runtime?.view ?? [0, 1]}
+        onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
+      : big === 'filter' ? <div className="smp-drag-shell"><FilterView type={spec.filter ?? 'off'} cutoff={spec.cutoff ?? 2000} resonance={spec.resonance ?? .2}
+        onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
+      : <SampleWindow spec={spec} runtime={runtime} mode={mode} selected={sel} marker={marker} onEdit={onEdit}
         onView={setView} onChop={(m, o) => { chop(m, o); }} onAudition={i => send('sampler_audition', [trackIndex, spec.id, i])}
         onLibrary={i => { if (i >= 0) setSelected(i); setLibraryOpen(true); }}
-        onSelect={(i, at) => { setSelected(i); setMarker(at); if (i >= 0) send('sampler_audition', [trackIndex, spec.id, i]); }} />
-      {mode === 'chop' ? <ChopBar spec={spec} runtime={runtime} settings={settings} selected={sel} marker={marker} zoomed={zoomed}
+        onSelect={(i, at) => { setSelected(i); setMarker(at); if (i >= 0) send('sampler_audition', [trackIndex, spec.id, i]); }} />}
+      {mode === 'chop' && big === 'wave' ? <ChopBar spec={spec} runtime={runtime} settings={settings} selected={sel} marker={marker} zoomed={zoomed}
         onSettings={(s, now) => { setSettings(s); if (now) { window.clearTimeout(timer.current); timer.current = window.setTimeout(() => apply(s), 250); } }}
         onChop={(m, o) => { chop(m, o); if (m === 'clear') setSelected(-1); }}
         onZoom={() => {

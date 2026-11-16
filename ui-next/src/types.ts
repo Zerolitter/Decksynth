@@ -30,7 +30,7 @@ export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;
   sample_page?:{folder:string;page:number;total:number;items:{index:number;name:string;filename:string}[]}|null;
   preview?:{folder:string;index:number;loading:boolean;active:boolean}|null};
 export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string;
-  /** Where the pad's sounding voices are, 0..1 of the sample (round 2: a moving playhead). */ at?:number[]}[]};
+  /** Where the pad's sounding voices are, 0..1 of the sample (round 2: a moving playhead). */ at?:number[];/** while playing: dBFS going into the compressor and coming out */lvl?:number[]|null}[]};
 export type AutomationLane={module:string;param:string;points:[number,number][]};
 export type Track = {
   sound_ab?:{active:'A'|'B';A:unknown;B:unknown};automation?:AutomationLane[];

@@ -62,18 +62,21 @@ with wave.open(sys.argv[1],'wb') as f:
  assert.equal((await pad()).shape.end,1,'drag stays local until release');
  await p.mouse.up();await p.waitForFunction(()=>Math.abs(window.__drumLatest.state.tracks[0].drum_rack.pads[0].shape.end-.6)<.02);
  // The graph follows a knob while it turns; the engine only gets the value on release.
- const envBefore=await p.locator('[data-testid=drum-envelope-graph] path').getAttribute('d');
+ await p.getByRole('radiogroup',{name:'Waveform view'}).getByRole('radio',{name:'Envelope'}).click();
+ const envBefore=await p.locator('.drag-envelope .env-line').getAttribute('d');
  const holdKnob=await card('Shape').getByRole('slider',{name:'Hold',exact:true}).boundingBox();
  await p.mouse.move(holdKnob.x+holdKnob.width/2,holdKnob.y+holdKnob.height/2);await p.mouse.down();
  await p.mouse.move(holdKnob.x+holdKnob.width/2,holdKnob.y-60,{steps:8});await p.waitForTimeout(150);
- assert.notEqual(await p.locator('[data-testid=drum-envelope-graph] path').getAttribute('d'),envBefore,'envelope redraws while turning');
+ assert.notEqual(await p.locator('.drag-envelope .env-line').getAttribute('d'),envBefore,'envelope redraws while turning');
  assert.equal((await pad()).shape.hold,0,'turning stays local until release');
  await p.mouse.up();await p.waitForFunction(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].shape.hold>0);
  // Pan, EQ and compressor are pad settings too, each with a live graph in its card.
- const eqBefore=await p.locator('[data-testid=drum-graph-eq]').innerHTML();
+ await p.getByRole('radiogroup',{name:'Waveform view'}).getByRole('radio',{name:'Tone'}).click();
+ const eqBefore=await p.locator('.drag-tone .env-line').getAttribute('d');
  await card('Tone').getByRole('slider',{name:'Mid',exact:true}).focus();await p.keyboard.press('Shift+ArrowUp');
  await p.waitForFunction(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].shape.eq_mid>0);
- assert.notEqual(await p.locator('[data-testid=drum-graph-eq]').innerHTML(),eqBefore,'EQ graph follows');
+ assert.notEqual(await p.locator('.drag-tone .env-line').getAttribute('d'),eqBefore,'EQ curve follows');
+ await p.getByRole('radiogroup',{name:'Waveform view'}).getByRole('radio',{name:'Trim'}).click();
  await card('Compressor').getByRole('slider',{name:'Ratio',exact:true}).focus();await p.keyboard.press('Shift+ArrowUp');
  await p.waitForFunction(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].shape.comp_ratio>1);
  await p.getByRole('slider',{name:'Pan',exact:true}).focus();await p.keyboard.press('Shift+ArrowLeft');

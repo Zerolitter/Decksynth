@@ -82,6 +82,7 @@ class DrumRack:
         self.samples = [None]*PAD_COUNT  # what the pads play: the source PCM, or its shaped copy
         self.raw = [None]*PAD_COUNT      # the source PCM from the sample cache
         self.shaping = [0]*PAD_COUNT; self.shaped_key = [None]*PAD_COUNT
+        self.precomp = [None]*PAD_COUNT  # the shaped copy without its compressor, for the live meter
         self.loading = [False]*PAD_COUNT; self.errors = [None]*PAD_COUNT
         self.events = [0]*PAD_COUNT; self.serial = 0; self.stamp = 0
         self.fade_frames = max(1, round(rate*.008)); self.attack_frames = max(1, round(rate*.001))
@@ -137,6 +138,13 @@ class DrumRack:
 
         def ready(shaped):
             if self.shaping[index] == serial and self.raw[index] is raw: self.samples[index] = shaped
+        self.precomp[index] = None
+        def ready_pre(pre):
+            if self.shaping[index] == serial and self.raw[index] is raw: self.precomp[index] = pre
+        if shape and shape.get('comp_ratio', 1.) > 1:
+            plain = dict(shape, comp_ratio=1., comp_makeup=0.)
+            if render_key(plain) is None: self.precomp[index] = raw
+            else: PadShaper.submit(raw, plain, self.rate, ready_pre, step)
         PadShaper.submit(raw, shape, self.rate, ready, step)
 
     def fade_pad(self, pad):
@@ -233,6 +241,18 @@ class DrumRack:
                     if i+1 < frames: v.last = 0.
                     break
 
+    def _level(self, i, sample):
+        """Peak dBFS of the last ~20 ms the pad played, going into its compressor and coming out."""
+        v = next((v for v in self.voices if v.sample is not None and v.sample is sample and v.pad == i), None)
+        if v is None or sample is None: return None
+        pre = self.precomp[i]
+        if pre is None or pre.frames != sample.frames: pre = sample
+        j = int(v.pos); a = max(0, j - 960)
+        def peak(s):
+            seg = s.data[a:j + 1]
+            return round(20 * math.log10(max(max(map(abs, seg)) if len(seg) else 0., 1e-5)), 1)
+        return [peak(pre), peak(sample)]
+
     def state(self):
         pads = []
         for i in range(PAD_COUNT):
@@ -244,7 +264,7 @@ class DrumRack:
             at = [round(v.pos/sample.frames, 4) for v in self.voices
                   if sample is not None and v.sample is sample and v.pad == i and sample.frames][:4]
             pads.append(dict(status=status, peaks=sample.peaks if sample else [],
-                             event=self.events[i], playing=playing, error=self.errors[i], at=at))
+                             event=self.events[i], playing=playing, error=self.errors[i], at=at, lvl=self._level(i, sample)))
         return dict(pads=pads, voices=self.active_count, voice_limit=VOICE_LIMIT, output='stereo',
                     accelerated=self._native is not None,
                     native_warning=native_error() if self._native is None else None)

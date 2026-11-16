@@ -9,7 +9,8 @@ from pathlib import Path
 
 ORDER = ['stutter', 'filter', 'overdrive', 'bitcrusher', 'volume', 'phaser',
          'flanger', 'ringmod', 'delay', 'reverb', 'time',
-         'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate', 'cloud']
+         'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate', 'cloud',
+         'pitch', 'autotune', 'duck', 'vocoder']
 # (key, min, max, init) per module, in the same order the native code reads them.
 PARAMS = {
     'stutter': [('length', 1, 6, 3), ('speed', 0, 1, .6), ('repeats', 1, 8, 4), ('mix', 0, 1, .5)],
@@ -36,6 +37,14 @@ PARAMS = {
 PARAMS['chorus'] += [('width',0,1,0.),('haas',0,.03,0.)]
 PARAMS['delay'] += [('width',0,1,0.)]
 PARAMS['reverb'] += [('width',0,1,0.)]
+# Round 2 (16 Nov): Pitch shift, Auto-tune (to the project scale), Ducking and Vocoder.
+# 'source' is the track whose audio drives Ducking or speaks through the Vocoder (the engine routes it).
+PARAMS['pitch'] = [('semis', -12, 12, 0), ('cents', -100, 100, 0), ('mix', 0, 1, 1)]
+PARAMS['autotune'] = [('speed', 0, 1, .15), ('amount', 0, 1, 1), ('mix', 0, 1, 1)]
+PARAMS['duck'] = [('source', 0, 15, 0), ('amount', 0, 1, .7), ('sens', 0, 1, .3), ('attack', 0, 1, .05), ('release', 0, 1, .3)]
+PARAMS['vocoder'] = [('source', 0, 15, 0), ('response', 0, 1, .3), ('shift', -1, 1, 0), ('air', 0, 1, .3), ('mix', 0, 1, 1)]
+KEYED = ('duck', 'vocoder')  # effects fed by another track, in dsfx_key slot order
+NATIVE_R2 = ('pitch', 'autotune', 'duck', 'vocoder')
 PARAMS['cloud']=[('time',0,1,.35),('density',0,1,.7),('scatter',0,1,.5),('feedback',0,.88,.4),('tone',0,1,.6),('mix',0,1,.4)]
 GATE_PERFORMANCE={'retrig':(0,2,2),'phase':(0,1,0.),'notelen':(0,1,1.),'hold':(0,1,0)}
 GATE_LENGTHS = (4, 6, 8, 9, 12, 16)
@@ -140,6 +149,7 @@ def validate_chain(chain):
                 v = m['params'].get(key, init)
                 assert isinstance(v, (int, float)) and math.isfinite(v)
                 params[key] = min(hi, max(lo, float(v)))
+            if 'source' in params: params['source'] = float(round(params['source']))
             if m['id']=='gate':
                 for key,(lo,hi,init) in GATE_PERFORMANCE.items():
                     if key not in m['params']:continue
@@ -227,6 +237,10 @@ def _load(legacy=False):
                 lib.dsfx_gate_beat.argtypes=[ctypes.c_void_p];lib.dsfx_gate_beat.restype=ctypes.c_double
                 lib.dsfx_gate_reset.argtypes=[ctypes.c_void_p]
                 lib.dsfx_gate_events.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_int),ctypes.c_int]
+            if hasattr(lib,'dsfx_key'):
+                lib.dsfx_key.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.POINTER(ctypes.c_double),ctypes.c_int]
+                lib.dsfx_scale.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int]
+                lib.dsfx_readout.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_double)]
             if hasattr(lib,'dsfx_process_stereo'):
                 lib.dsfx_process_stereo.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_double),ctypes.POINTER(ctypes.c_double),ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_double),ctypes.c_double]
             loaded=lib
@@ -415,6 +429,7 @@ class TrackFx:
         self.tuned = []  # resonator string pitches (MIDI notes)
         self.rate=rate;self.gate_values={k:v[2] for k,v in GATE_PERFORMANCE.items()};self._gate_events=[];self._gate_origin=None;self._gate_frame=0
         self._tail = 0  # blocks left to fade out after the last effect is switched off
+        self._scale = None; self._readout = (ctypes.c_double * 3)()
     def retrigger(self,frame=None,empty=True):
         """A note started on this track: in Retrigger mode the puck goes back to the start of its path."""
         self._retrig = True
@@ -474,7 +489,29 @@ class TrackFx:
         freqs = (ctypes.c_double * len(strings))(*[440 * 2 ** ((n - 69) / 12) for n in strings])
         self.lib.dsfx_tune(self.handle, freqs, len(strings))
         if self.right:self.lib.dsfx_tune(self.right,freqs,len(strings))
+    def key_sources(self):
+        """Source track of Ducking and of the Vocoder while each is heard (None when off)."""
+        out = []
+        for m in KEYED:
+            idx = ORDER.index(m)
+            out.append(int(round(self.params[idx * NPAR])) if self.active and self.on[idx] else None)
+        return out
+    def set_scale(self, steps, root):
+        """Auto-tune pulls notes to these scale steps (semitones above root)."""
+        mask = sum(1 << (int(s) % 12) for s in steps) or 4095
+        if (mask, root) == self._scale or not self.handle or not hasattr(self.lib, 'dsfx_scale'): return
+        self._scale = (mask, root)
+        self.lib.dsfx_scale(self.handle, mask, int(root))
+        if self.right: self.lib.dsfx_scale(self.right, mask, int(root))
+    def readout(self):
+        """Auto-tune: the note it hears and its correction in cents; Ducking: how far it pushes down (dB)."""
+        if not self.handle or not hasattr(self.lib, 'dsfx_readout'): return None
+        self.lib.dsfx_readout(self.handle, self._readout); r = self._readout
+        return dict(note=round(r[0], 2), cents=round(r[1], 1), duck=round(r[2], 2))
     def configure(self, chain):
+        for m in (chain or {}).get('modules', []):
+            if m['id'] in NATIVE_R2 and m['on'] and not m.get('bypass') and self.handle and not hasattr(self.lib, 'dsfx_key'):
+                raise ValueError('Pitch shift, Auto-tune, Ducking and Vocoder require the cached native kernel; run tools/build-native-filter.py and restart')
         if not self.right:
             for m in (chain or {}).get('modules',[]):
                 stereo=m['id']=='cloud' or (m['id'] in ('chorus','delay','reverb') and (m['params'].get('width',0.)>0 or m['params'].get('haas',0.)>0))
@@ -535,11 +572,12 @@ class TrackFx:
             for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
                 v = automation.get((m['id'],key),m['params'].get(key, init)) + offsets.get((m['id'], key), 0.) * (hi - lo)
                 self.params[idx * NPAR + j] = min(hi, max(lo, v))
-    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False, right=None):
+    def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False, right=None, key=None):
         """samples: list of floats; returns a list (same object when bypassed).
         modulated: the engine already called modulate() for this block.
         clock: song position in beats while the transport plays (the audio gate locks to it).
-        right: a separate right input (stereo sources such as a panned Drum Rack); samples is then the left."""
+        right: a separate right input (stereo sources such as a panned Drum Rack); samples is then the left.
+        key: [ducking source audio, vocoder source audio] for this block, each a list or None."""
         if right is not None and _stereo and not self.right and (self.active or self._tail):
             samples = [(l + r) * .5 for l, r in zip(samples, right)]; right = None  # no stereo FX: fold to mono
         if not modulated and self.chain:
@@ -566,6 +604,13 @@ class TrackFx:
         if clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(clock))
         if _stereo and self.right and clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.right,float(clock))
         if events:self._gate_origin=start+events[-1]
+        keep=[]
+        if hasattr(self.lib,'dsfx_key'):
+            for slot in (0,1):
+                audio=key[slot] if key else None
+                arr=(ctypes.c_double*n)(*audio[:n]) if audio is not None and len(audio)>=n else None;keep.append(arr)
+                for h in (self.handle,self.right if _stereo else None):
+                    if h:self.lib.dsfx_key(h,slot,arr,n if arr is not None else 0)
         if _stereo and self.right:
             right=(ctypes.c_double*n)(*(samples if right is None else right))
             self.lib.dsfx_process_stereo(self.handle,self.right,buf,right,n,self.order,self.on,self.params,float(bpm))

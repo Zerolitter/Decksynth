@@ -553,6 +553,7 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
     return result
 
 RESONATOR=FX_ORDER.index('resonator')
+from .keystep import SCALES as KEY_SCALES
 
 from .workflow import WorkflowEngine
 from .note_edit import NoteEditEngine
@@ -666,7 +667,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         """Effective (modulated) FX params and mod-pad values of one track, for the UI."""
         fx=self.fx[track]; return dict(params=[round(v,4) for v in fx.params],mods=[round(v,3) for v in fx.mod_values],
                     phases=[round(v,3) for v in fx.mod_phases],puck=[round(v,3) for v in fx.puck],
-                    sound=self.sound_live(track),partials=self.synths[track].heard_partials(),comp=fx.comp_reduction(),strings=list(fx.tuned),gate=fx.gate_runtime())
+                    sound=self.sound_live(track),partials=self.synths[track].heard_partials(),comp=fx.comp_reduction(),strings=list(fx.tuned),gate=fx.gate_runtime(),readout=fx.readout())
     def sound_live(self,track):
         """Where each linked Sound knob is right now, for the rings on the Sound cards."""
         fx=self.fx[track]; s=self.synths[track]; t=self.project.tracks[track]; out={}
@@ -1325,6 +1326,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 if tr<len(self.samplers):self.samplers[tr].mod=getattr(fx,'sampler',{})
                 if tr<len(self.drums):self.drums[tr].mod=getattr(fx,'drum',{})
                 # The resonator's strings follow the notes this track is playing.
+                if fx.active:
+                    sc=self.project.performance['scale'];fx.set_scale(KEY_SCALES.get(sc['name'],range(12)),sc['root'])
                 if fx.active and fx.on[RESONATOR]:
                     fx.tune([v['note'] for v in synth.voices.values() if v.get('release') is None],
                             self.project.performance['scale']['root'])
@@ -1449,6 +1452,18 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     else:click.append(None)
             # Per-track FX run once per block, then the mix is summed in the original order.
             mix=[0.]*n;right=[0.]*n if stereo else None
+            # Ducking and Vocoder hear another track's own sound (before its FX and volume), even when muted.
+            keys=[None]*len(track_audio)
+            for tr,fx in enumerate(self.fx):
+                if tr>=len(track_audio):break
+                sources=fx.key_sources()
+                if not any(s is not None for s in sources):continue
+                pair=[]
+                for src in sources:
+                    if src is None or src==tr or not 0<=src<len(track_audio):pair.append(None);continue
+                    a=track_audio[src];r=drum_right[src]
+                    pair.append([(x+y)*.5 for x,y in zip(a,r)] if r else a)
+                keys[tr]=pair
             for tr,(t,fx,audio) in enumerate(zip(self.project.tracks,self.fx,track_audio)):
                 if not t['mute']:
                     process=fx.process_stereo if stereo else fx.process
@@ -1457,7 +1472,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         audio=([0.]*n,[0.]*n) if stereo else [0.]*n  # no live notes: the FX rest too
                     else:
                         if frozen[tr]:self.fx_live_until[tr]=abs_end+round(3*self.rate)
-                        audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,
+                        audio=process(audio,self.project.bpm,abs_start/self.fpb,modulated=True,key=keys[tr],
                                       clock=start/self.fpb if self.playing else None,frame=abs_start,**extra)
                     if frozen[tr] or tr in self.freeze_ring:
                         looping=freeze_mode=='loop' or self.project.song['loop']

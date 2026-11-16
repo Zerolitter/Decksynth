@@ -2,12 +2,13 @@
 // Module set follows the user's PrismFX reference recordings; all DSP is DeckSynth's own.
 
 export type FxModuleId = 'stutter'|'filter'|'overdrive'|'bitcrusher'|'volume'|'phaser'
-  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate'|'cloud';
+  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate'|'cloud'|'pitch'|'autotune'|'duck'|'vocoder';
 
 export type FxParamDef = { key:string; label:string; min:number; max:number; init:number; suffix?:string; precision?:number;
   /** labels for each whole value from min to max: shown as tap buttons instead of a knob */ options?:string[];
   /** set in the effect's own sheet, not on the card, and not a link target */ hidden?:boolean;
-  /** drawn by a custom editor on the card (the gate's step strip) */ editor?:'gate'; modulatable?:boolean };
+  /** drawn by a custom editor on the card (the gate's step strip, or a pick list of tracks) */ editor?:'gate'|'track'; modulatable?:boolean;
+  /** a turning knob even for whole numbers (precision 0 otherwise shows - and + buttons) */ knob?:boolean };
 export type FxModuleDef = { name:string; color:string; params:FxParamDef[]; blurb?:string };
 export type FxModuleState = { id:FxModuleId; on:boolean; params:Record<string,number>; /** kept in the rack but not heard */ bypass?:boolean };
 /** 'sound' targets are the Sound page knobs of the same track. */
@@ -198,6 +199,19 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
     {key:'decay',label:'Ring',min:0,max:1,init:.5},{key:'tone',label:'Tone',min:0,max:1,init:.5},{...mix,init:.4},
     {key:'strings',label:'Strings',min:0,max:2,init:1,precision:0,options:['Notes','+ Octave','+ Fifth']}]},
   cloud:{name:'Cloud',color:'#a1a5f4',params:[{key:'time',label:'Time',min:0,max:1,init:.35},{key:'density',label:'Density',min:0,max:1,init:.7},{key:'scatter',label:'Scatter',min:0,max:1,init:.5},{key:'feedback',label:'Feedback',min:0,max:.88,init:.4},{key:'tone',label:'Tone',min:0,max:1,init:.6},{...mix,init:.4}]},
+  pitch:{name:'Pitch shift',color:'#6fd0e6',blurb:'Moves the track up or down in semitones and cents.',params:[
+    {key:'semis',label:'Semitones',min:-12,max:12,init:0,precision:0,suffix:' st'},
+    {key:'cents',label:'Cents',min:-100,max:100,init:0,precision:0,suffix:' ct',knob:true},{...mix,init:1}]},
+  autotune:{name:'Auto-tune',color:'#f28ad8',blurb:'Pulls the notes it hears to the project scale (Perform page).',params:[
+    {key:'speed',label:'Speed',min:0,max:1,init:.15},{key:'amount',label:'Amount',min:0,max:1,init:1},{...mix,init:1}]},
+  duck:{name:'Ducking',color:'#9fd46a',blurb:'Another track pushes this one down, like a kick ducking the bass.',params:[
+    {key:'source',label:'Ducked by',min:0,max:15,init:0,precision:0,editor:'track',modulatable:false},
+    {key:'amount',label:'Amount',min:0,max:1,init:.7},{key:'sens',label:'Sensitivity',min:0,max:1,init:.3},
+    {key:'attack',label:'Attack',min:0,max:1,init:.05},{key:'release',label:'Release',min:0,max:1,init:.3}]},
+  vocoder:{name:'Vocoder',color:'#c9a2ff',blurb:'Another track (a voice, a drum loop) shapes the tone of this one.',params:[
+    {key:'source',label:'Voice from',min:0,max:15,init:0,precision:0,editor:'track',modulatable:false},
+    {key:'response',label:'Response',min:0,max:1,init:.3},{key:'shift',label:'Formant',min:-1,max:1,init:0},
+    {key:'air',label:'Air',min:0,max:1,init:.3},{...mix,init:1}]},
   gate:{name:'Audio gate',color:'#ff7eb6',params:[
     {key:'length',label:'Cells',min:0,max:5,init:2,precision:0,hidden:true},
     {key:'division',label:'Cell size',min:0,max:4,init:2,precision:0,hidden:true},
@@ -254,7 +268,8 @@ export function targetInfo(t:{module:FxTarget['module'];param:string}){
 }
 
 export const FX_ORDER:FxModuleId[]=['stutter','filter','overdrive','bitcrusher','volume','phaser',
-  'flanger','ringmod','delay','reverb','time','chorus','compressor','eq','autowah','resonator','gate','cloud'];
+  'flanger','ringmod','delay','reverb','time','chorus','compressor','eq','autowah','resonator','gate','cloud',
+  'pitch','autotune','duck','vocoder'];
 export const defaultModule=(id:FxModuleId):FxModuleState=>({id,on:false,params:Object.fromEntries(FX_MODULES[id].params.map(p=>[p.key,p.init]))});
 /** Switch an effect on at the end of the chain. */
 export function addModule(chain:FxChain,id:FxModuleId):FxChain{

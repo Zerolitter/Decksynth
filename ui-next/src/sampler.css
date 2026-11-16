@@ -230,3 +230,45 @@
 /* Round 2: the waveform is a filled outline (smooth), in the pad's colour. */
 .smp-wave .smp-wave-fill{fill:color-mix(in srgb,var(--pad-accent) 78%,transparent);stroke:var(--pad-accent);stroke-width:.6;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .smp-wave .smp-playhead{stroke:#fff;stroke-width:1.6;opacity:.95}
+
+/* Drag graphs (round 2): envelope, tone curve and the compressor meter */
+.drag-graph{flex:1;min-width:0;display:flex;flex-direction:column;margin-right:12px}
+.drag-box{position:relative;flex:1;min-height:0;border:1px solid color-mix(in srgb,var(--pad-accent) 45%,var(--line));border-radius:8px;background:var(--inset);touch-action:none}
+.drag-box svg{position:absolute;inset:0;width:100%;height:100%}
+.drag-box .grid{stroke:#2f3439;stroke-width:1;vector-effect:non-scaling-stroke}
+.drag-box .grid.zero{stroke:#3d444b}
+.drag-box .grid.end{stroke:color-mix(in srgb,var(--pad-accent) 50%,transparent);stroke-dasharray:4 4}
+.drag-box .wave-source{fill:#ffffff24}
+.drag-box .wave-heard{fill:color-mix(in srgb,var(--pad-accent) 55%,transparent)}
+.drag-box .env-fill{fill:color-mix(in srgb,var(--pad-accent) 10%,transparent)}
+.drag-box .env-line{fill:none;stroke:#f6f7f9;stroke-width:2}
+.drag-box .playhead{stroke:#fff;stroke-width:1.6}
+.drag-handle{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;padding:0;border:0;background:none;cursor:grab;z-index:2}
+.drag-handle.axis-x{cursor:ew-resize}.drag-handle.axis-y{cursor:ns-resize}.drag-handle.axis-xy{cursor:move}
+.drag-handle i{position:absolute;left:15px;top:15px;width:14px;height:14px;border-radius:50%;background:var(--pad-accent);border:2px solid #fff;box-shadow:0 0 0 3px #0006}
+.drag-handle:hover i,.drag-handle:focus-visible i{transform:scale(1.25)}
+.drag-handle span{position:absolute;left:30px;top:2px;white-space:nowrap;font-size:11px;font-weight:600;color:#f6f7f9;background:#1b1d21d0;border-radius:4px;padding:1px 5px;pointer-events:none}
+.drag-axis-label{position:absolute;left:6px;font-size:10.5px;color:#8b929a;pointer-events:none}
+.drag-axis-label.top{top:4px}.drag-axis-label.mid{top:calc(50% - 7px)}.drag-axis-label.low{bottom:4px}
+.drag-ruler{position:relative;height:16px;font-size:10.5px;color:#8b929a}
+.drag-ruler span{position:absolute;top:2px;transform:translateX(-50%);white-space:nowrap}
+.drag-ruler span:first-child{transform:none}.drag-ruler span:last-child{transform:translateX(-100%)}
+.comp-meter{flex:none;width:50px;display:flex}
+.comp-meter .drag-box{flex:1;border-radius:6px;overflow:visible}
+.comp-meter-bars{position:absolute;inset:4px 8px;display:flex;align-items:flex-end;gap:3px}
+.comp-meter-bars b{display:block;border-radius:2px;transition:height 70ms linear}
+.comp-meter-bars .in{flex:2;background:color-mix(in srgb,var(--pad-accent) 80%,#fff)}
+.comp-meter-bars .out{flex:1;background:#d7dbe0}
+.comp-meter.is-off .comp-meter-bars .in{background:#6b7178}
+.comp-meter .drag-handle.is-line{left:0!important;width:100%;height:44px!important;margin:-22px 0 0 0}
+.comp-meter .drag-handle.is-line i{left:-4px;right:-4px;top:20px;width:auto;height:4px;border-radius:2px;border:0;background:#f2a65a;box-shadow:0 0 0 2px #0008}
+.comp-meter .drag-handle.is-line span{display:none}
+.comp-meter.is-over .drag-handle.is-line i{background:#ff6b5a}
+.drag-box .drag-handle,.drag-box .drag-handle:hover,.drag-box .drag-handle:active{background:none!important;border:0!important;box-shadow:none!important;min-height:0!important;min-width:0!important;padding:0!important;outline-offset:-6px}
+.drag-box .drag-handle.label-left span{left:auto;right:30px}
+.drag-key-up{position:absolute;top:4px;margin-left:4px;font-size:10.5px;color:#8b929a;pointer-events:none}
+.drag-note{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;color:#aeb3bb;background:#1b1d21d0;padding:4px 10px;border-radius:6px;pointer-events:none}
+.drag-graph.is-off .env-line{stroke:#6b7178;stroke-dasharray:6 4}
+
+.sampler-page .smp-drag-shell{flex:1 1 150px;min-height:120px;max-height:240px;display:flex;margin:0 22px}
+.sampler-page .smp-drag-shell .drag-graph{margin-right:0}
