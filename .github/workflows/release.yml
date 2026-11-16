@@ -1,0 +1,41 @@
+name: Release download
+
+# Builds the ready-to-run Linux download and attaches it to the GitHub release.
+# Runs when a version tag (v0.2.1, v0.3.0, ...) is pushed, or by hand from the Actions tab.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build (for example v0.2.1)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  linux-x86_64:
+    # Older Ubuntu = older glibc, so the native kernels load on SteamOS and most distros.
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build download
+        run: packaging/release/build-release.sh "$TAG"
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES="packaging/release/dist/Decksynth-$TAG-linux-x86_64.tar.gz packaging/release/dist/Decksynth-$TAG-linux-x86_64.tar.gz.sha256"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $FILES --clobber
+          else
+            gh release create "$TAG" $FILES --title "Decksynth $TAG" --generate-notes
+          fi

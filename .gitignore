@@ -8,6 +8,9 @@ node_modules/
 ui/dist/
 ui/.runtime/
 decksynth/native/*.so
+decksynth/native/prebuilt/
+.tools/
+packaging/release/dist/
 packaging/flatpak/builddir/
 packaging/flatpak/dist/
 packaging/flatpak/repo/
