@@ -287,7 +287,8 @@
 .drum-smp .drum-smp-wave.view-trim .smp-caption{margin-left:0}
 .drum-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .drum-card-head h2{margin:0}
-.drum-card-view{min-height:32px;border:1px dashed color-mix(in srgb,var(--pad-accent) 50%,var(--line));border-radius:8px;background:none;color:var(--muted,#aeb3bb);font-size:12px;cursor:pointer}
-.drum-card-view[aria-pressed="true"]{border-style:solid;color:var(--text,#f1f2f4)}
+.drum-smp .drum-card-up{flex:none;width:44px;min-height:44px;padding:0;display:grid;place-items:center;margin-left:auto}
+.drum-smp .drum-card-up+.drum-card-reset{margin-left:6px}
+.drum-smp .drum-card-up[aria-pressed="true"]{background:color-mix(in srgb,var(--pad-accent) 28%,transparent);border-color:var(--pad-accent);color:var(--text,#f1f2f4)}
 .drum-comp-body{display:flex;gap:8px;min-height:0;flex:1}
 .drum-comp-body .smp-knobs{flex:1;min-width:0}

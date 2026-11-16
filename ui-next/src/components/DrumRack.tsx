@@ -1,6 +1,6 @@
 import {useContextTarget} from './ContextWheel';
 import { useEffect, useRef, useState,type ReactNode } from 'react';
-import { AudioWaveform, FolderOpen, Grid2X2, KeyboardMusic, Link2, ListMusic, RotateCcw, Undo2 } from 'lucide-react';
+import { ArrowUp, AudioWaveform, FolderOpen, Grid2X2, KeyboardMusic, Link2, ListMusic, RotateCcw, Undo2 } from 'lucide-react';
 import { Knob } from './Knob';
 import { DrumKitBrowser } from './DrumKitBrowser';
 import { TRACK_COLORS, noteName, DEFAULT_DRUM_SHAPE, type Track, type DrumRuntime, type DrumLibraryState, type DrumShape } from '../types';
@@ -188,9 +188,10 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           </section>
           <section className="smp-card drum-card-shape" aria-label="Shape">
             <div className="drum-card-head"><h2>Shape</h2>
+              <button type="button" className="smp-toggle drum-card-up" aria-label="Edit the envelope on the waveform" aria-pressed={view==='env'}
+                title={view==='env'?'Back to Trim':'Drag the envelope on the big waveform above'} onClick={()=>setView(view==='env'?'trim':'env')}><ArrowUp size={18}/></button>
               <button type="button" className="smp-toggle drum-card-reset" aria-label="Reset shape" disabled={JSON.stringify(shape)===JSON.stringify(DEFAULT_DRUM_SHAPE)}
                 title="Back to the sample as recorded: trim, fades, envelope, EQ, filter, compressor and pan" onClick={()=>edit('shape',{...DEFAULT_DRUM_SHAPE})}><RotateCcw size={16}/></button></div>
-            <button type="button" className="drum-card-view" aria-pressed={view==='env'} onClick={()=>setView(view==='env'?'trim':'env')}>{view==='env'?'Envelope shown above':'Drag it above'}</button>
             <div className="smp-knobs two one">
               {knob('attack','Attack',0,1000,1,'ms',0,'Rise time at the start of the hit',1000)}
               {knob('hold','Hold',0,4000,1,'ms',0,'Full level after the attack. With Decay off the pad stops after the hold',1000,ms)}
@@ -200,12 +201,13 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
             </div>
           </section>
           <section className="smp-card drum-card-tone" aria-label="Tone">
-            <h2>Tone</h2>
+            <div className="drum-card-head"><h2>Tone</h2>
+              <button type="button" className="smp-toggle drum-card-up" aria-label="Edit the EQ curve on the waveform" aria-pressed={view==='tone'}
+                title={view==='tone'?'Back to Trim':'Drag the EQ curve on the big waveform above'} onClick={()=>setView(view==='tone'?'trim':'tone')}><ArrowUp size={18}/></button></div>
             <div className="smp-seg" role="radiogroup" aria-label="Tone controls">
               <button type="button" role="radio" aria-checked={toneTab==='eq'} onClick={()=>setToneTab('eq')}>EQ</button>
               <button type="button" role="radio" aria-checked={toneTab==='filter'} onClick={()=>setToneTab('filter')}>Filter</button>
             </div>
-            <button type="button" className="drum-card-view" aria-pressed={view==='tone'} onClick={()=>setView(view==='tone'?'trim':'tone')}>{view==='tone'?'Curve shown above':'Drag it above'}</button>
             {toneTab==='eq'?<div className="smp-knobs two one">
               {knob('eq_low','Low',-18,18,.5,'dB',1,'Low shelf at 200 Hz')}
               {knob('eq_high','High',-18,18,.5,'dB',1,'High shelf at 5 kHz')}
