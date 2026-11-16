@@ -129,39 +129,8 @@ let app;
  await p.getByRole('group',{name:'Start recording'}).getByRole('button',{name:'On REC'}).click();
  await p.getByRole('button',{name:/CLOSE/}).click();
 
- // --- FX: Morph pad Hide / Show ---
- await p.getByRole('tab',{name:/^FX$/i}).click();
- const fold=p.locator('.frame-window[data-window=fx] .frame-window-fold');await inside(fold,'FX Hide');
- const rack0=await p.locator('.frame-fx .frame-rack').boundingBox();
- await p.screenshot({path:path.join(OUT,'fx-open-'+H+'.png')});
- await fold.click();
- assert.equal(await p.locator('.frame-window[data-window=fx] .frame-window-body').count(),0,'Morph pad hidden');
- const rack1=await p.locator('.frame-fx .frame-rack').boundingBox();
- assert.ok(rack1.height>rack0.height+100,'effect cards get the room '+rack0.height+' -> '+rack1.height);
- await p.screenshot({path:path.join(OUT,'fx-folded-'+H+'.png')});
- assert.equal(await p.evaluate(()=>localStorage.getItem('decksynth.fxFolded')),'1');
- await fold.click();assert.equal(await p.locator('.frame-window[data-window=fx] .frame-window-body').count(),1);
-
- // --- Mod pad: 16 bars and paged shapes ---
- await p.getByRole('button',{name:'Mod pad 1 sine'}).click().catch(async()=>p.locator('.fx-pad-main').first().click());
- const rates=p.getByRole('radiogroup',{name:/^Rate of Mod pad 1/});
- assert.deepEqual(await rates.getByRole('radio').allTextContents(),['16 bars','8 bars','4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16']);
- for(const b of await rates.getByRole('radio').all())await inside(b,'rate button');
- await rates.getByRole('radio',{name:'16 bars'}).click();
- await p.waitForFunction(()=>window.__latest.state.tracks[0].fx?.mods?.[0].rate===8);
- await p.locator('.pe-pick').click();
- const pagesTabs=p.getByRole('tablist',{name:'Shape pages'}).getByRole('tab');
- assert.equal(await pagesTabs.count(),5);
- await p.screenshot({path:path.join(OUT,'modpad-page1-'+H+'.png')});
- await pagesTabs.nth(2).click();
- const grid=p.getByRole('radiogroup',{name:'Mod pad 1 shape'}).getByRole('radio');
- assert.equal(await grid.count(),10);
- for(const b of await grid.all())await inside(b,'shape button');
- await grid.filter({hasText:'Pump ×2'}).click();
- await p.waitForFunction(()=>window.__latest.state.tracks[0].fx?.mods?.[0].shape==='pump2');
- await p.screenshot({path:path.join(OUT,'modpad-envelopes-'+H+'.png')});
- await pagesTabs.nth(3).click();await p.screenshot({path:path.join(OUT,'modpad-gates-'+H+'.png')});
- await p.getByRole('button',{name:'Done'}).first().click();
+ // The Morph pad Hide/Show on FX and the mod pad editor moved to the Link page (UI rules 54 and 58);
+ // fx_mods_acceptance.cjs covers mod pad rates and shape pages there.
 
  assert.deepEqual(errors,[]);
  console.log('round3 acceptance OK at 1280x'+H);

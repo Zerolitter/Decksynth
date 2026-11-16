@@ -23,7 +23,9 @@ with wave.open(sys.argv[1],'wb') as f:
  const p=await app.firstWindow({timeout:18000});p.setDefaultTimeout(10000);
  const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'));
- for(let i=0;;i++){await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,718);});await p.waitForTimeout(150);if(await p.evaluate(()=>innerWidth===1280&&innerHeight===718))break;if(i>30)throw Error('window did not take 1280x718');}
+ // The window manager can grow the window after the first resize (flaky on the Deck): fit() is called again before geometry checks.
+ const fit=async()=>{for(let i=0;;i++){await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,718);});await p.waitForTimeout(150);if(await p.evaluate(()=>innerWidth===1280&&innerHeight===718))break;if(i>30)throw Error('window did not take 1280x718');}};
+ await fit();
  await p.evaluate(()=>{window.__drumMessages=[];window.deckApi.onMessage(m=>{if(m.state){window.__drumLatest=m;window.__drumMessages.push(m);if(window.__drumMessages.length>120)window.__drumMessages.shift();}});});
  await p.waitForFunction(()=>!!window.__drumLatest);
  const initial=await p.evaluate(()=>window.__drumLatest);
@@ -83,6 +85,7 @@ with wave.open(sys.argv[1],'wb') as f:
  await p.mouse.move(box.x+box.width/2,box.y-25,{steps:8});await p.waitForTimeout(120);
  assert.equal(await p.evaluate(()=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].gain),before,'drag remains local until release');
  await p.mouse.up();await p.waitForFunction(v=>window.__drumLatest.state.tracks[0].drum_rack.pads[0].gain!==v,before);
+ await fit();await p.waitForTimeout(200);
  const controlGeometry=[];
  for(const node of await p.locator('.drum-rack button,.drum-rack select,.drum-rack [role="slider"]').all()){
   const r=await node.boundingBox();controlGeometry.push({label:await node.getAttribute('aria-label')||await node.innerText(),...r});assert.ok(r&&r.width>=44&&r.height>=44,'all rack controls at least 44px '+await node.innerText());

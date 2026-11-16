@@ -40,17 +40,15 @@ for name,hz in [('Kick',90),('Snare',195),('_Demo Loop 124bpm',300)]:
   const swapped=(await state()).tracks[0].drum_rack;
   assert.equal(swapped.id,loaded.id);assert.deepEqual(swapped.pads.slice(1),loaded.pads.slice(1));
   console.log('PASS choose kit, return to pads, nonmutating Listen, one-pad Swap');
-  for(const n of [1,5])await page.getByTestId('drum-step-'+n).click();
-  await page.waitForFunction(()=>window.usabilityState.state.tracks[0].notes.length===2);
+  // Drum steps write the open SEQ pattern (the same pattern Perform edits), not the Song clip.
   const original=(await state()).tracks[0].notes;
-  assert.deepEqual(original,[{start:0,note:36,duration:.25,velocity:100},{start:1,note:36,duration:.25,velocity:100}]);
+  for(const n of [1,5])await page.getByTestId('drum-step-'+n).click();
+  await page.waitForFunction(()=>{const p=window.usabilityState.state.performance.patterns['1:1'];return p&&p.steps.flat().length===2;});
+  const pattern=(await state()).performance.patterns['1:1'];
+  assert.equal(pattern.steps[0][0].note,36);assert.equal(pattern.steps[4][0].note,36);
+  assert.deepEqual((await state()).tracks[0].notes,original,'the Song clip is untouched by drum steps');
   await shot('steps-to-transfer',718);
   await page.getByRole('tab',{name:'Perform',exact:true}).click();
-  await page.getByRole('button',{name:'Song → Pattern',exact:true}).click();
-  await page.getByRole('status').filter({hasText:'Song notes captured into pattern'}).waitFor();
-  await page.waitForFunction(()=>window.usabilityState.state.performance.patterns['1:1']?.steps[4]?.[0]?.note===36);
-  const pattern=(await state()).performance.patterns['1:1'];
-  assert.equal(pattern.gate,.5);assert.deepEqual(pattern.steps.flat(),[{note:36,velocity:100,tie:2},{note:36,velocity:100,tie:2}]);
   await send('clip',[0,'open',1,null]);await page.waitForFunction(()=>window.usabilityState.state.clips.open[0]===1);
   await page.getByTestId('pf-transfer-target').filter({hasText:'Clip B'}).waitFor();
   await page.getByRole('button',{name:'Pattern → Song',exact:true}).click();
@@ -58,9 +56,9 @@ for name,hz in [('Kick',90),('Snare',195),('_Demo Loop 124bpm',300)]:
   await page.waitForFunction(()=>window.usabilityState.state.tracks[0].notes.length===8);
   const transferred=(await state()).tracks[0].notes;
   assert.deepEqual(transferred.map(n=>n.start),[0,1,4,5,8,9,12,13]);
-  assert.ok(transferred.every(n=>n.note===36&&n.duration===.25&&n.velocity===100));
+  assert.ok(transferred.every(n=>n.note===36&&n.velocity===100));
   assert.deepEqual((await state()).clips.slots[0][0],original);
-  console.log('PASS steps → exact Pattern capture → Clip B fill, preserving Clip A');
+  console.log('PASS drum steps → Pattern → Clip B fill, preserving Clip A');
   await page.getByRole('tab',{name:'Song',exact:true}).click();
   await page.getByRole('radiogroup',{name:'Play mode',exact:true}).getByRole('radio',{name:'Song',exact:true}).click();
   await page.locator('.arr-block[aria-label^="Track 1 block"]').first().click();

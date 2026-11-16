@@ -31,11 +31,12 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('button',{name:'Triplet'}).click();
   assert.equal(await bar.getAttribute('data-division'),'1/8T');
   await p.getByRole('button',{name:'Straight'}).click();
-  await p.getByRole('group',{name:'Pattern steps'}).getByRole('button',{name:'32',exact:true}).click();
+  // Steps are a pick list plus a value box (16 Nov).
+  await p.getByTestId('pf-steps-list').click();await p.getByRole('listbox').getByRole('option',{name:'32',exact:true}).click();
   assert.equal(await bar.getAttribute('data-length'),'32');
   {const n=p.getByRole('spinbutton',{name:'Pattern steps'});await n.focus();await n.press('ArrowDown');}
   await p.waitForFunction(()=>document.querySelector('[data-testid=pf-seq-timing]')?.dataset.length==='31');
-  await p.getByRole('group',{name:'Pattern steps'}).getByRole('button',{name:'16',exact:true}).click();
+  await p.getByTestId('pf-steps-list').click();await p.getByRole('listbox').getByRole('option',{name:'16',exact:true}).click();
 
   // Copy a pattern with a long-press and paste it into another pad.
   await p.getByTestId('pf-cell-1-60').click();
