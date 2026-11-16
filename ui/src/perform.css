@@ -400,3 +400,22 @@
 .harness-shell .cb-suggest-chips{margin-left:0}
 .harness-shell .cb-suggest-info{flex:1}
 .harness-shell .pf-ctl-chord .cb-fill{padding:0;gap:0}.harness-shell .cb-strum{padding:6px}
+/* Chords style pass (Sir, 16 Nov: "that black panel gains most attention"): neutral charcoal like Arp and Seq,
+   no extra boxes, pink only for chord names and what is sounding */
+.harness-shell .cb-readout{background:none;border:0;justify-content:flex-start;padding:0 4px;gap:6px}
+.harness-shell .cb-readout span{color:var(--pf-soft)}
+.harness-shell .cb-readout strong{font-size:15px;color:var(--pf-text)}
+.harness-shell .cb-readout em{color:var(--pf-soft)}
+.harness-shell .cb-seq,.harness-shell .cb-suggest{background:none;border:0;border-top:1px solid var(--pf-line);border-radius:0;padding:6px 0 0}
+.harness-shell .cb-seq.following{border-color:var(--pf-line)}
+.harness-shell .cb-strum{background:none;border:0;padding:0}
+.harness-shell .cb-pad{background:var(--pf-card);border-color:#2f3d42}
+.harness-shell .cb-pad.on{background:#1f2a2d;border-color:color-mix(in srgb,var(--c-chord) 70%,#2f3d42)}
+.harness-shell .cb-pad.on span{color:var(--pf-soft)}
+.harness-shell .cb-pad.suggest{border-color:#8a7440;box-shadow:none}
+.harness-shell .cb-slot.full{background:var(--pf-card);border-color:#34464b}
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 22%,#182124);box-shadow:none}
+.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 14%,#182124);border-color:color-mix(in srgb,var(--c-chord) 60%,#33444a);color:var(--pf-text)}
+.harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 14%,#182124);border-color:color-mix(in srgb,var(--c-chord) 60%,#33444a)}
+.harness-shell .cb-chip{background:var(--pf-card);border-color:#4d4630}
+.harness-shell .cb-chip.sounding{background:#2a2617}
