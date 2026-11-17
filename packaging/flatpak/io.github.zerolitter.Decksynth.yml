@@ -87,8 +87,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/Zerolitter/Decksynth.git
-        tag: v0.2.2
-        commit: f1320959ee0122f110aaf4a3837b5c2e65ad86ae   # set with packaging/flatpak/pin-release.sh <tag>
+        tag: v0.2.4
+        commit: 6bb8b39d7fa6fa807298c363c4ac707895bcc752   # set with packaging/flatpak/pin-release.sh <tag>
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$
