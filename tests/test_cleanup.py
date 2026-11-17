@@ -27,7 +27,8 @@ class CleanupTests(unittest.TestCase):
         self.assertTrue(any(m['on'] for m in self.e.project.tracks[1]['fx']['modules']))
 
     def test_sound_returns_to_preset_start_sound(self):
-        t = self.e.project.tracks[0]; start = copy.deepcopy(t['instrument'])
+        from decksynth.library import preset
+        t = self.e.project.tracks[0]; start = preset(t['preset'])['instrument']  # the finished library sound
         t['instrument']['harmonics'][3] = 1.; t['instrument']['attack'] = 2.; t['instrument']['curve'] = .8
         self.e.cleanup('sound')
         self.assertEqual(t['instrument'], start)
@@ -51,7 +52,10 @@ class CleanupTests(unittest.TestCase):
         self.e.cleanup('all')
         self.assertEqual(self.e.project.bpm, 120)
         self.assertEqual(self.e.project.tracks[0]['notes'], [])
-        self.assertNotIn('fx', self.e.project.tracks[0])
+        from decksynth.library import preset
+        start = self.e.project.tracks[0]
+        self.assertEqual(start['instrument'], preset(start['preset'])['instrument'])
+        self.assertEqual(start['fx']['macros'][1]['value'], 0)
         self.e.undo()
         self.assertEqual(self.e.project.bpm, 97)
         self.assertEqual(len(self.e.project.tracks[0]['notes']), 1)

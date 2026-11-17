@@ -9,6 +9,8 @@ export type Instrument = {
   /** Filter, Unison and Character cards; missing = off (see VOICE_DEFAULTS in sound-cards.ts). */
   vcf_type?: number; vcf_cutoff?: number; vcf_reso?: number; vcf_env?: number;
   pan?:number;play_mode?:number;glide?:number;pitch?:number;velocity_brightness?:number;velocity_cutoff?:number;vcf_keytrack?:number;
+  /** Full sound (17 Nov): Shape of the decay, Air, Drift, Dynamics, and the preset's own level. Missing = 0 (gain 1). */
+  env_curve?:number;air?:number;drift?:number;vel_curve?:number;gain?:number;
   vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;

@@ -1,4 +1,4 @@
-"""Factory content: 100 synth presets (10 categories x 10) and 64 step patterns (4 banks x 16).
+"""Factory content: 150 synth presets (10 categories x 15) and 64 step patterns (4 banks x 16).
 
 Every preset is a plain instrument dict (the project schema) plus an FX chain that uses the
 11-module rack, two named macros (so the Morph pad does something useful) and, where the
@@ -81,7 +81,8 @@ def fx(modules=None, macros=(TONE, SPACE), mods=(), x=0., y=0.):
                        'delay': dict(mix=0, feedback=.35, time=3), 'overdrive': dict(drive=0, mix=.6),
                        'bitcrusher': dict(mix=0, bits=8, rate=.25), 'phaser': dict(mix=0),
                        'flanger': dict(mix=0), 'stutter': dict(mix=0, repeats=3, length=4),
-                       'ringmod': dict(mix=0), 'volume': dict(level=1, mix=1), 'time': dict(mix=0)}
+                       'ringmod': dict(mix=0), 'volume': dict(level=1, mix=1), 'time': dict(mix=0),
+                       'chorus': dict(mix=0), 'compressor': dict(mix=0), 'eq': dict(low=0, mid=0, high=0), 'cloud': dict(mix=0)}
             m['params'].update(neutral[m['id']])
     for i, (name, targets) in enumerate(macros):
         c['macros'][i]['name'] = name
@@ -107,8 +108,9 @@ def lp(cutoff=.7, reso=.25):
 # Mod-pad rate indexes: 0=4 bars 1=2 bars 2=1 bar 3=1/2 4=1/4 5=1/8 6=1/16
 B4, B2, B1, HALF, QTR, EIGHTH, SIXTEENTH = range(7)
 
-def P(name, instrument, chain, tags=''):
-    return dict(name=name, instrument=instrument, fx=chain, tags=tags)
+def P(name, instrument, chain, tags='', **voice):
+    """voice: Sound keys for this preset only (Curve, Air, Unison, the Filter card...), over its category's finish."""
+    return dict(name=name, instrument=instrument, fx=chain, tags=tags, voice=voice)
 
 PADS = [
     P('Atmospheric Pad', ins([1,.4,.25,.14,.12,.08,.06,.05,.04,.03,.02,.02,.01,.01,0,0], .7,.8,.75,1.8,.65,.25),
@@ -347,9 +349,250 @@ FXS = [
       fx({'overdrive': dict(drive=.6, mix=.6), 'reverb': verb(.55, .9, .0, .5)}, macros=(DIRT, SPACE)), 'boom'),
 ]
 
+
+# ---------------------------------------------------------------- full sound (17 Nov)
+# Every factory preset gets a finish for its category, the way a sample library is recorded and mixed:
+#   Shape   decays and releases fade evenly to the ear, like a struck string, instead of a straight line
+#   Air     partials past 16, so low notes keep their top end
+#   Drift   each note its own start phase and a few cents of tuning (chords stop sounding like one wave)
+#   Dynamics and Vel bright   playing harder is louder AND brighter, like a real instrument
+#   Unison  a few detuned voices on pads, strings and some leads
+#   FX finish   stereo chorus (width), a little EQ and a gentle compressor where the sound needs glue,
+#               placed before the delay and reverb
+# A preset's own values win; P(..., key=value) sets a voice key for that preset only.
+VOICING = {
+    'Pads': dict(env_curve=.45, air=.3, drift=.6, vel_curve=.2, velocity_brightness=.25, uni_voices=3, uni_detune=.22),
+    'Keys': dict(env_curve=.7, air=.4, drift=.3, vel_curve=.55, velocity_brightness=.45),
+    'Bass': dict(env_curve=.55, air=.35, drift=.12, vel_curve=.3, velocity_brightness=.3),
+    'Leads': dict(env_curve=.45, air=.5, drift=.35, vel_curve=.3, velocity_brightness=.35),
+    'Plucks': dict(env_curve=.8, air=.45, drift=.3, vel_curve=.45, velocity_brightness=.5),
+    'Bells': dict(env_curve=.85, air=.35, drift=.2, vel_curve=.45, velocity_brightness=.4),
+    'Strings & choirs': dict(env_curve=.35, air=.3, drift=.55, vel_curve=.3, velocity_brightness=.3, uni_voices=3, uni_detune=.18),
+    'Arps & sequences': dict(env_curve=.75, air=.4, drift=.2, vel_curve=.4, velocity_brightness=.45),
+    'Textures & drones': dict(env_curve=.35, air=.3, drift=.7, vel_curve=.1, velocity_brightness=.2),
+    'FX & risers': dict(env_curve=.3, air=.4, drift=.4, vel_curve=.15, velocity_brightness=.25),
+}
+def _chorus(width, mix=.3, rate=.25, depth=.45):
+    return dict(rate=rate, depth=depth, voices=2, mix=mix, width=width, haas=0.)
+FINISH = {
+    'Pads': {'chorus': _chorus(1., .45, .2), 'eq': dict(low=-.12, mid=0, freq=.5, high=.08)},
+    'Keys': {'chorus': _chorus(.8, .3, .3, .35), 'compressor': dict(amount=.25, ratio=0, attack=.3, release=.3, makeup=.08, mix=1)},
+    'Bass': {'compressor': dict(amount=.3, ratio=1, attack=.25, release=.25, makeup=.12, mix=1), 'eq': dict(low=.1, mid=-.1, freq=.25, high=0)},
+    'Leads': {'chorus': _chorus(.7, .28, .3, .35)},
+    'Plucks': {'chorus': _chorus(.85, .35, .3, .4)},
+    'Bells': {'chorus': _chorus(.8, .3, .2, .3)},
+    'Strings & choirs': {'chorus': _chorus(1., .45, .18), 'eq': dict(low=-.1, mid=0, freq=.5, high=.05)},
+    'Arps & sequences': {'chorus': _chorus(.8, .3, .3, .35)},
+    'Textures & drones': {'chorus': _chorus(1., .5, .15, .6)},
+    'FX & risers': {'chorus': _chorus(1., .4, .2, .5)},
+}
+
+# Each preset's own level ('gain'), so all 150 arrive equally loud at the master stage: the loudest 50 ms of
+# a C3-C4-E4-G4 chord at velocity 100 sits at -23 dBFS before it (tools/measure_sound.py --calibrate,
+# with small nudges per category). Sounds that open up over several bars (swells, risers) are set by ear.
+LEVELS = {
+    'Atmospheric Pad': 1.73, 'Glass Pad': 1.47, 'Warm Analog Pad': 3.22, 'Choir Haze': 1.52,
+    'Slow Sweep Pad': 2.5, 'Shimmer Pad': 1.34, 'Dark Matter': 1.21, 'Sunrise Pad': 2.0,
+    'Phase Pad': 3.17, 'Frozen Pad': 2.09, 'Velvet Pad': 1.33, 'Warm Blanket': 1.08,
+    'Super Pad': 2.11, 'Dream Pad': 1.67, 'Night Drive Pad': 1.46, 'Warm Keys': 2.33,
+    'Electric Piano': 2.62, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 2.17,
+    'Wurly Drive': 0.81, 'Toy Piano': 3.03, 'Chorus Keys': 2.84, 'Tine Keys': 2.06,
+    'Lofi Keys': 3.22, 'Concert Keys': 2.54, 'Stage EP': 2.33, 'Soft Upright': 2.07,
+    'Perc Organ': 1.38, 'Pop Keys': 2.52, 'Bass': 1.64, 'Sub Bass': 0.87,
+    'Saw Bass': 3.57, 'Square Bass': 1.34, 'Wobble Bass': 1.02, 'Acid Bass': 0.92,
+    'Pluck Bass': 2.85, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
+    'Reese Bass': 1.13, 'Deep Sub 808': 1.22, 'Ladder Bass': 3.67, 'Rubber Bass': 1.24,
+    'Finger Bass': 1.75, 'Saw Lead': 4.14, 'Square Lead': 3.46, 'Soft Flute': 1.83,
+    'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.36, 'Crushed Lead': 3.48,
+    'Delay Lead': 3.49, 'Phase Lead': 5.08, 'Hollow Lead': 4.32, 'Supersaw Lead': 3.7,
+    'Glide Sine Lead': 2.39, 'Brass Lead': 4.61, 'Pluck Lead': 3.18, 'Vowel Lead': 2.84,
+    'Pluck': 5.76, 'Harp Pluck': 3.09, 'Kalimba': 2.77, 'Pizz': 5.7,
+    'Echo Pluck': 6.56, 'Glass Pluck': 3.83, 'Muted Pluck': 3.49, 'Koto': 3.52,
+    'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.75, 'Mallet Pluck': 2.65,
+    'Filter Pluck': 6.47, 'Synth Harp': 2.93, 'Sparkle Pluck': 4.53, 'Bell': 2.75,
+    'Tubular Bell': 3.16, 'Music Box': 2.5, 'Vibes': 2.11, 'Marimba': 2.42,
+    'Glocken': 2.74, 'Crystal Bell': 3.06, 'Gamelan': 3.44, 'Celesta': 2.47,
+    'Frozen Bell': 2.09, 'Wind Chimes': 2.56, 'Church Bell': 3.15, 'Glass Harmonica': 1.88,
+    'Soft Vibraphone': 2.05, 'Digital Bell': 3.13, 'String Ensemble': 2.48, 'Slow Strings': 2.42,
+    'Cello': 2.39, 'Violin Lead': 2.63, 'Choir Aah': 1.3, 'Choir Ooh': 1.36,
+    'Vox Pad': 2.53, 'Brass Section': 4.31, 'Soft Brass': 2.81, 'Orchestral Swell': 2.0,
+    'Chamber Strings': 2.31, 'Synth Strings': 3.08, 'Cello Section': 2.3, 'Angel Choir': 0.94,
+    'Tremolo Strings': 2.46, 'Arp Pluck': 6.72, 'Gated Pad': 1.94, 'Stutter Arp': 3.58,
+    'Trance Gate': 3.07, 'Bubble Seq': 4.07, 'Crushed Arp': 7.43, 'Ping Pong Arp': 4.14,
+    'Ring Seq': 2.18, 'Glide Seq': 4.2, 'Filter Seq': 3.56, 'Sparkle Arp': 3.61,
+    'Pulse Arp': 5.71, 'Acid Arp': 1.78, 'Soft Bell Arp': 2.49, 'Wide Saw Arp': 6.78,
+    'Evolving Texture': 2.5, 'Drone': 2.27, 'Wind': 3.25, 'Haze': 2.11,
+    'Metallic Drone': 2.17, 'Dark Drone': 1.13, 'Tape Wobble': 2.35, 'Underwater': 2.37,
+    'Ring Cloud': 1.08, 'Time Smear': 2.84, 'Glass Drone': 1.98, 'Ocean Air': 6.53,
+    'Granular Mist': 3.9, 'Warm Hum': 1.91, 'Starfield': 1.02, 'Riser': 2.0,
+    'Downlifter': 2.62, 'Laser Zap': 4.0, 'Alarm': 1.35, 'Robot Voice': 2.04,
+    'Noise Sweep': 4.78, 'Glitch Hit': 3.21, 'Siren': 2.72, 'Sci-Fi Swell': 1.55,
+    'Impact': 0.5, 'Noise Uplifter': 2.0, 'Sub Drop': 1.09, 'Reverse Swell': 2.49,
+    'Radio Static': 7.79, 'Space Wash': 1.16,
+}
+# The finish goes before the time effects: dynamics and tone first, then width, then delay and reverb.
+FINISH_ORDER = ['compressor', 'eq', 'chorus']
+
+def finish(preset, category):
+    p = copy.deepcopy(preset)
+    own = p.pop('voice', {})
+    flags = {k for k in own if k.startswith('no_')}
+    own = {k: v for k, v in own.items() if not k.startswith('no_')}
+    ins = p['instrument']
+    for k, v in {**VOICING.get(category, {}), **own}.items():
+        if k not in ins or k in own: ins[k] = v
+    ins.setdefault('gain', LEVELS.get(p['name'], 1.))
+    chain = p['fx']
+    mods = {m['id']: m for m in chain['modules']}
+    for mid, params in FINISH.get(category, {}).items():
+        if 'no_' + mid in flags: continue
+        m = mods[mid]
+        # off, or only switched on (silent) because a macro or mod pad points at it: give it the finish
+        if not m['on'] or (mid != 'eq' and m['params'].get('mix', 1) == 0):
+            m['on'] = True; m['params'].update(params)
+    on = [m for m in chain['modules'] if m['on']]
+    first = [m for m in on if m['id'] in ('stutter', 'filter', 'overdrive', 'bitcrusher')]
+    finish_m = [mods[x] for x in FINISH_ORDER if mods[x]['on']]
+    rest = [m for m in on if m not in first and m not in finish_m]
+    chain['modules'] = first + finish_m + rest + [m for m in chain['modules'] if not m['on']]
+    p['fx'] = validate_chain(chain)
+    return p
+
+# ---------------------------------------------------------------- 17 Nov: five more per category
+LP_ENV = lambda cut, env, reso=.25, d=.4, s=.2: dict(vcf_type=1, vcf_morph=0., vcf_cutoff=cut, vcf_env=env, vcf_reso=reso,
+                                                    fenv_a=.002, fenv_d=d, fenv_s=s, fenv_r=.3)
+PADS += [
+    P('Velvet Pad', ins(saw(1.5), .8,1.2,.8,2.2,.5,.3),
+      fx({'filter': lp(.6, .15), 'reverb': verb(.45, .8, .2, .6)}, mods=[('sine', B4, [('filter', 'cutoff', .2)])]),
+      'soft wide', uni_voices=5, uni_detune=.25),
+    P('Warm Blanket', ins(mix(saw(1.6), tri(), .5), 1.,1.5,.85,2.5,.4,.3),
+      fx({'reverb': verb(.5, .85, .25, .5)}), 'cosy dark', drift=.8),
+    P('Super Pad', ins(saw(.95), .4,1.,.85,1.8,.75,.2),
+      fx({'reverb': verb(.4, .75, .15)}, mods=[('triangle', B2, [('chorus', 'depth', .3)])]), 'huge bright', uni_voices=5, uni_detune=.38),
+    P('Dream Pad', ins(mix(formant(4, 2.5, .3), sine([(2,.3)]), .5), 1.2,1.5,.8,2.8,.6,.4),
+      fx({'phaser': dict(rate=.12, depth=.5, feedback=.3, mix=.3), 'reverb': verb(.6, .9, .3, .7)}), 'floating'),
+    P('Night Drive Pad', ins(square(1.3), .6,1.,.8,1.8,.6,.25),
+      fx({'delay': echo(.2, 4, .4), 'reverb': verb(.4, .7)}), 'synthwave',
+      **LP_ENV(.45, .35, .3, 1.2, .4)),
+]
+KEYS += [
+    P('Concert Keys', ins(sparse((1,1),(2,.55),(3,.3),(4,.22),(5,.14),(6,.1),(7,.07),(8,.05),(9,.035),(10,.025),(12,.015)),
+                          .002,2.6,.0,.7,.75,0), fx({'reverb': verb(.22, .55, .05, .7)}), 'piano-like',
+      inharm=.12, env_curve=.85, vel_curve=.7, velocity_brightness=.6),
+    P('Stage EP', ins(sparse((1,1),(2,.25),(3,.08),(5,.12),(8,.06),(13,.05)), .003,1.8,.15,.6,.8,.12),
+      fx({'phaser': dict(rate=.25, depth=.3, feedback=.1, mix=.2), 'reverb': verb(.2, .45)},
+         mods=[('sine', EIGHTH, [('volume', 'level', .08)])]), 'tine bark', velocity_brightness=.65),
+    P('Soft Upright', ins(sparse((1,1),(2,.45),(3,.2),(4,.12),(5,.06),(6,.04)), .004,2.,.0,.5,.5,0),
+      fx({'reverb': verb(.25, .5, .05, .5), 'filter': lp(.65, .1)}), 'felt warm', inharm=.06, env_curve=.85),
+    P('Perc Organ', ins(drawbar(8,6,8,3,4,2), .002,.25,.85,.08,1.,.35),
+      fx({'overdrive': dict(drive=.15, mix=.25), 'chorus': _chorus(.6, .35, .55, .5)}), 'rock organ',
+      env_curve=.6, vel_curve=.1, velocity_brightness=.1, no_compressor=1),
+    P('Pop Keys', ins(mix(saw(1.4), sparse((1,1),(2,.4),(4,.2)), .5), .003,1.2,.25,.5,.8,.05),
+      fx({'reverb': verb(.2, .45), 'delay': echo(.1, 3, .25)}), 'bright modern', air=.6),
+]
+BASS += [
+    P('Reese Bass', ins(saw(1.), .005,.4,.85,.15,.55,0),
+      fx({'filter': lp(.5, .2), 'overdrive': dict(drive=.25, mix=.35)}, macros=(TONE, DIRT)), 'dnb wide',
+      uni_voices=3, uni_detune=.22, sub=.4),
+    P('Deep Sub 808', ins(sine([(2,.08)]), .002,1.6,.0,.4,.3,0),
+      fx({'overdrive': dict(drive=.2, mix=.3)}, macros=(DIRT, TONE)), 'trap boom', play_mode=1, glide=.06, env_curve=.6),
+    P('Ladder Bass', ins(saw(1.), .003,.35,.6,.12,1.,0), fx({}, macros=(TONE, DIRT)), 'analog round',
+      **LP_ENV(.32, .45, .35, .3, .15)),
+    P('Rubber Bass', ins(tri(), .003,.3,.5,.12,.6,0), fx({}), 'bouncy',
+      **LP_ENV(.35, .5, .5, .18, .1)),
+    P('Finger Bass', ins(sparse((1,1),(2,.5),(3,.25),(4,.15),(5,.08),(6,.04)), .004,1.2,.15,.1,.6,0),
+      fx({'filter': lp(.6, .1)}), 'funk', env_curve=.75, vel_curve=.45, sub=.2),
+]
+LEADS += [
+    P('Supersaw Lead', ins(saw(.9), .005,.3,.85,.3,.85,.2),
+      fx({'delay': echo(.22, 3, .35), 'reverb': verb(.25, .55)}), 'trance huge', uni_voices=5, uni_detune=.3),
+    P('Glide Sine Lead', ins(sine([(2,.12),(3,.05)]), .01,.3,.9,.25,.4,.35),
+      fx({'delay': echo(.2, 3, .4), 'reverb': verb(.3, .6)}), 'smooth mono', play_mode=2, glide=.12),
+    P('Brass Lead', ins(saw(1.05), .03,.4,.75,.2,.7,.2), fx({'reverb': verb(.2, .5)}), 'bold',
+      **LP_ENV(.4, .45, .15, .35, .5)),
+    P('Pluck Lead', ins(square(1.1), .003,.6,.35,.25,.8,.1), fx({'delay': echo(.25, 3, .4), 'reverb': verb(.2, .5)}), 'punchy',
+      **LP_ENV(.5, .4, .3, .25, .3)),
+    P('Vowel Lead', ins(saw(1.1), .02,.4,.85,.3,.8,.35), fx({'delay': echo(.18, 2, .3), 'reverb': verb(.25, .5)}), 'talking',
+      formant=.7, vowel=1.),
+]
+PLUCKS += [
+    P('Nylon Pluck', ins(sparse((1,1),(2,.6),(3,.35),(4,.25),(5,.15),(6,.1),(7,.06),(8,.04)), .001,1.2,.0,.4,.65,0),
+      fx({'reverb': verb(.25, .5, .05)}), 'guitar-ish', inharm=.04),
+    P('Mallet Pluck', ins(sparse((1,1),(3,.2),(4,.15),(10,.05)), .001,.6,.0,.35,.7,0), fx({'reverb': verb(.3, .55)}), 'wooden soft'),
+    P('Filter Pluck', ins(saw(1.), .001,.5,.0,.3,1.,0), fx({'delay': echo(.25, 3, .4), 'reverb': verb(.25, .5)}), 'house',
+      **LP_ENV(.35, .6, .35, .22, .0)),
+    P('Synth Harp', ins(mix(saw(1.6), sine(), .4), .001,1.5,.0,1.2,.75,0),
+      fx({'reverb': verb(.4, .75, .15)}), 'glissando', uni_voices=2, uni_detune=.12),
+    P('Sparkle Pluck', ins(sparse((1,1),(2,.3),(4,.4),(8,.3),(16,.2)), .001,.7,.0,.5,1.,0),
+      fx({'delay': echo(.3, 4, .5), 'reverb': verb(.4, .7, .1, 1.)}), 'shiny'),
+]
+BELLS += [
+    P('Wind Chimes', ins(sparse((1,1),(3,.5),(7,.4),(11,.3),(13,.25)), .001,2.5,.0,2.5,1.,.15),
+      fx({'reverb': verb(.5, .85, .2, 1.)}), 'airy', inharm=.25),
+    P('Church Bell', ins(sparse((1,.5),(2,1),(3,.6),(4,.4),(6,.35),(8,.25),(11,.2)), .001,3.,.0,3.,.9,.05),
+      fx({'reverb': verb(.5, .9, .2, .6)}), 'big toll', inharm=.35),
+    P('Glass Harmonica', ins(sparse((1,1),(2,.15),(3,.25),(5,.1)), .25,1.5,.7,1.5,.8,.35),
+      fx({'reverb': verb(.45, .8, .2, .9)}), 'eerie sustain', env_curve=.4),
+    P('Soft Vibraphone', ins(sparse((1,1),(4,.3),(10,.08)), .002,2.2,.0,1.5,.7,.25),
+      fx({'reverb': verb(.3, .6)}, mods=[('sine', EIGHTH, [('volume', 'level', .12)])]), 'jazz'),
+    P('Digital Bell', ins(sparse((1,1),(5,.6),(7,.45),(9,.4),(14,.3)), .001,1.4,.05,1.,1.,.1),
+      fx({'delay': echo(.2, 3, .4), 'reverb': verb(.35, .65)}), 'fm-ish bright', air=.6),
+]
+STRINGS += [
+    P('Chamber Strings', ins(saw(1.25), .25,.6,.85,.8,.6,.45), fx({'reverb': verb(.4, .75, .15, .7)}), 'warm real'),
+    P('Synth Strings', ins(saw(1.1), .15,.6,.85,.7,.7,.25),
+      fx({'phaser': dict(rate=.12, depth=.4, feedback=.2, mix=.25), 'reverb': verb(.35, .65)}), '80s lush', uni_voices=5, uni_detune=.25),
+    P('Cello Section', ins(formant(3, 3, .5, 1.1), .2,.6,.85,.6,.5,.45), fx({'reverb': verb(.35, .7, .1)}), 'deep bowed'),
+    P('Angel Choir', ins(formant(4, 2, .2, 1.3), .6,1.,.85,1.8,.55,.35),
+      fx({'reverb': verb(.6, .9, .3, .8)}), 'heavenly', formant=.6, vowel=0.),
+    P('Tremolo Strings', ins(saw(1.2), .1,.5,.85,.5,.65,.3),
+      fx({'reverb': verb(.35, .7)}, mods=[('triangle', SIXTEENTH, [('volume', 'level', .35)])]), 'tension'),
+]
+ARPS += [
+    P('Sparkle Arp', ins(sparse((1,1),(2,.4),(3,.2),(4,.3),(8,.2)), .001,.35,.0,.25,1.,0),
+      fx({'delay': echo(.35, 3, .45), 'reverb': verb(.3, .6, .1, 1.)}), 'glassy'),
+    P('Pulse Arp', ins(square(.8), .002,.2,.1,.12,.7,0), fx({'delay': echo(.25, 2, .35)}), 'tight retro',
+      **LP_ENV(.45, .35, .25, .15, .1)),
+    P('Acid Arp', ins(saw(1.), .002,.2,.3,.1,1.,0),
+      fx({'overdrive': dict(drive=.4, mix=.45), 'delay': echo(.15, 3, .3)},
+         mods=[('steps', SIXTEENTH, [('filter', 'cutoff', .4)])], macros=(TONE, DIRT)), 'squelchy',
+      **LP_ENV(.3, .55, .75, .18, .1)),
+    P('Soft Bell Arp', ins(sparse((1,1),(4,.25),(10,.08)), .001,.6,.0,.4,.8,0),
+      fx({'delay': echo(.3, 4, .5), 'reverb': verb(.35, .65)}), 'lullaby'),
+    P('Wide Saw Arp', ins(saw(1.1), .002,.25,.2,.15,.75,0), fx({'delay': echo(.25, 3, .4)}), 'big room',
+      uni_voices=3, uni_detune=.25),
+]
+TEXTURES += [
+    P('Glass Drone', ins(sparse((1,1),(2,.4),(5,.35),(8,.3),(12,.2)), 2.,2.,.95,3.,.9,.5),
+      fx({'reverb': verb(.6, .95, .3, .9)}, mods=[('sine', B4, [('reverb', 'hicut', .15)])]), 'shimmer', uni_voices=3, uni_detune=.12),
+    P('Ocean Air', ins(_norm([.7 + .3 * ((k * 53) % 11) / 11 for k in range(16)]), 2.5,2.,.9,3.,.7,.8),
+      fx({'filter': dict(mode=0, cutoff=.5, reso=.3, mix=1), 'reverb': verb(.6, .9, .3)},
+         mods=[('sine', B4, [('filter', 'cutoff', .35)])]), 'waves', air=.8),
+    P('Granular Mist', ins(saw(1.4), 1.5,1.5,.85,2.5,.6,.4),
+      fx({'cloud': dict(time=.4, density=.7, scatter=.6, feedback=.45, tone=.55, mix=.45), 'reverb': verb(.4, .8)}), 'grains'),
+    P('Warm Hum', ins(sine([(2,.35),(3,.15),(4,.08)]), 2.,2.,.95,3.,.5,.4),
+      fx({'reverb': verb(.45, .85, .2, .5)}, mods=[('triangle', B4, [('volume', 'level', .1)])]), 'tape hum', sub=.3),
+    P('Starfield', ins(sparse((1,1),(3,.3),(6,.4),(9,.35),(14,.3)), 1.,2.,.6,3.,1.,.3),
+      fx({'delay': echo(.35, 4, .6), 'reverb': verb(.65, 1., .35, 1.)}), 'twinkling', inharm=.15),
+]
+FXS += [
+    P('Noise Uplifter', ins(_norm([1.] * 16), 3.,1.,1.,.6,.3,.8),
+      fx({'filter': dict(mode=1, cutoff=.2, reso=.5, mix=1), 'reverb': verb(.45, .75)},
+         mods=[('saw', B4, [('filter', 'cutoff', -1.)])]), 'build-up', air=1.),
+    P('Sub Drop', ins(sine([(2,.2)]), .001,2.5,.0,1.5,.3,0),
+      fx({'overdrive': dict(drive=.35, mix=.4), 'reverb': verb(.35, .7, .0, .4)}), 'boom fall', play_mode=2, glide=1.2, pitch=0.),
+    P('Reverse Swell', ins(saw(1.3), 2.5,.1,1.,.05,.6,.3),
+      fx({'reverb': verb(.6, .95, .3)}), 'backwards'),
+    P('Radio Static', ins(_norm([.5 + .5 * ((k * 29) % 13) / 13 for k in range(16)]), .01,.6,.6,.3,1.,.9),
+      fx({'bitcrusher': dict(rate=.5, bits=6, mix=.5), 'ringmod': dict(freq=.7, drive=.3, mix=.35), 'filter': dict(mode=2, cutoff=.6, reso=.4, mix=1)}), 'lofi radio'),
+    P('Space Wash', ins(sparse((1,1),(2,.5),(3,.4),(5,.3),(7,.2)), 1.5,2.,.8,3.,.8,.6),
+      fx({'delay': echo(.4, 4, .65), 'reverb': verb(.75, 1., .4, .8)},
+         mods=[('sine', B2, [('delay', 'feedback', .2)])]), 'endless'),
+]
+
 PRESET_LIBRARY = []
 for _category, _group in zip(CATEGORIES, [PADS, KEYS, BASS, LEADS, PLUCKS, BELLS, STRINGS, ARPS, TEXTURES, FXS]):
-    for _p in _group: PRESET_LIBRARY.append(dict(category=_category, **_p))
+    for _p in _group: PRESET_LIBRARY.append(dict(category=_category, **finish(_p, _category)))
 BY_NAME = {p['name']: p for p in PRESET_LIBRARY}
 
 def preset(name):

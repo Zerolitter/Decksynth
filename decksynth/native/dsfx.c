@@ -801,12 +801,44 @@ void dsfx_table(const double *w, int count, double norm, double *out, int size) 
  * st holds phase, age, release position, release start level, level and table crossfade (0..1).
  * prev is the table being faded out (or NULL). Returns bit 0 when the voice has finished,
  * bit 1 when the crossfade has finished. Same maths as the Python fallback in core.py. */
-int dsfx_voice(double *out, int n, const double *tab, const double *prev, double *st, int released,
-               double step, double gain, double a, double d, double sus, double rel) {
+/* Curved decay and release (the Sound card's Curve knob). The share of a stage done at x of its time is
+ * (1 - e^(-k x)) / (1 - e^(-k)), so k 0 is the old straight line (it holds loud and drops at the end) and
+ * a bigger k fades evenly to the ear, the same number of dB each moment, like a struck string. u = e^(-k x) is worked out with exp() once a block and then stepped by one
+ * factor a sample, so a curved voice costs about the same as a straight one. */
+typedef struct { double k, norm, md, mr, u; int stage; } EnvCurve;
+static inline void curve_init(EnvCurve *c, double k, double d, double rel) {
+    c->k = k; c->stage = -1; c->u = 1; c->norm = 1; c->md = 1; c->mr = 1;
+    if (k > 0) { c->norm = 1 - exp(-k); c->md = exp(-k / d); c->mr = exp(-k / rel); }
+}
+/* The envelope level for one sample; *r moves on while released. Returns -1 when the release has ended. */
+static inline double curve_level(EnvCurve *c, int released, double age, double *r, double base,
+                                 double a, double d, double sus, double rel) {
+    if (released) {
+        if (c->stage != 3) { c->stage = 3; c->u = exp(-c->k * *r / rel); }
+        double level = *r >= rel ? 0 : base * (c->u - (1 - c->norm)) / c->norm;
+        c->u *= c->mr; *r += 1;
+        return level <= 0 ? -1 : level;
+    }
+    if (age < a) return age / a;
+    if (age < a + d) {
+        if (c->stage != 2) { c->stage = 2; c->u = exp(-c->k * (age - a) / d); }
+        double level = 1 - (1 - sus) * (1 - c->u) / c->norm;
+        c->u *= c->md;
+        return level;
+    }
+    return sus;
+}
+
+static int voice_core(double *out, int n, const double *tab, const double *prev, double *st, int released,
+                      double step, double gain, double a, double d, double sus, double rel, double k) {
     double phase = st[0], age = st[1], r = st[2], base = st[3], level = st[4], xf = st[5];
     int result = 0;
+    EnvCurve cv; curve_init(&cv, k, d, rel);
     for (int i = 0; i < n; i++) {
-        if (released) {
+        if (k > 0) {
+            level = curve_level(&cv, released, age, &r, base, a, d, sus, rel);
+            if (level < 0) { level = 0; result |= 1; break; }
+        } else if (released) {
             level = base * fmax(0, 1 - r / rel); r += 1;
             if (level <= 0) { result |= 1; break; }
         } else if (age < a) level = age / a;
@@ -826,6 +858,15 @@ int dsfx_voice(double *out, int n, const double *tab, const double *prev, double
     st[0] = phase; st[1] = age; st[2] = r; st[3] = base; st[4] = level; st[5] = xf;
     return result;
 }
+int dsfx_voice(double *out, int n, const double *tab, const double *prev, double *st, int released,
+               double step, double gain, double a, double d, double sus, double rel) {
+    return voice_core(out, n, tab, prev, st, released, step, gain, a, d, sus, rel, 0);
+}
+/* dsfx_voice with the curved decay and release (k > 0). */
+int dsfx_voice_curve(double *out, int n, const double *tab, const double *prev, double *st, int released,
+                     double step, double gain, double a, double d, double sus, double rel, double k) { ds_ftz();
+    return voice_core(out, n, tab, prev, st, released, step, gain, a, d, sus, rel, k);
+}
 
 /* Voice renderer with the Filter, Unison and Character cards (patch 24).
  * st[0..5] as dsfx_voice; st[6..12] unison phases; st[13..14] filter state; st[15] sub phase;
@@ -839,6 +880,7 @@ typedef struct {
     const double *weights;         /* non-NULL: stretched partials instead of the wavetable */
     int npart; double stretch;
     double sub; int suboct;
+    double curve;                  /* curved decay and release, 0 straight (added last: older callers pass 0) */
 } DsVoice;
 
 static double vsine[2049]; static int vsine_ready = 0;
@@ -872,8 +914,12 @@ static int voice_ext(double *out, int n, const double *tab, const double *prev, 
         fl=st[80]; fb=st[81]; morph=st[82]; logcut=st[83]; reso=st[84];
         smooth=1-exp(-1/(.004*v->rate)); target=log2(v->cutoff);
     }
+    EnvCurve cv; curve_init(&cv, v->curve, v->d, v->rel);
     for (int i = 0; i < n; i++) {
-        if (v->released) {
+        if (v->curve > 0) {
+            level = curve_level(&cv, v->released, age, &r, base, v->a, v->d, v->sus, v->rel);
+            if (level < 0) { level = 0; result |= 1; break; }
+        } else if (v->released) {
             level = base * fmax(0, 1 - r / v->rel); r += 1;
             if (level <= 0) { result |= 1; break; }
         } else if (age < v->a) level = age / v->a;
@@ -941,4 +987,123 @@ int dsfx_voice2(double *out, int n, const double *tab, const double *prev, doubl
 }
 int dsfx_voice3(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f) { ds_ftz();
     return voice_ext(out,n,tab,prev,st,v,f);
+}
+
+/* ---------------------------------------------------------------- master stage
+ * The last step before the sound card, on the stereo mix (replaces the Python limiter loop):
+ *   1. trim:   makeup gain (the centre pan law halves every track, so the mix sat 6 dB low)
+ *   2. glue:   a soft saturation that only bends the loudest peaks (tanh, slope 1 at zero)
+ *   3. polish: 20 Hz high-pass (rumble, DC), a broad -1.2 dB dip at 3.2 kHz where the ear is touchiest,
+ *              an 18.5 kHz low-pass for the brittle top (the Luna kit recipe)
+ *   4. limit:  a look-ahead peak limiter on the estimated true peak (the point halfway between two
+ *              samples is checked too), ceiling -1 dBTP, 1.5 ms look-ahead, about 80 ms release.
+ * The look-ahead is a running minimum of the gain each sample needs, then a running average of that
+ * minimum over the same window, with the audio delayed by the window less one sample: every gain that
+ * reaches a sample is at or below what that sample needs, and the ramp down is smooth (no clicks). */
+#define MS_LA 72
+typedef struct {
+    double rate, trim, drive, ceiling, rel;
+    double c[3][5], z[3][2][2];          /* biquads: high-pass, presence dip, low-pass; state per channel */
+    double dl[MS_LA], dr[MS_LA]; int w;  /* delay of MS_LA - 1 samples (slot MS_LA-1 unused) */
+    double hist[2][3];                   /* the last three samples per channel, for the in-between peak */
+    double qv[MS_LA + 1]; long qt_[MS_LA + 1]; int qh, qn; /* running minimum: ring deque */
+    double ring[MS_LA]; double sum;      /* running average */
+    long t, hot; double g, gr;           /* sample count, samples until rung out, gain, reduction (dB) */
+} Master;
+
+static void ms_coefs(Master *m) {
+    double r = m->rate, w, cw, sw, al, a0, f;
+    w = 2 * PI * 20 / r; cw = cos(w); sw = sin(w); al = sw / (2 * .7071); a0 = 1 + al;
+    m->c[0][0] = (1 + cw) / 2 / a0; m->c[0][1] = -(1 + cw) / a0; m->c[0][2] = (1 + cw) / 2 / a0;
+    m->c[0][3] = -2 * cw / a0; m->c[0][4] = (1 - al) / a0;
+    biquad(m->c[1], 1, 3200, -1.2, .72, r);
+    f = 18500 < .45 * r ? 18500 : .45 * r;
+    w = 2 * PI * f / r; cw = cos(w); sw = sin(w); al = sw / (2 * .7071); a0 = 1 + al;
+    m->c[2][0] = (1 - cw) / 2 / a0; m->c[2][1] = (1 - cw) / a0; m->c[2][2] = (1 - cw) / 2 / a0;
+    m->c[2][3] = -2 * cw / a0; m->c[2][4] = (1 - al) / a0;
+}
+
+void *dsfx_master_create(double rate) {
+    Master *m = calloc(1, sizeof(Master));
+    if (!m) return NULL;
+    m->rate = rate; m->trim = 2.0; m->drive = .2; m->ceiling = pow(10, -1.0 / 20); m->g = 1;
+    m->rel = exp(-1.0 / (.08 * rate));
+    for (int i = 0; i < MS_LA; i++) m->ring[i] = 1;
+    m->sum = MS_LA;
+    ms_coefs(m);
+    return m;
+}
+void dsfx_master_destroy(void *m) { free(m); }
+/* trim: linear makeup gain; drive 0..1 (0 = clean); ceiling in dBTP (for example -1) */
+void dsfx_master_set(void *p, double trim, double drive, double ceiling_db) {
+    Master *m = p; m->trim = trim; m->drive = drive < 0 ? 0 : drive > 1 ? 1 : drive; m->ceiling = pow(10, ceiling_db / 20);
+}
+double dsfx_master_gr(void *p) { return ((Master *)p)->gr; }
+
+static inline double ms_bq(const double *c, double *z, double x) {
+    double y = c[0] * x + z[0]; z[0] = c[1] * x - c[3] * y + z[1]; z[1] = c[2] * x - c[4] * y; return y;
+}
+
+static inline double ms_soft(double x) {
+    /* tanh's Pade shape, exact enough for a gentle bend and a few times cheaper; flat past +-3 */
+    if (x > 3) return 1; if (x < -3) return -1;
+    double x2 = x * x; return x * (27 + x2) / (27 + 9 * x2);
+}
+void dsfx_master(void *p, double *left, double *right, int n) { ds_ftz();
+    Master *m = p;
+    const int CAP = MS_LA + 1;
+    /* Silence in and everything rung out: nothing to do (and the output stays exactly zero). */
+    int silent = 1;
+    for (int i = 0; i < n && silent; i++) if (left[i] != 0 || right[i] != 0) silent = 0;
+    if (silent && m->hot <= 0) { m->gr = 0; return; }
+    if (!silent) m->hot = (long)(m->rate * .5); else m->hot -= n;
+    if (m->hot <= 0) {
+        /* just rung out: clear the filters, the look-ahead and the gain so the next sound starts clean */
+        memset(m->z, 0, sizeof m->z); memset(m->dl, 0, sizeof m->dl); memset(m->dr, 0, sizeof m->dr);
+        memset(m->hist, 0, sizeof m->hist); m->qh = m->qn = 0;
+        for (int j = 0; j < MS_LA; j++) m->ring[j] = 1;
+        m->sum = MS_LA; m->g = 1; m->gr = 0;
+        for (int i = 0; i < n; i++) left[i] = right[i] = 0;
+        return;
+    }
+    double k = m->drive, ceil_ = m->ceiling, low_g = 1;
+    for (int i = 0; i < n; i++) {
+        double l = left[i] * m->trim, r = right[i] * m->trim;
+        if (k > 0) { l = ms_soft(l * k) / k; r = ms_soft(r * k) / k; }   /* slope 1 at zero; drive .3: -0.3 dB at full scale */
+        for (int b = 0; b < 3; b++) { l = ms_bq(m->c[b], m->z[b][0], l); r = ms_bq(m->c[b], m->z[b][1], r); }
+        double *hl = m->hist[0], *hr = m->hist[1];
+        double ml = (-hl[0] + 9 * hl[1] + 9 * hl[2] - l) / 16, mr = (-hr[0] + 9 * hr[1] + 9 * hr[2] - r) / 16;
+        hl[0] = hl[1]; hl[1] = hl[2]; hl[2] = l; hr[0] = hr[1]; hr[1] = hr[2]; hr[2] = r;
+        double pk = fmax(fmax(fabs(l), fabs(r)), fmax(fabs(ml), fabs(mr)));
+        double need = pk > ceil_ ? ceil_ / pk : 1;
+        long t = m->t++;
+        /* running minimum over the last MS_LA needs */
+        while (m->qn > 0) {
+            int last = (m->qh + m->qn - 1) % CAP;
+            if (m->qv[last] >= need) m->qn--; else break;
+        }
+        int at = (m->qh + m->qn) % CAP; m->qv[at] = need; m->qt_[at] = t; m->qn++;
+        while (m->qt_[m->qh] <= t - MS_LA) { m->qh = (m->qh + 1) % CAP; m->qn--; }
+        double mn = m->qv[m->qh];
+        /* running average of the minimum */
+        int slot = (int)(t % MS_LA);
+        m->sum += mn - m->ring[slot]; m->ring[slot] = mn;
+        if ((t & 4095) == 0) { double s2 = 0; for (int j = 0; j < MS_LA; j++) s2 += m->ring[j]; m->sum = s2; }
+        double s = m->sum / MS_LA; if (s > 1) s = 1;
+        m->g = s < m->g ? s : m->g + (s - m->g) * (1 - m->rel);
+        if (m->g < low_g) low_g = m->g;
+        /* the sample from MS_LA - 1 samples ago comes out with the gain */
+        int w = m->w; double ol = m->dl[w] * m->g, orr = m->dr[w] * m->g;
+        m->dl[w] = l; m->dr[w] = r; m->w = (w + 1) % (MS_LA - 1);
+        /* below -180 dB is silence: filter tails never leave a dust of tiny numbers behind */
+        if (fabs(ol) < 1e-9) ol = 0; if (fabs(orr) < 1e-9) orr = 0;
+        left[i] = ol > ceil_ ? ceil_ : ol < -ceil_ ? -ceil_ : ol;
+        right[i] = orr > ceil_ ? ceil_ : orr < -ceil_ ? -ceil_ : orr;
+    }
+    m->gr = -20 * log10(low_g > 1e-9 ? low_g : 1e-9);
+}
+/* dsfx_master, then the two channels interleaved into out[2n] (what the audio queue takes). */
+void dsfx_master_i(void *p, double *left, double *right, double *out, int n) {
+    dsfx_master(p, left, right, n);
+    for (int i = 0; i < n; i++) { out[2 * i] = left[i]; out[2 * i + 1] = right[i]; }
 }

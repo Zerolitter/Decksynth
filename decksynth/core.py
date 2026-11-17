@@ -23,7 +23,7 @@ from .sampler_engine import SamplerEngine
 from .sampler import validate_sampler
 from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
-from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, DsVoice, default_chain as default_fx, validate_chain as validate_fx
+from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, native_voice_curve, MasterStage, DsVoice, default_chain as default_fx, validate_chain as validate_fx
 from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
 from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
@@ -59,6 +59,13 @@ VOICE_CHOICES=dict(vcf_type=(0,1,2,3),uni_voices=(1,2,3,4,5,7),sub_oct=(1,2))
 EXPRESSION_DEFAULTS=dict(pan=0.,play_mode=0,glide=0.,pitch=0.,velocity_brightness=0.,velocity_cutoff=0.,vcf_keytrack=.5)
 VOICE_RANGES.update(pan=(-1,1),glide=(0,2),pitch=(-12,12),velocity_brightness=(-1,1),velocity_cutoff=(-1,1),vcf_keytrack=(0,1))
 VOICE_CHOICES['play_mode']=(0,1,2)
+# Full-sound keys (17 Nov): Shape (env_curve) bends the decay and release (an even fade to the ear, like a
+# struck string, instead of a straight line that holds loud and drops at the end), Air extends the spectrum past partial 16 (low notes keep their top), Drift gives each note its own
+# start phase and a few cents of tuning, Dynamics widens how much softer a soft note is. 0 = the old sound.
+TONE_DEFAULTS=dict(env_curve=0.,air=0.,drift=0.,vel_curve=0.,gain=1.)
+# gain: the preset's own level (factory presets are level-matched with tools/measure_sound.py).
+VOICE_RANGES.update(env_curve=(0,1),air=(0,1),drift=(0,1),vel_curve=(0,1),gain=(.25,8))
+EXPRESSION_DEFAULTS.update(TONE_DEFAULTS)
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
     if key in FILTER_ENV:return p[FILTER_ENV[key]]
@@ -244,7 +251,20 @@ class MidiParser:
         return events
 
 # Knobs that shape the wavetable. When a pad moves one, the table is rebuilt in 1/48 steps of its range.
-TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy','velocity_brightness','pitch')
+TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy','velocity_brightness','pitch','air')
+
+def air_weights(p,h,weights,brightness,count):
+    """Partials 17 and up for Air: the top of the drawn spectrum carries on falling (1/k, the odd/even
+    pattern kept), rolled off by Brightness from where partial 16 was, with Air moving the corner up."""
+    air=p.get('air',0.)
+    if not air or count<=16:return weights
+    c0=1+brightness*15; ca=c0+air*48; r16=1/(1+(16/c0)**4); a16=1/(1+(16/ca)**4)
+    out=list(weights)
+    for k in range(16,count):
+        r=14 if (k-14)%2==0 else 15
+        ref=h[r]*spectral_gain(p,r+1)
+        out.append(air*ref*(r+1)/(k+1)*r16*(1/(1+(k/ca)**4))/a16)
+    return out
 TABLE_STEPS=48
 
 class Synth(ExpressionVoice):
@@ -297,14 +317,20 @@ class Synth(ExpressionVoice):
             h=p['harmonics']; frequency=440*2**((note-69)/12)
             # Leave pitch-bend headroom so the upper partials cannot alias at +2 semitones.
             guard=frequency*(2 if 'pitch' in p else 1)
-            count=min(16,int(self.rate*.45/(guard*1.123)))
+            count=min(64 if p.get('air',0.) else 16,int(self.rate*.45/(guard*1.123)))
             vowel=formant_gains(p,frequency*2**(p.get('pitch',0)/12),count)
             brightness=p['filter']
             if velocity is not None and p.get('velocity_brightness',0):brightness=min(1.,max(.02,brightness+(velocity-.5)*2*p['velocity_brightness']))
             key=(count,self.shape_key) if vowel is None else (count,self.shape_key,note)
-            if 'velocity_brightness' in p:key=key+(brightness,)
+            # Vel bright also tilts the spectrum (17 Nov): a hard note lifts the upper partials, a soft one
+            # leans on the fundamental, as a struck string does. Moving the brightness corner alone hardly
+            # changed sounds whose partials already fall off early.
+            tilt=round((velocity-.5)*2*p['velocity_brightness']*1.2,3) if velocity is not None and p.get('velocity_brightness',0) else 0.
+            if 'velocity_brightness' in p:key=key+(brightness,tilt)
             if key not in self.wave_cache:
-                weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+brightness*15))**4) for k in range(count)]
+                weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+brightness*15))**4) for k in range(min(16,count))]
+                weights=air_weights(p,h,weights,brightness,count)
+                if tilt:weights=[w*(k+1)**tilt for k,w in enumerate(weights)]
                 if vowel is not None:weights=[w*g for w,g in zip(weights,vowel)]
                 normalized=p.get('spectral_energy',0)==1
                 norm=energy_norm(weights) if normalized else max(1,sum(weights)); size=2048
@@ -318,7 +344,7 @@ class Synth(ExpressionVoice):
                         if peak>1:
                             for i in range(size):table[i]/=peak
                     norm*=peak
-                self.weight_cache[key]=(ctypes.c_double*16)(*[w/norm for w in weights])
+                self.weight_cache[key]=(ctypes.c_double*16)(*[w/norm for w in weights[:16]])
                 if len(self.wave_cache)>=160:
                     old=next(iter(self.wave_cache)); self.wave_cache.pop(old); self.weight_cache.pop(old,None)
                 self.wave_cache[key]=table
@@ -340,6 +366,19 @@ class Synth(ExpressionVoice):
         playing=[k for k in self.voices if not (isinstance(k,tuple) and k[0]=='fade')]
         if len(playing)>=24:self.fade(playing[0])
         self.voices[token]=dict(note=note,velocity=velocity/127,phase=0.,age=0,level=0.,release=None,held=True,table=self.table(note,velocity/127))
+        drift=self.params.get('drift',0.)
+        if drift:
+            # Like an analog voice: its own start phase and a few cents of its own tuning (up to +-6 cents).
+            rng=getattr(self,'rng',None) or self._seed_rng()
+            self.voices[token].update(phase=rng.random()*2048,drift=2**(drift*(rng.random()*2-1)*6/1200))
+    def _seed_rng(self):
+        import random
+        self.rng=random.Random(0x5eed); return self.rng
+    @staticmethod
+    def amp(v,p):
+        """Note level from velocity: Dynamics 0 is the old straight line, 1 makes a soft note much softer."""
+        vc=p.get('vel_curve',0.)
+        return (v['velocity']**(1+vc*1.5) if vc else v['velocity'])*p.get('gain',1.)
     def off(self,note,token=None):
         key=note if token is None else token
         immediate=isinstance(token,tuple) and token[0] in ('loop','perf_seq','perf_arp')
@@ -389,7 +428,8 @@ class Synth(ExpressionVoice):
         mod=min(1.,p['modulation']+self.mod_wheel); trem=1-mod*.12+mod*.12*math.sin(self.clock/sr*2*math.pi*.27)
         uni=int(p.get('uni_voices',1)); ft=int(p.get('vcf_type',0)); sub=p.get('sub',0.); inh=p.get('inharm',0.)
         if uni>1 or ft or sub>0 or inh>0 or filter_extended(p):return self.render_ext(frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh)
-        fast=native_voice()
+        fast=native_voice(); curve=p.get('env_curve',0.)*8; curved=native_voice_curve() if curve else None
+        if curve and curved is None:fast=None  # an older library without the curve: the Python loop has it
         if fast is not None:
             buf=(ctypes.c_double*frames)(); st=(ctypes.c_double*6)()
             for key,v in list(self.voices.items()):
@@ -401,21 +441,33 @@ class Synth(ExpressionVoice):
                     rel=v['release']; prev=v.get('prev')
                     st[0]=v['phase']; st[1]=v['age']; st[2]=rel[0] if rel else 0; st[3]=rel[1] if rel else 0
                     st[4]=v['level']; st[5]=v.get('xf',1.)
-                    step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
-                    res=fast(buf,frames,v['table'],prev,st,rel is not None,step,v['velocity']*.23*trem,
-                             a,d,p['sustain'],quick if v.get('fast') else slow)
+                    step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
+                    if curve and not v.get('fast') and curved is not None:
+                        res=curved(buf,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,
+                                   a,d,p['sustain'],slow,curve)
+                    else:
+                        res=fast(buf,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,
+                                 a,d,p['sustain'],quick if v.get('fast') else slow)
                     if res&1:self.voices.pop(key,None); continue
                     v.update(phase=st[0],age=int(st[1]),release=(int(st[2]),st[3]) if rel else None,level=st[4],
                              prev=None if res&2 else prev,xf=st[5])
                 self.clock+=frames; return list(buf)
         for key,v in list(self.voices.items()):
             phase=v['phase']; age=v['age']; rel=v['release']; table=v['table']; level=v['level']
-            step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
-            gain=v['velocity']*.23*trem
+            step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
+            gain=self.amp(v,p)*.23*trem
             release=quick if v.get('fast') else slow
+            k=0. if v.get('fast') else curve
             prev=v.get('prev'); xf=v.get('xf',1.)
             for i in range(frames):
-                if rel is not None:
+                if k:
+                    if rel is not None:
+                        r,base=rel; level=0. if r>=release else base*(math.exp(-k*r/release)-math.exp(-k))/(1-math.exp(-k)); rel=(r+1,base)
+                        if level<=0: self.voices.pop(key,None); break
+                    elif age<a: level=age/a
+                    elif age<a+d: level=1-(1-p['sustain'])*(1-math.exp(-k*(age-a)/d))/(1-math.exp(-k))
+                    else: level=p['sustain']
+                elif rel is not None:
                     r,base=rel; level=base*max(0,1-r/release); rel=(r+1,base)
                     if level<=0: self.voices.pop(key,None); break
                 elif age<a: level=age/a
@@ -458,8 +510,8 @@ class Synth(ExpressionVoice):
             rel=v['release']; prev=v.get('prev')
             address=self.table_key(v.get('table_note',v['note']),v['velocity'])
             if inh>0 and address not in self.weights:self.table(v.get('table_note',v['note']),v['velocity'])
-            cfg.update(step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4)),
-                       gain=v['velocity']*.23*trem,rel=quick if v.get('fast') else slow,released=int(rel is not None),
+            cfg.update(step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4)),
+                       gain=self.amp(v,p)*.23*trem,rel=quick if v.get('fast') else slow,released=int(rel is not None),curve=0. if v.get('fast') else p.get('env_curve',0.)*8,
                        cutoff=cutoff_hz(p,v.get('current_note',v['note']),v['velocity']),weights=self.weights[address] if inh>0 else None)
             st[0:6]=[v['phase'],v['age'],rel[0] if rel else 0,rel[1] if rel else 0,v['level'],v.get('xf',1.)]
             st[6:80]=v['x']
@@ -503,8 +555,16 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
     ftype=c['ftype']; sub=c['sub']; gain=c['gain']; rate=c['rate']; A=c['a']; D=c['d']; sus=c['sus']
     if f:
         fl,fb,morph,logcut,reso=st[80:85];smooth=1-math.exp(-1/(.004*rate));target=math.log2(c['cutoff'])
+    kc=c.get('curve',0.); kn=1-math.exp(-kc) if kc else 1.
     for i in range(n):
-        if c['released']:
+        if kc:
+            if c['released']:
+                level=0. if r>=c['rel'] else base*(math.exp(-kc*r/c['rel'])-(1-kn))/kn; r+=1
+                if level<=0:result|=1; break
+            elif age<A:level=age/A
+            elif age<A+D:level=1-(1-sus)*(1-math.exp(-kc*(age-A)/D))/kn
+            else:level=sus
+        elif c['released']:
             level=base*max(0,1-r/c['rel']); r+=1
             if level<=0:result|=1; break
         elif age<A:level=age/A
@@ -592,6 +652,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.selected=0; self.playing=False; self.recording=False; self.frame=0; self._bucket_cache={}
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.transfer_report=None
+        self.master_enabled=True  # the C master stage on the stereo mix (tests of the raw mix switch it off)
         # Count-in (Settings): beats of click before a take, and whether REC waits for the first note.
         self.count_in_beats=0; self.rec_wait=False
         self.rec_armed=None; self.count_end=None; self.count_start=0; self.count_track=0; self.count_early=[]
@@ -674,6 +735,16 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         if p:t['fx']=validate_fx(p['fx'])
         self.synths[self.selected].panic(); self.synths[self.selected].configure(ins)
         if p:self.fx[self.selected].configure(t['fx'])
+    def factory_sounds(self):
+        """Give the four starting tracks their finished library presets (sound and FX rack). A new session
+        then starts with the full sound; Project() itself stays plain, so saved files and tests are stable."""
+        from .library import preset
+        for i,t in enumerate(self.project.tracks):
+            p=preset(t['preset'])
+            if p:t['instrument']=p['instrument']; t['fx']=p['fx']
+        self.configure()
+        for i,t in enumerate(self.project.tracks):
+            if 'fx' in t:self.fx[i].configure(t['fx'])
     CLEANUPS=('effects','sound','mods','links','all')
     def cleanup(self,action):
         """Clean-up from Settings. Each action is one undo step.
@@ -688,7 +759,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             for src in chain['macros']+chain['mods']:src['targets']=[]
             return chain
         if action=='all':
-            self.stop(); self.project=Project();self.init_workflow(); self.mutation_sessions.clear(); self.configure(); return
+            self.stop(); self.project=Project();self.init_workflow(); self.mutation_sessions.clear(); self.factory_sounds(); return
         if action=='links':
             for i,t in enumerate(self.project.tracks):
                 if 'fx' in t:t['fx']=validate_fx(unlinked(copy.deepcopy(t['fx']))); self.fx[i].configure(t['fx'])
@@ -1704,10 +1775,19 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # It never alters a pad, SONG notes, the FX chain, or playback state.
             self.send_buses.mix_into(mix,right,self.project.bpm,abs_start/self.fpb)
             self._render_sample_preview_into(mix,right,n)
-            # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,
-            # instead of flattening the peaks (hard clipping sounds like crackle).
+            # Master: the C stage below; without it (an older library, or the mono render) the old limiter turns
+            # the mix down when it would go over 0.9 and lets go over ~40 ms (hard clipping sounds like crackle).
             g=self.limit
-            if stereo and not click_on:
+            master=getattr(self,'master',None)
+            if master is None:master=self.master=MasterStage(self.rate)
+            if stereo and master.available and self.master_enabled:
+                # The master stage in C (fx.MasterStage): makeup, glue, tone polish, true-peak limiter.
+                if click_on:
+                    mix[:]=[m+(c*.25 if c is not None else 0.) for m,c in zip(mix,click)]
+                    right[:]=[m+(c*.25 if c is not None else 0.) for m,c in zip(right,click)]
+                mastered=master.process(mix,right); click=()
+            else:mastered=None
+            if mastered is None and stereo and not click_on:
                 # No metronome click in this block. The limiter gain only recovers upward, so if the loudest
                 # sample still fits under 0.9 at the block's final gain, nothing is limited and the gain is
                 # a fixed curve: apply it to whole lists instead of sample by sample.
@@ -1730,7 +1810,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 x*=g
                 mix[j]=x if -.95<x<.95 else math.tanh(x)
             self.limit=g
-            result.extend(chain.from_iterable(zip(mix,right)) if stereo else mix)
+            result.extend(mastered if mastered is not None else chain.from_iterable(zip(mix,right)) if stereo else mix)
             if self.playing:self.frame+=n
             self.absolute_frame+=n
             self._event_frame=None

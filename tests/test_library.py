@@ -8,11 +8,11 @@ from decksynth.library import (PRESET_LIBRARY, CATEGORIES, FACTORY_PATTERNS, BAN
 
 
 class LibraryTests(unittest.TestCase):
-    def test_hundred_unique_presets_in_ten_categories(self):
-        self.assertEqual(len(PRESET_LIBRARY), 100)
-        self.assertEqual(len({p['name'] for p in PRESET_LIBRARY}), 100)
+    def test_hundred_fifty_unique_presets_in_ten_categories(self):
+        self.assertEqual(len(PRESET_LIBRARY), 150)
+        self.assertEqual(len({p['name'] for p in PRESET_LIBRARY}), 150)
         for c in CATEGORIES:
-            self.assertEqual(sum(p['category'] == c for p in PRESET_LIBRARY), 10, c)
+            self.assertEqual(sum(p['category'] == c for p in PRESET_LIBRARY), 15, c)
         for legacy in ['Warm Keys', 'Bass', 'Atmospheric Pad', 'Bell', 'Evolving Texture']:
             self.assertIn(legacy, {p['name'] for p in PRESET_LIBRARY})
 

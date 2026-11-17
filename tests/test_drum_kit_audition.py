@@ -71,6 +71,7 @@ class KitPreviewTests(unittest.TestCase):
         self.assertEqual(self.engine.project.data(),original,'preview must not modify the music')
         self.assertEqual(len(self.engine.history),history)
         service.stop_preview()
+        self.engine.render_stereo(12000)  # the master stage's look-ahead and 20 Hz rumble filter let the last of it out
         block=self.engine.render_stereo(2048)
         self.assertLess(max(map(abs,block)),1e-5,'stop audition silences native preview')
         self.assertEqual(self.engine.project.data(),original)

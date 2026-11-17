@@ -269,7 +269,7 @@ def worker(commands,updates):
     latency=LatencyGovernor('auto',time.monotonic()); load_peak=0.; load_shown=0.; load_since=time.monotonic()
     priority=raise_audio_priority()
     try:
-        try:audio=Audio(); engine=Engine(audio.rate)
+        try:audio=Audio(); engine=Engine(audio.rate); engine.factory_sounds()
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
         library=DrumLibraryService(engine,data_directory())
         if not library.snapshot()['root']:

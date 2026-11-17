@@ -8,7 +8,8 @@ class SpectralS5(unittest.TestCase):
  def engine(self):
   e=Engine();e.voice_on(0,60,100,('test',0));return e
  def test_center_sum_preserves_mono_pcm_and_scheduler(self):
-  a=self.engine();b=self.engine();mono=a.render(4096);st=b.render_stereo(4096)
+  a=self.engine();b=self.engine();b.master_enabled=False  # the raw mix: the master stage is tested on its own
+  mono=a.render(4096);st=b.render_stereo(4096)
   self.assertEqual(len(st),8192);self.assertEqual([l+r for l,r in zip(st[::2],st[1::2])],mono)
   self.assertEqual(a.absolute_frame,b.absolute_frame)
  def test_pan_endpoints_and_modulation_are_real_pcm(self):
@@ -41,7 +42,11 @@ class SpectralS5(unittest.TestCase):
   e=Engine()
   for t in range(4):
    for n in range(48,64):e.voice_on(t,n,127,('load',t,n))
-  a=e.render_stereo(12000);self.assertLessEqual(max(map(abs,a)),.95);self.assertLessEqual(max(abs(l+r) for l,r in zip(a[::2],a[1::2])),.95)
+  a=e.render_stereo(12000)
+  if e.master.available:
+   # the C master stage: no sample past its -1 dBTP ceiling, and it really is that loud (no headroom thrown away)
+   self.assertLessEqual(max(map(abs,a)),10**(-1/20)+1e-12);self.assertGreater(max(map(abs,a)),.8)
+  else:self.assertLessEqual(max(map(abs,a)),.95);self.assertLessEqual(max(abs(l+r) for l,r in zip(a[::2],a[1::2])),.95)
  def test_project_recall_and_stereo_wav_export(self):
   e=self.engine();e.project.tracks[0]['instrument']['pan']=-1.;e.project.tracks[0]['notes']=[dict(start=0.,duration=.25,note=60,velocity=100)]
   with tempfile.TemporaryDirectory() as d:
@@ -73,7 +78,7 @@ class SpectralS5(unittest.TestCase):
   self.assertLess(max(abs(a-b) for a,b in zip(out[10000:],out[10001:])),.02)
  def test_pan_changes_slew_without_channel_steps(self):
   from unittest.mock import patch
-  e=Engine();e.project.tracks[0]['volume']=1.;e.project.tracks[0]['instrument']['pan']=-1.
+  e=Engine();e.master_enabled=False;e.project.tracks[0]['volume']=1.;e.project.tracks[0]['instrument']['pan']=-1.
   with patch.object(e.synths[0],'render',side_effect=lambda n:[.2]*n):
    e.render_stereo(128);e.project.tracks[0]['instrument']['pan']=1.;a=e.render_stereo(128)
    self.assertGreater(a[0],.19);self.assertLess(a[1],.01);self.assertLess(max(abs(x-y) for x,y in zip(a[::2],a[2::2])),.002)
@@ -81,7 +86,13 @@ class SpectralS5(unittest.TestCase):
  def test_unsupported_stereo_kernel_rejects_enabled_new_controls(self):
   from unittest.mock import patch
   from decksynth import fx
-  legacy=fx._load(legacy=True)
+  class NoStereo:
+   # An older library without the stereo kernel (a freshly built libdsfx.so has it, so hide it).
+   def __init__(self,lib):self.lib=lib
+   def __getattr__(self,k):
+    if k=='dsfx_process_stereo':raise AttributeError(k)
+    return getattr(self.lib,k)
+  legacy=NoStereo(fx._load(legacy=True))
   for module,key in [('cloud','mix'),('chorus','width'),('chorus','haas'),('delay','width'),('reverb','width')]:
    c=default_chain();m=next(m for m in c['modules'] if m['id']==module);m['on']=True;m['params'][key]=.01
    with patch.object(fx,'_load',return_value=legacy):

@@ -116,9 +116,9 @@ class SpectralS4(unittest.TestCase):
   e=Engine();e.project.tracks[0]['instrument'].update(harmonics=[1.]*16,filter=.5,velocity_brightness=1.,modulation=0.)
   e.configure();e.voice_on(0,57,30,('quiet',0));e.render(256)
   quiet=e.fx_live(0).get('partials');self.assertIsNotNone(quiet)
-  self.assertAlmostEqual(quiet[7],.001188,places=6)
+  self.assertAlmostEqual(quiet[7],.000319,places=6)  # 17 Nov: Vel bright also tilts the spectrum
   e.voice_on(0,57,110,('loud',0));e.render(256);loud=e.fx_live(0)['partials']
-  self.assertAlmostEqual(loud[7],.964658,places=6);self.assertEqual(e.project.tracks[0]['instrument']['harmonics'],[1.]*16)
+  self.assertAlmostEqual(loud[7],.826341,places=6);self.assertEqual(e.project.tracks[0]['instrument']['harmonics'],[1.]*16)
 
  def test_new_optional_fields_reject_invalid_values_without_legacy_migration(self):
   fields={'play_mode':1,'glide':.3,'pitch':3.,'velocity_brightness':.2,'velocity_cutoff':.3,'vcf_keytrack':.7}

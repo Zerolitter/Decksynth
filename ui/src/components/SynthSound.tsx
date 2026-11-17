@@ -163,6 +163,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           {K('focus_center','Focus on',spectral('focus_center'),1,16,{step:1,precision:0,onChange:v=>set('focus_center',Math.round(v))})}
           {K('pitch','Pitch',vp('pitch'),-12,12,{step:.01,suffix:'st',onChange:v=>set('pitch',v)})}
           {K('velocity_brightness','Vel bright',vp('velocity_brightness'),-1,1,{suffix:'%',onChange:v=>set('velocity_brightness',v)})}
+          {K('air','Air',vp('air'),0,1,{suffix:'%',description:'Partials past 16: low notes keep their top end.',onChange:v=>set('air',v)})}
         </div>,{reset:()=>(['curve','balance','focus','focus_center'] as const).forEach(k=>set(k,SPECTRAL_NEUTRAL[k]))})}
         {card('sound-unison','Unison',TAGS.unison,<>
           <Seg name="Unison voices" value={vp('uni_voices')} onPick={v=>set('uni_voices',v)} options={UNISON_VOICES.map(n=>({label:String(n),value:n,aria:n+(n===1?' voice':' voices')}))}/>
@@ -175,13 +176,16 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           {K('decay','Decay',p.decay,.001,3,{step:.001,suffix:'s',onChange:v=>set('decay',v)})}
           {K('sustain','Sustain',p.sustain,0,1,{suffix:'%',onChange:v=>set('sustain',v)})}
           {K('release','Release',p.release,.01,3,{suffix:'s',onChange:v=>set('release',v)})}
-        </div>,{reset:()=>{set('attack',.008);set('decay',.6);set('sustain',.35);set('release',.5);}})}
+          {K('env_curve','Shape',vp('env_curve'),0,1,{suffix:'%',description:'0: decay and release fall in a straight line (loud, then a drop at the end). Up: they fade evenly to the ear, like a struck string.',onChange:v=>set('env_curve',v)})}
+        </div>,{reset:()=>{set('attack',.008);set('decay',.6);set('sustain',.35);set('release',.5);set('env_curve',0);}})}
         {card('motion-synth','Play',TAGS.movement,<>
           <Seg name="Voice mode" value={vp('play_mode')} onPick={v=>set('play_mode',v)} options={['Poly','Mono','Legato'].map((label,value)=>({label,value}))}/>
           <div className="ss-knobs">
             {K('glide','Glide',vp('glide'),0,2,{step:.001,suffix:'s',onChange:v=>set('glide',v)})}
             {K('modulation','Movement',p.modulation,0,1,{id:'tone-motion',suffix:'%',description:'Vibrato and tremolo. The mod wheel adds to it.',onChange:v=>set('modulation',v)})}
-          </div></>,{reset:()=>{set('modulation',.08);set('glide',0);set('play_mode',0);}})}
+            {K('drift','Drift',vp('drift'),0,1,{suffix:'%',description:'Each note gets its own start and a few cents of its own tuning, like an analog synth.',onChange:v=>set('drift',v)})}
+            {K('vel_curve','Dynamics',vp('vel_curve'),0,1,{suffix:'%',description:'How much softer a soft note is. 0: the old straight line; up: more like a real piano.',onChange:v=>set('vel_curve',v)})}
+          </div></>,{reset:()=>{set('modulation',.08);set('glide',0);set('play_mode',0);set('drift',0);set('vel_curve',0);}})}
         {sends?card('sound-sends','Sends',TAGS.sends,sends,{action:sendsAction}):null}
       </div>
       <div className="ss-col">

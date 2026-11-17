@@ -258,6 +258,8 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
   glide:{label:'Glide',card:'rack-output',min:0,max:2},vcf_keytrack:{label:'Key track',card:'sound-filter',min:0,max:1},
   velocity_cutoff:{label:'Velocity cutoff',card:'sound-filter',min:-1,max:1},
   character:{label:'Character',card:'sound-character',min:-1,max:1},
+  air:{label:'Air',card:'sound-tone',min:0,max:1},env_curve:{label:'Envelope shape',card:'rack-envelope',min:0,max:1},
+  drift:{label:'Drift',card:'motion-synth',min:0,max:1},vel_curve:{label:'Dynamics',card:'motion-synth',min:0,max:1},
 };
 export const SOUND_COLOR='#ddbd82';
 /** Name, knob label and colour of a link target, for lists and badges. */

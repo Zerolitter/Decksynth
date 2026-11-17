@@ -4,6 +4,7 @@ The chain model mirrors ui/src/fx.ts. If the library cannot load, FX are bypasse
 and the synth keeps working exactly as before.
 """
 import ctypes
+from array import array
 import math
 from pathlib import Path
 
@@ -60,6 +61,8 @@ SOUND_PARAMS = {
     'character': (-1, 1), 'vcf_morph': (0, 1),
     'pitch':(-12,12),'glide':(0,2),'velocity_brightness':(-1,1),'velocity_cutoff':(-1,1),'vcf_keytrack':(0,1),
     'fenv_a': (.001, 3), 'fenv_d': (.001, 3), 'fenv_s': (0, 1), 'fenv_r': (.01, 3),
+    # Full sound (17 Nov): Curve, Air, Drift, Dynamics
+    'env_curve': (0, 1), 'air': (0, 1), 'drift': (0, 1), 'vel_curve': (0, 1),
 }
 # The first ten are the original shapes; the 32 after them were added 15 Nov (Sir: shapes for sound
 # modulation), shown in the editor as pages of 2 x 5: Curves, Envelopes, Gates & rhythm, Random.
@@ -232,6 +235,17 @@ def _load(legacy=False):
                 D = ctypes.POINTER(ctypes.c_double)
                 lib.dsfx_voice.argtypes = [D, ctypes.c_int, D, D, D, ctypes.c_int] + [ctypes.c_double] * 6
                 lib.dsfx_voice.restype = ctypes.c_int
+            if hasattr(lib, 'dsfx_voice_curve'):  # curved decay and release
+                D = ctypes.POINTER(ctypes.c_double)
+                lib.dsfx_voice_curve.argtypes = [D, ctypes.c_int, D, D, D, ctypes.c_int] + [ctypes.c_double] * 7
+                lib.dsfx_voice_curve.restype = ctypes.c_int
+            if hasattr(lib, 'dsfx_master'):  # the master stage on the stereo mix
+                lib.dsfx_master_create.restype = ctypes.c_void_p; lib.dsfx_master_create.argtypes = [ctypes.c_double]
+                lib.dsfx_master_destroy.argtypes = [ctypes.c_void_p]
+                lib.dsfx_master_set.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.c_double]
+                lib.dsfx_master_gr.argtypes = [ctypes.c_void_p]; lib.dsfx_master_gr.restype = ctypes.c_double
+                lib.dsfx_master.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+                lib.dsfx_master_i.argtypes = [ctypes.c_void_p] + [ctypes.POINTER(ctypes.c_double)] * 3 + [ctypes.c_int]
             if hasattr(lib,'dsfx_gate_controls'):
                 lib.dsfx_gate_controls.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_int]
                 lib.dsfx_gate_beat.argtypes=[ctypes.c_void_p];lib.dsfx_gate_beat.restype=ctypes.c_double
@@ -269,7 +283,8 @@ class DsVoice(ctypes.Structure):
                 ('sus', ctypes.c_double), ('rel', ctypes.c_double), ('released', ctypes.c_int), ('uni', ctypes.c_int),
                 ('detune', ctypes.c_double), ('ftype', ctypes.c_int), ('cutoff', ctypes.c_double), ('reso', ctypes.c_double),
                 ('envamt', ctypes.c_double), ('rate', ctypes.c_double), ('weights', ctypes.POINTER(ctypes.c_double)),
-                ('npart', ctypes.c_int), ('stretch', ctypes.c_double), ('sub', ctypes.c_double), ('suboct', ctypes.c_int)]
+                ('npart', ctypes.c_int), ('stretch', ctypes.c_double), ('sub', ctypes.c_double), ('suboct', ctypes.c_int),
+                ('curve', ctypes.c_double)]  # last, so older libraries just never read it
 
 def native_voice2():
     """The C voice renderer with the Filter, Unison and Character cards, or None."""
@@ -280,6 +295,38 @@ def native_voice():
     """The C voice renderer, or None when the native library is missing or older."""
     lib = _load(legacy=True)
     return lib.dsfx_voice if lib and hasattr(lib, 'dsfx_voice') else None
+
+def native_voice_curve():
+    """The C voice renderer with the curved decay and release, or None."""
+    lib = _load(legacy=True)
+    return lib.dsfx_voice_curve if lib and hasattr(lib, 'dsfx_voice_curve') else None
+
+class MasterStage:
+    """The master stage on the stereo mix (dsfx_master in dsfx.c): makeup gain, a gentle glue, the tone
+    polish (20 Hz high-pass, -1.2 dB at 3.2 kHz, 18.5 kHz low-pass) and a look-ahead true-peak limiter at
+    -1 dBTP. available is False with an older library; the engine then keeps its old Python limiter."""
+    TRIM = 2.8       # +9 dB: the centre pan law put every track at half level and the mix sat far below full scale
+    DRIVE = .3       # glue: the loudest peaks bend a little before the limiter
+    CEILING = -1.    # dBTP
+    def __init__(self, rate):
+        lib = _load()
+        self.lib = lib if lib and hasattr(lib, 'dsfx_master') else None
+        self.handle = self.lib.dsfx_master_create(float(rate)) if self.lib else None
+        self.available = bool(self.handle)
+        if self.available: self.lib.dsfx_master_set(self.handle, self.TRIM, self.DRIVE, self.CEILING)
+    def process(self, left, right):
+        """Run the stage over the two channel lists; returns them interleaved (L R L R ...), as the audio
+        queue takes them. The lists go to C through array buffers, which is several times faster than
+        filling a ctypes array item by item."""
+        n = len(left)
+        a = array('d', left); b = array('d', right); out = array('d', bytes(16 * n))
+        D = ctypes.c_double * n
+        self.lib.dsfx_master_i(self.handle, D.from_buffer(a), D.from_buffer(b), (ctypes.c_double * (2 * n)).from_buffer(out), n)
+        return out.tolist()
+    def reduction(self):
+        return self.lib.dsfx_master_gr(self.handle) if self.available else 0.
+    def __del__(self):
+        if getattr(self, 'handle', None) and self.lib: self.lib.dsfx_master_destroy(self.handle)
 
 def build_table(weights, norm, size):
     """An additive wavetable in C, or None when the native library is missing or older."""
