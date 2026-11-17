@@ -87,54 +87,70 @@ const { launch } = require('./usability-harness.cjs');
         assert.deepEqual(log.at(-1).args, [0xe0, 0, 64]);
       } finally { if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click(); }
     });
-    await check('drum range defaults to MIDI 36–51 without changing saved music', async () => {
+    // The viewed range is the Seq "View" value box (Performance.tsx): wheel after one click, hold-and-drag on touch, arrows, typing.
+    const viewBox = page.locator('.pf-view-oct').getByRole('spinbutton', { name: 'View', exact: true });
+    const viewText = () => viewBox.locator('.vbox-value').textContent();
+    const viewIs = text => page.waitForFunction(t => document.querySelector('.pf-view-oct .vbox-value')?.textContent === t, text);
+    await check('drum range opens on MIDI 36–47 (12 of 16 rows) without changing saved music', async () => {
       for (const size of [718, 800, 718]) {
         await height(size);
         await send('set_device', [0, 'synth']);
         await page.waitForFunction(() => (window.usabilityState.state.tracks[0].device ?? 'synth') === 'synth');
         await send('set_device', [0, 'drum_rack']);
         await page.waitForFunction(() => window.usabilityState.state.tracks[0].device === 'drum_rack');
-        await page.getByRole('spinbutton', { name: 'Viewed octave' }).waitFor();
-        await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C2');
-        assert.deepEqual(await visible(), [51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36]);
+        await viewBox.waitFor();
+        await viewIs('C2');
+        assert.deepEqual(await visible(), [47,46,45,44,43,42,41,40,39,38,37,36]);  // the drum roll shows 12 of its 16 rows and scrolls
         assert.equal(await page.locator('.pf-piano [data-note="36"]').count(), 1);
         await shot('drum-c2', size);
       }
     });
-    await check('octave wheel, captured touch drag and keyboard change views only and remember each track', async () => {
+    await check('View box: wheel, held touch drag, arrows and typing change views only and remember each track', async () => {
       const before = await musicalState();
-      const nav = page.locator('.pf-oct');
-      const label = page.getByRole('spinbutton', { name: 'Viewed octave' });
-      await move(await point(nav));
+      await viewBox.click();                       // one click arms it for the wheel
       await page.mouse.wheel(0, -120);
-      await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C3');
-      const p = await point(label);
+      await viewIs('C3');
+      const p = await point(viewBox);
       const cdp = await page.context().newCDPSession(page);
       try {
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] });
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: p.x, y: p.y - 36 }] });
+        await page.waitForTimeout(350);            // touch holds first (220 ms), then drags
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: p.x, y: p.y - 20 }] });
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       } finally { await cdp.detach(); }
-      await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C4');
-      await label.focus(); await page.keyboard.press('ArrowDown');
-      await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C3');
+      await viewIs('C4');
+      await viewBox.focus(); await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(600);
+      await viewIs('C3');
       const normalWheel = await grid.evaluate(el => {
         const e = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 75 });
         el.dispatchEvent(e); return !e.defaultPrevented;
       });
       assert.ok(normalWheel, 'the ordinary grid wheel is left to native scrolling');
-      assert.equal(await label.textContent(), 'C3', 'wheel outside octave control retains normal grid scrolling');
+      assert.equal(await viewText(), 'C3', 'wheel outside the View box retains normal grid scrolling');
+      // Each track remembers its own view: move track 2's by one octave, go back to track 1 and return.
       await send('select', 1); await page.waitForFunction(() => window.usabilityState.selected === 1);
-      await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C4');
+      const octaveOf = async () => Number(await viewBox.getAttribute('aria-valuenow'));
+      await page.waitForTimeout(600);
+      const other = await octaveOf();
+      await viewBox.focus(); await page.keyboard.press('ArrowUp');
+      await page.waitForFunction(o => Number(document.querySelector('.pf-view-oct [role="spinbutton"]')?.getAttribute('aria-valuenow')) === o + 1, other);
+      await page.waitForTimeout(500);
       await send('select', 0); await page.waitForFunction(() => window.usabilityState.selected === 0);
-      await page.waitForFunction(() => document.querySelector('.pf-oct [role="spinbutton"]')?.textContent === 'C3');
+            await viewIs('C3');
+      await send('select', 1); await page.waitForFunction(() => window.usabilityState.selected === 1);
+      assert.equal(await octaveOf(), other + 1);
+      await send('select', 0); await page.waitForFunction(() => window.usabilityState.selected === 0);
+      await viewIs('C3');
       assert.equal(await musicalState(), before);
-      await label.focus(); await page.keyboard.press('End');
-      assert.equal(await label.getAttribute('aria-valuenow'), '8');
-      await page.keyboard.press('ArrowUp');
-      assert.equal(await label.getAttribute('aria-valuenow'), '8');
-      await page.keyboard.press('Home');
-      assert.equal(await label.getAttribute('aria-valuenow'), '-1');
+      const type = async text => { await viewBox.focus(); await page.keyboard.press('Enter'); const entry = page.locator('.pf-view-oct input.vbox-input'); await entry.fill(text); await entry.press('Enter'); };
+      await type('9');                             // above the top: stops at 8
+      await page.waitForFunction(() => document.querySelector('.pf-view-oct [role="spinbutton"]')?.getAttribute('aria-valuenow') === '8');
+      await viewBox.focus(); await page.keyboard.press('ArrowUp');
+      await page.waitForTimeout(500);
+      assert.equal(await viewBox.getAttribute('aria-valuenow'), '8');
+      await type('-5');                            // below the bottom: stops at -1
+      await page.waitForFunction(() => document.querySelector('.pf-view-oct [role="spinbutton"]')?.getAttribute('aria-valuenow') === '-1');
     });
     await check('range change and blur release a touch-key audition', async () => {
       await send('set_device', [0, 'synth']);
@@ -142,7 +158,7 @@ const { launch } = require('./usability-harness.cjs');
       await commands();
       const key = page.locator('.pf-piano [data-note="48"]');
       await move(await point(key, { y: 100 })); await page.mouse.down();
-      try { await page.getByRole('button', { name: 'Show higher notes' }).evaluate(el => el.click()); }
+      try { await viewBox.evaluate(el => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))); await page.waitForTimeout(700); }
       finally { await page.mouse.up(); }
       let log = (await commands()).filter(c => c.cmd === 'midi');
       assert.deepEqual(log.map(c => [c.args[0] & 0xf0, c.args[1]]), [[0x90,48],[0x80,48]]);

@@ -7,6 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Flush-to-zero / denormals-are-zero: a decaying reverb or filter tail never slows the CPU down. x86 only (the Deck). */
+#if defined(__SSE__) || defined(__x86_64__)
+#include <xmmintrin.h>
+static inline void ds_ftz(void) { _mm_setcsr(_mm_getcsr() | 0x8040); }
+#else
+static inline void ds_ftz(void) {}
+#endif
+
 #define NMOD 22
 #define NPAR 6
 #define PI 3.14159265358979323846
@@ -697,7 +705,7 @@ static void run_module(FxTrack *t, int m, double *b, int n, const double *p, dou
  * params: NMOD*NPAR values (by module id).
  * The block runs in 16-sample chunks: parameters glide from last block's values to these, and an effect
  * that is switched on or off crossfades with the dry sound over 10 ms. Jumps in either click. */
-void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on, const double *params, double bpm) {
+void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on, const double *params, double bpm) { ds_ftz();
     if (bpm < 20) bpm = 120;
     if (!t->pinit) { memcpy(t->pcur, params, sizeof(t->pcur)); t->pinit = 1;
         for (int m = 0; m < NMOD; m++) t->onamt[m] = 0; }  /* fresh state: every effect fades in */
@@ -735,7 +743,7 @@ void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on,
 
 /* One stereo chain loop: order, parameter smoothing and gate offsets are shared.
  * Each channel owns its histories; ping-pong couples only delay feedback. */
-void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,const int *order,const int *on,const double *params,double bpm) {
+void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,const int *order,const int *on,const double *params,double bpm) { ds_ftz();
     if(bpm<20)bpm=120;
     if(!l->pinit){memcpy(l->pcur,params,sizeof(l->pcur));l->pinit=1;}
     if(!r->pinit){memcpy(r->pcur,params,sizeof(r->pcur));r->pinit=1;}
@@ -928,9 +936,9 @@ static int voice_ext(double *out, int n, const double *tab, const double *prev, 
     return result;
 }
 
-int dsfx_voice2(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v) {
+int dsfx_voice2(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v) { ds_ftz();
     return voice_ext(out,n,tab,prev,st,v,NULL);
 }
-int dsfx_voice3(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f) {
+int dsfx_voice3(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f) { ds_ftz();
     return voice_ext(out,n,tab,prev,st,v,f);
 }

@@ -7,6 +7,9 @@ import math
 import os
 from pathlib import Path
 import struct
+from functools import lru_cache
+from itertools import chain
+from operator import add
 from . import song as songs
 from . import sends as send_buses
 from .devices import device_kind
@@ -570,6 +573,11 @@ def voice2_py(out,n,tab,prev,st,c,f=None):
 
 RESONATOR=FX_ORDER.index('resonator')
 from .keystep import SCALES as KEY_SCALES
+
+@lru_cache(maxsize=8)
+def _limit_curve(n):
+    """How far the master limiter's gain has recovered after 1..n samples: (1-g) shrinks by .9995 each sample."""
+    return tuple(.9995**(j+1) for j in range(n))
 
 from .workflow import WorkflowEngine
 from .note_edit import NoteEditEngine
@@ -1670,12 +1678,23 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
                         left_audio,right_audio=audio;current=pan if self._pan_state[tr] is None else self._pan_state[tr]
                         step=2/max(1,.005*self.rate)
-                        for j,(l,r) in enumerate(zip(left_audio,right_audio)):
-                            current+=min(step,max(-step,pan-current))
+                        if not any(left_audio) and not any(right_audio):
+                            current=pan  # a silent block adds nothing: the pan glide has nothing to smooth
+                        elif current==pan:
+                            # Pan has settled: the gains are constant over the block, so mix whole lists at once
+                            # (same arithmetic, same order, as the per-sample loop below).
                             gl=vol*(1-current)*.5;gr=vol*(1+current)*.5
-                            mix[j]+=l*gl;right[j]+=r*gr
+                            mix[:]=[m+l*gl for m,l in zip(mix,left_audio)];right[:]=[m+r*gr for m,r in zip(right,right_audio)]
                             for bus,a in feeds:
-                                bl,br=bus_in[bus];bl[j]+=l*gl*a;br[j]+=r*gr*a
+                                bl,br=bus_in[bus]
+                                bl[:]=[b+l*gl*a for b,l in zip(bl,left_audio)];br[:]=[b+r*gr*a for b,r in zip(br,right_audio)]
+                        else:
+                            for j,(l,r) in enumerate(zip(left_audio,right_audio)):
+                                current+=min(step,max(-step,pan-current))
+                                gl=vol*(1-current)*.5;gr=vol*(1+current)*.5
+                                mix[j]+=l*gl;right[j]+=r*gr
+                                for bus,a in feeds:
+                                    bl,br=bus_in[bus];bl[j]+=l*gl*a;br[j]+=r*gr*a
                         self._pan_state[tr]=current
                     else:
                         for j,v in enumerate(audio):mix[j]+=v*vol
@@ -1689,6 +1708,14 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,
             # instead of flattening the peaks (hard clipping sounds like crackle).
             g=self.limit
+            if stereo and not any(c is not None for c in click):
+                # No metronome click in this block. The limiter gain only recovers upward, so if the loudest
+                # sample still fits under 0.9 at the block's final gain, nothing is limited and the gain is
+                # a fixed curve: apply it to whole lists instead of sample by sample.
+                peak=max(max(map(abs,mix),default=0.),max(map(abs,right),default=0.),max(map(abs,map(add,mix,right)),default=0.))
+                gone=1.-g;curve=[1.-gone*p for p in _limit_curve(n)]
+                if peak*curve[-1]<=.9:
+                    mix[:]=[m*k for m,k in zip(mix,curve)];right[:]=[m*k for m,k in zip(right,curve)];g=curve[-1];click=()
             for j,c in enumerate(click):
                 x=mix[j]+(c if c is not None else 0.)
                 if stereo:
@@ -1704,7 +1731,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                 x*=g
                 mix[j]=x if -.95<x<.95 else math.tanh(x)
             self.limit=g
-            result.extend([v for pair in zip(mix,right) for v in pair] if stereo else mix)
+            result.extend(chain.from_iterable(zip(mix,right)) if stereo else mix)
             if self.playing:self.frame+=n
             self.absolute_frame+=n
             self._event_frame=None

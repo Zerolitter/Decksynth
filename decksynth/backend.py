@@ -177,6 +177,33 @@ def reuse_freeze(path,engine,tr,mode,fp):
         FrozenAudio(meta).close();return meta
     except (OSError,ValueError,TypeError):return None
 
+def raise_audio_priority():
+    """Ask the system to schedule the audio thread ahead of the screen, the browser and everything else.
+    Returns a short sentence saying what took effect (shown in the status as 'priority').
+    1. rtkit (the desktop's realtime service, running on the Deck): nice -15 for this thread. Only the high-priority
+       call is used, never the realtime one: a realtime thread that keeps the CPU for 200 ms (loading a project) is killed.
+    2. Without rtkit (no busctl, for instance inside a sandbox): raise the soft nice limit up to the hard one and nice by -5.
+       A plain os.nice(-5) fails on the Deck because the soft limit starts at 0."""
+    import shutil,subprocess,threading
+    pid=os.getpid()
+    try:
+        before=os.getpriority(os.PRIO_PROCESS,0)
+        busctl=shutil.which('busctl')
+        if busctl:
+            subprocess.run([busctl,'--system','call','org.freedesktop.RealtimeKit1','/org/freedesktop/RealtimeKit1','org.freedesktop.RealtimeKit1',
+                            'MakeThreadHighPriorityWithPID','tti',str(pid),str(threading.get_native_id()),'--','-15'],
+                           capture_output=True,timeout=2)
+            now=os.getpriority(os.PRIO_PROCESS,threading.get_native_id())
+            if now<before:return 'rtkit: audio thread at nice %d'%now
+    except (OSError,AttributeError,subprocess.SubprocessError):pass
+    try:
+        import resource
+        soft,hard=resource.getrlimit(resource.RLIMIT_NICE)
+        if soft<hard:resource.setrlimit(resource.RLIMIT_NICE,(hard,hard))
+        os.nice(-5)
+        return 'nice -5 (no rtkit)'
+    except (OSError,AttributeError,ImportError,ValueError):return 'normal priority (the system did not allow a higher one)'
+
 def worker(commands,updates):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
@@ -200,8 +227,7 @@ def worker(commands,updates):
     # and a higher priority when the system allows it. dsp_load is the worst render time per block
     # over the last second, as a share of the block's own length (over 100 % means a dropout).
     target=1024; load_peak=0.; load_shown=0.; load_since=time.monotonic()
-    try:os.nice(-5)
-    except (OSError,AttributeError):pass
+    priority=raise_audio_priority()
     try:
         try:audio=Audio(); engine=Engine(audio.rate)
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
@@ -550,7 +576,7 @@ def worker(commands,updates):
                           drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
-                          dsp_load=round(load_shown,3),song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
+                          dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
                           meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,chord_step=engine.chord_step,chord_now=engine.chord_now,
                           arp_view=dict(arp_view(engine.project.performance,engine.perform_held.held(),engine.beat,engine.arp_anchor_beat),
                                         **(dict(step=-1,phase=-1) if engine.arp_paused else {}),paused=engine.arp_paused)
