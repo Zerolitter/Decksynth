@@ -1,0 +1,49 @@
+/* Design tokens: the one place for colours, radii, spacing and type sizes.
+   Every other file uses var(--ui-...) or var(--c-...). A test (tests/colour-tokens.mjs) fails when a file gets a raw
+   hex colour it didn't have before, so new UI uses these names and old raw colours only ever go away.
+
+   Rules (UI-RULES 5b, Perform restyle 17 Nov): surfaces are neutral charcoal; colour marks live or active state only;
+   the selected/active accent is warm orange; each page, mode and tool keeps one section colour everywhere. */
+:root{
+  /* Charcoal ramp, darkest to lightest: backgrounds, surfaces, lines, then text. */
+  --ui-black:#0d0e10;       /* key beds, deepest wells */
+  --ui-bg:#101113;          /* the app background */
+  --ui-well:#16181b;        /* sunken areas inside a panel */
+  --ui-surface:#1b1d21;     /* panels and cards */
+  --ui-surface-hi:#22252a;  /* buttons and raised rows on a panel */
+  --ui-raised:#282b30;      /* hover, pressed and popovers */
+  --ui-line-soft:#2e3238;   /* quiet dividers */
+  --ui-line:#3a3e45;        /* edges of controls */
+  --ui-line-strong:#4a4f57; /* hover / focus edges */
+  --ui-text-faint:#636a72;  /* disabled */
+  --ui-text-dim:#80868d;    /* hints, units */
+  --ui-text-3:#9aa0a6;      /* labels */
+  --ui-text-2:#b7bdc6;      /* secondary text */
+  --ui-text-1:#d8dce0;      /* values */
+  --ui-text:#e5e8ec;        /* body text */
+  --ui-text-hi:#f4f5f7;     /* titles, active labels */
+  --ui-white:#ffffff;
+  --ui-black-pure:#000000;
+
+  /* State. Orange = selected or active (rule 40); play green and rec red on the transport (rule 52). */
+  --ui-accent:#ddbd82;  --ui-accent-strong:#f2a65a;
+  --ui-accent-bg:#3d3529; --ui-accent-edge:#bfa87e; --ui-accent-dim:#9a835b; --ui-accent-deep:#514631;
+  --ui-play:#6ad8b4; --ui-rec:#d0646e; --ui-rec-soft:#f3a3a3; --ui-warn:#e7c46a;
+
+  /* Section colours (rule 25): pages, Perform modes, tools. */
+  --c-song:#6de4bb; --c-sound:#ddbd82; --c-fx:#b99af5; --c-perform:#5cc8f5;
+  --c-seq:#5cc8f5; --c-arp:#6eedb8; --c-chord:#f07cc0;
+  --t-mutate:#e47cf5; --t-reset:#9fb4c8; --t-double:#6fa8ff; --t-more:#c3cfd6; --t-nudge:#4fd1e8;
+  --t-oct:#61e3bf; --t-dice:#ff8f5c; --t-library:#61ebbe; --t-scale:#e0b07e; --t-midi:#a7b4ff; --t-help:#ffd166; --t-seq:var(--c-seq);
+
+  /* Radii, spacing and type. */
+  --ui-r-sm:4px; --ui-r-md:8px; --ui-r-lg:12px; --ui-r-round:999px;
+  --ui-s-1:4px; --ui-s-2:8px; --ui-s-3:12px; --ui-s-4:16px; --ui-s-5:24px;
+  --ui-fs-xs:10px; --ui-fs-sm:12px; --ui-fs-md:13px; --ui-fs-lg:16px; --ui-fs-xl:20px;
+
+  /* Older names, kept so existing rules keep working. */
+  --app:var(--ui-bg); --panel:var(--ui-surface); --panel-hi:var(--ui-surface-hi); --raised:var(--ui-raised);
+  --inset:#101215; --line:var(--ui-line); --line-soft:var(--ui-line-soft); --text:var(--ui-text);
+  --soft:var(--ui-text-2); --muted:#a2aab4; --accent:var(--ui-accent); --amber:#80d9b9;
+  --red:#e78d88; --blue:#9ac0df; --shadow:rgba(0,0,0,.45);
+}

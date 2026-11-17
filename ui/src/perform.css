@@ -2,7 +2,7 @@
    Fixed rows so switching mode never moves the keyboard or resizes the panel. */
 .harness-shell .page-perform .page-body{overflow:hidden}
 .harness-shell .perform-page{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-.harness-shell .pf{--pf-line:#3a3e45;--pf-card:#1b1d21;--pf-deep:#101215;--pf-text:#e5e8ec;--pf-soft:#9aa3a8;
+.harness-shell .pf{--pf-line:var(--ui-line);--pf-card:var(--ui-surface);--pf-deep:var(--ui-bg);--pf-text:var(--ui-text);--pf-soft:var(--ui-text-3);
   position:relative;flex:1;min-height:0;display:grid;grid-template-rows:50px minmax(0,1fr) 128px;gap:8px;
   border:1px solid var(--pf-line);border-radius:11px;background:var(--pf-card);padding:0 8px 8px;user-select:none}
 .harness-shell .pf.keyboard-folded{grid-template-rows:50px minmax(0,1fr)}
@@ -14,24 +14,24 @@
 .harness-shell .pf.notes-expanded .pf-ctl{display:none}
 .harness-shell .pf.notes-expanded .pf-lane{grid-column:2}
 .harness-shell .pf-transfers{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:none}
-.harness-shell .pf-transfers>span{grid-column:1/-1;font-size:10px;line-height:14px;color:#b9bfc5;white-space:nowrap}
-.harness-shell .pf-transfers>button{min-height:44px;padding:2px 3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1px solid #3a3e45;border-radius:8px;background:#22252a;color:#d8dce0;font-size:11px;font-weight:700}
-.harness-shell .pf-transfers small{font-size:10px;color:#b9bfc5;font-weight:500}
+.harness-shell .pf-transfers>span{grid-column:1/-1;font-size:10px;line-height:14px;color:var(--ui-text-2);white-space:nowrap}
+.harness-shell .pf-transfers>button{min-height:44px;padding:2px 3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-surface-hi);color:var(--ui-text-1);font-size:11px;font-weight:700}
+.harness-shell .pf-transfers small{font-size:10px;color:var(--ui-text-2);font-weight:500}
 
 /* ---------- page bar tools ---------- */
 .harness-shell .pf-tool{min-height:44px;min-width:64px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:9px;
-  background:#1a2427;border:1px solid #38494f;color:#dadde1;font-weight:760;font-size:13px}
-.harness-shell .pf-tool.on{background:#514631;border-color:#9a835b;color:#f4dbb2;box-shadow:0 0 12px #ddbd8233}
-.harness-shell .pf-tool.panic{color:#f3a3a3;border-color:#5a3a3e}
+  background:#1a2427;border:1px solid #38494f;color:var(--ui-text-1);font-weight:760;font-size:13px}
+.harness-shell .pf-tool.on{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:#f4dbb2;box-shadow:0 0 12px #ddbd8233}
+.harness-shell .pf-tool.panic{color:var(--ui-rec-soft);border-color:#5a3a3e}
 .harness-shell .pf-tool.panic:active{background:#5a2a2e}
 
 /* ---------- header ---------- */
-.harness-shell .pf-head{display:flex;align-items:center;gap:8px;border-bottom:1px solid #2e3238;min-width:0}
-.harness-shell .pf-tabs{display:flex;gap:3px;padding:2px;border:1px solid #3a3e45;border-radius:9px;background:var(--pf-deep)}
+.harness-shell .pf-head{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ui-line-soft);min-width:0}
+.harness-shell .pf-tabs{display:flex;gap:3px;padding:2px;border:1px solid var(--ui-line);border-radius:9px;background:var(--pf-deep)}
 .harness-shell .pf-tabs button{position:relative;min-height:38px;min-width:84px;padding:0 10px;display:flex;align-items:center;gap:7px;border-radius:7px;
-  background:transparent;border:1px solid transparent;color:#aeb4ba;font-weight:760;font-size:13px}
-.harness-shell .pf-tabs button.active{background:#514631;border-color:#9a835b;color:#f2f4f6}
-.harness-shell .pf-led{width:7px;height:7px;border-radius:50%;background:#3a3e45;margin-left:auto}
+  background:transparent;border:1px solid transparent;color:var(--ui-text-2);font-weight:760;font-size:13px}
+.harness-shell .pf-tabs button.active{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:var(--ui-text-hi)}
+.harness-shell .pf-led{width:7px;height:7px;border-radius:50%;background:var(--ui-line);margin-left:auto}
 .harness-shell .pf-tabs button.live .pf-led{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .harness-shell .pf-head-tools{flex:1;min-width:0;display:flex;align-items:center;gap:8px;justify-content:center}
 .harness-shell .pf-head-tools .pf-seg button{min-width:54px;padding:0 8px}
@@ -39,16 +39,16 @@
   background:#1a2824;border:1px solid #3e816b;color:#a4ecd5;font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   box-shadow:0 8px 20px #0008;pointer-events:none}
 .harness-shell .pf-pick{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--pf-soft);text-transform:uppercase;letter-spacing:.4px}
-.harness-shell .pf-pick select{min-height:38px;border-radius:8px;background:#22252a;border:1px solid #3a3e45;color:var(--pf-text);
+.harness-shell .pf-pick select{min-height:38px;border-radius:8px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--pf-text);
   font-weight:700;font-size:13px;padding:0 8px;text-transform:none;letter-spacing:0}
 .harness-shell .pf-head .pf-tool{min-height:38px}
 
 /* ---------- body: controls + lane ---------- */
 .harness-shell .pf-body{position:relative;min-height:0;display:grid;grid-template-columns:236px minmax(0,1fr);gap:8px}
-.harness-shell .pf-ctl{min-height:0;display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:9px;background:var(--pf-deep);border:1px solid #2e3238}
+.harness-shell .pf-ctl{min-height:0;display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:9px;background:var(--pf-deep);border:1px solid var(--ui-line-soft)}
 .harness-shell .pf-power{min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:9px;
-  background:#22252a;border:1px solid #3a3e45;color:#ccd1d6;font-weight:800;font-size:13px}
-.harness-shell .pf-power.on{background:color-mix(in srgb,var(--accent) 22%,#22252a);border-color:var(--accent);color:#f4f5f7;
+  background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1);font-weight:800;font-size:13px}
+.harness-shell .pf-power.on{background:color-mix(in srgb,var(--accent) 22%,var(--ui-surface-hi));border-color:var(--accent);color:var(--ui-text-hi);
   box-shadow:0 0 14px color-mix(in srgb,var(--accent) 25%,transparent)}
 .harness-shell .pf-knobs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 2px;justify-items:center}
 .harness-shell .pf-knobs .knob-target{width:54px;height:54px}
@@ -56,12 +56,12 @@
 .harness-shell .pf-knobs .knob-value{font-size:10.5px;min-width:52px}
 .harness-shell .pf-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto}
 .harness-shell .pf-btn{min-height:40px;padding:0 8px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;
-  background:#22252a;border:1px solid #3a3e45;color:#d8dce0;font-weight:740;font-size:12.5px;white-space:nowrap}
+  background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1);font-weight:740;font-size:12.5px;white-space:nowrap}
 .harness-shell .pf-btn:disabled{opacity:.38}
-.harness-shell .pf-btn.on{background:#514631;border-color:#9a835b;color:#f2f4f6}
-.harness-shell .pf-btn.rec.on{background:#5a2a30;border-color:#d0646e;color:#ffe2e4}
-.harness-shell .pf-btn.primary{background:color-mix(in srgb,var(--accent) 24%,#22252a);border-color:var(--accent);color:#f4f5f7}
-.harness-shell .pf-btn.danger{color:#f3a3a3;border-color:#5a3a3e}
+.harness-shell .pf-btn.on{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:var(--ui-text-hi)}
+.harness-shell .pf-btn.rec.on{background:#5a2a30;border-color:var(--ui-rec);color:#ffe2e4}
+.harness-shell .pf-btn.primary{background:color-mix(in srgb,var(--accent) 24%,var(--ui-surface-hi));border-color:var(--accent);color:var(--ui-text-hi)}
+.harness-shell .pf-btn.danger{color:var(--ui-rec-soft);border-color:#5a3a3e}
 .harness-shell .pf-btn.wide{grid-column:span 2}
 .harness-shell .pf-btn:active{filter:brightness(1.25)}
 .harness-shell .pf-ctl-mutate .pf-knobs{grid-template-columns:1fr 1fr}
@@ -69,31 +69,31 @@
 
 .harness-shell .pf-lane{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;gap:6px}
 .harness-shell .pf-lane-bar,.harness-shell .pf-rate-quick{display:flex;align-items:center;gap:8px;min-height:40px}
-.harness-shell .pf-seg{display:flex;gap:3px;padding:2px;border:1px solid #3a3e45;border-radius:9px;background:var(--pf-deep)}
+.harness-shell .pf-seg{display:flex;gap:3px;padding:2px;border:1px solid var(--ui-line);border-radius:9px;background:var(--pf-deep)}
 .harness-shell .pf-seg button{min-height:34px;min-width:62px;padding:0 10px;border-radius:7px;background:transparent;border:1px solid transparent;
-  color:#aeb4ba;font-weight:740;font-size:12px}
-.harness-shell .pf-seg button.on{background:#514631;border-color:#9a835b;color:#f2f4f6}
+  color:var(--ui-text-2);font-weight:740;font-size:12px}
+.harness-shell .pf-seg button.on{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:var(--ui-text-hi)}
 .harness-shell .pf-seg button:disabled{opacity:.3}
 .harness-shell .pf-lane-info{flex:1;min-width:0;font-size:12px;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 .harness-shell .pf-oct{display:flex;align-items:center;gap:4px}
-.harness-shell .pf-oct button{width:44px;height:44px;display:grid;place-items:center;border-radius:8px;background:#22252a;border:1px solid #3a3e45;color:#d8dce0}
+.harness-shell .pf-oct button{width:44px;height:44px;display:grid;place-items:center;border-radius:8px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1)}
 .harness-shell .pf-oct span{min-width:44px;min-height:44px;display:grid;place-items:center;text-align:center;font-size:12px;font-weight:800;color:var(--pf-text);touch-action:none;cursor:ns-resize}
 
 /* step grid (Chordz style): one row per note, 16 steps per page */
 .harness-shell .pf-grid{flex:1;min-height:0;display:grid;grid-template-rows:16px repeat(var(--rows),minmax(0,1fr));
-  border-radius:9px;background:#0f1012;border:1px solid #2e3238;overflow:hidden}
+  border-radius:9px;background:var(--ui-bg);border:1px solid var(--ui-line-soft);overflow:hidden}
 .harness-shell .pf-grid-head,.harness-shell .pf-row{display:grid;grid-template-columns:40px repeat(16,minmax(0,1fr))}
-.harness-shell .pf-grid-head span{font-size:9.5px;font-weight:700;color:#636a72;text-align:center;line-height:16px}
-.harness-shell .pf-grid-head span.beat{color:#a2a9b0}
+.harness-shell .pf-grid-head span{font-size:9.5px;font-weight:700;color:var(--ui-text-faint);text-align:center;line-height:16px}
+.harness-shell .pf-grid-head span.beat{color:var(--ui-text-3)}
 .harness-shell .pf-grid-head span.live{color:var(--accent)}
 .harness-shell .pf-grid-head span.off{opacity:.25}
 .harness-shell .pf-grid-head em{font-style:normal;color:#7ce3c2;margin:0 2px}
-.harness-shell .pf-row{border-top:1px solid #202226}
-.harness-shell .pf-row.black{background:#0d0e10}
+.harness-shell .pf-row{border-top:1px solid var(--ui-surface-hi)}
+.harness-shell .pf-row.black{background:var(--ui-black)}
 .harness-shell .pf-row.root .pf-row-note{color:var(--accent)}
-.harness-shell .pf-row-note{display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;font-weight:700;color:#80868d}
-.harness-shell .pf-cell{position:relative;min-width:0;min-height:0;padding:0;border:0;border-left:1px solid #202226;background:transparent;border-radius:0}
-.harness-shell .pf-cell.beat{border-left-color:#30343a}
+.harness-shell .pf-row-note{display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;font-weight:700;color:var(--ui-text-dim)}
+.harness-shell .pf-cell{position:relative;min-width:0;min-height:0;padding:0;border:0;border-left:1px solid var(--ui-surface-hi);background:transparent;border-radius:0}
+.harness-shell .pf-cell.beat{border-left-color:var(--ui-line-soft)}
 .harness-shell .pf-cell.off{background:repeating-linear-gradient(135deg,#0c0d0f 0 4px,#101719 4px 8px);pointer-events:none}
 .harness-shell .pf-cell:active{background:#1d2a2d}
 .harness-shell .pf-note{position:absolute;z-index:1;left:2px;top:3px;bottom:3px;border-radius:4px;pointer-events:none;
@@ -104,50 +104,50 @@
 
 /* arp lane */
 .harness-shell .pf-modes{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
-.harness-shell .pf-modes button,.harness-shell .pf-rate-quick button{min-height:38px;padding:0 4px;border-radius:8px;background:#22252a;border:1px solid #3a3e45;
-  color:#ccd1d6;font-weight:720;font-size:12px;white-space:nowrap}
+.harness-shell .pf-modes button,.harness-shell .pf-rate-quick button{min-height:38px;padding:0 4px;border-radius:8px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);
+  color:var(--ui-text-1);font-weight:720;font-size:12px;white-space:nowrap}
 .harness-shell .pf-rate-quick button{min-width:76px}
-.harness-shell .pf-modes button.on,.harness-shell .pf-rate-quick button.on{background:#514631;border-color:#9a835b;color:#f2f4f6}
+.harness-shell .pf-modes button.on,.harness-shell .pf-rate-quick button.on{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:var(--ui-text-hi)}
 .harness-shell .pf-arp-lane{flex:1;min-height:0;display:grid;grid-template-columns:repeat(16,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:4px;
-  padding:6px;border-radius:9px;background:#0f1012;border:1px solid #2e3238;align-content:stretch}
+  padding:6px;border-radius:9px;background:var(--ui-bg);border:1px solid var(--ui-line-soft);align-content:stretch}
 .harness-shell .pf-arp-lane em{grid-column:1 / -1;align-self:center;text-align:center;font-style:normal;color:var(--pf-soft);font-size:13px}
 .harness-shell .pf-arp-step{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:5px 4px;border-radius:7px;
-  background:#1b1d21;border:1px solid #2a383c;overflow:hidden;transition:background .08s,border-color .08s}
-.harness-shell .pf-arp-step i{font-style:normal;font-size:9.5px;font-weight:700;color:#636a72;position:relative;z-index:1}
-.harness-shell .pf-arp-step b{font-size:12px;font-weight:800;color:#dde0e4;position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  background:var(--ui-surface);border:1px solid #2a383c;overflow:hidden;transition:background .08s,border-color .08s}
+.harness-shell .pf-arp-step i{font-style:normal;font-size:9.5px;font-weight:700;color:var(--ui-text-faint);position:relative;z-index:1}
+.harness-shell .pf-arp-step b{font-size:12px;font-weight:800;color:var(--ui-text-1);position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .harness-shell .pf-arp-step u{position:absolute;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--accent) 22%,transparent);text-decoration:none}
-.harness-shell .pf-arp-step.active{background:color-mix(in srgb,var(--accent) 32%,#1b1d21);border-color:var(--accent);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 35%,transparent)}
+.harness-shell .pf-arp-step.active{background:color-mix(in srgb,var(--accent) 32%,var(--ui-surface));border-color:var(--accent);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 35%,transparent)}
 .harness-shell .pf-arp-step.active u{background:color-mix(in srgb,var(--accent) 55%,transparent)}
-.harness-shell .pf-arp-step.active b{color:#fff}
+.harness-shell .pf-arp-step.active b{color:var(--ui-white)}
 
 /* sheets: MIDI settings / library open over the lane */
 .harness-shell .pf-sheet{position:absolute;z-index:30;top:0;right:0;width:520px;max-height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;
-  border-radius:11px;background:#1f2125;border:1px solid #4a5058;box-shadow:0 18px 40px #000a}
+  border-radius:11px;background:var(--ui-surface);border:1px solid var(--ui-line-strong);box-shadow:0 18px 40px #000a}
 .harness-shell .pf-sheet header{display:flex;align-items:center;justify-content:space-between}
 .harness-shell .pf-sheet header strong{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--pf-text)}
-.harness-shell .pf-sheet header button{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:#22252a;border:1px solid #3a3e45;color:#d8dce0}
+.harness-shell .pf-sheet header button{width:40px;height:36px;display:grid;place-items:center;border-radius:8px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1)}
 .harness-shell .pf-sheet-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .harness-shell .pf-sheet-grid .pf-pick{justify-content:space-between}
 .harness-shell .pf-sheet-grid .pf-pick select{min-width:150px}
 .harness-shell .pf-library{display:flex;flex-direction:column;gap:6px}
-.harness-shell .pf-lib-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;background:#151e21;border:1px solid #2e3238}
+.harness-shell .pf-lib-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;background:#151e21;border:1px solid var(--ui-line-soft)}
 .harness-shell .pf-lib-row div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .harness-shell .pf-lib-row strong{font-size:13px;color:var(--pf-text)}
 .harness-shell .pf-lib-row span{font-size:11px;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .harness-shell .pf-lib-row .pf-btn{min-width:72px}
-.harness-shell .pf-lib-row input{flex:1;min-width:0;min-height:40px;border-radius:8px;background:#26313a;border:1px solid #44555b;color:#e3e6e9;padding:0 10px;font-weight:700}
+.harness-shell .pf-lib-row input{flex:1;min-width:0;min-height:40px;border-radius:8px;background:#26313a;border:1px solid #44555b;color:var(--ui-text);padding:0 10px;font-weight:700}
 
 /* ---------- touch keyboard ---------- */
 .harness-shell .pf-keys{min-height:0;display:grid;grid-template-columns:52px minmax(0,1fr) repeat(3,46px);gap:8px}
 .harness-shell .pf-octave{display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:4px}
-.harness-shell .pf-octave button{width:52px;flex:1;max-height:56px;display:grid;place-items:center;border-radius:9px;background:#22252a;border:1px solid #3a3e45;color:#d8dce0}
+.harness-shell .pf-octave button{width:52px;flex:1;max-height:56px;display:grid;place-items:center;border-radius:9px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1)}
 .harness-shell .pf-octave strong{font-size:13px;color:var(--pf-text)}
-.harness-shell .pf-piano{position:relative;display:flex;gap:2px;touch-action:none;border-radius:8px;overflow:hidden;background:#0c0d0f;padding:0 0 2px}
+.harness-shell .pf-piano{position:relative;display:flex;gap:2px;touch-action:none;border-radius:8px;overflow:hidden;background:var(--ui-black);padding:0 0 2px}
 .harness-shell .pf-white{flex:1;position:relative;border-radius:0 0 6px 6px;background:linear-gradient(180deg,#cfd3d7,#eceef0 80%,#c6cacf);
-  box-shadow:inset 0 -5px 0 #9ca1a7;transition:background .06s}
+  box-shadow:inset 0 -5px 0 var(--ui-text-3);transition:background .06s}
 .harness-shell .pf-white em{position:absolute;bottom:9px;left:0;right:0;text-align:center;font-style:normal;font-size:10px;font-weight:800;color:#5d6b69;pointer-events:none}
 .harness-shell .pf-black{position:absolute;top:0;height:60%;z-index:2;border-radius:0 0 5px 5px;background:linear-gradient(180deg,#1c1e22,#2c2f34);
-  box-shadow:inset 0 -4px 0 #0d1214,0 2px 3px #0008;transition:background .06s}
+  box-shadow:inset 0 -4px 0 var(--ui-bg),0 2px 3px #0008;transition:background .06s}
 .harness-shell .pf-white.held{background:linear-gradient(180deg,#e9d0a5,#f5e4c8 80%,#d6be93)}
 .harness-shell .pf-black.held{background:linear-gradient(180deg,#6b572f,#8a703f)}
 .harness-shell .pf-white.down{background:linear-gradient(180deg,#d6b478,#e6cc9e 80%,#c6a66c);box-shadow:inset 0 -2px 0 #9b7f4e}
@@ -156,10 +156,10 @@
 @keyframes pf-sound{0%{filter:brightness(1.5)}100%{filter:none}}
 .harness-shell .pf-strip{display:flex;flex-direction:column;align-items:center;gap:4px}
 .harness-shell .pf-strip span{font-size:10.5px;font-weight:800;color:var(--pf-soft);text-transform:uppercase}
-.harness-shell .pf-strip-track{position:relative;flex:1;width:34px;border-radius:17px;background:#0f1012;border:1px solid #3a3e45;touch-action:none}
-.harness-shell .pf-strip-track.center::after{content:'';position:absolute;left:6px;right:6px;top:50%;height:1px;background:#4a5058}
+.harness-shell .pf-strip-track{position:relative;flex:1;width:34px;border-radius:17px;background:var(--ui-bg);border:1px solid var(--ui-line);touch-action:none}
+.harness-shell .pf-strip-track.center::after{content:'';position:absolute;left:6px;right:6px;top:50%;height:1px;background:var(--ui-line-strong)}
 .harness-shell .pf-strip-fill{position:absolute;left:0;right:0;bottom:0;border-radius:17px;background:color-mix(in srgb,var(--accent) 45%,transparent)}
-.harness-shell .pf-strip-track b{position:absolute;left:3px;right:3px;height:18px;border-radius:9px;background:#e9ecef;box-shadow:0 0 10px color-mix(in srgb,var(--accent) 60%,transparent)}
+.harness-shell .pf-strip-track b{position:absolute;left:3px;right:3px;height:18px;border-radius:9px;background:var(--ui-text);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 60%,transparent)}
 
 /* ---------- step record cursor and compact info line (section A) ---------- */
 .harness-shell .pf-info{margin:auto 0 0;min-height:20px;padding:0 4px;font-size:11.5px;font-weight:700;color:var(--pf-soft);
@@ -167,7 +167,7 @@
 .harness-shell .pf-info b{color:#f0a3aa}
 .harness-shell .pf-info+.pf-buttons{margin-top:0}
 .harness-shell .pf-grid-head span.rec{color:#ffd9dc;background:#d0646e55;border-radius:4px 4px 0 0}
-.harness-shell .pf-cell.rec{box-shadow:inset 2px 0 0 #d0646e,inset -2px 0 0 #d0646e;background:#d0646e14}
+.harness-shell .pf-cell.rec{box-shadow:inset 2px 0 0 var(--ui-rec),inset -2px 0 0 var(--ui-rec);background:#d0646e14}
 /* Sir's window is about 720 px tall: tighten the controls column so nothing slides under the keyboard. */
 .harness-shell .pf-ctl{overflow:hidden}
 @media (max-height:780px){
@@ -182,15 +182,15 @@
 .harness-shell .pf-banks{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr)) 44px;gap:3px}
 .harness-shell .pf-banks button,.harness-shell .pf-pads button,.harness-shell .pf-rail button,.harness-shell .pf-bar .pf-seg button,
 .harness-shell .pf-roots button,.harness-shell .pf-scales button,.harness-shell .pf-pad-menu button{
-  min-height:44px;border-radius:8px;background:#22252a;border:1px solid #3a3e45;color:#d8dce0;font-weight:760;font-size:13px;
+  min-height:44px;border-radius:8px;background:var(--ui-surface-hi);border:1px solid var(--ui-line);color:var(--ui-text-1);font-weight:760;font-size:13px;
   display:flex;align-items:center;justify-content:center;gap:4px;position:relative}
 .harness-shell .pf-banks button.on,.harness-shell .pf-bar .pf-seg button.on,.harness-shell .pf-roots button.on,.harness-shell .pf-scales button.on,
-.harness-shell .pf-rail button.on{background:#514631;border-color:#9a835b;color:#f2f4f6}
+.harness-shell .pf-rail button.on{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:var(--ui-text-hi)}
 .harness-shell .pf-banks button i{position:absolute;top:5px;right:6px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .harness-shell .pf-pads{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:44px;gap:4px}
-.harness-shell .pf-pads button{flex-direction:column;gap:2px;padding:0;background:#16181b;border-style:dashed;border-color:#3a3e45;color:#747b83}
-.harness-shell .pf-pads button.full{background:#22252a;border-style:solid;border-color:#3f5257;color:#d8dce0}
-.harness-shell .pf-pads button.on{background:color-mix(in srgb,var(--accent) 24%,#22252a);border:1px solid var(--accent);color:#f4f5f7}
+.harness-shell .pf-pads button{flex-direction:column;gap:2px;padding:0;background:var(--ui-well);border-style:dashed;border-color:var(--ui-line);color:#747b83}
+.harness-shell .pf-pads button.full{background:var(--ui-surface-hi);border-style:solid;border-color:#3f5257;color:var(--ui-text-1)}
+.harness-shell .pf-pads button.on{background:color-mix(in srgb,var(--accent) 24%,var(--ui-surface-hi));border:1px solid var(--accent);color:var(--ui-text-hi)}
 .harness-shell .pf-pads button.playing{box-shadow:0 0 12px color-mix(in srgb,var(--accent) 45%,transparent)}
 .harness-shell .pf-pads b{font-size:13px;line-height:1}
 .harness-shell .pf-dens{display:flex;align-items:flex-end;gap:1px;height:10px}
@@ -203,11 +203,11 @@
 .harness-shell .pf-lane-seq{gap:6px}
 .harness-shell .pf-seq-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px}
 .harness-shell .pf-rail{display:grid;grid-template-columns:44px 44px;grid-auto-rows:44px;gap:6px 6px;align-content:start;
-  padding:4px;border-radius:9px;background:var(--pf-deep);border:1px solid #2e3238}
+  padding:4px;border-radius:9px;background:var(--pf-deep);border:1px solid var(--ui-line-soft)}
 .harness-shell .pf-rail button{min-height:0;padding:0}
-.harness-shell .pf-rail button.primary{background:color-mix(in srgb,var(--accent) 24%,#22252a);border-color:var(--accent);color:#f4f5f7}
+.harness-shell .pf-rail button.primary{background:color-mix(in srgb,var(--accent) 24%,var(--ui-surface-hi));border-color:var(--accent);color:var(--ui-text-hi)}
 .harness-shell .pf-rail button:active,.harness-shell .pf-pads button:active{filter:brightness(1.3)}
-.harness-shell .pf-bar{flex:none;height:50px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:9px;background:var(--pf-deep);border:1px solid #2e3238}
+.harness-shell .pf-bar{flex:none;height:50px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:9px;background:var(--pf-deep);border:1px solid var(--ui-line-soft)}
 .harness-shell .pf-bar .pf-power{min-height:44px;padding:0 10px;font-size:12.5px;white-space:nowrap}
 .harness-shell .pf-bar .pf-seg{display:flex;gap:3px;align-items:center}
 .harness-shell .pf-bar .pf-seg button{min-width:44px;padding:0 4px;font-size:12px}
@@ -219,7 +219,7 @@
 .harness-shell .pf-bar-knobs .knob-value{grid-column:2;grid-row:2;font-size:10.5px;min-width:34px;text-align:left}
 .harness-shell .pf-bar>.pf-btn{min-height:44px;width:44px;padding:0}
 .harness-shell .pf-row-note{border:0;background:transparent;padding:0 6px 0 0;cursor:pointer;border-radius:4px}
-.harness-shell .pf-row-note:active{background:color-mix(in srgb,var(--accent) 40%,transparent);color:#fff}
+.harness-shell .pf-row-note:active{background:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--ui-white)}
 
 .harness-shell .pf-scale-btn{gap:6px;min-width:150px}
 .harness-shell .pf-scale-btn span{font-weight:700;color:#b9c9c4;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -234,9 +234,9 @@
 .harness-shell .pf-mutate-sheet .pf-buttons{margin-top:0}
 .harness-shell .pf-mutate-sheet .pf-btn{min-height:44px}
 .harness-shell .pf-pad-menu{position:absolute;z-index:31;left:8px;top:96px;width:220px;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;
-  border-radius:11px;background:#1f2125;border:1px solid #4a5058;box-shadow:0 18px 40px #000a}
+  border-radius:11px;background:var(--ui-surface);border:1px solid var(--ui-line-strong);box-shadow:0 18px 40px #000a}
 .harness-shell .pf-pad-menu strong{grid-column:1 / -1;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--pf-text)}
-.harness-shell .pf-pad-menu .danger{color:#f3a3a3;border-color:#5a3a3e}
+.harness-shell .pf-pad-menu .danger{color:var(--ui-rec-soft);border-color:#5a3a3e}
 .harness-shell .pf-pad-menu button:disabled{opacity:.4}
 .harness-shell .pf-rail button:disabled{opacity:.35}
 
@@ -250,13 +250,13 @@
 .harness-shell .cb{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 .harness-shell .cb-pads{flex:none;height:116px;display:grid;grid-template-columns:repeat(var(--pads),minmax(0,1fr));gap:6px}
 .harness-shell .cb-pad{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px;
-  border-radius:11px;background:color-mix(in srgb,var(--c-chord) 8%,#1b1d21);border:1px solid color-mix(in srgb,var(--c-chord) 30%,#33363c);
+  border-radius:11px;background:color-mix(in srgb,var(--c-chord) 8%,var(--ui-surface));border:1px solid color-mix(in srgb,var(--c-chord) 30%,var(--ui-line-soft));
   color:var(--pf-text);touch-action:none;transition:background .08s,transform .08s}
 .harness-shell .cb-pad b{font-size:13px;font-weight:800;color:var(--c-chord);letter-spacing:.3px}
 .harness-shell .cb-pad strong{font-size:19px;font-weight:850;white-space:nowrap}
 .harness-shell .cb-pad span{font-size:11px;font-weight:700;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.harness-shell .cb-pad.on{border-color:var(--c-chord);background:color-mix(in srgb,var(--c-chord) 18%,#1b1d21)}
-.harness-shell .cb-pad.sounding,.harness-shell .cb-slot.sounding{background:color-mix(in srgb,var(--c-chord) 42%,#1b1d21);border-color:var(--c-chord);
+.harness-shell .cb-pad.on{border-color:var(--c-chord);background:color-mix(in srgb,var(--c-chord) 18%,var(--ui-surface))}
+.harness-shell .cb-pad.sounding,.harness-shell .cb-slot.sounding{background:color-mix(in srgb,var(--c-chord) 42%,var(--ui-surface));border-color:var(--c-chord);
   box-shadow:0 0 18px color-mix(in srgb,var(--c-chord) 55%,transparent);transform:scale(.98)}
 .harness-shell .cb-pad.sounding span,.harness-shell .cb-pad.on span{color:#ffe1f1}
 .harness-shell .cb-row{flex:none;display:flex;align-items:center;gap:8px;min-width:0}
@@ -267,29 +267,29 @@
 .harness-shell .cb-row>.pf-btn{min-height:44px;min-width:104px}
 .harness-shell .cb-slots{position:relative;flex:none;display:grid;grid-template-columns:auto repeat(8,minmax(0,1fr));align-items:center;gap:5px}
 .harness-shell .cb-slot{min-width:0;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 4px;border-radius:9px;
-  background:#16181b;border:1px dashed #3a3e45;color:#747b83;font-weight:760;font-size:12px;touch-action:none}
+  background:var(--ui-well);border:1px dashed var(--ui-line);color:#747b83;font-weight:760;font-size:12px;touch-action:none}
 .harness-shell .cb-slot:disabled{opacity:.45}
-.harness-shell .cb-slot.full{border-style:solid;background:color-mix(in srgb,var(--c-chord) 8%,#1b1d21);border-color:color-mix(in srgb,var(--c-chord) 35%,#33363c);color:var(--pf-text)}
+.harness-shell .cb-slot.full{border-style:solid;background:color-mix(in srgb,var(--c-chord) 8%,var(--ui-surface));border-color:color-mix(in srgb,var(--c-chord) 35%,var(--ui-line-soft));color:var(--pf-text)}
 .harness-shell .cb-slot.on{border-color:var(--c-chord)}
 .harness-shell .cb-slot strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .harness-shell .cb-slot span{font-size:9.5px;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .harness-shell .cb-slot-menu{left:auto;right:0;top:auto;bottom:calc(100% + 6px);width:220px}
 /* Chords rework (16 Nov): a live display of what the keys play, swipeable pads, My chords as a playable row */
-.harness-shell .cb-display{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:8px;background:#0b0d0f;
-  border:1px solid #3a3d41;text-align:center;min-width:0}
+.harness-shell .cb-display{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:8px;background:var(--ui-black);
+  border:1px solid var(--ui-line);text-align:center;min-width:0}
 .harness-shell .cb-display span{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#8d9499;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.harness-shell .cb-display strong{font-size:26px;line-height:1.1;font-weight:850;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.harness-shell .cb-display strong{font-size:26px;line-height:1.1;font-weight:850;color:var(--ui-white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .harness-shell .cb-display em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--c-chord);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .harness-shell .cb-pads{height:auto;flex:1 1 92px;min-height:76px;max-height:116px;touch-action:none}
 .harness-shell .cb-pad{user-select:none}
-.harness-shell .cb-seq{flex:none;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:10px;background:#141619;border:1px solid #2e3238}
-.harness-shell .cb-seq.following{border-color:color-mix(in srgb,var(--c-chord) 45%,#2e3238)}
+.harness-shell .cb-seq{flex:none;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:10px;background:var(--ui-well);border:1px solid var(--ui-line-soft)}
+.harness-shell .cb-seq.following{border-color:color-mix(in srgb,var(--c-chord) 45%,var(--ui-line-soft))}
 .harness-shell .cb-seq-head{display:flex;align-items:center;gap:8px;min-width:0}
 .harness-shell .cb-seq-head .pf-group-label{padding-left:2px}
 .harness-shell .cb-seq-head .pf-seg button{min-width:72px}
 .harness-shell .cb-seq-head .pf-seg button:disabled{opacity:.4}
 .harness-shell .cb-follow{padding:0 12px;font-size:12.5px;white-space:nowrap}
-.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 24%,#1b1d21);border-color:var(--c-chord);color:#fff}
+.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 24%,var(--ui-surface));border-color:var(--c-chord);color:var(--ui-white)}
 .harness-shell .cb-follow.on svg{color:var(--c-chord)}
 .harness-shell .cb-follow:disabled{opacity:.45}
 .harness-shell .cb-save-held{margin-left:auto;min-height:44px;white-space:nowrap}
@@ -299,9 +299,9 @@
 .harness-shell .cb-slot.full strong{font-size:15px}
 .harness-shell .cb-slot em{position:absolute;right:5px;top:4px;font-style:normal;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--c-chord)}
 .harness-shell .cb-slot.next{border-color:var(--c-chord);border-style:dashed}
-.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 36%,#1b1d21);border-color:var(--c-chord);
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 36%,var(--ui-surface));border-color:var(--c-chord);
   box-shadow:0 0 14px color-mix(in srgb,var(--c-chord) 45%,transparent)}
-.harness-shell .cb-slot.now i{color:#fff}
+.harness-shell .cb-slot.now i{color:var(--ui-white)}
 .harness-shell .cb-auto{min-height:44px;min-width:92px;padding:0 10px;font-size:12px;font-weight:800;color:var(--pf-text)}
 @media (prefers-reduced-motion:reduce){.harness-shell .cb-slot.now,.harness-shell .cb-pad.sounding{box-shadow:none;transform:none}}
 
@@ -314,69 +314,69 @@
 .harness-shell .pf-head-tools .pf-seg button{min-width:50px}
 .harness-shell .pf-modes button{min-height:44px}
 .harness-shell .pf-roll{position:relative;flex:1;min-height:0;display:grid;grid-template-rows:16px repeat(var(--rows),minmax(0,1fr));
-  border-radius:9px;background:#0f1012;border:1px solid #2e3238;overflow:hidden}
+  border-radius:9px;background:var(--ui-bg);border:1px solid var(--ui-line-soft);overflow:hidden}
 .harness-shell .pf-roll-head,.harness-shell .pf-roll-row{display:grid;grid-template-columns:40px repeat(var(--cols),minmax(0,1fr))}
-.harness-shell .pf-roll-head span{font-size:9.5px;font-weight:700;color:#636a72;text-align:center;line-height:16px}
-.harness-shell .pf-roll-head span.beat{color:#a2a9b0}
+.harness-shell .pf-roll-head span{font-size:9.5px;font-weight:700;color:var(--ui-text-faint);text-align:center;line-height:16px}
+.harness-shell .pf-roll-head span.beat{color:var(--ui-text-3)}
 .harness-shell .pf-roll-head span.live{color:var(--c-arp)}
-.harness-shell .pf-roll-row{border-top:1px solid #202226}
-.harness-shell .pf-roll-row.black{background:#0d0e10}
-.harness-shell .pf-roll-cell{position:relative;border-left:1px solid #202226}
-.harness-shell .pf-roll-cell.beat{border-left-color:#30343a}
+.harness-shell .pf-roll-row{border-top:1px solid var(--ui-surface-hi)}
+.harness-shell .pf-roll-row.black{background:var(--ui-black)}
+.harness-shell .pf-roll-cell{position:relative;border-left:1px solid var(--ui-surface-hi)}
+.harness-shell .pf-roll-cell.beat{border-left-color:var(--ui-line-soft)}
 .harness-shell .pf-roll-cell.live{background:color-mix(in srgb,var(--c-arp) 14%,transparent)}
 .harness-shell .pf-arp-note{position:absolute;left:1px;top:18%;bottom:18%;border-radius:4px;max-height:22px;margin:auto 0;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--c-arp) 75%,#fff),var(--c-arp));box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--c-arp) 60%,#000)}
+  background:linear-gradient(180deg,color-mix(in srgb,var(--c-arp) 75%,#fff),var(--c-arp));box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--c-arp) 60%,var(--ui-black-pure))}
 .harness-shell .pf-arp-note.active{animation:pf-hit .22s ease-out;box-shadow:0 0 12px var(--c-arp)}
 .harness-shell .pf-roll.example .pf-arp-note{opacity:.35}
 .harness-shell .pf-roll-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:8px 14px;border-radius:9px;background:#0f1618e6;
   font-style:normal;font-size:13px;color:var(--pf-soft);pointer-events:none;white-space:nowrap}
 .harness-shell .pf-roll-info{margin:0 0 0 auto;font-size:11.5px;font-weight:700;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.harness-shell .pf-bar>.pf-btn.on{color:#fff}
+.harness-shell .pf-bar>.pf-btn.on{color:var(--ui-white)}
 .harness-shell .pf-bar .pf-group-label{padding-left:4px}
 .harness-shell .pf-lane-arp .pf-bar>.pf-btn{width:auto;padding:0 12px}
 /* Clip notes in the Perform editor (review 2026-11-15): SONG → Edit notes opens the open clip here. */
-.harness-shell .pf-transfers .pf-clip-link{position:relative;padding:0 5px;border:1px solid #4a5d63;border-radius:5px;background:#22252a;color:var(--c-song,#6ad8b4);font:inherit;font-weight:700;line-height:14px}
+.harness-shell .pf-transfers .pf-clip-link{position:relative;padding:0 5px;border:1px solid #4a5d63;border-radius:5px;background:var(--ui-surface-hi);color:var(--c-song,var(--ui-play));font:inherit;font-weight:700;line-height:14px}
 .harness-shell .pf-transfers .pf-clip-link::after{content:"";position:absolute;inset:-15px -8px}
-.harness-shell .pf-transfers .pf-clip-link.on{background:#1e362e;border-color:var(--c-song,#6ad8b4)}
-.harness-shell .pf-clip-bar{justify-content:space-between;border-color:color-mix(in srgb,var(--c-song,#6ad8b4) 55%,#2e3238)}
-.harness-shell .pf-clip-bar .pf-clip-title{font-size:12px;color:#d8dce0;white-space:nowrap}
-.harness-shell .pf-clip-bar .pf-clip-title b{color:var(--c-song,#6ad8b4)}
-.harness-shell .pf-clip-bar .pf-clip-hint{flex:1;min-width:0;font-size:11px;color:#b9bfc5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.harness-shell .pf-clip-bar .pf-clip-back{min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #3a3e45;border-radius:8px;background:#22252a;color:#d8dce0;font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
+.harness-shell .pf-transfers .pf-clip-link.on{background:#1e362e;border-color:var(--c-song,var(--ui-play))}
+.harness-shell .pf-clip-bar{justify-content:space-between;border-color:color-mix(in srgb,var(--c-song,var(--ui-play)) 55%,var(--ui-line-soft))}
+.harness-shell .pf-clip-bar .pf-clip-title{font-size:12px;color:var(--ui-text-1);white-space:nowrap}
+.harness-shell .pf-clip-bar .pf-clip-title b{color:var(--c-song,var(--ui-play))}
+.harness-shell .pf-clip-bar .pf-clip-hint{flex:1;min-width:0;font-size:11px;color:var(--ui-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.harness-shell .pf-clip-bar .pf-clip-back{min-height:44px;display:flex;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-surface-hi);color:var(--ui-text-1);font:inherit;font-size:12px;font-weight:700;white-space:nowrap}
 /* 15 Nov round 3: keys octave in the Arp / Chord bar (C3 -> C5 at +2), and the SEQ steps list. */
 .harness-shell .pf-head-tools .pf-transpose button{min-width:44px;min-height:44px;padding:0}
-.harness-shell .pf-transpose>span{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;line-height:1.05;color:#aeb4ba}
+.harness-shell .pf-transpose>span{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;line-height:1.05;color:var(--ui-text-2)}
 .harness-shell .pf-transpose>span small{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.harness-shell .pf-transpose>span b{font-size:15px;color:#f2f4f6}
-.harness-shell .pf-transpose>span.on b{color:var(--c-arp,#6bdfb7)}
+.harness-shell .pf-transpose>span b{font-size:15px;color:var(--ui-text-hi)}
+.harness-shell .pf-transpose>span.on b{color:var(--c-arp,var(--c-song))}
 .harness-shell .pf-bar .pf-seg .pf-steps-list{display:flex;align-items:center;gap:5px;min-width:104px;min-height:44px;padding:0 10px;font-weight:700}
-.harness-shell .pf-steps-list b{font-size:14px;color:#f2f4f6}
+.harness-shell .pf-steps-list b{font-size:14px;color:var(--ui-text-hi)}
 /* Steps, inversion and the keys octave are value boxes (rule 36): click and scroll, hold and drag, two slow clicks to type.
    The steps list stays as a small grid button for the common lengths. */
 .harness-shell .pf-bar .pf-seg .pf-steps-list{min-width:44px;padding:0 8px;justify-content:center}
 .harness-shell .pf-vbox{min-width:84px;padding:0 20px 0 10px;border:0;background:transparent}
 .harness-shell .pf-transpose .pf-vbox{min-width:72px}
-.harness-shell .pf-transpose .pf-vbox.on .vbox-value{color:var(--c-arp,#6bdfb7)}
+.harness-shell .pf-transpose .pf-vbox.on .vbox-value{color:var(--c-arp,var(--c-song))}
 
 /* Chords round 2 (16 Nov): Loop, suggestions */
 .harness-shell .cb-loop{display:flex;gap:6px;align-items:center}
 .harness-shell .cb-loop-btn{flex:none;width:44px;min-height:44px;padding:0;display:flex;align-items:center;justify-content:center}
-.harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 26%,#1b1d21);border-color:var(--c-chord);color:#fff}
+.harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 26%,var(--ui-surface));border-color:var(--c-chord);color:var(--ui-white)}
 .harness-shell .cb-loop .pf-seg{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .harness-shell .cb-loop .pf-seg button{min-width:0;min-height:44px;padding:0 2px}
 .harness-shell .cb-loop button:disabled{opacity:.4}
-.harness-shell .cb-pad.suggest{border-color:#e7c46a;box-shadow:inset 0 0 0 1px #e7c46a55}
-.harness-shell .cb-hint-badge{position:absolute;right:6px;top:5px;color:#e7c46a;display:flex}
-.harness-shell .cb-suggest{flex:none;display:flex;align-items:center;gap:10px;padding:4px 8px;border-radius:10px;background:#141619;border:1px solid #2e3238;min-height:52px}
+.harness-shell .cb-pad.suggest{border-color:var(--ui-warn);box-shadow:inset 0 0 0 1px #e7c46a55}
+.harness-shell .cb-hint-badge{position:absolute;right:6px;top:5px;color:var(--ui-warn);display:flex}
+.harness-shell .cb-suggest{flex:none;display:flex;align-items:center;gap:10px;padding:4px 8px;border-radius:10px;background:var(--ui-well);border:1px solid var(--ui-line-soft);min-height:52px}
 .harness-shell .cb-tension{flex:none;min-width:124px;min-height:44px}
 .harness-shell .cb-suggest-info{font-size:12px;font-weight:700;color:var(--pf-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .harness-shell .cb-suggest-chips{display:flex;gap:6px;margin-left:auto;touch-action:none}
 .harness-shell .cb-chip{min-height:44px;min-width:96px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:9px;user-select:none;
   background:#1d1a12;border:1px solid #6b5a2c;color:var(--pf-text)}
-.harness-shell .cb-chip svg{color:#e7c46a}
-.harness-shell .cb-chip b{font-size:11px;color:#e7c46a}
+.harness-shell .cb-chip svg{color:var(--ui-warn)}
+.harness-shell .cb-chip b{font-size:11px;color:var(--ui-warn)}
 .harness-shell .cb-chip strong{font-size:15px}
-.harness-shell .cb-chip.sounding{background:#3a3016;border-color:#e7c46a}
+.harness-shell .cb-chip.sounding{background:#3a3016;border-color:var(--ui-warn)}
 .harness-shell .cb-loop .pf-seg{padding:0;gap:0}.harness-shell .cb-loop .pf-seg button{min-width:44px}
 
 /* Chords layout clean-up (Sir, 16 Nov: "doesnt read very well"): one label column, rows edge to edge, strum on the left */
@@ -391,11 +391,11 @@
 .harness-shell .cb-seq-head .pf-seg button{min-width:0;padding:0 10px}
 .harness-shell .cb-save-held{margin-left:0}
 .harness-shell .cb-readout{flex:1;min-width:0;display:flex;align-items:baseline;justify-content:center;gap:8px;min-height:44px;align-self:stretch;
-  padding:0 10px;border-radius:8px;background:#0b0d0f;border:1px solid #3a3d41;line-height:44px;overflow:hidden;white-space:nowrap}
+  padding:0 10px;border-radius:8px;background:var(--ui-black);border:1px solid var(--ui-line);line-height:44px;overflow:hidden;white-space:nowrap}
 .harness-shell .cb-readout span{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#8d9499}
-.harness-shell .cb-readout strong{font-size:18px;font-weight:850;color:#fff}
+.harness-shell .cb-readout strong{font-size:18px;font-weight:850;color:var(--ui-white)}
 .harness-shell .cb-readout em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--c-chord);overflow:hidden;text-overflow:ellipsis}
-.harness-shell .cb-strum{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:9px;background:#141619;border:1px solid #2e3238}
+.harness-shell .cb-strum{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:9px;background:var(--ui-well);border:1px solid var(--ui-line-soft)}
 .harness-shell .cb-strum .pf-knobs{margin:-2px 0}
 .harness-shell .cb-suggest-chips{margin-left:0}
 .harness-shell .cb-suggest-info{flex:1}
@@ -405,14 +405,14 @@
 .harness-shell .cb-seq,.harness-shell .cb-suggest{background:none;border:0;border-top:1px solid var(--pf-line);border-radius:0;padding:6px 0 0}
 .harness-shell .cb-seq.following{border-color:var(--pf-line)}
 .harness-shell .cb-strum{background:none;border:0;padding:0}
-.harness-shell .cb-pad{background:var(--pf-card);border-color:#33363c}
-.harness-shell .cb-pad.on{background:#232529;border-color:color-mix(in srgb,var(--c-chord) 70%,#33363c)}
+.harness-shell .cb-pad{background:var(--pf-card);border-color:var(--ui-line-soft)}
+.harness-shell .cb-pad.on{background:var(--ui-surface-hi);border-color:color-mix(in srgb,var(--c-chord) 70%,var(--ui-line-soft))}
 .harness-shell .cb-pad.on span{color:var(--pf-soft)}
 .harness-shell .cb-pad.suggest{border-color:#8a7440;box-shadow:none}
-.harness-shell .cb-slot.full{background:var(--pf-card);border-color:#3a3e45}
-.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 22%,#1b1d21);box-shadow:none}
-.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 14%,#1b1d21);border-color:color-mix(in srgb,var(--c-chord) 60%,#3a3e45);color:var(--pf-text)}
-.harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 14%,#1b1d21);border-color:color-mix(in srgb,var(--c-chord) 60%,#3a3e45)}
+.harness-shell .cb-slot.full{background:var(--pf-card);border-color:var(--ui-line)}
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 22%,var(--ui-surface));box-shadow:none}
+.harness-shell .cb-follow.on{background:color-mix(in srgb,var(--c-chord) 14%,var(--ui-surface));border-color:color-mix(in srgb,var(--c-chord) 60%,var(--ui-line));color:var(--pf-text)}
+.harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 14%,var(--ui-surface));border-color:color-mix(in srgb,var(--c-chord) 60%,var(--ui-line))}
 .harness-shell .cb-chip{background:var(--pf-card);border-color:#4d4630}
 .harness-shell .cb-chip.sounding{background:#2a2617}
 
@@ -423,37 +423,37 @@
 .harness-shell .cb-pad strong{font-size:18px;line-height:1.1}
 .harness-shell .cb-pad span{font-size:9.5px;letter-spacing:1px}
 .harness-shell .cb-dots{width:100%;max-width:112px;height:26px;flex:none}
-.harness-shell .cb-dot-key{fill:#23262a;stroke:#383c42;stroke-width:.8}
-.harness-shell .cb-dot-key.black{fill:#0f1012;stroke:#2c3036}
-.harness-shell .cb-dots circle{fill:#80868d}
-.harness-shell .cb-dots circle.root{fill:#c3ccd0}
-.harness-shell .cb-pad.on .cb-dots circle,.harness-shell .cb-pad.sounding .cb-dots circle{fill:color-mix(in srgb,var(--c-chord) 70%,#80868d)}
+.harness-shell .cb-dot-key{fill:var(--ui-surface-hi);stroke:var(--ui-line);stroke-width:.8}
+.harness-shell .cb-dot-key.black{fill:var(--ui-bg);stroke:var(--ui-line-soft)}
+.harness-shell .cb-dots circle{fill:var(--ui-text-dim)}
+.harness-shell .cb-dots circle.root{fill:var(--t-more)}
+.harness-shell .cb-pad.on .cb-dots circle,.harness-shell .cb-pad.sounding .cb-dots circle{fill:color-mix(in srgb,var(--c-chord) 70%,var(--ui-text-dim))}
 .harness-shell .cb-pad.on .cb-dots circle.root,.harness-shell .cb-pad.sounding .cb-dots circle.root{fill:var(--c-chord)}
 .harness-shell .cb-strum .pf-seg[aria-label="Strum order"] button{display:flex;align-items:center;justify-content:center}
 
 /* Chords as modules (Sir, 17 Nov, Sampler page as the model): each part is a bordered card with a coloured title,
    so the panel reads at a glance. Suggest moved up into the panel head; the keys octave lives in the top bar. */
 .harness-shell .cb-card.cb-card{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border-radius:10px;
-  border:1px solid color-mix(in srgb,var(--c-chord) 34%,#2e3238);background:#1e2024}
+  border:1px solid color-mix(in srgb,var(--c-chord) 34%,var(--ui-line-soft));background:var(--ui-surface)}
 .harness-shell .cb-card-title{display:flex;align-items:center;gap:6px;min-height:16px;font-size:11.5px;font-weight:850;letter-spacing:.5px;
   text-transform:uppercase;color:var(--c-chord);white-space:nowrap}
 .harness-shell .cb-card-title svg{flex:none}
 .harness-shell .pf-ctl-chord{gap:8px}
 .harness-shell .pf-ctl-chord .cb-strum .pf-group-label{margin-top:2px}
 .harness-shell .cb .cb-seq.cb-card{gap:6px}
-.harness-shell .cb-seq.cb-card.following{border-color:color-mix(in srgb,var(--c-chord) 60%,#2e3238)}
+.harness-shell .cb-seq.cb-card.following{border-color:color-mix(in srgb,var(--c-chord) 60%,var(--ui-line-soft))}
 .harness-shell .cb-card .pf-btn svg,.harness-shell .cb-card .cb-follow svg{color:var(--c-chord)}
 .harness-shell .cb-card .cb-save-held:disabled svg{color:inherit}
 /* Suggest in the panel head, where the octave box was */
 .harness-shell .pf-head .cb-suggest{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:0 4px;min-height:44px;
   border:0;background:none;border-radius:0}
-.harness-shell .pf-head .cb-suggest-title{color:#e7c46a}
+.harness-shell .pf-head .cb-suggest-title{color:var(--ui-warn)}
 .harness-shell .pf-head .cb-suggest-info{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--pf-soft)}
 .harness-shell .pf-head .cb-suggest-chips{display:flex;gap:6px;margin-left:auto;flex:none}
 .harness-shell .pf-head .cb-tension{flex:none}
 /* Keys octave in the top bar, next to Freeze */
 .harness-shell .pf-oct-slot{display:flex;align-items:center;margin-left:6px}
-.harness-shell .pf-oct-slot .pf-transpose{border-color:color-mix(in srgb,var(--t-oct) 40%,#3a3e45)}
+.harness-shell .pf-oct-slot .pf-transpose{border-color:color-mix(in srgb,var(--t-oct) 40%,var(--ui-line))}
 .harness-shell .pf-oct-slot .pf-vbox{min-height:44px;min-width:76px}
 .harness-shell .pf-view-oct .pf-vbox{min-height:38px;min-width:84px}
 .harness-shell .pf-ctl-chord .cb-card.cb-card{padding:6px 5px 6px}
@@ -467,25 +467,25 @@
 
 /* Perform in the shared theme (Sir, 17 Nov): neutral charcoal like Song, Sound, FX and Link, cards tinted by their
    own colour, and value boxes styled like the BPM box in the top bar. */
-.harness-shell .pf{--pf-text:var(--text,#e5e8ec);--pf-soft:#9aa3a8}
-.harness-shell .cb-card.cb-card{background:color-mix(in srgb,var(--c-chord) 5%,#1b1d21);border-color:color-mix(in srgb,var(--c-chord) 38%,#3a3e45)}
-.harness-shell .cb-pad{background:#22252a;border-color:#33363c}
-.harness-shell .cb-pad.on{background:color-mix(in srgb,var(--c-chord) 14%,#22252a);border-color:color-mix(in srgb,var(--c-chord) 70%,#3a3e45)}
-.harness-shell .cb-slot.full{background:#22252a;border-color:#3a3e45}
-.harness-shell .cb-chip{background:#22252a}
+.harness-shell .pf{--pf-text:var(--text,var(--ui-text));--pf-soft:var(--ui-text-3)}
+.harness-shell .cb-card.cb-card{background:color-mix(in srgb,var(--c-chord) 5%,var(--ui-surface));border-color:color-mix(in srgb,var(--c-chord) 38%,var(--ui-line))}
+.harness-shell .cb-pad{background:var(--ui-surface-hi);border-color:var(--ui-line-soft)}
+.harness-shell .cb-pad.on{background:color-mix(in srgb,var(--c-chord) 14%,var(--ui-surface-hi));border-color:color-mix(in srgb,var(--c-chord) 70%,var(--ui-line))}
+.harness-shell .cb-slot.full{background:var(--ui-surface-hi);border-color:var(--ui-line)}
+.harness-shell .cb-chip{background:var(--ui-surface-hi)}
 /* Value boxes = the BPM box: black inset, small grey label, bold monospaced value */
 .harness-shell .pf .pf-transpose,.harness-shell .pf-oct-slot .pf-transpose,.harness-shell .pf .cb-inv{padding:0;border:0;background:none;gap:0}
 .harness-shell .pf .vbox.pf-vbox,.harness-shell .pf-oct-slot .vbox.pf-vbox{min-height:44px;height:44px;padding:0 22px 0 10px;gap:6px;
-  border:1px solid #36393e;border-radius:10px;background:#0e0f10;flex-direction:row;align-items:center}
-.harness-shell .pf .vbox.pf-vbox .vbox-label,.harness-shell .pf-oct-slot .vbox.pf-vbox .vbox-label{font-size:9.5px;font-weight:700;color:#939aa3;
+  border:1px solid var(--ui-line);border-radius:10px;background:var(--ui-black);flex-direction:row;align-items:center}
+.harness-shell .pf .vbox.pf-vbox .vbox-label,.harness-shell .pf-oct-slot .vbox.pf-vbox .vbox-label{font-size:9.5px;font-weight:700;color:var(--ui-text-3);
   text-transform:uppercase;letter-spacing:.3px;line-height:1}
 .harness-shell .pf .vbox.pf-vbox .vbox-value,.harness-shell .pf-oct-slot .vbox.pf-vbox .vbox-value{font:800 16px ui-monospace,monospace;color:#e9f6f1;line-height:1}
 .harness-shell .pf .vbox.pf-vbox.on .vbox-value,.harness-shell .pf-oct-slot .vbox.pf-vbox.on .vbox-value{color:#e9f6f1}
 .harness-shell .pf-oct-slot .vbox.pf-vbox{min-width:78px}
 .harness-shell .pf .cb-tension .vbox-value{font-size:14px}
-.harness-shell .pf .cb-auto{min-height:44px;border:1px solid #36393e;border-radius:10px;background:#0e0f10;color:#939aa3}
+.harness-shell .pf .cb-auto{min-height:44px;border:1px solid var(--ui-line);border-radius:10px;background:var(--ui-black);color:var(--ui-text-3)}
 /* Chord display: compact, only the chord and its notes */
-.harness-shell .cb .cb-readout{flex:0 0 150px;min-height:44px;padding:0 12px;justify-content:center;gap:8px;border:1px solid #36393e;border-radius:10px;background:#0e0f10}
+.harness-shell .cb .cb-readout{flex:0 0 150px;min-height:44px;padding:0 12px;justify-content:center;gap:8px;border:1px solid var(--ui-line);border-radius:10px;background:var(--ui-black)}
 .harness-shell .cb .cb-readout strong{font:800 18px ui-monospace,monospace;color:#e9f6f1}
 .harness-shell .cb .cb-readout em{color:var(--c-chord)}
 .harness-shell .cb .cb-save-held{margin-left:auto}
@@ -494,8 +494,8 @@
 .harness-shell .pf .vbox.pf-vbox .vbox-value{font-size:15px}
 /* Choice rows like Sound's (Poly / Mono / Legato): separate raised buttons on the panel, no black rail */
 .harness-shell .pf .pf-seg{gap:4px;padding:0;border:0;background:none}
-.harness-shell .pf .pf-seg button{background:#24272b;border:1px solid #34373c;border-radius:8px;color:#c9ced3}
-.harness-shell .pf .pf-seg button:disabled{background:#1f2124;color:#6e747b}
+.harness-shell .pf .pf-seg button{background:var(--ui-surface-hi);border:1px solid var(--ui-line-soft);border-radius:8px;color:var(--t-more)}
+.harness-shell .pf .pf-seg button:disabled{background:var(--ui-surface);color:#6e747b}
 .harness-shell .pf-ctl-chord .cb-fill,.harness-shell .cb .cb-fill{gap:4px!important}
 .harness-shell .pf-ctl-chord .pf-seg,.harness-shell .pf-ctl-chord .cb-fill{gap:2px!important}
 .harness-shell .pf-ctl-chord .cb-loop{gap:4px}
@@ -511,39 +511,39 @@
    Structure is neutral: grey frame, grey 1 px card borders, flat grey header strips with grey titles.
    Selected = the app-wide warm chip (as Sound: Poly, Unison 1). The mode colour only shows what is live:
    tab LED, sounding pad / slot / key, the now / next markers, chord-tone dots on the active pad. */
-.harness-shell .pf.pf{border-color:#2e3238}
+.harness-shell .pf.pf{border-color:var(--ui-line-soft)}
 /* cards and header strips */
-.harness-shell .cb-card.cb-card{background:#1b1d21;border:1px solid #2e3238;border-radius:8px;padding:0 8px 8px;gap:6px;overflow:hidden}
+.harness-shell .cb-card.cb-card{background:var(--ui-surface);border:1px solid var(--ui-line-soft);border-radius:8px;padding:0 8px 8px;gap:6px;overflow:hidden}
 .harness-shell .pf-ctl-chord .cb-card.cb-card{padding:0 3px 6px}
-.harness-shell .cb-card-title,.harness-shell .pf-ctl-chord .cb-card-title{margin:0 -8px;padding:0 10px;min-height:24px;background:#25282c;
-  border-bottom:1px solid #2e3238;color:#aeb4ba;font-size:10.5px;font-weight:800;letter-spacing:.6px}
+.harness-shell .cb-card-title,.harness-shell .pf-ctl-chord .cb-card-title{margin:0 -8px;padding:0 10px;min-height:24px;background:var(--ui-surface-hi);
+  border-bottom:1px solid var(--ui-line-soft);color:var(--ui-text-2);font-size:10.5px;font-weight:800;letter-spacing:.6px}
 .harness-shell .pf-ctl-chord .cb-card-title{margin:0 -3px}
-.harness-shell .cb-card-title svg{color:#80868d}
-.harness-shell .cb-seq.cb-card.following{border-color:#2e3238}
+.harness-shell .cb-card-title svg{color:var(--ui-text-dim)}
+.harness-shell .cb-seq.cb-card.following{border-color:var(--ui-line-soft)}
 .harness-shell .cb-card .pf-btn svg,.harness-shell .cb-card .cb-follow svg{color:inherit}
 /* selected = warm chip, same as the rest of the app */
-.harness-shell .pf .cb-follow.on,.harness-shell .pf .cb-loop-btn.on,.harness-shell .pf .pf-btn.on{background:#3d3529;border-color:#bfa87e;color:#f2ede4;box-shadow:none}
+.harness-shell .pf .cb-follow.on,.harness-shell .pf .cb-loop-btn.on,.harness-shell .pf .pf-btn.on{background:var(--ui-accent-bg);border-color:var(--ui-accent-edge);color:#f2ede4;box-shadow:none}
 .harness-shell .pf .cb-follow.on svg,.harness-shell .pf .cb-loop-btn.on svg{color:#e6cf9f}
 /* chord pads: neutral; the numeral is grey; selected = warm edge; sounding = the chord colour (state) */
-.harness-shell .cb-pad,.harness-shell .cb-pad.suggest{background:#22252a;border-color:#33363c;box-shadow:none}
-.harness-shell .cb-pad b{color:#80868d}
-.harness-shell .cb-pad.on{background:#2a2924;border-color:#bfa87e}
+.harness-shell .cb-pad,.harness-shell .cb-pad.suggest{background:var(--ui-surface-hi);border-color:var(--ui-line-soft);box-shadow:none}
+.harness-shell .cb-pad b{color:var(--ui-text-dim)}
+.harness-shell .cb-pad.on{background:#2a2924;border-color:var(--ui-accent-edge)}
 .harness-shell .cb-pad.on b{color:#e6cf9f}
-.harness-shell .cb-pad.on span,.harness-shell .cb-pad span{color:#80868d}
-.harness-shell .cb-hint-badge{color:#e7c46a}
+.harness-shell .cb-pad.on span,.harness-shell .cb-pad span{color:var(--ui-text-dim)}
+.harness-shell .cb-hint-badge{color:var(--ui-warn)}
 /* my chords: neutral; now = chord colour (it is sounding), next = dashed chord edge */
-.harness-shell .cb-slot.full{background:#22252a;border-color:#33363c}
-.harness-shell .cb-slot.on{border-color:#bfa87e}
-.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 26%,#1b1d21);border-color:var(--c-chord);box-shadow:none}
+.harness-shell .cb-slot.full{background:var(--ui-surface-hi);border-color:var(--ui-line-soft)}
+.harness-shell .cb-slot.on{border-color:var(--ui-accent-edge)}
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 26%,var(--ui-surface));border-color:var(--c-chord);box-shadow:none}
 /* suggestion chips: neutral with a gold bulb */
-.harness-shell .pf .cb-chip{background:#22252a;border-color:#33363c}
-.harness-shell .pf .cb-chip svg{color:#e7c46a}
+.harness-shell .pf .cb-chip{background:var(--ui-surface-hi);border-color:var(--ui-line-soft)}
+.harness-shell .pf .cb-chip svg{color:var(--ui-warn)}
 /* the display well: white chord name, grey notes */
-.harness-shell .cb .cb-readout em{color:#9aa3a8}
-.harness-shell .pf-head .cb-suggest-title{color:#aeb4ba}
-.harness-shell .pf-head .cb-suggest-title svg{color:#e7c46a}
-.harness-shell .pf .cb-chip b{color:#9aa3a8}
-.harness-shell .pf .cb-chip.sounding{background:#2c2a22;border-color:#bfa87e}
+.harness-shell .cb .cb-readout em{color:var(--ui-text-3)}
+.harness-shell .pf-head .cb-suggest-title{color:var(--ui-text-2)}
+.harness-shell .pf-head .cb-suggest-title svg{color:var(--ui-warn)}
+.harness-shell .pf .cb-chip b{color:var(--ui-text-3)}
+.harness-shell .pf .cb-chip.sounding{background:#2c2a22;border-color:var(--ui-accent-edge)}
 .harness-shell .pf-head .cb-suggest-title{background:none;border:0;margin:0;padding:0 2px;min-height:0}
 /* cards must not clip the slot menu */
 .harness-shell .cb-card.cb-card{overflow:visible}

@@ -1,10 +1,7 @@
 /* Decksynth — instrument UI. Design language: restrained hardware depth,
    live LED feedback, touch-first spacing, Chordz-style owned control gestures. */
 :root{
-  --app:#101113;--panel:#1b1d21;--panel-hi:#22252a;--raised:#282b30;
-  --inset:#101215;--line:#3a3e45;--line-soft:#2e3238;--text:#e5e8ec;
-  --soft:#b7bdc6;--muted:#a2aab4;--accent:#ddbd82;--amber:#80d9b9;
-  --red:#e78d88;--blue:#9ac0df;--shadow:rgba(0,0,0,.45);
+  /* The colour names live in tokens.css. */
   font-family:"Segoe UI",Inter,"DejaVu Sans",sans-serif;color:var(--text);
   font-synthesis:none;font-size:13px;
 }
