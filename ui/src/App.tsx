@@ -42,6 +42,7 @@ import { totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
 import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type SendBus, type StepNote } from './types';
 import previewState from './preview-state.json';
+import { voiceChord } from './chords';
 import './styles.css';
 
 type Dialog = 'settings'|'help'|null;
@@ -285,7 +286,13 @@ function App() {
       else if(cmd==='song')next.state.song=arg as Song;
       else if(cmd==='clip')previewClip(next.state,arg as [number,string,number,number?]);
       else if(cmd==='midi'){
-        const [status,note,,padNotes]=args as [number,number,number,number[]|undefined];const kind=status&0xf0;
+        const [status,note,,sent]=args as [number,number,number,number[]|'chord'|undefined];const kind=status&0xf0;
+        // Chord pads ('chord') and Play in order, voiced like the engine does.
+        const pf=next.state.performance,ch=pf.chord,oct=12*(pf.scale.octave??0),opts={voices:ch.spread,inversion:ch.inversion??0,bass:ch.bass??0};
+        let padNotes=sent==='chord'?voiceChord(ch.user.map(n=>note+n+oct),opts):sent;
+        if(!padNotes&&kind===0x90&&ch.enabled&&ch.follow){const filled=(ch.slots??[]).filter(c=>c.length);
+          if(filled.length){const i=(next.chord_step??0)%filled.length;padNotes=voiceChord(filled[i].map(n=>n+oct),opts);next.chord_now=i;
+            if((ch.advance??'Key')==='Key')next.chord_step=(i+1)%filled.length;}}
         const keys=new Set(next.held_notes??[]);
         // A chord pad sends its exact notes with the key; they are released together.
         if(kind===0x90&&padNotes)previewPads.set(note,padNotes);
@@ -359,6 +366,7 @@ function App() {
         if(action==='arp_pause'){next.arp_view={...(next.arp_view??{groups:[],step:-1}),paused:!next.arp_view?.paused};return next;}
         if(action==='arp_stop'){next.held_notes=[];next.arp_view=next.arp_view?{...next.arp_view,paused:false}:next.arp_view;return next;}
         const ch=next.state.performance.chord;
+        if(action==='chord_goto'){next.chord_step=value as number;return next;}
         if(action==='save_slot'){const [i,notes]=value as [number,number[]];ch.slots=(ch.slots??Array.from({length:8},()=>[])).map((c,k)=>k===i?[...notes]:c);return next;}
         if(action==='clear_slot'){ch.slots=(ch.slots??Array.from({length:8},()=>[])).map((c,k)=>k===value?[]:c);return next;}
         if(action==='save_chord'){const notes=value as number[];ch.user=notes.map(n=>n-notes[0]);ch.preset='User';return next;}
@@ -488,6 +496,7 @@ function App() {
           {freezeOpen?<FreezeSheet tracks={project.tracks} infos={snapshot?.freeze} colors={TRACK_COLORS}
             onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)} onClose={()=>setFreezeOpen(false)}/>:null}
         </div>;})():null}
+      {page==='PERFORM'?<div id="pf-oct-slot" className="pf-oct-slot"/>:null}
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
         :<span className={'footer-status midi-hidden-status'+(bridgeStatus==='ERROR'?' error':'')}>{bridgeStatus}</span>}
@@ -605,7 +614,7 @@ function App() {
       :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
           transfer={{clip:clipsOf(project).open[selected],bars:project.bars}}
           clipEdit={performClip} onClipEdit={setPerformClip} clipBeat={editorClock?.beat??playhead} clipPlaying={editorClock?.playing??false}
-          playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0}
+          playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0} chordStep={snapshot?.chord_step??0} chordNow={snapshot?.chord_now??-1}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
           onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
           onSet={(section,key,value)=>command('perform_set',[section,key,value])}

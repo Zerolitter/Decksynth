@@ -87,6 +87,8 @@ export type PerformanceState = {
   chord: {
     enabled:boolean;preset:string;user:number[];spread:number;strum_ms:number;
     strum_type:string;voicing:boolean;strum_sync?:string;bass?:number;slots?:number[][];
+    inversion?:number;ext?:string;follow?:boolean;advance?:'Key'|'1 bar'|'2 bars';
+    loop?:boolean;loop_rate?:'1/8'|'1/4'|'1/2'|'1 bar';tension?:number;
   };
   scale:{
     name:string;root:number;octave:number;velocity_curve:string;input_channel:number;
@@ -121,6 +123,8 @@ export type DeckUpdate = {
   held_notes?: number[];
   /** Step record cursor: the step the next recorded key goes to. */
   rec_step?: number;
+  /** Chords, Play in order: the saved chord the next key plays, and the one sounding (index among saved chords). */
+  chord_step?: number; chord_now?: number;
   arp_view?: { groups:number[][]; step:number; phase?:number; paused?:boolean } | null;
   /** song position in beats (not wrapped to the loop), for the audio gate cursor */ song_beat?: number;
   song_pos?: { bar:number; length:number; marker:number|null; name:string|null } | null;

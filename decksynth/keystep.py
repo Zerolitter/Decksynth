@@ -48,7 +48,17 @@ ARP_VELOCITY = ('As played', 'Fixed 100', 'Accent first')
 ARP_OCTAVE_MODES = ('Up', 'Down', 'UpDown')
 STRUM_SYNC = {'Off': 0., '1/64': .0625, '1/32': .125, '1/16': .25, '1/8': .5, '1/4': 1.}
 # Settings added after the first saved projects: older files get these defaults on load.
-ADDED_KEYS = {'arp': dict(velocity='As played', spice_seed=1, octave_mode='Up', restart_bar=False), 'chord': dict(strum_sync='Off', bass=0, slots=[[] for _ in range(8)])}
+ADDED_KEYS = {'arp': dict(velocity='As played', spice_seed=1, octave_mode='Up', restart_bar=False), 'chord': dict(strum_sync='Off', bass=0, slots=[[] for _ in range(8)],
+                                    inversion=0, ext='triad', follow=False, advance='Key',
+                                    loop=False, loop_rate='1/4', tension=0)}
+CHORD_EXTS = ('triad', '7', '9', '11', 'sus2', 'sus4', '5', 'oct')
+# What moves My chords on to the next chord while "Play in order" is on.
+CHORD_ADVANCE = {'Key': 0, '1 bar': 1, '2 bars': 2}
+# Loop: how often a held chord strums again (beats). Up-Down strums forward, then back.
+CHORD_LOOP_RATES = {'1/8': .5, '1/4': 1., '1/2': 2., '1 bar': 4.}
+STRUM_TYPES = ('Up', 'Down', 'Alt Up', 'Alt Down', 'Up-Down')
+# The lowest pitch a Bass note goes to: lower notes are moved up an octave (they only rumble on keys and pads).
+BASS_FLOOR = 33
 CHORD_SLOTS = 8
 CHORDS = {
     'User': [0, 4, 7], 'Octave': [0, 12], '5th': [0, 7],
@@ -80,7 +90,9 @@ def defaults():
                  octave_mode='Up', restart_bar=False),
         chord=dict(enabled=False, preset='Major Triad', user=[0, 4, 7],
                    spread=0, strum_ms=0, strum_type='Up', voicing=False,
-                   strum_sync='Off', bass=0, slots=[[] for _ in range(8)]),
+                   strum_sync='Off', bass=0, slots=[[] for _ in range(8)],
+                   inversion=0, ext='triad', follow=False, advance='Key',
+                   loop=False, loop_rate='1/4', tension=0),
         scale=dict(name='Chromatic', root=0, octave=0, velocity_curve='Linear',
                    input_channel=0),
         sync=dict(source='Internal',receive_transport=True),
@@ -168,8 +180,13 @@ def validate_state(value):
         raise ValueError('Invalid arpeggiator velocity or dice')
     if chord['strum_sync'] not in STRUM_SYNC or type(chord['bass']) is not int or not 0<=chord['bass']<=3:
         raise ValueError('Invalid strum sync or bass note')
-    if chord['strum_type'] not in ('Up','Down','Alt Up','Alt Down'):
+    if chord['strum_type'] not in STRUM_TYPES:
         raise ValueError('Unknown strum direction')
+    if (not integer(chord['inversion'],-3,3) or chord['ext'] not in CHORD_EXTS
+            or type(chord['follow']) is not bool or chord['advance'] not in CHORD_ADVANCE
+            or type(chord['loop']) is not bool or chord['loop_rate'] not in CHORD_LOOP_RATES
+            or not integer(chord['tension'],0,6)):
+        raise ValueError('Invalid chord inversion, type or order')
     if scale['name'] not in SCALES or scale['velocity_curve'] not in ('Linear','Logarithmic','Exponential','Fixed 100'):
         raise ValueError('Unknown scale/velocity curve')
     if not isinstance(chord['user'],list) or not 1<=len(chord['user'])<=16 or not all(integer(n,-48,48) for n in chord['user']):
@@ -242,22 +259,64 @@ def step_change(pattern,index,notes,replace=True):
     return out
 
 
-def chord_notes(state,root,velocity=100):
-    scale=state['scale']; root=scale_snap(root,scale['root'],scale['name'])
+def voice_chord(notes,chord,previous=None):
+    """One voicing for every chord the keys, pads and My chords play, in a fixed order:
+    Voices keeps the lowest N notes, then Inversion (or Voice lead, which picks the inversion
+    nearest the previous chord instead), then Bass adds the root N octaves below.
+    The UI (chords.ts voice/leadVoices) does the same steps, so what the pads show is what sounds."""
+    out=sorted(set(notes))
+    if not out:return []
+    root=out[0]
+    voices=chord['spread']
+    if 0<voices<16:out=out[:max(1,voices)]
+    def invert(xs,inv):
+        xs=xs[:]
+        for _ in range(abs(inv)):
+            if len(xs)<2:break
+            if inv>0:xs.append(xs.pop(0)+12)
+            else:xs.insert(0,xs.pop()-12)
+        return xs
+    if chord['voicing'] and previous and len(out)>1:
+        target=sum(previous)/len(previous)
+        best=out;score=None
+        for inv in range(-3,4):
+            v=invert(out,inv);d=abs(sum(v)/len(v)-target)
+            if score is None or d<score-1e-9:best,score=v,d
+        out=best
+    else:out=invert(out,chord.get('inversion',0))
+    upper=sorted(set(max(0,min(127,n)) for n in out))
+    bass=[]
+    if chord.get('bass'):
+        low=root-12*chord['bass']
+        while low<BASS_FLOOR and low+12<upper[0]:low+=12
+        bass=[low]
+    return sorted(set(max(0,min(127,n)) for n in [*bass,*upper]))
+
+
+def chord_upper(notes,chord):
+    """The chord without its added bass note: what Voice lead compares the next chord with."""
+    if not chord.get('bass') or len(notes)<2:return notes[:]
+    return notes[1:]
+
+
+def chord_notes(state,root,velocity=100,previous=None,snap=True):
+    scale=state['scale']
+    if snap:root=scale_snap(root,scale['root'],scale['name'])
     root=min(127,max(0,root+scale['octave']*12))
     if not state['chord']['enabled']:return [root]
     chord=state['chord']; intervals=(chord['user'] if chord['preset']=='User'
                                      else CHORDS[chord['preset']])
-    spread=chord['spread']
-    if spread==0: count=len(intervals)
-    elif spread==16: count=len(intervals)
-    else: count=min(len(intervals),spread)
-    pitches=[root+n for n in intervals[:count]]
-    if chord['voicing'] and len(pitches)>1:
-        # Pick stable close-position inversions instead of jumping all voices.
-        pitches[1:]=[n-12 if n-root>6 else n for n in pitches[1:]]
-    if chord.get('bass'):pitches.append(root-12*chord['bass'])
-    return sorted(set(max(0,min(127,n)) for n in pitches))
+    return voice_chord([root+n for n in intervals],chord,previous)
+
+
+def follow_chord(state,step,previous=None):
+    """Play in order: the My chords slot for this step (empty slots are skipped), voiced like any chord.
+    Slots hold the chord as built (no voicing), at Oct 0; the keys octave moves them."""
+    filled=[c for c in state['chord']['slots'] if c]
+    if not filled:return None,-1
+    index=step%len(filled)
+    shift=12*state['scale']['octave']
+    return voice_chord([n+shift for n in filled[index]],state['chord'],previous),index
 
 
 def scale_snap(note,root,name):
@@ -608,20 +667,28 @@ def schedule_notes(state,held,start_frame,end_frame,fpb,transpose=0,velocities=N
 
 class HeldNotes:
     """Runtime-only live chord memory for arpeggios; never persists stuck hardware keys."""
-    def __init__(self):self.keys={};self.latched=[];self.hold=False;self.velocity={}
+    def __init__(self):self.keys={};self.latched=[];self.latched_keys={};self.hold=False;self.velocity={}
     def velocities(self):return dict(self.velocity)
     def on(self,key,notes,velocity=100):
         for n in notes:self.velocity[n]=velocity
-        if self.hold and not self.keys:self.latched=[]
-        self.keys[key]=list(notes)
+        if self.hold and not self.keys:self.latched=[];self.latched_keys={}
+        self.keys[key]=list(notes);self.latched_keys[key]=list(notes)
         self.latched=list(dict.fromkeys([*self.latched,*notes]))[:64]
     def off(self,key):
         self.keys.pop(key,None)
-        if not self.hold and not self.keys:self.latched=[]
+        if not self.hold and not self.keys:self.latched=[];self.latched_keys={}
+    def remap(self,notes_for):
+        """New notes for every held (or latched) key, e.g. after a chord option changed."""
+        velocity=max(self.velocity.values(),default=100)
+        self.keys={k:list(notes_for(k,v)) for k,v in self.keys.items()}
+        self.latched_keys={k:list(notes_for(k,v)) for k,v in self.latched_keys.items()}
+        if self.hold:self.latched=list(dict.fromkeys(n for v in self.latched_keys.values() for n in v))[:64]
+        for v in [*self.keys.values(),*self.latched_keys.values()]:
+            for n in v:self.velocity.setdefault(n,velocity)
     def held(self):
         if self.hold:return self.latched[:]
         return list(dict.fromkeys(n for values in self.keys.values() for n in values))[:64]
     def set_hold(self,enabled):
         self.hold=bool(enabled)
-        if not self.hold and not self.keys:self.latched=[]
-    def reset(self):self.keys={};self.latched=[];self.velocity={}
+        if not self.hold and not self.keys:self.latched=[];self.latched_keys={}
+    def reset(self):self.keys={};self.latched=[];self.latched_keys={};self.velocity={}

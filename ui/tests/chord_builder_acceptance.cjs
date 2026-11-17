@@ -73,9 +73,17 @@ const ROOT=path.resolve(__dirname,'..');
   assert.match(await p.getByTestId('cb-pad-i').innerText(),/Am/);
   assert.match(await p.getByTestId('cb-pad-III').innerText(),/C/);
 
-  // Long-press a pad saves it to My chords; the slot plays it.
-  const iii=p.getByTestId('cb-pad-III');const ib=await iii.boundingBox();
-  await p.mouse.move(ib.x+ib.width/2,ib.y+ib.height/2);await p.mouse.down();await p.waitForTimeout(750);await p.mouse.up();
+  // Holding a pad no longer saves it (Sir, 16 Nov): sliding across pads plays one chord after another.
+  const iii=p.getByTestId('cb-pad-III'),iv=p.getByTestId('cb-pad-iv');const ib=await iii.boundingBox(),vb=await iv.boundingBox();
+  await p.mouse.move(ib.x+ib.width/2,ib.y+ib.height/2);await p.mouse.down();await p.waitForTimeout(750);
+  assert.match(await iii.getAttribute('class'),/sounding/);
+  await p.mouse.move(vb.x+vb.width/2,vb.y+vb.height/2,{steps:4});await p.waitForTimeout(80);
+  assert.match(await iv.getAttribute('class'),/sounding/,'the slide moved on to iv');
+  assert.doesNotMatch(await iii.getAttribute('class'),/sounding/);
+  await p.mouse.up();
+  assert.doesNotMatch(await p.getByTestId('cb-slot-1').getAttribute('class'),/full/,'holding does not save');
+  // Keep C in slot 1: tap it, then the empty slot.
+  await iii.click();await p.getByTestId('cb-slot-1').click();
   const slot=p.getByTestId('cb-slot-1');
   assert.match(await slot.getAttribute('class'),/full/);
   assert.match(await slot.innerText(),/C/);
@@ -89,6 +97,16 @@ const ROOT=path.resolve(__dirname,'..');
   await p.getByRole('menuitem',{name:'Clear'}).click();
   assert.doesNotMatch(await p.getByTestId('cb-slot-2').getAttribute('class'),/full/);
 
+  // Play in order: each key plays the next saved chord, the next one is marked.
+  await p.getByTestId('cb-pad-i').click();await p.getByTestId('cb-slot-2').click();
+  await p.getByTestId('cb-follow').click();
+  assert.match(await p.getByTestId('cb-slot-1').getAttribute('class'),/next/,'the first saved chord is next');
+  const k50=p.locator('.pf-piano [data-note="50"]');const kb50=await k50.boundingBox();
+  await p.mouse.move(kb50.x+kb50.width/2,kb50.y+kb50.height-14);await p.mouse.down();await p.waitForTimeout(80);
+  assert.match(await p.getByTestId('cb-display').innerText(),/C\b/);await p.mouse.up();
+  await p.mouse.down();await p.waitForTimeout(80);
+  assert.match(await p.getByTestId('cb-display').innerText(),/Am/);await p.mouse.up();
+  await p.getByTestId('cb-follow').click();
   // Nothing covered at 722 px.
   const covered=await p.evaluate(()=>[...document.querySelectorAll('.pf button')].filter(b=>{const r=b.getBoundingClientRect();
     if(!r.width||!r.height)return false;const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);

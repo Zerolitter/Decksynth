@@ -11,7 +11,8 @@ export type ChordExt='triad'|'7'|'9'|'11'|'sus2'|'sus4'|'5'|'oct';
 export const CHORD_EXTS:[ChordExt,string][]=[['triad','Triad'],['7','7th'],['9','9th'],['11','11th'],
   ['sus2','Sus2'],['sus4','Sus4'],['5','5th'],['oct','Oct']];
 
-export type PadChord={degree:number;roman:string;name:string;root:number;notes:number[]};
+export type PadChord={degree:number;roman:string;name:string;root:number;notes:number[];
+  /** The chord as built, before Voices / Inversion / Bass: what the engine voices. */ raw:number[]};
 export type Voicing={octave?:number;inversion?:number;voices?:number;bass?:number};
 
 const ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
@@ -86,9 +87,24 @@ export function diatonicChords(root:number,scaleName:string,ext:ChordExt,v:Voici
     let roman=ROMAN[degree]??String(degree+1);
     if(third===3)roman=roman.toLowerCase();
     if(ext==='triad'||ext==='7'||ext==='9'||ext==='11')roman+=fifth;
-    return {degree,roman,name:chordName(r,intervals),root:r,notes:voice(raw,r,v)};
+    return {degree,roman,name:chordName(r,intervals),root:r,notes:voice(raw,r,v),raw};
   });
 }
 
 /** Note names of a chord, low to high, e.g. "A C E". */
 export const chordText=(notes:number[])=>notes.map(pc).join(' ');
+
+/** What the engine plays for a built chord (keystep.voice_chord): Voices, then Inversion or
+    Voice lead (nearest inversion to the previous chord), then Bass below the chord root. */
+export function voiceChord(raw:number[],o:{voices?:number;inversion?:number;bass?:number;lead?:boolean},previous?:number[]|null):number[]{
+  const s=[...new Set(raw)].sort((a,b)=>a-b);if(!s.length)return [];
+  const root=s[0];
+  const cut=voice(s,root,{voices:o.voices});
+  const upper=o.lead&&previous?.length?leadVoices(cut,previous):voice(cut,root,{inversion:o.inversion??0});
+  return voice(upper,root,{bass:o.bass??0});
+}
+
+/** The chord without its added bass note (what Voice lead compares with). */
+export const chordUpper=(notes:number[],bass:number)=>bass&&notes.length>1?notes.slice(1):notes;
+
+export const CHORD_ADVANCE=['Key','1 bar','2 bars'] as const;
