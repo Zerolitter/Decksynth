@@ -215,6 +215,12 @@ export function PatternLibrary({trackIndex,track,pattern,patterns,seq,playing,re
     </>:parts.length?<button type="button" className="plib-text danger" onClick={clearAll}>Clear structure</button>:null}
     {history.length?<button type="button" className="plib-icon" aria-label="Undo structure change" title="Undo (Ctrl+Z)" onClick={undo}><Undo2 size={15}/></button>:null}
    </div>
+   <div className="plib-send" role="group" aria-label="Use the Structure">
+    <button type="button" className="plib-text" disabled={!parts.length||recording} onClick={()=>send('structure_merge')}
+     title="Merge every part, in order and with its repeats, into one long pattern in an empty slot. The sequencer grows to fit.">To pattern</button>
+    <button type="button" className="plib-text plib-primary" disabled={!parts.length||recording} onClick={()=>send('structure_extend')}
+     title="Write the whole Structure onto the end of the open clip, from the bar after its last note. The clip grows to fit (up to 32 bars).">Extend clip</button>
+   </div>
   </footer>
  </section>,document.querySelector('.harness-shell')??document.body);
 }
