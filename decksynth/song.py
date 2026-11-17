@@ -7,6 +7,8 @@ so a one-bar block of a copied clip on the last bar of a phrase plays that clip'
 Bars without a block are silent. Markers name places (Intro, Drop).
 Loop mode (song off) plays each track's open clip, exactly as before.
 """
+import bisect
+import copy
 import math
 
 CLIPS = 8
@@ -128,29 +130,69 @@ def marker_at(song, bar):
     return found
 
 
-def song_events(song, lane_clips, track, start_beat, end_beat, bars):
+def clip_buckets(cache, key, notes, span, bars):
+    """A clip's notes sorted into its bars: (note index, note, start inside the clip) per bar.
+
+    With a cache (a dict the engine keeps), the buckets are built once per edit instead of every audio block.
+    A copy of the notes is kept beside them and compared with C speed, so any change to the notes, however
+    it was made, builds them again."""
+    entry = cache.get(key) if cache is not None else None
+    if entry is not None and entry[1] == (span, bars) and entry[0] == notes:
+        return entry[2]
+    buckets = [[] for _ in range(bars)]
+    for idx, n in enumerate(notes):
+        s = n['start'] % span; buckets[min(bars - 1, int(s // 4))].append((idx, n, s))
+    if cache is not None:
+        if len(cache) > 256: cache.clear()
+        cache[key] = (copy.deepcopy(notes), (span, bars), buckets)
+    return buckets
+
+
+def loop_events(cache, track, notes, start, end, loop, fpb):
+    """Note events of a looping track between frames start and end: (frame, on?, note index, cycle, note).
+
+    The note times are sorted once per edit (or tempo or loop length change); each block then only looks up
+    the few notes that fall in it, instead of walking every note of every track. The order of events that
+    land on the same frame is the original one: by cycle, then note index, note-off before note-on."""
+    entry = cache.get(('loop', track)) if cache is not None else None
+    if entry is None or entry[0] != notes:
+        # Times are kept in beats, so a tempo change (or MIDI clock sync) does not rebuild anything.
+        marks = []
+        for idx, note in enumerate(notes):
+            marks.append((note['start'], idx, 1)); marks.append((note['start'] + note['duration'], idx, 0))
+        marks.sort()
+        entry = (copy.deepcopy(notes), [m[0] for m in marks], marks)
+        if cache is not None: cache[('loop', track)] = entry
+    xs, marks = entry[1], entry[2]
+    found = []
+    for cycle in range(max(0, int(start / loop) - 1), int(end / loop) + 1):
+        base = cycle * loop
+        lo = bisect.bisect_left(xs, (start - base - 1) / fpb); hi = bisect.bisect_right(xs, (end - base + 1) / fpb)
+        for x, idx, action in marks[lo:hi]:
+            when = round(base + x * fpb)
+            if start <= when < end: found.append((cycle, idx, action, when))
+    found.sort(key=lambda f: (f[0], f[1], f[2]))
+    return [(when, action, idx, cycle, notes[idx]) for cycle, idx, action, when in found]
+
+
+def song_events(song, lane_clips, track, start_beat, end_beat, bars, cache=None):
     """Note events for one track between two song beats: (beat, on?, (clip, idx), absolute bar, note).
-    lane_clips(k) gives clip k's notes."""
+    lane_clips(k) gives clip k's notes. cache: optional dict that keeps each clip's sorted notes between calls."""
     out = []
     if not song['lanes'][track]: return out
     span = 4 * bars
     first = int(math.floor(start_beat / 4)) - bars - 1
     last = int(math.ceil(end_beat / 4)) + 1
-    cache = {}
+    seen = {}
     for sb in range(max(0, first), last):
         wb = song_bar(song, sb)
         if wb is None: continue
         b = block_at(song, track, wb)
         if b is None: continue
         k = b['clip']
-        if k not in cache:
-            # The clip's notes sorted into its bars once, so each song bar only looks at its own notes.
-            buckets = [[] for _ in range(bars)]
-            for idx, n in enumerate(lane_clips(k)):
-                s = n['start'] % span; buckets[min(bars - 1, int(s // 4))].append((idx, n, s))
-            cache[k] = buckets
+        if k not in seen: seen[k] = clip_buckets(cache, (track, k), lane_clips(k), span, bars)
         ph = phase(b, wb, bars); lo = ph * 4
-        for idx, n, s in cache[k][ph]:
+        for idx, n, s in seen[k][ph]:
             on = sb * 4 + s - lo; off = on + n['duration']
             if start_beat <= on < end_beat: out.append((on, 1, (k, idx), sb, n))
             if start_beat <= off < end_beat: out.append((off, 0, (k, idx), sb, n))

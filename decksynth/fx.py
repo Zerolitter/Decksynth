@@ -414,6 +414,15 @@ def mod_value(m, beat):
 def available():
     return _load() is not None
 
+# (module, key) -> (position, min, max, init): where a parameter sits in the native array.
+PARAM_INDEX = {(m, key): (j, lo, hi, init) for m, specs in PARAMS.items() for j, (key, lo, hi, init) in enumerate(specs)}
+
+
+# Effects sleep after this many seconds of silence in and out: the longest echo or grain buffer is 3 s.
+REST_SECONDS = 4.
+REST_FLOOR = 1e-6
+
+
 class TrackFx:
     def __init__(self, rate):
         self.lib = _load(); self.handle = self.lib.dsfx_create(rate) if self.lib else None
@@ -428,6 +437,9 @@ class TrackFx:
         self.sound = {}  # Sound knob offsets (knob units) from macros and mod pads, for the synth
         self.tuned = []  # resonator string pitches (MIDI notes)
         self.rate=rate;self.gate_values={k:v[2] for k,v in GATE_PERFORMANCE.items()};self._gate_events=[];self._gate_origin=None;self._gate_frame=0
+        self.rest_enabled = True; self._quiet = 0; self.cleared = 0  # frames of silence in and out so far (see process)
+        self.watched = False  # the engine sets this for the track the screen shows
+        self._mods_live = False; self._written = set(); self._gate_module = None; self._by_id = {}
         self._tail = 0  # blocks left to fade out after the last effect is switched off
         self._scale = None; self._readout = (ctypes.c_double * 3)()
     def retrigger(self,frame=None,empty=True):
@@ -519,6 +531,7 @@ class TrackFx:
                     raise ValueError('Stereo controls require the cached native kernel; run tools/build-native-filter.py and restart')
         self.chain = chain
         gate=next((m for m in (chain or {}).get('modules',[]) if m['id']=='gate'),None)
+        self._quiet=0; self._gate_module=gate; self._written=set(); self._by_id={m['id']:m for m in (chain or {}).get('modules',[])}
         values={k:(gate['params'].get(k,v[2]) if gate else v[2]) for k,v in GATE_PERFORMANCE.items()}
         if values['retrig']!=self.gate_values['retrig']:self.clear_gate_events()
         self.gate_values=values
@@ -537,42 +550,83 @@ class TrackFx:
         # The last effect switched off: keep running a few blocks so it fades out instead of cutting.
         if was and not self.active: self._tail = 8
     def modulate(self, beat, automation=None):
-        """Write base params plus macro and mod-pad offsets for this block."""
+        """Write base params plus macro and mod-pad offsets for this block.
+
+        Quiet when nothing is linked: no offsets to work out, and the parameters are only rewritten
+        for the knobs that moved (or just stopped moving), not all 22 effects every block."""
         c = self.chain
         if not c:self.sound={};self.sampler={};self.drum={};return
         automation=automation or {}
+        macros = c.get('macros') or []; mods = c.get('mods') or []
+        linked = bool(automation) or any(m['targets'] for m in macros) or any(m['targets'] for m in mods)
         offsets = {}
-        macros = c.get('macros') or []
-        values = [automation.get(('macro',str(i)),m['value']) for i,m in enumerate(macros)]  # the Morph Pad writes its two macros' values directly
-        self.move_puck(beat, values)  # ...and while its puck travels a path, the engine moves them in audio time
-        for m, v in zip(macros, values):
-            for t in m['targets']:
-                key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth']
-        for i, m in enumerate(c.get('mods') or []):
-            if not m['targets']: self.mod_values[i] = 0.; continue
-            v, ph = mod_value(m, beat); self.mod_values[i] = v; self.mod_phases[i] = ph
-            for t in m['targets']:
-                key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth'] * .5
-        self.sound = {k[1]: v * (SOUND_PARAMS[k[1]][1] - SOUND_PARAMS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sound'}
-        self.sampler = {k[1]: v * (SAMPLER_TARGETS[k[1]][1] - SAMPLER_TARGETS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sampler'}
-        self.drum = {}
-        for k, v in offsets.items():
-            if k[0] == 'drum': lo, hi = DRUM_TARGETS[_drum_key(k[1])]; self.drum[k[1]] = v * (hi - lo)
-        gate=next((m for m in c['modules'] if m['id']=='gate'),None)
+        if linked:
+            self._mods_live = True
+            values = [automation.get(('macro',str(i)),m['value']) for i,m in enumerate(macros)]  # the Morph Pad writes its two macros' values directly
+            self.move_puck(beat, values)  # ...and while its puck travels a path, the engine moves them in audio time
+            for m, v in zip(macros, values):
+                for t in m['targets']:
+                    key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth']
+            for i, m in enumerate(mods):
+                if not m['targets']: self.mod_values[i] = 0.; continue
+                v, ph = mod_value(m, beat); self.mod_values[i] = v; self.mod_phases[i] = ph
+                for t in m['targets']:
+                    key = (t['module'], t['param']); offsets[key] = offsets.get(key, 0) + v * t['depth'] * .5
+            self.sound = {k[1]: v * (SOUND_PARAMS[k[1]][1] - SOUND_PARAMS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sound'}
+            self.sampler = {k[1]: v * (SAMPLER_TARGETS[k[1]][1] - SAMPLER_TARGETS[k[1]][0]) for k, v in offsets.items() if k[0] == 'sampler'}
+            self.drum = {}
+            for k, v in offsets.items():
+                if k[0] == 'drum': lo, hi = DRUM_TARGETS[_drum_key(k[1])]; self.drum[k[1]] = v * (hi - lo)
+        else:
+            # Nothing is linked: the Morph puck only matters to the screen, so it moves only while this track is shown.
+            if self.watched: self.move_puck(beat, [0.] * NMACRO)
+            if self._mods_live: self.mod_values = [0.] * NMOD_SRC; self._mods_live = False
+            self.sound = {}; self.sampler = {}; self.drum = {}
+        gate=self._gate_module
         if gate:
             for k,(lo,hi,init) in GATE_PERFORMANCE.items():
                 self.gate_values[k]=min(hi,max(lo,automation.get(('gate',k),gate['params'].get(k,init))+offsets.get(('gate',k),0.)*(hi-lo)))
             if any(('gate',k) in offsets or ('gate',k) in automation for k in ('phase','notelen')):
                 self._gate_extended=True
                 if self.handle and not hasattr(self.lib,'dsfx_gate_controls'):raise ValueError('Gate automation requires the cached native kernel')
-        if not offsets and not automation and not getattr(self, '_dirty', False): return
-        self._dirty = bool(offsets or automation)
-        for m in c['modules']:
-            idx = ORDER.index(m['id'])
-            for j, (key, lo, hi, init) in enumerate(PARAMS[m['id']]):
-                v = automation.get((m['id'],key),m['params'].get(key, init)) + offsets.get((m['id'], key), 0.) * (hi - lo)
-                self.params[idx * NPAR + j] = min(hi, max(lo, v))
+        touched = {k for k in offsets if k in PARAM_INDEX} | {k for k in automation if k in PARAM_INDEX}
+        if not touched and not self._written: return
+        # Knobs that were moved last block but are not now go back to their saved value.
+        for module, key in touched | self._written:
+            idx = ORDER.index(module); j, lo, hi, init = PARAM_INDEX[(module, key)]
+            base = automation.get((module, key), self._base_value(module, key, init))
+            v = base + offsets.get((module, key), 0.) * (hi - lo)
+            self.params[idx * NPAR + j] = min(hi, max(lo, v))
+        self._written = touched
+    def _base_value(self, module, key, init):
+        m = self._by_id.get(module)
+        return m['params'].get(key, init) if m else init
     def process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False, right=None, key=None):
+        """Run the effects over one block (see _process). When the input has been silent and the output
+        has stayed silent for longer than the longest echo any effect can hold (REST_SECONDS), the effects
+        are asleep: the block is answered with zeros at once, and the first sound wakes them again."""
+        silent_in = not any(samples) and (right is None or not any(right)) and (key is None or all(k is None for k in key))
+        if silent_in and self.rest_enabled and self.active and not self._tail and self._quiet >= self.rate * REST_SECONDS:
+            n = len(samples)
+            self._gate_frame = (self._gate_frame if frame is None else int(frame)) + n
+            return ([0.] * n, [0.] * n) if _stereo else [0.] * n
+        out = self._process(samples, bpm, beat, modulated, clock, frame, _stereo, right, key)
+        if self.active and self.handle:
+            # A NaN or infinite result (a runaway feedback loop) would ring until restart: clear the effects instead.
+            pair = out if _stereo else (out,)
+            if not all(math.isfinite(sum(c)) for c in pair):
+                self.lib.dsfx_reset(self.handle)
+                if self.right: self.lib.dsfx_reset(self.right)
+                self.tuned = []; self.cleared += 1; self._quiet = 0
+                n = len(samples)
+                return ([0.] * n, [0.] * n) if _stereo else [0.] * n
+        if silent_in and self.active and not self._tail:
+            pair = out if _stereo else (out,)
+            if max(max(map(abs, c), default=0.) for c in pair) < REST_FLOOR: self._quiet += len(samples)
+            else: self._quiet = 0
+        else: self._quiet = 0
+        return out
+    def _process(self, samples, bpm, beat=0., modulated=False, clock=None, frame=None, _stereo=False, right=None, key=None):
         """samples: list of floats; returns a list (same object when bypassed).
         modulated: the engine already called modulate() for this block.
         clock: song position in beats while the transport plays (the audio gate locks to it).

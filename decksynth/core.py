@@ -589,7 +589,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
         self.send_buses=send_buses.SendBuses(rate)  # the shared Reverb and Delay (sends.py)
-        self.selected=0; self.playing=False; self.recording=False; self.frame=0
+        self.selected=0; self.playing=False; self.recording=False; self.frame=0; self._bucket_cache={}
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.transfer_report=None
         # Count-in (Settings): beats of click before a take, and whether REC waits for the first note.
@@ -1503,7 +1503,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             abs_start=self.absolute_frame; abs_end=abs_start+n
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
             for tr,(fx,synth) in enumerate(zip(self.fx,self.synths)):
-                auto=self.automation_values[tr];fx.modulate(abs_start/self.fpb,auto)
+                auto=self.automation_values[tr];fx.watched=tr==self.selected;fx.modulate(abs_start/self.fpb,auto)
                 for (module,param),value in auto.items():
                     if module=='sound':
                         base=self.project.tracks[tr]['volume'] if param=='volume' else synth.params.get(param,sound_default(synth.params,param))
@@ -1553,16 +1553,12 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     if song:
                         # Timeline: each bar plays the bar of its block's clip that lines up with the grid.
                         for beat,action,key,bar,note in songs.song_events(song,lambda k:self.project.clip_notes(tr,k),tr,
-                                                                          start/self.fpb-1,end/self.fpb+1,self.project.bars):
+                                                                          start/self.fpb-1,end/self.fpb+1,self.project.bars,self._bucket_cache):
                             when=round(beat*self.fpb)
                             if start<=when<end:events.setdefault(when-start,[]).append((action,tr,key,bar,note))
                         continue
-                    for cycle in range(max(0,int(start/loop)-1),int(end/loop)+1):
-                        notes=t['notes']
-                        for idx,note in enumerate(notes):
-                            on=round(cycle*loop+note['start']*self.fpb); off=round(cycle*loop+(note['start']+note['duration'])*self.fpb)
-                            for when,action in ((off,0),(on,1)):
-                                if start<=when<end:events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
+                    for when,action,idx,cycle,note in songs.loop_events(self._bucket_cache,tr,t['notes'],start,end,loop,self.fpb):
+                        events.setdefault(when-start,[]).append((action,tr,idx,cycle,note))
                 # Stop/rewind moves the clock behind the phrase start: restart the phrase from there.
                 if self.arp_anchor_beat*self.fpb>end:self.arp_anchor_beat=start/self.fpb
                 if self.playing and not self.freeze_render and not self.project.tracks[self.selected]['mute']:
@@ -1584,7 +1580,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     if tick>=abs_start:events.setdefault(tick-abs_start,[]).append((2,0 if k==0 else k))
                     k+=1
             offsets=sorted(set(events)|{n})
-            track_audio=[[] for _ in self.synths]; click=[]; live_frozen=[False]*len(self.synths)
+            track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
             # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
             drum_right=[[] if stereo and device_kind(t)=='drum_rack' else None for t in self.project.tracks]
             for pos,nextpos in zip(offsets,offsets[1:]):
@@ -1632,11 +1628,14 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                         else:self.drums[tr].render_into(part,count)
                     elif device_kind(self.project.tracks[tr])=='sampler':self.samplers[tr].render_into(part,count)
                     buf.extend(part)
-                for j in range(count):
-                    if self.click_age<self.rate*.025:
-                        click.append(.15*math.sin(self.click_age/self.rate*2*math.pi*self.click_freq)*(1-self.click_age/(self.rate*.025)))
-                        self.click_age+=1
-                    else:click.append(None)
+                if self.click_age>=self.rate*.025:click.extend([None]*count)  # metronome silent: no per-sample work
+                else:
+                    click_on=True
+                    for j in range(count):
+                        if self.click_age<self.rate*.025:
+                            click.append(.15*math.sin(self.click_age/self.rate*2*math.pi*self.click_freq)*(1-self.click_age/(self.rate*.025)))
+                            self.click_age+=1
+                        else:click.append(None)
             # Per-track FX run once per block, then the mix is summed in the original order.
             mix=[0.]*n;right=[0.]*n if stereo else None
             # Sends: each track feeds the shared Reverb and Delay after its volume and pan.
@@ -1708,7 +1707,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             # Master limiter: turns the mix down when it would go over 0.9 and lets go over ~40 ms,
             # instead of flattening the peaks (hard clipping sounds like crackle).
             g=self.limit
-            if stereo and not any(c is not None for c in click):
+            if stereo and not click_on:
                 # No metronome click in this block. The limiter gain only recovers upward, so if the loudest
                 # sample still fits under 0.9 at the block's final gain, nothing is limited and the gain is
                 # a fixed curve: apply it to whole lists instead of sample by sample.
