@@ -485,6 +485,9 @@ def worker(commands,updates):
                         keys=engine.structure_load(*args)
                         send(dict(message='Structure loaded into patterns '+keys[0].replace(':','·')+' to '+keys[-1].replace(':','·')+'. Undo takes it out.'))
                     elif cmd=='structure_set':engine.structure_set(*args)
+                    elif cmd=='structure_part_length':
+                        key,steps=engine.structure_part_length(*args)
+                        send(dict(message='Part %s to pattern %s: %d steps. Undo takes it back.'%('halved' if args[2]==.5 else 'doubled',key.replace(':','·'),steps)))
                     elif cmd=='structure_merge':
                         key,length=engine.structure_merge()
                         send(dict(message='Structure merged into pattern %s: %d steps. Undo takes it out.'%(key.replace(':','·'),length)))

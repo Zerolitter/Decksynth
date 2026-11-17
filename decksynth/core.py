@@ -13,8 +13,11 @@ from operator import add
 from . import song as songs
 from . import sends as send_buses
 from .devices import device_kind
-# Clip loop lengths in bars (Sir, 15 Nov: up to 32).
+# Clip loop lengths in bars (Sir, 15 Nov: up to 32). Any whole number of bars works (Sir, 17 Nov:
+# a Structure that ends on bar 17 makes a 17-bar clip); BAR_CHOICES are the quick picks.
 BAR_CHOICES=(1,2,4,8,16,32)
+MAX_BARS=32
+def valid_bars(bars):return type(bars) is int and 1<=bars<=MAX_BARS
 from .drum_rack import validate_kit
 from .drum_engine import DrumEngine
 from .freeze_engine import FreezeEngine
@@ -162,7 +165,7 @@ class Project:
     def load(cls,path):
         try:
             d=json.loads(Path(path).read_text()); p=cls()
-            assert d['version']==1 and 30<=d['bpm']<=240 and d['bars'] in BAR_CHOICES
+            assert d['version']==1 and 30<=d['bpm']<=240 and valid_bars(d['bars'])
             from .devices import MIN_TRACKS,MAX_TRACKS
             assert isinstance(d['metronome'],bool) and MIN_TRACKS<=len(d['tracks'])<=MAX_TRACKS
             for t in d['tracks']:
@@ -943,7 +946,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         m=songs.marker_at(song,bar)
         return dict(bar=bar,length=song['length'],marker=m,name=None if m is None else song['markers'][m]['name'])
     def set_bars(self,bars):
-        if bars not in BAR_CHOICES:raise ValueError('Loop length must be 1, 2, 4, 8, 16 or 32 bars')
+        if not valid_bars(bars):raise ValueError('Loop length must be 1 to %d bars'%MAX_BARS)
         self.snapshot(); self.stop(); self.project.bars=bars
         for t in self.project.tracks:
             for n in t['notes']:

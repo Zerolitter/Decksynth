@@ -155,7 +155,7 @@ class RoundTripTests(unittest.TestCase):
         self.assertFalse(save_load(p)[0].performance['seq']['recording'])
 
     def test_bad_files_are_refused_not_half_loaded(self):
-        for edit in (lambda d: d.update(version=2), lambda d: d.update(bpm=0), lambda d: d.update(bars=3),
+        for edit in (lambda d: d.update(version=2), lambda d: d.update(bpm=0), lambda d: d.update(bars=33),
                      lambda d: d['tracks'][0].update(volume=2), lambda d: d['tracks'][0].update(name=5)):
             with self.subTest(edit=edit), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / 'bad.decksynth'; Project().save(path)

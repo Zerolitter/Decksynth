@@ -100,6 +100,30 @@ class PatternCatalogEngine:
   if seq['chain_enabled']:seq['enabled']=True;state['arp']['enabled']=False
   state=validate_performance(state)
   self.release_performance('perf_seq');self.project.performance=state
+ def structure_part_length(self,start,count,factor):
+  """Half (first half only, e.g. a short lift before the verse) or double (played twice in one pattern) a part.
+  The result is a copy in an empty slot, so the original pattern and other parts that use it stay as they are.
+  The part's plays (chain[start:start+count]) all move to the copy. One undo step."""
+  if self.recording:raise ValueError('Finish the take before changing the structure')
+  if factor not in (.5,2):raise ValueError('Half or double only')
+  state=copy.deepcopy(self.project.performance);seq=state['seq'];chain=list(seq['chain'])
+  if type(start) is not int or type(count) is not int or count<1 or start<0 or start+count>len(chain) or len(set(chain[start:start+count]))!=1:
+   raise ValueError('Structure changed; choose the part again')
+  source=state['patterns'].get(chain[start])
+  if not source or not any(source['steps']):raise ValueError('That part has no notes yet')
+  length=source['length']
+  if factor==2:
+   if length*2>MAX_STEPS:raise ValueError('A pattern holds %d steps; this part is already %d'%(MAX_STEPS,length))
+   steps=[list(map(dict,st)) for st in source['steps']*2];new=length*2
+  else:
+   if length<2:raise ValueError('This part is one step long already')
+   new=length//2;steps=[[dict(n,tie=min(n.get('tie',1),new-i)) for n in st] for i,st in enumerate(source['steps'][:new])]
+   if not any(steps):raise ValueError('The first half of this part has no notes')
+  key=self._free_slots(state,1,chain)[0]
+  state['patterns'][key]=dict(source,length=new,steps=steps)
+  chain[start:start+count]=[key]*count;seq['chain']=chain
+  self._commit_structure(state)
+  return key,new
  def _merged_structure(self,state,limit=None):
   """The Structure as one pattern: every play of every part, end to end (keystep plays the chain the same way)."""
   seq=state['seq']
@@ -126,17 +150,17 @@ class PatternCatalogEngine:
   return key,merged['length']
  def structure_extend(self):
   """Extend: the whole Structure goes onto the end of the open clip (from the bar after its last note).
-  The loop grows to the next length that fits (up to 32 bars). Sequencer playback hands over to the clip. One undo step."""
+  The loop grows to exactly the bars it needs (up to 32, no rounding). Sequencer playback hands over to the clip. One undo step."""
   if self.recording:raise ValueError('Finish the take first')
-  from .core import BAR_CHOICES
+  from .core import MAX_BARS
   state=copy.deepcopy(self.project.performance);seq=state['seq']
   merged=self._merged_structure(state)
   notes=self.project.tracks[self.selected]['notes']
   end=max((n['start']+n['duration'] for n in notes),default=0.)
   offset=math.ceil(end/4-1e-6)*4
   span=merged['length']*DIVISIONS[merged['division']]
-  bars=next((b for b in BAR_CHOICES if b*4>=offset+span-1e-6),None)
-  if bars is None:raise ValueError('The clip would pass 32 bars (it needs %d); clear some bars or shorten the Structure'%math.ceil((offset+span)/4))
+  bars=max(self.project.bars,math.ceil((offset+span)/4-1e-6))
+  if bars>MAX_BARS:raise ValueError('The clip would pass %d bars (it needs %d); clear some bars or shorten the Structure'%(MAX_BARS,bars))
   added=song_from_pattern(merged,math.ceil(span/4-1e-6),seq['transpose'],fill=False,feel=dict(spice=seq['spice'],spice_seed=seq['spice_seed']))
   for n in added:n['start']+=offset;n['duration']=min(n['duration'],bars*4-n['start'])
   added=[n for n in added if n['start']<bars*4]

@@ -85,6 +85,8 @@ export function PatternLibrary({trackIndex,track,pattern,patterns,seq,playing,re
  const movePart=(i:number,to:number)=>{if(to<0||to>=parts.length||to===i)return;editPart(i,p=>{const [m]=p.splice(i,1);p.splice(to,0,m);return p;},to);};
  const setRepeats=(i:number,n:number)=>{const total=parts.reduce((a,p,k)=>a+(k===i?0:p.repeats),0);const r=Math.max(1,Math.min(16,n,MAX_PLAYS-total));if(parts[i]&&r!==parts[i].repeats)editPart(i,p=>{p[i].repeats=r;return p;});};
  const duplicatePart=(i:number)=>{if(seq.chain.length+(parts[i]?.repeats??0)>MAX_PLAYS)return;editPart(i,p=>{p.splice(i+1,0,{...p[i]});return p;},i+1);};
+ // Half or double the part's pattern (as a copy in an empty slot); a half part makes a short lift before the verse.
+ const resizePart=(i:number,factor:.5|2)=>{const p=parts[i];if(!p||recording)return;remember();send('structure_part_length',[parts.slice(0,i).reduce((n,x)=>n+x.repeats,0),p.repeats,factor]);};
  const undo=()=>{const last=history[history.length-1];if(!last)return;setHistory(h=>h.slice(0,-1));send('structure_set',[last.chain,last.on]);};
  const clearAll=()=>{setStructure([],false);setFocus({zone:'grid'});};
 
@@ -210,6 +212,8 @@ export function PatternLibrary({trackIndex,track,pattern,patterns,seq,playing,re
      <button type="button" className="plib-icon" aria-label="Move part earlier" disabled={!selectedPart} onClick={()=>movePart(selectedPart,selectedPart-1)}><ArrowLeft size={15}/></button>
      <button type="button" className="plib-icon" aria-label="Move part later" disabled={selectedPart>=parts.length-1} onClick={()=>movePart(selectedPart,selectedPart+1)}><ArrowRight size={15}/></button>
      <span className="plib-repeats" role="radiogroup" aria-label="Plays">{[1,2,4,8].map(n=><button type="button" role="radio" key={n} aria-checked={parts[selectedPart].repeats===n} onClick={()=>setRepeats(selectedPart,n)}>×{n}</button>)}</span>
+     <button type="button" className="plib-text plib-len" aria-label="Half length" title="Keep the first half of this part (a short lift before the verse). Makes a copy; the original stays." onClick={()=>resizePart(selectedPart,.5)}>½ len</button>
+     <button type="button" className="plib-text plib-len" aria-label="Double length" title="Play this part twice in one pattern (double length). Makes a copy; the original stays." onClick={()=>resizePart(selectedPart,2)}>2× len</button>
      <button type="button" className="plib-icon" aria-label="Duplicate part" onClick={()=>duplicatePart(selectedPart)}><Copy size={14}/></button>
      <button type="button" className="plib-icon danger" aria-label="Remove part" onClick={()=>removePart(selectedPart)}><Trash2 size={14}/></button>
     </>:parts.length?<button type="button" className="plib-text danger" onClick={clearAll}>Clear structure</button>:null}

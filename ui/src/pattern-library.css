@@ -57,6 +57,7 @@
 .plib-confirm span{flex:1}
 
 /* Structure: parts in play order, like My chords on Chords */
+.plib .plib-len{padding:0 8px;min-width:44px}
 .plib-send{display:flex;gap:4px;padding-left:6px;border-left:1px solid var(--ui-line-soft)}
 .plib-structure{display:grid;grid-template-columns:170px minmax(0,1fr) auto auto;align-items:center;gap:6px;padding-top:5px;border-top:1px solid var(--ui-line-soft)}
 .plib-structure-head{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 6px}
