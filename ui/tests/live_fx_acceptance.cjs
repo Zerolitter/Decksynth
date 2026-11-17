@@ -18,7 +18,12 @@ let app;
   const errors=[]; page.on('pageerror',e=>errors.push(e.message));
   await page.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),{timeout:15000});
   await page.getByRole('tab',{name:/^FX$/i}).first().click();
-  assert.equal(await page.locator('.fx-card-module').count(),0,'a new track starts with an empty rack');
+  // A new session's first track comes with the factory sound's effects; clear them so the rack is empty.
+  await page.locator('.fx-card-module').first().waitFor({timeout:8000});
+  while(await page.locator('.fx-card-module').count()){const n=await page.locator('.fx-card-module').count();
+    await page.locator('.fx-card-module .fx-remove').first().click();
+    await page.waitForFunction(k=>document.querySelectorAll('.fx-card-module').length<k,n,{timeout:5000});}
+  assert.equal(await page.locator('.fx-card-module').count(),0,'a cleared rack is empty');
   // An empty rack shows the effect picker itself (UI rule 5): no button to press first.
   await page.getByRole('button',{name:'Add Reverb'}).click();
   await page.locator('.fx-card-module').first().waitFor({timeout:5000});

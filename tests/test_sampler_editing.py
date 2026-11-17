@@ -90,7 +90,7 @@ class LinkSamplerAndDrumKnobs(SamplerTrack,unittest.TestCase):
     def test_targets_are_checked(self):
         from decksynth.fx import validate_chain
         validate_chain(self.chain([dict(module='sampler',param='cutoff',depth=.5),dict(module='drum',param='15:pan',depth=-.5)]))
-        for bad in [('sampler','root'),('drum','16:tune'),('drum','x:gain'),('drum','3:attack'),('drum','tune')]:
+        for bad in [('sampler','root'),('drum','16:tune'),('drum','x:gain'),('drum','3:start'),('drum','3:reverse'),('drum','tune')]:
             with self.assertRaises(ValueError,msg=bad):validate_chain(self.chain([dict(module=bad[0],param=bad[1],depth=.5)]))
 
     def test_a_macro_retunes_the_sampler(self):

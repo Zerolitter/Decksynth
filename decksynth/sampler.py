@@ -134,7 +134,7 @@ class Sampler:
     """The voices of one Sampler track. Python objects only change between render calls."""
     def __init__(self, rate, cache):
         self.rate = rate; self.cache = cache; self.spec = None
-        self.mod = {}; self._shifted = False   # macro / mod pad offsets (fx.SAMPLER_TARGETS units)
+        self.mod = {}; self._shifted = False; self._amp_live = False   # macro / mod pad offsets (fx.SAMPLER_TARGETS units)
         self.raw = None; self.sample = None; self.loading = False; self.error = None
         self.view = None   # (sha, a, b, peaks) while the waveform is zoomed
         self.shaping = 0; self.shaped_key = None; self._pending = None
@@ -265,15 +265,16 @@ class Sampler:
         if zone is None: return False
         start, end, loop_start, loop_end, xfade, shift = zone
         step = sample_rate_ratio(self.sample, self.rate)*2**((shift+s['tune']+s['fine']/100.)/12.)
-        gain = s['gain']*self.norm*(velocity/127.)**s['velocity']
+        gain = s['gain']*self.norm*(velocity/127.)**self._e('velocity')
         if not s['poly'] and s['keymap'] != 'whole':
             for i, v in enumerate(self.voices):
                 if v.active and v.stage != 3 and v.fade_left < 0: self._fade(i)
         elif not s['poly']:
             held = [i for i, v in enumerate(self.voices) if v.active and v.stage != 3 and v.fade_left < 0]
-            if held and s['glide'] > 0:
+            glide = self._e('glide')
+            if held and glide > 0:
                 i = held[-1]; v = self.voices[i]
-                v.target = step; v.glide = (step-v.step)/max(1., s['glide']*self.rate)
+                v.target = step; v.glide = (step-v.step)/max(1., glide*self.rate)
                 if v.glide == 0.: v.target = v.step
                 v.gain = gain; self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.events += 1
                 return True
@@ -309,7 +310,7 @@ class Sampler:
             self.sustained = set()
 
     def _release(self, i):
-        v = self.voices[i]; release = max(.005, self.spec['release'] if self.spec else .005)
+        v = self.voices[i]; release = max(.005, self._e('release') if self.spec else .005)
         v.rel = max(v.env, 1e-6)/(release*self.rate); v.stage = 3
 
     def _fade(self, i):
@@ -374,25 +375,41 @@ class Sampler:
                 for i in range(count): out[offset+i] += part[i]*g
             offset += count
 
+    def _e(self, key):
+        """A knob's value plus its macro / mod pad offset, kept inside the knob's range."""
+        v = self.spec[key]; d = self.mod.get(key)
+        if not d: return v
+        lo, hi = RANGES[key] if key in RANGES else OPTIONAL_RANGES[key]
+        return min(hi, max(lo, v+d))
+
+    def _amp(self):
+        """The amp envelope the kernel reads, with Attack, Decay and Sustain moved by links."""
+        p = self.params; a = self._e('attack'); d = self._e('decay'); su = self._e('sustain')
+        p.attack = 1./max(1., a*self.rate) if a > 0 else 1./max(1., .001*self.rate)
+        p.decay = (1.-su)/max(1., d*self.rate) if d > 0 else 1.
+        p.sustain = su
+
     def _modulate(self):
         """Block-rate pitch envelope and filter coefficients per voice (the kernel needs no libm)."""
         s = self.spec
         if s is None: return
         m = self.mod
+        moved = 'attack' in m or 'decay' in m or 'sustain' in m
+        if moved or self._amp_live: self._amp(); self._amp_live = moved
         rate = self.rate; p_env = s['p_env'] + m.get('p_env', 0.); filtered = s['filter'] != 'off'
         shift = m.get('tune', 0.) + m.get('fine', 0.)/100.
         if not p_env and not filtered and not shift and not self._shifted: return
         self._shifted = bool(shift)
-        p_fall = 4.6/max(.001, s['p_decay']); f_attack = s['f_attack']; f_fall = 4.6/max(.001, s['f_decay'])
+        p_fall = 4.6/max(.001, self._e('p_decay')); f_attack = self._e('f_attack'); f_fall = 4.6/max(.001, self._e('f_decay'))
         k = 2. - 1.96*min(1., max(0., s['resonance'] + m.get('resonance', 0.))); top = .45*rate
-        f_env = s['f_env'] + m.get('f_env', 0.); cut = m.get('cutoff', 0.)
+        f_env = s['f_env'] + m.get('f_env', 0.); cut = m.get('cutoff', 0.); f_vel = self._e('f_velocity')
         for i, v in enumerate(self.voices):
             if not v.active: continue
             t = v.age/rate
             v.pmul = 2.**(((p_env*math.exp(-t*p_fall)) if p_env else 0.)/12. + shift/12.) if (p_env or shift) else 1.
             if filtered:
                 fe = t/f_attack if t < f_attack else math.exp(-(t-f_attack)*f_fall)
-                octaves = f_env*5.*fe + s['f_velocity']*4.*(self.vels[i]-1.) + cut
+                octaves = f_env*5.*fe + f_vel*4.*(self.vels[i]-1.) + cut
                 fc = min(top, max(20., s['cutoff']*2.**octaves))
                 g = math.tan(math.pi*fc/rate)
                 v.k = k; v.a1 = 1./(1.+g*(g+k)); v.a2 = g*v.a1; v.a3 = g*v.a2

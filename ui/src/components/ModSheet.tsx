@@ -7,6 +7,7 @@ import {
   type FxChain, type FxModSource, type FxModuleId, type FxTarget, type ModFeel, type ModShape,
 } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, SHAPE_LABEL } from './ModParts';
+import { useFrame } from '../frame-clock';
 
 /* The mod pad sheet: everything about one mod pad in one big place, over the FX/Sound window.
    Shape tab: pick from 10 shapes, draw your own with points that snap, merge steps, set the rate.
@@ -39,13 +40,17 @@ export function pointsFrom(m:FxModSource):[number,number][]{
 }
 
 /** The pad's graph as an editor: drag points (Drawn) or bars (Steps); everything snaps to the grid when Snap is on. */
-export function PadGraphEditor({mod,color,phase,live,snap,editing=true,onChange}:{mod:FxModSource;color:string;phase:number;live?:number;snap:boolean;
+export function PadGraphEditor({mod,color,phase:phase0,live:live0,phaseNow,liveNow,snap,editing=true,onChange}:{mod:FxModSource;color:string;phase:number;live?:number;snap:boolean;
+  /** Getters that follow the clock: the moving playhead and dot are then set on the SVG from the frame clock, with no React render. */
+  phaseNow?:()=>number;liveNow?:()=>number|undefined;
   /** Drawn points show their handles and take taps only while editing (the Link page's Edit points / Done). */ editing?:boolean;
   onChange:(patch:Partial<FxModSource>)=>void}){
   const [ref,{w,h}]=useSize<HTMLDivElement>();
   const drag=useRef<number|null>(null);const lastTap=useRef({i:-1,t:0,moved:false});
   const pad=10,mid=h/2,amp=(h-pad*2)/2;
   const X=(x:number)=>x*w, Y=(v:number)=>mid-v*amp;
+  const phase=phaseNow?phaseNow():phase0, live=phaseNow?liveNow?.():live0;
+  const head=useRef<SVGLineElement>(null),dot=useRef<SVGCircleElement>(null),bars=useRef<SVGGElement>(null);
   const at=(e:React.PointerEvent)=>{const r=(e.currentTarget as Element).closest('svg')!.getBoundingClientRect();
     let x=clamp((e.clientX-r.left)/r.width,0,1),y=clamp((mid-(e.clientY-r.top))/amp,-1,1);
     if(snap){x=snapTo(x,SNAP_X);y=snapTo(y,SNAP_Y);}return [Math.min(x,.999),y] as [number,number];};
@@ -59,6 +64,11 @@ export function PadGraphEditor({mod,color,phase,live,snap,editing=true,onChange}
   const movePoint=(i:number,e:React.PointerEvent)=>{const [x,y]=at(e);
     const lo=i>0?pts[i-1][0]+.001:0,hi=i<pts.length-1?pts[i+1][0]-.001:.999;
     onChange({points:pts.map((p,j)=>j===i?[clamp(x,lo,hi),y] as [number,number]:p)});};
+  // The playhead, the dot and the lit step follow the frame clock and are set directly on the SVG: the editor itself does not re-render for them.
+  useFrame(()=>{if(!phaseNow)return;const ph=phaseNow(),lv=liveNow?.(),x=X(ph).toFixed(1);
+    head.current?.setAttribute('x1',x);head.current?.setAttribute('x2',x);
+    dot.current?.setAttribute('cx',x);dot.current?.setAttribute('cy',String(Y(lv??shapeValue(mod.shape,ph,mod.steps,0,count,pts))));
+    bars.current?.querySelectorAll('.step-bar').forEach((el,k)=>el.setAttribute('opacity',Math.floor(ph*count)===k?'1':'.6'));});
   const grid=[];
   for(let i=1;i<SNAP_X;i++)grid.push(<line key={'x'+i} x1={X(i/SNAP_X)} x2={X(i/SNAP_X)} y1={pad} y2={h-pad} className={i%4?'g':'g beat'}/>);
   for(let i=-SNAP_Y+1;i<SNAP_Y;i++)if(i)grid.push(<line key={'y'+i} x1={0} x2={w} y1={Y(i/SNAP_Y)} y2={Y(i/SNAP_Y)} className="g"/>);
@@ -74,13 +84,13 @@ export function PadGraphEditor({mod,color,phase,live,snap,editing=true,onChange}
       onPointerMove={e=>{if(drag.current===-2&&e.buttons)setStep(e);else if(drag.current!==null&&drag.current>=0&&e.buttons){lastTap.current.moved=true;movePoint(drag.current,e);}}}
       onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}}>
       <g className="pad-grid">{snap?grid:null}<line x1={0} x2={w} y1={mid} y2={mid} className="g zero"/></g>
-      {steps?Array.from({length:count},(_,k)=>{const v=mod.steps[k*(16/count)]??0,cw=w/count;
+      {steps?<g ref={bars}>{Array.from({length:count},(_,k)=>{const v=mod.steps[k*(16/count)]??0,cw=w/count;
         return <g key={k}><rect x={k*cw+2} width={cw-4} y={pad} height={h-2*pad} rx={3} className="step-slot" pointerEvents="none"/>
           <rect x={k*cw+2} width={cw-4} y={v>=0?Y(v):mid} height={Math.max(1,Math.abs(v)*amp)} rx={3}
-          fill={color} opacity={Math.floor(phase*count)===k?1:.6} pointerEvents="none"/></g>;})
+          className="step-bar" fill={color} opacity={Math.floor(phase*count)===k?1:.6} pointerEvents="none"/></g>;})}</g>
         :<path d={path} fill="none" stroke={color} strokeWidth={3} pointerEvents="none"/>}
-      <line x1={X(phase)} x2={X(phase)} y1={pad} y2={h-pad} stroke="#ffffff66" pointerEvents="none"/>
-      <circle cx={X(phase)} cy={Y(live??shapeValue(mod.shape,phase,mod.steps,0,count,pts))} r={5} fill="#fff" pointerEvents="none"/>
+      <line ref={head} x1={X(phase)} x2={X(phase)} y1={pad} y2={h-pad} stroke="#ffffff66" pointerEvents="none"/>
+      <circle ref={dot} cx={X(phase)} cy={Y(live??shapeValue(mod.shape,phase,mod.steps,0,count,pts))} r={5} fill="#fff" pointerEvents="none"/>
       {curve?pts.map((p,i)=><g key={i} className="pad-point" data-testid={'pad-point-'+i}
         onPointerDown={e=>{e.stopPropagation();(e.currentTarget.ownerSVGElement as Element).setPointerCapture(e.pointerId);
           const now=performance.now();

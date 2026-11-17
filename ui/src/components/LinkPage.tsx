@@ -6,7 +6,7 @@ import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, STEP_COUNTS, nor
   type FxChain, type FxModSource, type FxTarget, type ModFeel } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview, sourceColor, type Live, type Source } from './ModParts';
 import { BipolarDepth, MacroSheet, ModSheet, PadGraphEditor, ShapePicker, pointsFrom, type SheetTab } from './ModSheet';
-import {readPosition,useClockValue} from '../frame-clock';
+import {readPosition} from '../frame-clock';
 import {deckStore} from '../deck-store';
 
 type Props = {
@@ -15,10 +15,9 @@ type Props = {
   armed:Source|null; onLink:(s:Source|null)=>void;
 };
 
-/** The big shape editor follows the clock itself, so only it (not the whole page) re-renders on each frame. */
+/** The big shape editor moves its playhead from the frame clock by itself (no React render), so it is drawn only when the pad changes. */
 function LivePadGraph({phaseNow,liveNow,...rest}:{phaseNow:()=>number;liveNow:()=>number|undefined}&Omit<React.ComponentProps<typeof PadGraphEditor>,'phase'|'live'>){
-  useClockValue(p=>p.clipBeat);
-  return <PadGraphEditor {...rest} phase={phaseNow()} live={liveNow()}/>;
+  return <PadGraphEditor {...rest} phase={0} phaseNow={phaseNow} liveNow={liveNow}/>;
 }
 
 /** The Link page (Sir, 16 Nov): every modulation source in one ordered place, away from Sound and FX.
@@ -34,6 +33,10 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
   const [pointsEdit,setPointsEdit]=useState(false);
   // The Morph pad is not kept on screen (Sir, 16 Nov): a slim tile opens it in the editor area; closed, it is not drawn.
   const [morph,setMorph]=useState(false);
+  // Three mod pads show by default; the rest are one "+" slot that adds the next (fewer canvases to draw). A pad that is in use, being edited or armed always shows.
+  const [shown,setShown]=useState(3);
+  const lastUsed=chain.mods.reduce((n,m,i)=>m.targets.length?i+1:n,0);
+  const vis=Math.min(chain.mods.length,Math.max(shown,3,lastUsed,edit.kind==='mod'?edit.index+1:0,armed?.kind==='mod'?armed.index+1:0));
   const pick=(s:Source)=>{setMorph(false);onEdit(s);};
   useEffect(()=>{setSheet(null);setPointsEdit(false);},[selected,edit.kind,edit.index]);
   // A mod pad that drives nothing shows its phase from the shared clock; the engine reports the linked ones.
@@ -74,7 +77,7 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
         </div>
         <header className="lp-head"><span className="lp-title">Mod pads</span></header>
         <div className="lp-pads" aria-label="Mod pads">
-          {chain.mods.map((m,i)=><div key={i}
+          {chain.mods.slice(0,vis).map((m,i)=><div key={i}
             className={'fx-pad'+(isEdit('mod',i)?' editing':'')+(isArmed('mod',i)?' armed':'')+(m.targets.length?' routed':'')}
             style={{['--src' as string]:MOD_COLORS[i]}}>
             <button type="button" className="fx-pad-main" aria-pressed={isEdit('mod',i)} aria-label={'Mod pad '+(i+1)+' '+m.shape}
@@ -87,6 +90,8 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
               onClick={()=>lip({kind:'mod',index:i})} title={'Mod pad '+(i+1)+' · '+rateLabel(m)+(m.targets.length?' · '+m.targets.length+(m.targets.length===1?' link':' links'):'')}>
               {i+1} · {rateLabel(m).replace(/(\d+) bars/,'$1 bar')}</button>
           </div>)}
+          {vis<chain.mods.length?<button type="button" className="lp-pad-add" aria-label="Add mod pad" title={'Add mod pad '+(vis+1)}
+            onClick={()=>{setShown(vis+1);pick({kind:'mod',index:vis});}}><Plus size={22}/></button>:null}
         </div>
         <button type="button" className={'lp-morph-tile'+(morph?' open':'')} aria-pressed={morph} onClick={()=>setMorph(!morph)}
           title="The Morph pad: a puck that drives macros">

@@ -263,10 +263,17 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
 };
 export const SOUND_COLOR='#ddbd82';
 /** Name, knob label and colour of a link target, for lists and badges. */
+/** Names of the Sampler and Drum Rack knobs a macro or mod pad can move (engine: fx.SAMPLER_TARGETS and fx.DRUM_TARGETS). */
+export const SAMPLER_LABELS:Record<string,string>={gain:'Gain',tune:'Tune',fine:'Fine',cutoff:'Cutoff',resonance:'Resonance',f_env:'Filter env',p_env:'Pitch env',
+  glide:'Glide',velocity:'Velocity',attack:'Amp attack',decay:'Amp decay',sustain:'Amp sustain',release:'Amp release',f_attack:'Filter attack',f_decay:'Filter decay',
+  f_velocity:'Filter velocity',p_decay:'Env time'};
+export const DRUM_LABELS:Record<string,string>={gain:'Gain',tune:'Tune',pan:'Pan',velocity:'Velocity',attack:'Attack',hold:'Hold',decay:'Decay',fade_in:'Fade in',fade_out:'Fade out',
+  eq_low:'EQ low',eq_mid:'EQ mid',eq_freq:'Mid freq',eq_high:'EQ high',low_cut:'Low cut',high_cut:'High cut',drive:'Drive',comp_threshold:'Comp threshold',
+  comp_ratio:'Comp ratio',comp_attack:'Comp attack',comp_release:'Comp release',comp_makeup:'Comp gain'};
 export function targetInfo(t:{module:FxTarget['module'];param:string}){
   if(t.module==='sound')return {name:'Sound',label:SOUND_TARGETS[t.param]?.label??t.param,color:SOUND_COLOR};
-  if(t.module==='sampler')return {name:'Sampler',label:({gain:'Gain',tune:'Tune',fine:'Fine',cutoff:'Cutoff',resonance:'Resonance',f_env:'Filter env',p_env:'Pitch env'} as Record<string,string>)[t.param]??t.param,color:SOUND_COLOR};
-  if(t.module==='drum'){const [pad,key]=t.param.split(':');return {name:'Pad '+(Number(pad)+1),label:({gain:'Gain',tune:'Tune',pan:'Pan'} as Record<string,string>)[key]??key,color:'#ff76a6'};}
+  if(t.module==='sampler')return {name:'Sampler',label:SAMPLER_LABELS[t.param]??t.param,color:SOUND_COLOR};
+  if(t.module==='drum'){const [pad,key]=t.param.split(':');return {name:'Pad '+(Number(pad)+1),label:DRUM_LABELS[key]??key,color:'#ff76a6'};}
   const def=FX_MODULES[t.module];
   return {name:def.name,label:def.params.find(p=>p.key===t.param)?.label??t.param,color:def.color};
 }

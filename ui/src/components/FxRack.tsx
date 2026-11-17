@@ -2,12 +2,13 @@ import {RackScrollControls,useRackNavigation} from './RackNavigation';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
-import { Plus, RotateCcw, X } from 'lucide-react';
+import { ListMusic, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
 import { Panel, useAutoFold } from './Panel';
 import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxParamDef, type FxTarget } from '../fx';
 import { GateSheet, GateStrip } from './GateSheet';
+import { FX_PRESETS, presetParams } from '../fx-presets';
 import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 export { MACRO_COLORS, MOD_COLORS };
@@ -78,9 +79,10 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
+  const [presetsFor,setPresetsFor]=useState<FxModuleId|null>(null);
   const rack=useRef<HTMLDivElement>(null);
   const navigation=useRackNavigation(rack,'decksynth.rack-scroll.fx.'+selected);
-  useEffect(()=>{setPicking(false);setGateOpen(false);},[selected]);
+  useEffect(()=>{setPicking(false);setGateOpen(false);setPresetsFor(null);},[selected]);
   const active=chain.modules.filter(m=>m.on), inactive=chain.modules.filter(m=>!m.on);
   const reorder=useRackOrder(rack,active.map(m=>'fx-'+m.id),ids=>{
     onReorder(ids.map(id=>id.slice(3) as FxModuleId));
@@ -90,10 +92,11 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const setModule=(id:FxModuleId,patch:(m:FxChain['modules'][number])=>FxChain['modules'][number])=>
     onChange({...chain,modules:chain.modules.map(m=>m.id===id?patch(m):m)});
   const setParam=(id:FxModuleId,key:string,v:number)=>setModule(id,m=>({...m,params:{...m.params,[key]:v}}));
+  const setParams=(id:FxModuleId,params:Record<string,number>)=>setModule(id,m=>({...m,params:{...m.params,...params}}));
   const reset=(id:FxModuleId)=>setModule(id,m=>({...m,params:Object.fromEntries(FX_MODULES[id].params.map(p=>[p.key,p.init]))}));
   const add=(id:FxModuleId)=>{onChange(addModule(chain,id));setPicking(false);};
-  useEffect(()=>{if(!picking)return;const k=(e:KeyboardEvent)=>{if(e.key==='Escape')setPicking(false);};
-    window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[picking]);
+  useEffect(()=>{if(!picking&&!presetsFor)return;const k=(e:KeyboardEvent)=>{if(e.key==='Escape'){setPicking(false);setPresetsFor(null);}};
+    window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[picking,presetsFor]);
   // Removing an effect also drops the macro and mod-pad links that pointed at it.
   const remove=(id:FxModuleId)=>{
     const drop=(t:FxTarget[])=>t.filter(x=>x.module!==id);
@@ -130,6 +133,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         power={{on:!state.bypass,label:def.name,onToggle:()=>setModule(state.id,m=>({...m,bypass:!m.bypass}))}}
         summary={state.bypass?'Off':undefined}
         actions={<span className="fx-order">
+            <button type="button" aria-label={'Presets for '+def.name} title="Presets" aria-expanded={presetsFor===state.id} onClick={()=>setPresetsFor(presetsFor===state.id?null:state.id)}><ListMusic size={14}/></button>
             <button type="button" aria-label={'Reset '+def.name} title="Reset this effect" onClick={()=>reset(state.id)}><RotateCcw size={14}/></button>
             <button type="button" className="fx-remove" aria-label={'Remove '+def.name}
               onClick={()=>remove(state.id)}><X size={15}/></button>
@@ -192,6 +196,17 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
           <button type="button" aria-label="Cancel adding effect" onClick={()=>setPicking(false)}><X size={16}/></button></div>
         <FxPickerGrid chain={chain} onAdd={add}/>
       </div></div>,rack.current.closest('.frame')!):null}
+    {presetsFor&&rack.current?.closest('.frame')?(()=>{const id=presetsFor,def=FX_MODULES[id],cur=chain.modules.find(m=>m.id===id)?.params??{};
+      return createPortal(<div className="fx-picker-sheet" onPointerDown={e=>{if(e.target===e.currentTarget)setPresetsFor(null);}}>
+        <div className="fx-picker fx-presets" role="dialog" aria-label={def.name+' presets'} style={{['--fx-color' as string]:def.color}}>
+          <div className="fx-picker-head"><strong>{def.name} presets</strong><span>Sets this effect's knobs. Tap one to hear it.</span>
+            <button type="button" aria-label="Close presets" onClick={()=>setPresetsFor(null)}><X size={16}/></button></div>
+          <div className="fx-picker-grid" role="group" aria-label={def.name+' presets'}>
+            {FX_PRESETS[id].map(pr=>{const v=presetParams(id,pr,cur),on=def.params.every(p=>Math.abs((cur[p.key]??p.init)-v[p.key])<1e-6);
+              return <button key={pr.name} type="button" className={on?'active':''} aria-pressed={on} aria-label={def.name+' preset '+pr.name}
+                style={{['--fx-color' as string]:def.color}} onClick={()=>{setParams(id,v);}}>
+                <strong>{pr.name}</strong></button>;})}
+          </div></div></div>,rack.current!.closest('.frame')!);})():null}
     {gateOpen&&chain.modules.find(m=>m.id==='gate')?.on?<GateSheet params={chain.modules.find(m=>m.id==='gate')!.params}
       color={FX_MODULES.gate.color} runtime={live?.gate} container={rack.current?.closest('.frame')??null}
       onParam={(k,v)=>setParam('gate',k,v)} onClose={()=>setGateOpen(false)}/>:null}

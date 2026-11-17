@@ -8,10 +8,13 @@ Retriggered one-shots may overlap. Sources are shared float32 cache arrays.
 import copy
 import math
 import re
+import time
 import uuid
 from .samples import validate_source
 from .drum_native import NativeDrumMixer, native_kernel, native_error
-from .drum_shape import PadShaper, is_identity, pan_gains, render_key, validate_shape
+from .drum_shape import DEFAULT_SHAPE, PadShaper, RANGES as SHAPE_RANGES, is_identity, pan_gains, render_key, validate_shape
+BAKED = ('attack', 'hold', 'decay', 'fade_in', 'fade_out', 'eq_low', 'eq_mid', 'eq_freq', 'eq_high', 'low_cut', 'high_cut',
+         'drive', 'comp_threshold', 'comp_ratio', 'comp_attack', 'comp_release', 'comp_makeup')   # the knobs the pad's shaped copy is rendered from
 
 PAD_COUNT = 16
 VOICE_LIMIT = 32
@@ -77,7 +80,7 @@ class Voice:
 class DrumRack:
     def __init__(self, rate, cache):
         self.rate = rate; self.cache = cache; self.kit = None
-        self.mod = {}   # macro / mod pad offsets by '<pad>:<key>', read on each hit
+        self._mod = {}; self._mod_sig = {}; self._mod_at = {}   # see the mod property
         self.voices = [Voice() for _ in range(VOICE_LIMIT)]
         self.samples = [None]*PAD_COUNT  # what the pads play: the source PCM, or its shaped copy
         self.raw = [None]*PAD_COUNT      # the source PCM from the sample cache
@@ -88,6 +91,41 @@ class DrumRack:
         self.fade_frames = max(1, round(rate*.008)); self.attack_frames = max(1, round(rate*.001))
         kernel = native_kernel()  # Startup only; render never loads/builds libraries.
         self._native = NativeDrumMixer(kernel, VOICE_LIMIT) if kernel is not None else None
+
+    @property
+    def mod(self):
+        """Macro / mod pad offsets by '<pad>:<key>'. Gain, Tune, Pan and Velocity are read on each hit; the shaping knobs re-render the pad's copy."""
+        return self._mod
+
+    @mod.setter
+    def mod(self, value):
+        self._mod = value
+        if value or self._mod_sig: self._remod(value)
+
+    def _remod(self, mod):
+        """Moved Shape, Tone and Comp knobs: render the pad with them off the audio path (a draft, so nothing is kept), in 24 steps
+        per knob and at most about 8 times a second, so the next hit plays the moved sound."""
+        if not self.kit: return
+        moved = {}
+        for key, off in mod.items():
+            pad, _, k = key.partition(':')
+            if k in BAKED and pad.isdigit(): moved.setdefault(int(pad), {})[k] = off
+        now = time.monotonic()
+        for pad in set(moved) | set(self._mod_sig):
+            if not 0 <= pad < PAD_COUNT: continue
+            offs = moved.get(pad, {})
+            sig = tuple(sorted((k, round(o/(SHAPE_RANGES[k][1]-SHAPE_RANGES[k][0])*24)) for k, o in offs.items()))
+            if sig == self._mod_sig.get(pad, ()) and (not sig or pad in self.drafts): continue
+            if sig and now-self._mod_at.get(pad, 0.) < .12: continue
+            self._mod_at[pad] = now
+            if sig:
+                shape = dict(DEFAULT_SHAPE, **(self.kit['pads'][pad].get('shape') or {}))
+                for k, n in sig:
+                    lo, hi = SHAPE_RANGES[k]; shape[k] = min(hi, max(lo, shape[k]+n/24*(hi-lo)))
+                self.drafts[pad] = shape; self._mod_sig[pad] = sig
+            else:
+                self.drafts.pop(pad, None); self._mod_sig.pop(pad, None)
+            self.reshape(pad)
 
     @property
     def active_count(self):
@@ -180,7 +218,7 @@ class DrumRack:
         tune = p['tune'] + m.get(f'{pad}:tune', 0.); level = max(0., p['gain'] + m.get(f'{pad}:gain', 0.))
         if f'{pad}:pan' in m: shape = dict(shape or {}, pan=min(1., max(-1., (shape or {}).get('pan', 0.) + m[f'{pad}:pan'])))
         v.token=token;v.sample = sample; v.pad = pad; v.pos = 0.; v.step = 2**(tune/12.)
-        v.gain = level*(velocity/127.)**p['velocity']; v.age = 0
+        v.gain = level*(velocity/127.)**min(2., max(0., p['velocity']+m.get(f'{pad}:velocity', 0.))); v.age = 0
         v.stamp = self.stamp; v.remaining = -1; v.gl, v.gr = pan_gains(shape)
         self.serial += 1; self.events[pad] = self.serial
         return True

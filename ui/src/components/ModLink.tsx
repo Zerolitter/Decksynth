@@ -4,7 +4,7 @@
    Sampler and Drum Rack knobs are linkable as well as the Sound and FX knobs. */
 import { createContext, useContext, type ReactNode } from 'react';
 import type { ContextAction } from '../context-actions';
-import { normalizeChain, type FxChain, type FxTarget } from '../fx';
+import { DRUM_LABELS, SAMPLER_LABELS, normalizeChain, type FxChain, type FxTarget } from '../fx';
 import { knobControl, type ControlTarget } from '../parameter-registry';
 import { MACRO_COLORS, MOD_COLORS, sourceTargets, withTargets, type Source } from './ModParts';
 
@@ -16,9 +16,9 @@ export function ModLinkProvider({ track, chain, onChain, armed = null, children 
 export const useModLink = () => useContext(LinkContext);
 
 /** Sampler knobs a macro or mod pad can move (engine: fx.SAMPLER_TARGETS). Cutoff moves in octaves, as its knob does. */
-export const SAMPLER_LINKS: Record<string, string> = { gain: 'Gain', tune: 'Tune', fine: 'Fine', cutoff: 'Cutoff', resonance: 'Resonance', f_env: 'Filter env', p_env: 'Pitch env' };
+export const SAMPLER_LINKS: Record<string, string> = SAMPLER_LABELS;
 /** Drum Rack pad knobs a macro or mod pad can move; they apply on the pad's next hit (engine: fx.DRUM_TARGETS). */
-export const DRUM_LINKS: Record<string, string> = { gain: 'Gain', tune: 'Tune', pan: 'Pan' };
+export const DRUM_LINKS: Record<string, string> = DRUM_LABELS;
 
 /** The modulation target behind a knob id, and its track; null when the knob cannot be linked. */
 export function linkTargetFor(id: string): { track: number; target: ControlTarget } | null {

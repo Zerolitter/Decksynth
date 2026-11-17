@@ -165,3 +165,10 @@
 .harness-shell .link-page .fx-pad-count{position:absolute;top:3px;right:3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;
   background:var(--src);color:#10181a;font-size:10px;font-weight:800;line-height:16px;text-align:center;pointer-events:none}
 .harness-shell .link-page .fx-pad-label{text-overflow:clip;padding:0 2px}
+/* "+" slot after the visible mod pads (Sir, 17 Nov: three pads by default, the rest one slot to add the next) */
+.harness-shell .lp-pads .lp-pad-add{display:grid;place-items:center;border:1.5px dashed var(--line);border-radius:10px;background:transparent;color:var(--ui-text-3);min-height:44px}
+.harness-shell .lp-pads .lp-pad-add:hover,.harness-shell .lp-pads .lp-pad-add:focus-visible{color:var(--ui-text-hi);border-color:var(--ui-text-3)}
+/* FX presets sheet: the preset that matches the knobs now is outlined */
+.harness-shell .fx-presets .fx-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.harness-shell .fx-presets .fx-picker-grid button{min-height:52px;border-left:3px solid var(--fx-color);justify-content:center}
+.harness-shell .fx-presets .fx-picker-grid button.active{outline:1.5px solid var(--accent);outline-offset:-1.5px}
