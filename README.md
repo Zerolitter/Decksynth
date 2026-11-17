@@ -4,21 +4,30 @@ A touch-first synthesizer, sampler, sequencer and drum machine for the Steam Dec
 and Linux desktops. Built to be played with fingers on the Deck's screen.
 
 ## Features
+<img width="640" height="400"  alt="Preview1" src="https://github.com/user-attachments/assets/108177d5-9099-4c04-a2f0-cb94bcaabacd" />
 
 **Play**
 - **Synth:** 16 drawable partials, a filter and envelopes you drag. 150 presets.
 - **Drum Rack:** 16 pads with a waveform editor, per-pad shaping, EQ and compressor. Hold a pad to record onto it.
 - **Sampler:** load, record or chop a sample and play it across the keys.
 - **Perform:** a playable keyboard with chords, an arpeggiator and a step sequencer.
+  
+<img width="640" height="400"  alt="Preview2" src="https://github.com/user-attachments/assets/b8b82e48-7b71-47d9-af67-7e7c6619e0eb" />
+<img width="640" height="400"  alt="Preview6" src="https://github.com/user-attachments/assets/d58b0b9f-c060-4bd8-9eb4-05bcf1b263be" />
 
 **Write**
 - **Pattern library:** 500+ ready patterns (bass, chords, arps, melodies, drums) across many genres.
 - **Structure:** put patterns in order with repeats, or load one of 26 ready song structures.
 - **Song:** tracks and clips on a timeline, with clips from 1 to 32 bars. Freeze a track to audio.
 
+<img width="640" height="400"  alt="Preview3" src="https://github.com/user-attachments/assets/03439fef-2fd7-4667-8293-6e0085f7a1a2" />
+<img width="640" height="400"  alt="Preview4" src="https://github.com/user-attachments/assets/03b7464c-318b-4b3b-8924-1c5cfab91cd9" />
+
 **Shape**
 - **FX rack:** 22 effects per track, each with 6 presets, plus shared reverb and delay sends.
 - **Link:** macros, mod pads and a Morph pad move any knob on any page. The knob shows the movement live.
+  
+<img width="640" height="400" alt="Preview5" src="https://github.com/user-attachments/assets/1c27284f-ff5b-42a6-b97c-ab729939691a" />
 
 **Everything else**
 - Touch first and built for the Steam Deck. Also runs on Linux desktops.
