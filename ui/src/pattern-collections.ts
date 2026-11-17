@@ -21,7 +21,7 @@ export function patternCollection(factory:CatalogTemplate[],patterns:Record<stri
  const users=userTemplates(patterns);
  const pool=collection==='user'?users:collection==='all'?[...factory,...users]:factory.filter(p=>inCategory(p,collection));
  const genre=f.genre??'All',role=f.role??'all';
- return pool.filter(p=>(collection!=='melodie'&&collection!=='drums'||genre==='All'||p.genre===genre)
+ return pool.filter(p=>(collection==='all'||collection==='user'||genre==='All'||p.genre===genre)
   &&(collection!=='effects'||((role==='all'||p.fx_role===role)&&(!f.device||p.device===f.device)))
   &&(!search||[p.name,p.kind,p.genre,p.brief,...p.tags].join(' ').toLowerCase().includes(search.toLowerCase())));
 }
@@ -29,4 +29,11 @@ export function patternCollection(factory:CatalogTemplate[],patterns:Record<stri
 export function crossDeviceNote(p:CatalogTemplate,device:string){
  if(p.device==='any'||p.device===device)return '';
  return device==='drum_rack'?'Melodic MIDI on the Drum Rack: plays from C2 (pad 1) up':'Drum MIDI on the synth: the drum notes play as pitches from C2';
+}
+/** The genre filters a tab offers: every genre its patterns carry, most used first ("All" leads). */
+export function collectionGenres(factory:CatalogTemplate[],collection:PatternCollection|'structures'){
+ if(collection==='all'||collection==='user'||collection==='effects'||collection==='structures')return ['All'];
+ const counts=new Map<string,number>();
+ for(const p of factory)if(inCategory(p,collection)&&!['Existing','Effects','User'].includes(p.genre))counts.set(p.genre,(counts.get(p.genre)??0)+1);
+ return ['All',...[...counts].sort((a,b)=>b[1]-a[1]).map(([g])=>g)];
 }

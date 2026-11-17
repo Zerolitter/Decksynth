@@ -1,0 +1,85 @@
+/* Pattern library (Perform › Seq › Library). Drops under the top bar like the Sound presets and hugs its content,
+   so the Seq page stays visible below it (a press there closes it). Slim 1 px edges; colour only marks kind and state. */
+.plib{position:fixed;z-index:60;top:110px;left:10px;right:10px;max-height:calc(100vh - 120px);overflow-y:auto;
+  display:flex;flex-direction:column;gap:5px;padding:7px;border-radius:var(--ui-r-lg);background:var(--ui-surface);
+  border:1px solid var(--ui-line);box-shadow:0 18px 40px color-mix(in srgb,var(--ui-black-pure) 66%,transparent),0 0 0 1px color-mix(in srgb,var(--ui-black-pure) 40%,transparent);color:var(--ui-text);user-select:none}
+.plib button{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 10px;
+  border-radius:var(--ui-r-md);border:1px solid var(--ui-line-soft);background:var(--ui-surface-hi);color:var(--ui-text-1);font-size:12px;font-weight:650}
+.plib button:hover:not(:disabled){border-color:var(--ui-line-strong)}
+.plib button:disabled{opacity:.4}
+.plib button.danger{color:var(--ui-rec-soft)}
+.plib .plib-icon{padding:0;width:44px}
+
+/* Head: the tabs are the title bar (rule 18), then search, count, pages and close */
+.plib-head{display:flex;align-items:center;gap:4px}
+.plib-tabs{display:flex;gap:3px;flex:0 1 auto;min-width:0}
+.plib-tabs button{border-radius:var(--ui-r-round);padding:0 11px;color:var(--ui-text-2)}
+.plib-tabs button::before{content:'';width:6px;height:6px;border-radius:3px;background:var(--cat)}
+.plib-tabs button[aria-selected=true]{background:var(--ui-accent-bg);border-color:var(--ui-accent-edge);color:var(--ui-text-hi)}
+.plib-tabs button small{font-size:10px;color:var(--ui-text-dim)}
+.plib-search{flex:1;min-width:90px;display:flex;align-items:center;gap:6px;height:46px;padding:0 10px;border-radius:var(--ui-r-md);
+  background:var(--ui-well);border:1px solid var(--ui-line-soft);color:var(--ui-text-dim)}
+.plib-search input{flex:1;min-width:0;height:44px;background:none;border:0;outline:0;color:var(--ui-text);font-size:13px;user-select:text}
+.plib-search:focus-within{border-color:var(--ui-line-strong)}
+.plib-count,.plib-page{font-size:11.5px;color:var(--ui-text-dim);font-variant-numeric:tabular-nums;min-width:24px;text-align:center}
+.plib .plib-close{margin-left:4px}
+
+.plib-facets{display:flex;flex-wrap:wrap;gap:3px}
+.plib-facets button{padding:0 10px;font-size:11.5px;color:var(--ui-text-2);background:var(--ui-well)}
+.plib-facets button[aria-pressed=true]{background:var(--ui-accent-bg);border-color:var(--ui-accent-edge);color:var(--ui-text-hi)}
+
+/* 5 x 3 cards: number + name, the real notes, kind and length. A thin kind colour on the left edge. */
+.plib-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.plib .plib-card{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:3px;height:64px;padding:5px 9px 4px;
+  text-align:left;background:var(--ui-surface-hi);border:1px solid var(--ui-line-soft);border-left:3px solid color-mix(in srgb,var(--cat) 70%,transparent)}
+.plib .plib-card.selected{border-color:var(--ui-accent-edge);border-left-color:var(--cat);background:color-mix(in srgb,var(--ui-accent) 12%,var(--ui-surface-hi))}
+.plib .plib-card.previewing{box-shadow:0 0 0 1px var(--cat),0 0 12px color-mix(in srgb,var(--cat) 35%,transparent)}
+.plib-title{display:flex;gap:6px;align-items:baseline;min-width:0}
+.plib-title b{font-size:10px;color:var(--ui-text-dim);font-variant-numeric:tabular-nums}
+.plib-card strong{font-size:12.5px;color:var(--ui-text-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plib-notes{width:100%;height:20px;flex:none;color:var(--cat)}
+.plib-meta{display:flex;justify-content:space-between;gap:6px;font-size:10.5px;color:var(--ui-text-3);white-space:nowrap;overflow:hidden}
+.plib-meta em{font-style:normal;color:var(--ui-text-dim)}
+.plib-parts-preview{display:flex;gap:2px;height:14px;margin:4px 0}
+.plib-parts-preview i{flex:1 1 0;border-radius:2px;background:color-mix(in srgb,var(--cat) 55%,transparent)}
+.plib-parts-preview i:nth-child(odd){background:color-mix(in srgb,var(--cat) 85%,transparent)}
+.plib-empty{margin:6px 2px;font-size:12px;color:var(--ui-text-dim)}
+
+/* What the selected card does */
+.plib-actions{display:flex;align-items:center;gap:5px;min-height:44px;padding-top:4px;border-top:1px solid var(--ui-line-soft)}
+.plib-detail{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.plib-detail strong{font-size:13px;color:var(--ui-text-hi)}
+.plib-detail span{font-size:11.5px;color:var(--ui-text-3)}
+.plib-detail small{flex-basis:100%;font-size:11px;color:var(--c-seq)}
+.plib-hint{flex:1;font-size:11.5px;color:var(--ui-text-dim)}
+.plib .plib-primary{background:color-mix(in srgb,var(--c-seq) 18%,var(--ui-surface-hi));border-color:color-mix(in srgb,var(--c-seq) 55%,transparent);color:var(--ui-text-hi)}
+.plib-confirm{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:var(--ui-r-md);border:1px solid var(--ui-accent-edge);background:var(--ui-accent-bg);font-size:12px}
+.plib-confirm span{flex:1}
+
+/* Structure: parts in play order, like My chords on Chords */
+.plib-structure{display:grid;grid-template-columns:170px minmax(0,1fr) auto;align-items:center;gap:6px;padding-top:5px;border-top:1px solid var(--ui-line-soft)}
+.plib-structure-head{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 6px}
+.plib-structure-head .plib-order{grid-column:1/3;grid-row:2}
+.plib-structure-label{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--c-seq)}
+.plib .plib-order{width:100%}
+.plib .plib-order.on{background:color-mix(in srgb,var(--c-seq) 24%,var(--ui-surface-hi));border-color:var(--c-seq);color:var(--ui-text-hi)}
+.plib-bars{font-size:10.5px;color:var(--ui-text-dim);white-space:nowrap;text-align:right}
+.plib-parts{display:flex;flex-wrap:wrap;gap:4px;min-height:46px;align-content:center}
+.plib .plib-part{position:relative;flex:0 0 auto;width:140px;height:46px;padding:3px 8px;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;
+  align-items:center;justify-items:start;column-gap:5px;text-align:left;touch-action:none;
+  border-top:3px solid color-mix(in srgb,var(--cat) 65%,transparent)}
+.plib-part b{font-size:10px;color:var(--ui-text-dim)}
+.plib-part strong{font-size:11.5px;color:var(--ui-text-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.plib-part small{grid-column:1/3;font-size:10px;color:var(--ui-text-3)}
+.plib-part em{grid-row:1/3;grid-column:3;font-style:normal;font-size:13px;font-weight:800;color:var(--c-seq)}
+.plib .plib-part.selected{border-color:var(--ui-accent-edge);border-top-color:var(--cat);background:color-mix(in srgb,var(--ui-accent) 14%,var(--ui-surface-hi))}
+.plib .plib-part.now{box-shadow:0 0 0 1px var(--c-seq),0 0 12px color-mix(in srgb,var(--c-seq) 40%,transparent)}
+.plib .plib-part.now::after{content:'';position:absolute;left:6px;right:6px;bottom:3px;height:2px;border-radius:1px;background:var(--c-seq)}
+.plib .plib-part.empty strong{color:var(--ui-text-dim)}
+.plib .plib-part.dragging{opacity:.45}
+.plib .plib-part.drop{outline:2px dashed var(--c-seq);outline-offset:1px}
+.plib-part-tools{display:flex;align-items:center;gap:3px}
+.plib-repeats{display:flex;gap:2px}
+.plib-repeats button{padding:0 8px}
+.plib-repeats button[aria-checked=true]{background:color-mix(in srgb,var(--c-seq) 24%,var(--ui-surface-hi));border-color:var(--c-seq);color:var(--ui-text-hi)}
+@media (prefers-reduced-motion:reduce){.plib .plib-part.now,.plib .plib-card.previewing{box-shadow:0 0 0 1px var(--c-seq)}}

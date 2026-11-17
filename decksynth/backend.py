@@ -478,6 +478,13 @@ def worker(commands,updates):
                     elif cmd=='editor_note':engine.editor_note(*args)
                     elif cmd=='note_edit':engine.note_edit(*args)
                     elif cmd=='catalog_action':engine.catalog_action(*args)
+                    elif cmd=='structure_add':
+                        key=engine.structure_add(*args)
+                        send(dict(message='Added to the structure as pattern '+key.replace(':','·')+'. Undo takes it out.'))
+                    elif cmd=='structure_load':
+                        keys=engine.structure_load(*args)
+                        send(dict(message='Structure loaded into patterns '+keys[0].replace(':','·')+' to '+keys[-1].replace(':','·')+'. Undo takes it out.'))
+                    elif cmd=='structure_set':engine.structure_set(*args)
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']

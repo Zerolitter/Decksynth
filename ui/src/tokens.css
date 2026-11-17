@@ -36,6 +36,10 @@
   --t-mutate:#e47cf5; --t-reset:#9fb4c8; --t-double:#6fa8ff; --t-more:#c3cfd6; --t-nudge:#4fd1e8;
   --t-oct:#61e3bf; --t-dice:#ff8f5c; --t-library:#61ebbe; --t-scale:#e0b07e; --t-midi:#a7b4ff; --t-help:#ffd166; --t-seq:var(--c-seq);
 
+  /* Pattern library kinds (cards, tabs and Structure parts). */
+  --c-pat-all:var(--ui-text-2); --c-pat-bass:#ff9a62; --c-pat-melodie:#f0d36b; --c-pat-arp:var(--c-arp); --c-pat-chords:var(--c-chord);
+  --c-pat-effects:var(--c-fx); --c-pat-drums:#ff7b84; --c-pat-user:#9fb4c8; --c-pat-structure:var(--c-seq);
+
   /* Radii, spacing and type. */
   --ui-r-sm:4px; --ui-r-md:8px; --ui-r-lg:12px; --ui-r-round:999px;
   --ui-s-1:4px; --ui-s-2:8px; --ui-s-3:12px; --ui-s-4:16px; --ui-s-5:24px;

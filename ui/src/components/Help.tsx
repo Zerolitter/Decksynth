@@ -33,6 +33,20 @@ const noteKeys=[
  ['Fit','Frame selected notes, or all notes when none are selected.'],
  ['Right-click / touch-hold / Shift+F10','Open contextual commands for the current target.'],
 ];
+const libraryKeys=[
+ ['Click / Space','Hear a pattern (Space again stops it).'],
+ ['Double-click / Enter','Load it into the selected pattern slot.'],
+ ['A / + / Shift+Enter','Add it to the end of the Structure.'],
+ ['Arrow keys / Page Up / Page Down','Move through the cards and pages; ↓ from the last row goes to the Structure.'],
+ ['Ctrl+F or /','Search. Esc clears the search, then closes the library.'],
+ ['Structure part: ← / →','Select the part before or after.'],
+ ['Structure part: Alt+← / Alt+→, or drag','Move the part earlier or later.'],
+ ['Structure part: 1–9, + / −, mouse wheel','How many times the part plays in a row.'],
+ ['Structure part: Ctrl+D','Duplicate the part.'],
+ ['Structure part: Backspace / Delete','Remove the part (the pattern itself stays).'],
+ ['Ctrl+Z','Undo the last Structure change.'],
+ ['Esc / a press anywhere outside','Close the library.'],
+];
 const sampleKeys=[
  ['Wheel / Shift+wheel','Scroll the waveform (when zoomed); Shift scrolls further.'],
  ['Ctrl+wheel','Zoom in or out around the pointer.'],
@@ -115,6 +129,8 @@ export function Help({section,invoker,close}:{section:'guide'|'notes';invoker:HT
    <h3 ref={notes}>Note editing</h3>
    <KeyTable rows={noteKeys}/>
    <p>The cursor follows a grid click or ruler position. Paste preserves pitch and relative timing; incompatible timing, collisions or out-of-range placements are rejected. Recording must finish before note edits. Selection, the edit cursor and the playback line are separate states.</p>
+   <h3>Pattern library and Structure (Perform › Seq › Library)</h3>
+   <KeyTable rows={libraryKeys}/>
    <h3>Sample editor (Sampler waveform)</h3>
    <KeyTable rows={sampleKeys}/>
   </div>

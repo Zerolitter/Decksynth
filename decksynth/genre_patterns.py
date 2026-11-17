@@ -105,6 +105,8 @@ def _catalog():
    out.append(dict(id=f'existing.{b}.{i+1:02}',version=1,name=FACTORY_PATTERNS[b-1][i]['name'],genre='Classic' if b==4 else 'Existing',kind=['Bass','Chords','Arps','Hooks'][b-1],bpm=None,brief='Original factory '+str(b)+':'+str(i+1),device='synth',category=BANK_CATEGORY[b-1],tags=['Original',str(p['length'])+' steps'],roles=[],pattern=p))
  from .pattern_extras import melodies,effects
  for item in melodies()+effects(ROLES):validate_pattern(item['pattern']);out.append(item)
+ from .pattern_more import more
+ for item in more(ROLES):validate_pattern(item['pattern']);out.append(item)
  return out
 
 def catalog():return copy.deepcopy(_catalog())
@@ -149,4 +151,11 @@ def resolve_pattern(item,track,rack):
   for step in p['steps']:
    for note in step:note['note']=mapping[note['note']]
  return validate_pattern(p)
-if __name__=='__main__':print(json.dumps(dict(version=1,templates=catalog()),separators=(',',':')))
+def structures():
+ """Factory Structures: library patterns in order, each with a repeat count."""
+ from .pattern_more import structures as made
+ ids={p['id'] for p in _catalog()};out=made()
+ for st in out:
+  if any(i not in ids or not 1<=n<=16 for i,n in st['parts']):raise ValueError('Structure '+st['id']+' names an unknown pattern')
+ return out
+if __name__=='__main__':print(json.dumps(dict(version=1,templates=catalog(),structures=structures()),separators=(',',':')))

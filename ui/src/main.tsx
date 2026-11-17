@@ -18,6 +18,7 @@ import './freeze.css';
 import './link.css';
 import './synth-sound.css';
 import './fx-grid.css';
+import './pattern-library.css';
 import './touch.css';
 const root=document.getElementById('root');
 if(!root)throw new Error('Missing DeckSynth root node');

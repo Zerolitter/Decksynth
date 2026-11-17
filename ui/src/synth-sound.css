@@ -104,7 +104,8 @@
 .harness-shell .ss-preset .preset-current>svg{width:13px;height:13px}
 .harness-shell .ss-preset .preset-count{display:none}
 .harness-shell .ss-preset .ss-save{flex:none;width:44px;min-width:44px;height:44px;border-radius:8px}
-.harness-shell .ss-preset .preset-browser{position:fixed;z-index:60;top:112px;left:10px;right:10px;bottom:10px;margin:0;overflow-y:auto;box-shadow:0 18px 40px #000a}
+/* The browser hugs its cards and leaves the page below it in view: a click down there closes it (and reaches the page) */
+.harness-shell .ss-preset .preset-browser{position:fixed;z-index:60;top:112px;left:10px;right:10px;max-height:calc(100vh - 122px);margin:0;overflow-y:auto;box-shadow:0 18px 40px color-mix(in srgb,var(--ui-black-pure) 66%,transparent),0 0 0 1px color-mix(in srgb,var(--ui-black-pure) 40%,transparent)}
 
 /* Scan a card's knobs at a glance: dials, arcs and names take the card's colour (KnobTint); a faint wash ties the card together */
 .harness-shell .ss-card{background:linear-gradient(180deg,color-mix(in srgb,var(--tag) 7%,var(--panel)),var(--panel) 70%)}

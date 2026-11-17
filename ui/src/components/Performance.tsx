@@ -8,7 +8,8 @@ import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import {useClockValue,type Position} from '../frame-clock';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import {chainPosition} from '../structure';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb } from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
@@ -128,7 +129,6 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   const press=useRef<ReturnType<typeof setTimeout>|null>(null);
   const longPressed=useRef(false);
   const roll=useRef<PianoRollHandle>(null);
-  const [chainText,setChainText]=useState(state.seq.chain.join(','));
   const [message,setMessage]=useState('');
   const [tapTimes,setTapTimes]=useState<number[]>([]);
   // Chords: the chord last tapped (a pad or a My chords slot, as built at Oct 0), the one held down,
@@ -166,7 +166,12 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   const pageSize=clipMode?Math.max(4,Math.ceil(transfer.bars/4)*4):Math.max(16,Math.ceil(pat.length/64)*16);
   const pages=clipMode?Math.min(4,Math.ceil(clipSpan/pageSize)):Math.max(1,Math.min(4,Math.ceil(pat.length/pageSize)));
   // Steps come from the shared clock: Perform re-renders once per step while playing, not per frame.
-  const currentStep=useClockValue(p=>playing&&seq.enabled?Math.floor(p.clipBeat/(RATE_BEATS[pat.division]??.25))%pat.length:-1);
+  // With Play in order on, the engine walks the Structure: the step shows only while this slot is the part playing.
+  const chainAt=useClockValue(p=>playing&&seq.enabled&&seq.chain_enabled?(({key,step}:{key:string;step:number})=>key+'@'+step)(chainPosition(p.absoluteBeat,seq.chain,state.patterns,{length:seq.length,division:seq.division})??{key:'',step:-1}):'');
+  const chainKey=chainAt?chainAt.split('@')[0]:'';
+  const currentStep=useClockValue(p=>playing&&seq.enabled&&!seq.chain_enabled?Math.floor(p.clipBeat/(RATE_BEATS[pat.division]??.25))%pat.length:-1);
+  const shownStep=seq.chain_enabled?(chainKey===ref?Number(chainAt.split('@')[1]):-1):currentStep;
+  const closeSheet=useCallback(()=>setSheet(null),[]);
   const clipPlaying=useClockValue(p=>clipMode&&!!clipClock?.(p)?.playing);
   const cursor=seq.recording?recStep%pat.length:-1;
   const channel=scale.input_channel?scale.input_channel-1:0;
@@ -231,7 +236,6 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   },[lastRecorded]); // eslint-disable-line react-hooks/exhaustive-deps
   // Step rec and pattern choices always work on the pattern: leave clip editing.
   useEffect(()=>{if(clipEdit&&seq.recording)onClipEdit?.(false);},[seq.recording,clipEdit]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(()=>setChainText(seq.chain.join(',')),[seq.chain]);
   useEffect(()=>{if(!message)return;const id=setTimeout(()=>setMessage(''),5000);return()=>clearTimeout(id);},[message]);
 
   const lane=arpView&&arpView.groups.length?arpView.groups:arpOrder(held,arp.mode,arp.octaves,arp.octave_mode);
@@ -247,13 +251,6 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
     if(recent.length>=3){const intervals=recent.slice(1).map((t,i)=>t-recent[i]);
       const avg=intervals.reduce((a,b)=>a+b,0)/intervals.length;
       if(avg>0)onTempo(clamp(Math.round(60000/avg),30,240));}
-  };
-  const setChain=()=>{
-    const parsed=chainText.split(/[,\s]+/).map(x=>x.trim()).filter(Boolean);
-    if(!parsed.length||parsed.length>64||parsed.some(x=>!/^[1-4]:(?:[1-9]|1[0-6])$/.test(x))){
-      setMessage('Use bank:pattern pairs such as 1:1,1:2,2:1.');return;
-    }
-    set('seq','chain',parsed);setMessage('Chain set: '+parsed.join(' → '));
   };
 
   /* ---------- chords: the pads of the key, My chords and what the keys play now ---------- */
@@ -313,7 +310,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
       {Array.from({length:16},(_,i)=>{const sl=i+1,on=seq.slot===sl,full=hasNotes(seq.bank,sl),d=density(seq.bank,sl),top=Math.max(1,...d);
         return <button key={sl} data-user-pattern={sl} type="button" data-testid={'pf-pad-'+seq.bank+'-'+sl}
           aria-label={'Pattern '+seq.bank+'·'+sl+(full?'':' (empty)')} aria-pressed={on}
-          className={'pf-pad'+(on?' on':'')+(full?' full':'')+(on&&seq.enabled&&playing?' playing':'')}
+          className={'pf-pad'+(on?' on':'')+(full?' full':'')+((seq.chain_enabled?chainKey===seq.bank+':'+sl:on&&seq.enabled&&playing)?' playing':'')+(seq.chain_enabled&&seq.chain.includes(seq.bank+':'+sl)?' in-structure':'')}
           onPointerDown={()=>padDown(seq.bank,sl)} onPointerUp={padUp} onPointerLeave={padUp} onPointerCancel={padUp}
           onContextMenu={e=>e.preventDefault()}
           onClick={()=>{if(longPressed.current){longPressed.current=false;return;}pick(seq.bank,sl);}}>
@@ -321,7 +318,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
         </button>;})}
     </div>
     <p className="pf-info" aria-live="polite">{'Pattern '+seq.bank+'·'+String(seq.slot).padStart(2,'0')+(state.patterns[ref]&&factoryName?' '+factoryName:'')}
-      {seq.recording?<b> · rec step {cursor+1}</b>:currentStep<0?null:' · step '+(currentStep+1)}</p>
+      {seq.recording?<b> · rec step {cursor+1}</b>:shownStep<0?null:' · step '+(shownStep+1)}</p>
     <div className="pf-buttons pf-rec-row">
       <button type="button" className={'pf-btn rec'+(seq.recording?' on':'')} aria-pressed={seq.recording}
         onClick={()=>set('seq','recording',!seq.recording)}><CircleDot size={15}/>Step rec</button>
@@ -459,7 +456,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   let suggestBar:ReactNode=null;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[],raw=key.dataset.raw?JSON.parse(key.dataset.raw) as number[]:notes.map(n=>n-12*keysOct);return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion(inversion>=3?0:inversion+1),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(raw)}};});
-  const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beatAt={clipMode?p=>clipClock?.(p)?.beat??p.clipBeat:()=>currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
+  const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beatAt={clipMode?p=>clipClock?.(p)?.beat??p.clipBeat:()=>shownStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
 
   let laneView:ReactNode;
   const rb=rateParts(pat.division);
@@ -708,7 +705,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
       </div>:null}
       <div className={'pf-lane pf-lane-'+mode}>{laneView}
         {message?<span className="pf-msg" role="status">{message}</span>:null}</div>
-      {sheet==='library'?<PatternLibrary patterns={state.patterns} trackIndex={selectedTrack} track={track} pattern={pat} bank={seq.bank} slot={seq.slot} recording={recording} status={catalogStatus} send={onCommand} close={()=>setSheet(null)} chain={<div className="genre-chain"><button type="button" aria-pressed={seq.chain_enabled} onClick={()=>set('seq','chain_enabled',!seq.chain_enabled)}>Chain {seq.chain_enabled?'on':'off'}</button><input type="text" value={chainText} onChange={e=>setChainText(e.target.value)} aria-label="Pattern chain, bank:pattern"/><button type="button" onClick={setChain}>Set chain</button></div>}/>:sheet?<div className={'pf-sheet pf-sheet-'+sheet} role="dialog" aria-label={SHEET_TITLE[sheet]}>
+      {sheet==='library'?<PatternLibrary patterns={state.patterns} trackIndex={selectedTrack} track={track} pattern={pat} seq={seq} playing={playing} recording={recording} status={catalogStatus} send={onCommand} close={closeSheet}/>:sheet?<div className={'pf-sheet pf-sheet-'+sheet} role="dialog" aria-label={SHEET_TITLE[sheet]}>
         <header><strong>{SHEET_TITLE[sheet]}</strong>
           <button type="button" aria-label="Close" onClick={()=>setSheet(null)}><X size={16}/></button></header>
         {sheet==='scale'?<div className="pf-scale-sheet">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, Sparkles, X } from 'lucide-react';
 import { FX_MODULES, type FxModuleId } from '../fx';
 import library from '../library.json';
@@ -29,7 +29,17 @@ export function PresetBrowser({current,accent,onPreset}:Props) {
   const [category,setCategory]=useState(active?.category??LIBRARY.categories[0]);
   useEffect(()=>{if(active)setCategory(active.category);},[active?.category]);
   const list=useMemo(()=>LIBRARY.presets.filter(p=>p.category===category),[category]);
-  return <div className={'preset-strip'+(open?' open':'')}>
+  const strip=useRef<HTMLDivElement>(null);
+  // Closes like every sheet (rule 14): a press anywhere outside it, Esc or B. The press still reaches the
+  // page below, so one click both closes the presets and focuses what was clicked.
+  useEffect(()=>{
+    if(!open)return;
+    const down=(e:PointerEvent)=>{if(!strip.current?.contains(e.target as Node))setOpen(false);};
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();setOpen(false);}};
+    document.addEventListener('pointerdown',down,true);document.addEventListener('keydown',key);
+    return()=>{document.removeEventListener('pointerdown',down,true);document.removeEventListener('keydown',key);};
+  },[open]);
+  return <div ref={strip} className={'preset-strip'+(open?' open':'')}>
     <div className="preset-bar">
       <button type="button" className="preset-current" aria-label="Browse presets" aria-expanded={open} onClick={()=>setOpen(!open)}>
         <span className="preset-cat">Presets</span>
