@@ -124,13 +124,23 @@ class NativeDrumMixer:
         self._views = tuple(self.states[i] for i in range(voice_limit))
 
     def render_into(self, voices, out, frames, attack, fade, right=None):
+        live = []
         for voice, state in zip(voices, self._views):
+            if voice.sample is None and voice.old_remaining <= 0:
+                # An idle slot: the kernel skips it and only zeroes its 'last' value, so it needs no copying.
+                voice.last = 0.0
+                if state.data or state.old_remaining > 0:
+                    state.data = None; state.old_remaining = 0
+                continue
+            live.append((voice, state))
             state.data = voice.sample.data.buffer_info()[0] if voice.sample is not None else None
             state.frames = voice.sample.frames if voice.sample is not None else 0
             state.old_data = voice.old_sample.data.buffer_info()[0] if voice.old_sample is not None else None
             state.old_frames = voice.old_sample.frames if voice.old_sample is not None else 0
             for field in _SYNC_FIELDS:
                 setattr(state, field, getattr(voice, field))
+        if not live:
+            return  # nothing is playing: the pads add silence
         offset = 0
         while offset < frames:
             count = min(128, frames - offset)
@@ -143,7 +153,7 @@ class NativeDrumMixer:
                 for i in range(count):
                     out[offset + i] += scratch[i]; right[offset + i] += scratch[count + i]
             offset += count
-        for voice, state in zip(voices, self._views):
+        for voice, state in live:
             for field in _SYNC_FIELDS:
                 setattr(voice, field, getattr(state, field))
             if not state.data:

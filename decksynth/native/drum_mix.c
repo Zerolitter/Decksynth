@@ -4,6 +4,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* Flush-to-zero / denormals-are-zero: a decaying reverb or filter tail never slows the CPU down. x86 only (the Deck). */
+#if defined(__SSE__) || defined(__x86_64__)
+#include <xmmintrin.h>
+static inline void ds_ftz(void) { _mm_setcsr(_mm_getcsr() | 0x8040); }
+#else
+static inline void ds_ftz(void) {}
+#endif
+
 typedef struct {
     const float *data;
     int64_t frames;
@@ -37,7 +45,7 @@ static double value(const float *data, int64_t frames, double pos,
 
 /* out holds 2*frames doubles: left in [0, frames), right in [frames, 2*frames). */
 void drum_mix(DrumVoice *voices, int count, double *out, int frames,
-              int attack, int fade) {
+              int attack, int fade) { ds_ftz();
     if (count < 0 || count > 32 || frames < 0 || frames > 128 || attack < 1 || fade < 1)
         return;
     double *right = out + frames;
@@ -125,7 +133,7 @@ Biquad drum_biquad(int kind, double freq, double rate, double q, double db) {
     return out;
 }
 
-void drum_shape(float *d, int64_t n, const double *p) {
+void drum_shape(float *d, int64_t n, const double *p) { ds_ftz();
     double attack = p[0], hold = p[1], decay = p[2], fi = p[3], fo = p[4], rate = p[21];
     double k = decay > 0 ? -6.907755 / decay : 0.;  /* -60 dB at the end of the decay */
     if (attack >= 1 || decay > 0 || p[8] > 0)

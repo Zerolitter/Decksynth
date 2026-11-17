@@ -7,6 +7,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* Flush-to-zero / denormals-are-zero: a decaying reverb or filter tail never slows the CPU down. x86 only (the Deck). */
+#if defined(__SSE__) || defined(__x86_64__)
+#include <xmmintrin.h>
+static inline void ds_ftz(void) { _mm_setcsr(_mm_getcsr() | 0x8040); }
+#else
+static inline void ds_ftz(void) {}
+#endif
+
 typedef struct {
     double pos, step, target, glide, env, rel, gain, pmul, a1, a2, a3, k, ic1, ic2;
     int64_t fade_left, fade_len, age, stamp, start, end, loop_start, loop_end, xfade;
@@ -41,7 +49,7 @@ static double interp(const SamplerParams *p, const SamplerVoice *v, double pos) 
 
 /* Adds `frames` samples of every active voice into out (mono).
  * Modes: 0 one shot, 1 hold, 2 loop. Filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass. */
-void sampler_mix(SamplerVoice *voices, int count, const SamplerParams *p, double *out, int frames) {
+void sampler_mix(SamplerVoice *voices, int count, const SamplerParams *p, double *out, int frames) { ds_ftz();
     if (!p->data || count < 0 || count > 64 || frames < 0 || frames > 4096) return;
     for (int slot = 0; slot < count; ++slot) {
         SamplerVoice *v = &voices[slot];
