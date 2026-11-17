@@ -333,6 +333,24 @@ class Sampler:
         self.notes = [None]*SLOTS; self.sustained = set()
 
     # -- audio ----------------------------------------------------------------------------------
+    def render_into_buffer(self, buf, offset, frames):
+        """render_into for the engine's C buffer (cbus.py): the kernel's output is added in C."""
+        if self._pending is not None: self.take_pending()
+        if frames <= 0 or self.params.data is None or not any(v.active for v in self.voices): return
+        from . import cbus
+        if self._kernel is None:
+            part = buf[offset:offset + frames]; self.render_into(part, frames); cbus.put(buf, offset, part); return
+        s = self.spec or {}; base = s.get('gain', 1.); lift = self.mod.get('gain', 0.)
+        g = max(0., base+lift)/base if lift and base > 1e-6 else 1.
+        c = cbus.lib(); at = 0
+        while at < frames:
+            count = min(256, frames-at)
+            self._modulate()
+            C.memset(self.scratch, 0, 8*count)
+            self._kernel(self.voices, SLOTS, C.byref(self.params), self.scratch, count)
+            c.dsfx_buf_add(cbus.addr(buf, offset+at), C.addressof(self.scratch), count, g)
+            at += count
+
     def render_into(self, out, frames):
         """Add `frames` samples into the mono list `out`."""
         if self._pending is not None: self.take_pending()

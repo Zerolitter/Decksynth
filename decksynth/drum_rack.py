@@ -207,6 +207,16 @@ class DrumRack:
         env = min(1., age/self.attack_frames, (sample.frames-pos)/self.attack_frames)
         return value*gain*max(0., env)
 
+    def render_into_buffers(self, left, right, offset, frames):
+        """Add the pads, each with its pan, into the engine's C buffers (cbus.py) from offset on."""
+        if frames <= 0: return
+        if self._native is not None:
+            self._native.render_buffers(self.voices, left, right, offset, frames, self.attack_frames, self.fade_frames)
+            return
+        from . import cbus
+        l = left[offset:offset + frames]; r = right[offset:offset + frames]
+        self.render_into(l, frames, r); cbus.put(left, offset, l); cbus.put(right, offset, r)
+
     def render_into(self, out, frames, right=None):
         """Mix the pads into out (mono), or into out/right with each pad's pan when right is given."""
         if frames <= 0: return

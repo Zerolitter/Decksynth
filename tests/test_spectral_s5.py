@@ -79,7 +79,9 @@ class SpectralS5(unittest.TestCase):
  def test_pan_changes_slew_without_channel_steps(self):
   from unittest.mock import patch
   e=Engine();e.master_enabled=False;e.project.tracks[0]['volume']=1.;e.project.tracks[0]['instrument']['pan']=-1.
-  with patch.object(e.synths[0],'render',side_effect=lambda n:[.2]*n):
+  from decksynth import cbus
+  with patch.object(e.synths[0],'render',side_effect=lambda n:[.2]*n),\
+       patch.object(e.synths[0],'render_into',side_effect=lambda buf,at,n:cbus.put(buf,at,[.2]*n)):
    e.render_stereo(128);e.project.tracks[0]['instrument']['pan']=1.;a=e.render_stereo(128)
    self.assertGreater(a[0],.19);self.assertLess(a[1],.01);self.assertLess(max(abs(x-y) for x,y in zip(a[::2],a[2::2])),.002)
    b=e.render_stereo(512);self.assertAlmostEqual(b[-2],0.);self.assertAlmostEqual(b[-1],.2)

@@ -688,6 +688,22 @@ class TrackFx:
             if not self._tail: return (samples,list(samples) if right is None else right) if _stereo else samples
             self._tail -= 1
         n = len(samples); buf = (ctypes.c_double * n)(*samples)
+        self._gate_block(n,frame,clock,_stereo)
+        keep=[]
+        if hasattr(self.lib,'dsfx_key'):
+            for slot in (0,1):
+                audio=key[slot] if key else None
+                arr=(ctypes.c_double*n)(*audio[:n]) if audio is not None and len(audio)>=n else None;keep.append(arr)
+                for h in (self.handle,self.right if _stereo else None):
+                    if h:self.lib.dsfx_key(h,slot,arr,n if arr is not None else 0)
+        if _stereo and self.right:
+            right=(ctypes.c_double*n)(*(samples if right is None else right))
+            self.lib.dsfx_process_stereo(self.handle,self.right,buf,right,n,self.order,self.on,self.params,float(bpm))
+            return list(buf),list(right)
+        self.lib.dsfx_process(self.handle,buf,n,self.order,self.on,self.params,float(bpm))
+        return (list(buf),list(buf)) if _stereo else list(buf)
+    def _gate_block(self,n,frame,clock,_stereo):
+        """The audio gate's note events and song clock for the next n frames (both process paths)."""
         start=self._gate_frame if frame is None else int(frame);end=start+n;self._gate_frame=end
         gate_on=bool(self.on[ORDER.index('gate')])
         events=sorted(set(max(start,x)-start for x in self._gate_events if x<end)) if self._gate_extended and gate_on and not self.gate_values['hold'] else []
@@ -705,21 +721,58 @@ class TrackFx:
         if clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.handle,float(clock))
         if _stereo and self.right and clock is not None and not local and hasattr(self.lib,'dsfx_set_clock'):self.lib.dsfx_set_clock(self.right,float(clock))
         if events:self._gate_origin=start+events[-1]
-        keep=[]
-        if hasattr(self.lib,'dsfx_key'):
-            for slot in (0,1):
-                audio=key[slot] if key else None
-                arr=(ctypes.c_double*n)(*audio[:n]) if audio is not None and len(audio)>=n else None;keep.append(arr)
-                for h in (self.handle,self.right if _stereo else None):
-                    if h:self.lib.dsfx_key(h,slot,arr,n if arr is not None else 0)
-        if _stereo and self.right:
-            right=(ctypes.c_double*n)(*(samples if right is None else right))
-            self.lib.dsfx_process_stereo(self.handle,self.right,buf,right,n,self.order,self.on,self.params,float(bpm))
-            return list(buf),list(right)
-        self.lib.dsfx_process(self.handle,buf,n,self.order,self.on,self.params,float(bpm))
-        return (list(buf),list(buf)) if _stereo else list(buf)
     def process_stereo(self,samples,bpm,beat=0.,**kwargs):
         return self.process(samples,bpm,beat,_stereo=True,**kwargs)
+    def process_buffers(self,bufs,left,right,n,has_right,bpm,beat=0.,modulated=False,clock=None,frame=None,key=None):
+        """process_stereo in place on C buffers (cbus.py): left and right are ctypes arrays holding the
+        block's first n frames. has_right: right holds the track's own right channel (a panned Drum Rack);
+        otherwise its contents are ignored. On return left and right hold the stereo result.
+        key: [ducking source, vocoder source], each a ctypes array or None. bufs: the cbus.TrackBuffers.
+        Same decisions as process() and _process(), in the same order, so the sound is identical."""
+        from . import cbus
+        c=cbus.lib();scan=bufs.scan
+        heard_l=scan(left,n)[0];heard_r=has_right and scan(right,n)[0]
+        silent_in=not heard_l and not heard_r and (key is None or all(k is None for k in key))
+        if silent_in and self.rest_enabled and self.active and not self._tail and self._quiet>=self.rate*REST_SECONDS:
+            self._gate_frame=(self._gate_frame if frame is None else int(frame))+n
+            cbus.zero(left,0,n);cbus.zero(right,0,n);return
+        # --- _process
+        if has_right and not self.right and (self.active or self._tail):
+            c.dsfx_buf_avg(cbus.addr(left),cbus.addr(left),cbus.addr(right),n);has_right=False  # no stereo FX: fold to mono
+        if not modulated and self.chain:
+            if self.active:self.modulate(beat)
+            else:self.move_puck(beat,[0.]*NMACRO)
+        if not self.active:
+            if not self._tail:
+                if not has_right:cbus.copy(right,left,n)
+                self._quiet=0;return
+            self._tail-=1
+        self._gate_block(n,frame,clock,True)
+        if hasattr(self.lib,'dsfx_key'):
+            for slot in (0,1):
+                arr=key[slot] if key else None
+                for h in (self.handle,self.right):
+                    if h:self.lib.dsfx_key(h,slot,arr,n if arr is not None else 0)
+        L=cbus.view(left,0,n)
+        if self.right:
+            if not has_right:cbus.copy(right,left,n)
+            self.lib.dsfx_process_stereo(self.handle,self.right,L,cbus.view(right,0,n),n,self.order,self.on,self.params,float(bpm))
+        else:
+            self.lib.dsfx_process(self.handle,L,n,self.order,self.on,self.params,float(bpm))
+            cbus.copy(right,left,n)
+        # --- back in process(): NaN guard and the sleep counter
+        if self.active and self.handle:
+            _,fin_l,peak_l=scan(left,n);_,fin_r,peak_r=scan(right,n)
+            if not (fin_l and fin_r):
+                self.lib.dsfx_reset(self.handle)
+                if self.right:self.lib.dsfx_reset(self.right)
+                self.tuned=[];self.cleared+=1;self._quiet=0
+                cbus.zero(left,0,n);cbus.zero(right,0,n);return
+            if silent_in and not self._tail:
+                if max(peak_l,peak_r)<REST_FLOOR:self._quiet+=n
+                else:self._quiet=0
+            else:self._quiet=0
+        else:self._quiet=0
     def levels(self):
         if not self.handle: return [0.] * len(ORDER)
         self.lib.dsfx_levels(self.handle, self._levels)

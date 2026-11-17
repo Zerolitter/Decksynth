@@ -1107,3 +1107,67 @@ void dsfx_master_i(void *p, double *left, double *right, double *out, int n) {
     dsfx_master(p, left, right, n);
     for (int i = 0; i < n; i++) { out[2 * i] = left[i]; out[2 * i + 1] = right[i]; }
 }
+
+/* ---- Track buffers and the mix bus ------------------------------------------------------------------
+ * The engine keeps each track's audio in fixed C buffers for the whole block; Python only hands these
+ * routines pointers. The arithmetic below follows the Python mix it replaces term for term (same order,
+ * no fused multiply-add), so a render comes out bit for bit the same. */
+
+/* dst[i] += src[i] * g */
+void dsfx_buf_add(double *dst, const double *src, int n, double g) {
+    for (int i = 0; i < n; i++) dst[i] += src[i] * g;
+}
+/* dst[i] = (a[i] + b[i]) * .5 (dst may be a) */
+void dsfx_buf_avg(double *dst, const double *a, const double *b, int n) {
+    for (int i = 0; i < n; i++) dst[i] = (a[i] + b[i]) * .5;
+}
+/* Returns 1 when any sample is not zero (NaN counts, as in Python's any()), 0 for silence.
+ * out[0] = 1 when every sample is finite, out[1] = the largest absolute value. */
+int dsfx_buf_scan(const double *x, int n, double *out) {
+    int any = 0, finite = 1; double peak = 0;
+    for (int i = 0; i < n; i++) {
+        double v = x[i];
+        if (v != 0) any = 1;
+        if (!isfinite(v)) finite = 0;
+        double a = fabs(v); if (a > peak) peak = a;
+    }
+    if (out) { out[0] = finite; out[1] = peak; }
+    return any;
+}
+/* One track into the mix and the two send buses: volume, pan (with a 5 ms glide toward its target),
+ * and per-bus send amounts. *pan_state is the glide's current pan, updated in place. A send bus with
+ * an amount of 0 (or a NULL buffer) is not fed. A silent block adds nothing and lets the pan settle. */
+void dsfx_mix_track(const double *l, const double *r, int n, double vol, double pan, double *pan_state, double step,
+                    double *ml, double *mr, double *s0l, double *s0r, double a0, double *s1l, double *s1r, double a1) {
+    double cur = *pan_state;
+    int f0 = s0l && a0 > 0, f1 = s1l && a1 > 0, any = 0;
+    for (int i = 0; i < n && !any; i++) if (l[i] != 0 || r[i] != 0) any = 1;
+    if (!any) { *pan_state = pan; return; }
+    if (cur == pan) {
+        double gl = vol * (1 - cur) * .5, gr = vol * (1 + cur) * .5;
+        for (int i = 0; i < n; i++) {
+            double x = l[i] * gl, y = r[i] * gr;
+            ml[i] += x; mr[i] += y;
+            if (f0) { s0l[i] += x * a0; s0r[i] += y * a0; }
+            if (f1) { s1l[i] += x * a1; s1r[i] += y * a1; }
+        }
+    } else {
+        for (int i = 0; i < n; i++) {
+            double d = pan - cur; d = d > step ? step : d < -step ? -step : d; cur += d;
+            double gl = vol * (1 - cur) * .5, gr = vol * (1 + cur) * .5;
+            double x = l[i] * gl, y = r[i] * gr;
+            ml[i] += x; mr[i] += y;
+            if (f0) { s0l[i] += x * a0; s0r[i] += y * a0; }
+            if (f1) { s1l[i] += x * a1; s1r[i] += y * a1; }
+        }
+    }
+    *pan_state = cur;
+}
+/* A send bus's wet return into the mix: mix += (out - dry * in) * g, per channel. */
+void dsfx_add_return(double *ml, double *mr, const double *ol, const double *or_, const double *il, const double *ir,
+                     int n, double dry, double g) {
+    for (int i = 0; i < n; i++) {
+        ml[i] += (ol[i] - dry * il[i]) * g;
+        if (mr) mr[i] += (or_[i] - dry * ir[i]) * g;
+    }
+}

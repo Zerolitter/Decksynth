@@ -123,7 +123,17 @@ class NativeDrumMixer:
         self.scratch = (C.c_double * 256)()
         self._views = tuple(self.states[i] for i in range(voice_limit))
 
-    def render_into(self, voices, out, frames, attack, fade, right=None):
+    def render_buffers(self, voices, left, right, offset, frames, attack, fade):
+        """render_into for the engine's C buffers (cbus.py): adds the pads into left/right from offset on,
+        with the copying done in C (x + s*1 is exactly x + s, so the sound is the same)."""
+        from . import cbus
+        c = cbus.lib(); scratch = C.addressof(self.scratch)
+        def sink(at, count):
+            c.dsfx_buf_add(cbus.addr(left, offset + at), scratch, count, 1.)
+            c.dsfx_buf_add(cbus.addr(right, offset + at), scratch + 8 * count, count, 1.)
+        self.render_into(voices, None, frames, attack, fade, sink=sink)
+
+    def render_into(self, voices, out, frames, attack, fade, right=None, sink=None):
         live = []
         for voice, state in zip(voices, self._views):
             if voice.sample is None and voice.old_remaining <= 0:
@@ -146,7 +156,9 @@ class NativeDrumMixer:
             count = min(128, frames - offset)
             self.kernel(self.states, len(self.states), self.scratch, count, attack, fade)
             scratch = self.scratch
-            if right is None:
+            if sink is not None:
+                sink(offset, count)
+            elif right is None:
                 for i in range(count):
                     out[offset + i] += (scratch[i] + scratch[count + i]) * .5
             else:

@@ -124,6 +124,35 @@ class SendBuses:
                 out = fx.process(list(left), bpm, beat, modulated=True)
                 for j in range(n): mix[j] += (out[j] - dry * left[j]) * g
 
+    def start_block_c(self, n):
+        """Like start_block, for the C mix bus (cbus.py): fixed left/right buffers per bus, zeroed."""
+        from . import cbus
+        if not hasattr(self, '_cin'):
+            self._cin = {bus: ((cbus.D * cbus.BLOCK)(), (cbus.D * cbus.BLOCK)()) for bus in BUSES}
+            self._cwork = ((cbus.D * cbus.BLOCK)(), (cbus.D * cbus.BLOCK)())
+        self._n = n; self._stereo = True
+        for left, rin in self._cin.values():
+            cbus.zero(left, 0, n); cbus.zero(rin, 0, n)
+        self._fed = {bus: False for bus in BUSES}
+        return self._cin
+
+    def mix_into_c(self, bufs, bpm, beat):
+        """mix_into for the C mix bus: each bus runs on a copy of its input, and its wet return goes into bufs.mix."""
+        from . import cbus
+        n = self._n; c = cbus.lib(); wl, wr = self._cwork
+        for bus in BUSES:
+            fx = self.fx[bus]
+            if not fx.handle: continue
+            if self._fed[bus]: self.tail[bus] = int(TAIL_SECONDS[bus] * self.rate)
+            elif self.tail[bus] <= 0: continue
+            else: self.tail[bus] -= n
+            left, rin = self._cin[bus]
+            cbus.copy(wl, left, n); cbus.copy(wr, rin, n)
+            fx.process_buffers(bufs, wl, wr, n, True, bpm, beat, modulated=True)
+            dry = .5 if bus == 'reverb' else 1.
+            c.dsfx_add_return(cbus.addr(bufs.mix), cbus.addr(bufs.mix_r), cbus.addr(wl), cbus.addr(wr),
+                              cbus.addr(left), cbus.addr(rin), n, dry, self.level[bus])
+
     def reset(self):
         for bus in BUSES:
             fx = self.fx[bus]; self.tail[bus] = 0

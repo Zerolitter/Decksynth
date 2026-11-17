@@ -12,6 +12,7 @@ from itertools import chain
 from operator import add
 from . import song as songs
 from . import sends as send_buses
+from . import cbus
 from .devices import device_kind
 # Clip loop lengths in bars (Sir, 15 Nov: up to 32). Any whole number of bars works (Sir, 17 Nov:
 # a Structure that ends on bar 17 makes a 17-bar clip); BAR_CHOICES are the quick picks.
@@ -425,16 +426,32 @@ class Synth(ExpressionVoice):
         else:out=self._render(frames,p)
         self.last_p=p
         return out
-    def _render(self,frames,p):
+    def render_into(self,buf,offset,frames):
+        """Render frames samples into the C buffer buf from offset on (cbus.py), with no Python list
+        when the voices run in C. Same sound as render(): the rare paths (glide, a card switch's
+        crossfade, the Python fallback) render a list and copy it in."""
+        from . import cbus
+        if not self.voices:
+            cbus.zero(buf,offset,frames);self.clock+=frames;self.last_p=self.live or self.params;return
+        glide=not getattr(self,'_in_glide',False) and any(v.get('glide_samples',0)>v.get('glide_age',0) for v in self.voices.values())
+        p=self.live or self.params;last=getattr(self,'last_p',None)
+        if glide or (last is not None and self.voice_mode(last)!=self.voice_mode(p)):
+            cbus.put(buf,offset,self.render(frames));return
+        target=cbus.view(buf,offset,frames);ctypes.memset(target,0,8*frames)
+        out=self._render(frames,p,target)
+        if out is not None:cbus.put(buf,offset,out)
+        self.last_p=p
+    def _render(self,frames,p,target=None):
+        """Returns a list, or None when it rendered into target (a zeroed ctypes array)."""
         out=[0.]*frames; sr=self.rate
         a=max(1,p['attack']*sr); d=max(1,p['decay']*sr); slow=max(1,p['release']*sr); quick=min(slow,.006*sr)
         mod=min(1.,p['modulation']+self.mod_wheel); trem=1-mod*.12+mod*.12*math.sin(self.clock/sr*2*math.pi*.27)
         uni=int(p.get('uni_voices',1)); ft=int(p.get('vcf_type',0)); sub=p.get('sub',0.); inh=p.get('inharm',0.)
-        if uni>1 or ft or sub>0 or inh>0 or filter_extended(p):return self.render_ext(frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh)
+        if uni>1 or ft or sub>0 or inh>0 or filter_extended(p):return self.render_ext(frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh,target)
         fast=native_voice(); curve=p.get('env_curve',0.)*8; curved=native_voice_curve() if curve else None
         if curve and curved is None:fast=None  # an older library without the curve: the Python loop has it
         if fast is not None:
-            buf=(ctypes.c_double*frames)(); st=(ctypes.c_double*6)()
+            buf=target if target is not None else (ctypes.c_double*frames)(); st=(ctypes.c_double*6)()
             for key,v in list(self.voices.items()):
                 table=v['table']; prev=v.get('prev')
                 if not isinstance(table,ctypes.Array) or (prev is not None and not isinstance(prev,ctypes.Array)):
@@ -454,7 +471,7 @@ class Synth(ExpressionVoice):
                     if res&1:self.voices.pop(key,None); continue
                     v.update(phase=st[0],age=int(st[1]),release=(int(st[2]),st[3]) if rel else None,level=st[4],
                              prev=None if res&2 else prev,xf=st[5])
-                self.clock+=frames; return list(buf)
+                self.clock+=frames; return None if target is not None else list(buf)
         for key,v in list(self.voices.items()):
             phase=v['phase']; age=v['age']; rel=v['release']; table=v['table']; level=v['level']
             step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
@@ -496,12 +513,12 @@ class Synth(ExpressionVoice):
         for u in range(3):
             for k in range(16):x[26+u*16+k]=(u*731.)%2048
         return x
-    def render_ext(self,frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh):
+    def render_ext(self,frames,p,a,d,slow,quick,mod,trem,uni,ft,sub,inh,target=None):
         """Voices with the Filter, Unison or Character cards on: dsfx_voice2 in C, or the same loop in Python."""
         sr=self.rate; extended=filter_extended(p); fast=native_filter_voice() if extended else native_voice2()
         if fast is not None and not all(isinstance(v['table'],ctypes.Array) and (v.get('prev') is None or isinstance(v['prev'],ctypes.Array))
                                         for v in self.voices.values()):fast=None
-        out=(ctypes.c_double*frames)() if fast is not None else [0.]*frames
+        out=(target if target is not None else (ctypes.c_double*frames)()) if fast is not None else [0.]*frames
         va=self.vargs; st=self.st
         cfg=dict(a=a,d=d,sus=p['sustain'],uni=uni,detune=p.get('uni_detune',.3)*.5,ftype=ft,reso=p.get('vcf_reso',.2),
                  envamt=p.get('vcf_env',.3)*6,rate=float(sr),npart=16,stretch=.008*inh*inh,sub=sub,suboct=int(p.get('sub_oct',1)))
@@ -540,7 +557,7 @@ class Synth(ExpressionVoice):
                      prev=None if res&2 else prev,xf=st[5],x=st[6:80])
             if extended:v['fstate']=list(st[80:85])
             else:v.pop('fstate',None)
-        self.clock+=frames; return list(out)
+        self.clock+=frames; return None if out is target else list(out)
 
 def voice2_py(out,n,tab,prev,st,c,f=None):
     """Python twin of dsfx_voice2 (used when the native library is missing). Keep the two in step."""
@@ -1567,6 +1584,81 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
     def export_wav(self,path,seconds=None):
         from .render_export import export_wav
         return export_wav(self,path,seconds)
+    def _render_tracks_c(self,bufs,pos,count,frozen,live_frozen,drum_right):
+        """One slice of the block (between two note events) for every track, straight into its C buffers."""
+        for tr,s in enumerate(self.synths):
+            left=bufs.left[tr];right=bufs.right[tr]
+            if frozen[tr]:
+                if not self._freeze_live(tr,s):
+                    cbus.zero(left,pos,count)
+                    if drum_right[tr] is not None:cbus.zero(right,pos,count)
+                    continue
+                live_frozen[tr]=True
+            s.render_into(left,pos,count)
+            kind=device_kind(self.project.tracks[tr])
+            if kind=='drum_rack':
+                # Drum Rack tracks carry their own right channel (per-pad pan).
+                ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)
+                self.drums[tr].render_into_buffers(left,right,pos,count)
+            elif kind=='sampler':self.samplers[tr].render_into_buffer(left,pos,count)
+    def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on):
+        """FX, sends, mix and master for a block whose audio is in C buffers (the C twin of the Python mix in
+        _render_bus, same order and arithmetic). Returns the interleaved block, or None when the master stage
+        is not there (bufs.mix then holds the mix for the Python limiter)."""
+        c=cbus.lib();tracks=len(self.synths);addr=cbus.addr
+        mix,mix_r=bufs.mix,bufs.mix_r;cbus.zero(mix,0,n);cbus.zero(mix_r,0,n)
+        bus_in=self.send_buses.start_block_c(n)
+        has_right=[r is not None for r in drum_right]
+        # Ducking and Vocoder hear another track's own sound (before its FX and volume), even when muted:
+        # copy it now, before the FX below change the buffers in place.
+        keys=[None]*tracks
+        for tr,fx in enumerate(self.fx[:tracks]):
+            sources=fx.key_sources()
+            if not any(s is not None for s in sources):continue
+            pair=[]
+            for slot,src in enumerate(sources):
+                if src is None or src==tr or not 0<=src<tracks:pair.append(None);continue
+                dst=bufs.keys[tr][slot]
+                if has_right[src]:c.dsfx_buf_avg(addr(dst),addr(bufs.left[src]),addr(bufs.right[src]),n)
+                else:cbus.copy(dst,bufs.left[src],n)
+                pair.append(dst)
+            keys[tr]=pair
+        step=2/max(1,.005*self.rate);bpm=self.project.bpm;beat=abs_start/self.fpb
+        for tr,(t,fx) in enumerate(zip(self.project.tracks[:tracks],self.fx)):
+            if t['mute']:continue
+            left=bufs.left[tr];right=bufs.right[tr]
+            if frozen[tr] and not live_frozen[tr] and self.fx_live_until[tr]<=abs_start:
+                cbus.zero(left,0,n);cbus.zero(right,0,n)  # no live notes: the FX rest too
+            else:
+                if frozen[tr]:self.fx_live_until[tr]=abs_end+round(3*self.rate)
+                fx.process_buffers(bufs,left,right,n,has_right[tr],bpm,beat,modulated=True,key=keys[tr],
+                                   clock=start/self.fpb if self.playing else None,frame=abs_start)
+            if frozen[tr] or tr in self.freeze_ring:
+                looping=freeze_mode=='loop' or self.project.song['loop']
+                block=self._freeze_block(tr,start,n,looping,freeze_mode)
+                if block is not None:
+                    fl,fr=block;cbus.add_list(left,fl,n);cbus.add_list(right,fr,n)
+            if self.capture_track==tr:self.captured.append((left[:n],right[:n]))
+            vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
+            amounts=send_buses.track_amounts(t);sends=[]
+            for bus,a in zip(send_buses.BUSES,amounts):
+                if a>0:
+                    self.send_buses.mark_fed(bus);bl,br=bus_in[bus];sends+=[addr(bl),addr(br),a]
+                else:sends+=[None,None,0.]
+            pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
+            bufs.pan[0]=pan if self._pan_state[tr] is None else self._pan_state[tr]
+            c.dsfx_mix_track(addr(left),addr(right),n,vol,pan,addr(bufs.pan),step,addr(mix),addr(mix_r),*sends)
+            self._pan_state[tr]=bufs.pan[0]
+        self.send_buses.mix_into_c(bufs,bpm,beat)
+        # Standalone dry sample audition uses the real native audio clock.
+        self._render_sample_preview_into(mix,mix_r,n)
+        master=getattr(self,'master',None)
+        if master is None:master=self.master=MasterStage(self.rate)
+        if not (master.available and self.master_enabled):return None
+        if click_on:
+            for j,v in enumerate(click):
+                k=v*.25 if v is not None else 0.;mix[j]=mix[j]+k;mix_r[j]=mix_r[j]+k
+        return bufs.master(master,n)
     def _render_bus(self,frames,stereo):
         result=[]; remaining=frames
         while remaining:
@@ -1654,6 +1746,10 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     if tick>=abs_start:events.setdefault(tick-abs_start,[]).append((2,0 if k==0 else k))
                     k+=1
             offsets=sorted(set(events)|{n})
+            # The C path (cbus.py): each track's audio stays in its fixed C buffers for the whole block.
+            use_c=stereo and n<=cbus.BLOCK and cbus.available() and not getattr(self,'python_bus',False)
+            if use_c:
+                bufs=self._cbufs=getattr(self,'_cbufs',None) or cbus.TrackBuffers();bufs.ensure(len(self.synths))
             track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
             # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
             drum_right=[[] if stereo and device_kind(t)=='drum_rack' else None for t in self.project.tracks]
@@ -1688,7 +1784,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     if action:self.voice_on(tr,note['note'],note['velocity'],token)
                     else:self.voice_off(tr,note['note'],token)
                 count=nextpos-pos
-                for tr,(buf,s) in enumerate(zip(track_audio,self.synths)):
+                if use_c:self._render_tracks_c(bufs,pos,count,frozen,live_frozen,drum_right)
+                for tr,(buf,s) in enumerate(zip(track_audio,self.synths) if not use_c else ()):
                     if frozen[tr]:
                         if not self._freeze_live(tr,s):
                             buf.extend([0.]*count)
@@ -1710,13 +1807,18 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                             click.append(.15*math.sin(self.click_age/self.rate*2*math.pi*self.click_freq)*(1-self.click_age/(self.rate*.025)))
                             self.click_age+=1
                         else:click.append(None)
+            mastered=None
+            if use_c:
+                mastered=self._mix_c(bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on)
+                if mastered is None:mix=bufs.mix[:n];right=bufs.mix_r[:n]  # no C master stage: the Python limiter below
+                else:click=()
             # Per-track FX run once per block, then the mix is summed in the original order.
-            mix=[0.]*n;right=[0.]*n if stereo else None
+            if not use_c:mix=[0.]*n;right=[0.]*n if stereo else None
             # Sends: each track feeds the shared Reverb and Delay after its volume and pan.
-            bus_in=self.send_buses.start_block(n,stereo)
+            bus_in=self.send_buses.start_block(n,stereo) if not use_c else {}
             # Ducking and Vocoder hear another track's own sound (before its FX and volume), even when muted.
             keys=[None]*len(track_audio)
-            for tr,fx in enumerate(self.fx):
+            for tr,fx in enumerate(self.fx if not use_c else ()):
                 if tr>=len(track_audio):break
                 sources=fx.key_sources()
                 if not any(s is not None for s in sources):continue
@@ -1726,7 +1828,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                     a=track_audio[src];r=drum_right[src]
                     pair.append([(x+y)*.5 for x,y in zip(a,r)] if r else a)
                 keys[tr]=pair
-            for tr,(t,fx,audio) in enumerate(zip(self.project.tracks,self.fx,track_audio)):
+            for tr,(t,fx,audio) in enumerate(zip(self.project.tracks,self.fx,track_audio) if not use_c else ()):
                 if not t['mute']:
                     process=fx.process_stereo if stereo else fx.process
                     extra={'right':drum_right[tr]} if stereo and drum_right[tr] is not None else {}
@@ -1776,14 +1878,16 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                             for j,v in enumerate(audio):bl[j]+=v*vol*a
             # Standalone dry sample audition uses the real native audio clock.
             # It never alters a pad, SONG notes, the FX chain, or playback state.
-            self.send_buses.mix_into(mix,right,self.project.bpm,abs_start/self.fpb)
-            self._render_sample_preview_into(mix,right,n)
+            if not use_c:
+                self.send_buses.mix_into(mix,right,self.project.bpm,abs_start/self.fpb)
+                self._render_sample_preview_into(mix,right,n)
             # Master: the C stage below; without it (an older library, or the mono render) the old limiter turns
             # the mix down when it would go over 0.9 and lets go over ~40 ms (hard clipping sounds like crackle).
             g=self.limit
             master=getattr(self,'master',None)
             if master is None:master=self.master=MasterStage(self.rate)
-            if stereo and master.available and self.master_enabled:
+            if mastered is not None:pass
+            elif stereo and master.available and self.master_enabled:
                 # The master stage in C (fx.MasterStage): makeup, glue, tone polish, true-peak limiter.
                 if click_on:
                     mix[:]=[m+(c*.25 if c is not None else 0.) for m,c in zip(mix,click)]

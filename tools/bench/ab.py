@@ -5,10 +5,11 @@ Two sessions of the same code differ by about 10 %, so a before/after taken minu
 nothing. This script renders the same project with the old commit and the current code in turns,
 pinned to one core, and compares medians.
 
-    tools/bench/ab.py PROJECT.decksynth --against=<commit> [--rounds=4] [--seconds=5] [--notes] [--core=3]
+    tools/bench/ab.py PROJECT.decksynth --against=<commit> [--rounds=4] [--seconds=5] [--notes] [--core=3] [--old-lib=PATH]
 
 PROJECT is any .decksynth file (tools/bench/stress4.decksynth is a fair 4-track load).
 Without --against it compares the working tree with HEAD (useful before a commit).
+--old-lib gives a libdsfx.so built from the old commit's dsfx.c, for machines without a C compiler.
 """
 import argparse
 import re
@@ -24,10 +25,13 @@ BENCH = ROOT / 'tools' / 'bench' / 'dsp_bench.py'
 LINE = re.compile(r'mean ([\d.]+) ms \((\d+)%\)\s+p95 ([\d.]+) \((\d+)%\)\s+p99 ([\d.]+)\s+max ([\d.]+) \((\d+)%\)\s+>budget: (\d+)')
 
 
-def checkout(commit, dest):
+def checkout(commit, dest, old_lib=None):
     """Export the commit's tree to dest, with the local native library next to the engine."""
     archive = subprocess.run(['git', '-C', str(ROOT), 'archive', commit], check=True, capture_output=True).stdout
     subprocess.run(['tar', '-x', '-C', str(dest)], input=archive, check=True)
+    if old_lib:
+        shutil.copy(old_lib, dest / 'decksynth' / 'native' / 'libdsfx.so')
+        return
     lib = ROOT / 'decksynth' / 'native' / 'libdsfx.so'
     old_c = dest / 'decksynth' / 'native' / 'dsfx.c'
     if lib.exists() and old_c.exists():
@@ -60,11 +64,12 @@ def main():
     ap.add_argument('project'); ap.add_argument('--against', default='HEAD')
     ap.add_argument('--rounds', type=int, default=4); ap.add_argument('--seconds', type=float, default=5)
     ap.add_argument('--notes', action='store_true'); ap.add_argument('--core', type=int, default=3)
+    ap.add_argument('--old-lib', default=None)
     a = ap.parse_args()
     project = Path(a.project).resolve()
     with tempfile.TemporaryDirectory(prefix='ds-ab-') as tmp:
         old = Path(tmp)
-        checkout(a.against, old)
+        checkout(a.against, old, a.old_lib)
         olds, news = [], []
         for i in range(a.rounds):
             olds.append(run_once(old, project, a.seconds, a.notes, a.core))

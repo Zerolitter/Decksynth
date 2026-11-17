@@ -9,17 +9,18 @@ if notes:
 acc = {'synth': 0., 'drums': 0., 'sampler': 0., 'fx': 0.}
 depth = {'synth': 0, 'drums': 0, 'sampler': 0, 'fx': 0}
 def wrap(obj, name, key):
-    f = getattr(obj, name)
+    f = getattr(obj, name, None)
+    if f is None: return  # an older tree (A/B runs) has no such method
     def g(*a, **k):
         if depth[key]: return f(*a, **k)
         depth[key] = 1; t = time.perf_counter()
         try: return f(*a, **k)
         finally: acc[key] += time.perf_counter() - t; depth[key] = 0
     setattr(obj, name, g)
-for s in e.synths: wrap(s, 'render', 'synth')
-for d in e.drums: wrap(d, 'render_into', 'drums')
-for s in e.samplers: wrap(s, 'render_into', 'sampler')
-for f in e.fx: wrap(f, 'process_stereo', 'fx'); wrap(f, 'process', 'fx')
+for s in e.synths: wrap(s, 'render', 'synth'); wrap(s, 'render_into', 'synth')
+for d in e.drums: wrap(d, 'render_into', 'drums'); wrap(d, 'render_into_buffers', 'drums')
+for s in e.samplers: wrap(s, 'render_into', 'sampler'); wrap(s, 'render_into_buffer', 'sampler')
+for f in e.fx: wrap(f, 'process_stereo', 'fx'); wrap(f, 'process', 'fx'); wrap(f, 'process_buffers', 'fx')
 for _ in range(40): e.render_stereo(256)
 for k in acc: acc[k] = 0.
 N = 750; t = time.perf_counter()
