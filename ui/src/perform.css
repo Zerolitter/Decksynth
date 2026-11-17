@@ -415,3 +415,18 @@
 .harness-shell .cb-loop-btn.on{background:color-mix(in srgb,var(--c-chord) 14%,#182124);border-color:color-mix(in srgb,var(--c-chord) 60%,#33444a)}
 .harness-shell .cb-chip{background:var(--pf-card);border-color:#4d4630}
 .harness-shell .cb-chip.sounding{background:#2a2617}
+
+/* Chords layout from Sir's sketch (17 Nov): numeral in the corner, chord name, a one-octave dot diagram of the tones,
+   and icon strum buttons */
+.harness-shell .cb-pad{justify-content:center;gap:3px;padding:16px 6px 6px}
+.harness-shell .cb-pad b{position:absolute;top:5px;left:8px;font-size:11px}
+.harness-shell .cb-pad strong{font-size:18px;line-height:1.1}
+.harness-shell .cb-pad span{font-size:9.5px;letter-spacing:1px}
+.harness-shell .cb-dots{width:100%;max-width:112px;height:26px;flex:none}
+.harness-shell .cb-dot-key{fill:#202a2e;stroke:#33424a;stroke-width:.8}
+.harness-shell .cb-dot-key.black{fill:#0f1517;stroke:#2a363b}
+.harness-shell .cb-dots circle{fill:#7d8a90}
+.harness-shell .cb-dots circle.root{fill:#c3ccd0}
+.harness-shell .cb-pad.on .cb-dots circle,.harness-shell .cb-pad.sounding .cb-dots circle{fill:color-mix(in srgb,var(--c-chord) 70%,#7d8a90)}
+.harness-shell .cb-pad.on .cb-dots circle.root,.harness-shell .cb-pad.sounding .cb-dots circle.root{fill:var(--c-chord)}
+.harness-shell .cb-strum .pf-seg[aria-label="Strum order"] button{display:flex;align-items:center;justify-content:center}

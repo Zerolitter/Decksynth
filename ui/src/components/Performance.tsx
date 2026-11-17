@@ -12,6 +12,7 @@ import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDo
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { ValueBox } from './ValueBox';
+import { StrumIcon, ChordDots } from './ChordIcons';
 import { CHORD_ADVANCE, CHORD_EXTS, ROOTS, SCALES, chordName, chordText, chordUpper, diatonicChords, voiceChord, type ChordExt } from '../chords';
 import { LIBRARY } from './PresetBrowser';
 import { clamp, noteName, type PerformanceState, type StepNote, type StepPattern } from '../types';
@@ -370,7 +371,6 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
     </div>
   </>;
   else if(mode==='chord'){
-    const strumShort:Record<string,string>={'Up':'Up','Down':'Down','Alt Up':'Alt ↑','Alt Down':'Alt ↓','Up-Down':'↑↓'};
     controls=<>
     {power(chord.enabled,'Chord',()=>set('chord','enabled',!chord.enabled))}
     <div className="cb-strum">
@@ -382,7 +382,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
       <div className="pf-seg cb-fill" role="group" aria-label="Strum order">
         {STRUM_ORDER.map(o=><button key={o} type="button" aria-label={o} aria-pressed={chord.strum_type===o} className={chord.strum_type===o?'on':''}
           title={o==='Up-Down'?'Up, then down: with Loop the strum turns round each time':o}
-          onClick={()=>set('chord','strum_type',o)}>{strumShort[o]}</button>)}
+          onClick={()=>set('chord','strum_type',o)}><StrumIcon order={o}/></button>)}
       </div>
       <span className="pf-group-label">Sync to tempo</span>
       <div className="pf-seg pf-seg-grid" role="group" aria-label="Strum sync">
@@ -577,7 +577,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
           return <button key={id} type="button" data-src={id} data-raw={JSON.stringify(padRaw(c.degree))} data-chord={JSON.stringify(c.notes)} data-testid={'cb-pad-'+c.roman} aria-label={'Play '+c.roman+' '+c.name}
             className={'cb-pad'+(active?.id===id?' on':'')+(pressed===id?' sounding':'')+(suggestions.includes(c.degree)?' suggest':'')}>
             {suggestions.includes(c.degree)?<em className="cb-hint-badge"><Lightbulb size={11}/></em>:null}
-            <b>{c.roman}</b><strong>{c.name}</strong><span>{chordText(c.notes)}</span></button>;})}
+            <b>{c.roman}</b><strong>{c.name}</strong><ChordDots notes={c.notes}/><span>{chordText(c.notes)}</span></button>;})}
       </div>
       <div className="cb-row">
         <span className="pf-group-label cb-label">Type</span>
