@@ -21,23 +21,23 @@
 .harness-shell .pf.pf-mode-chord{--mode:var(--c-chord)}
 .harness-shell .pf{border-top:2px solid color-mix(in srgb,var(--mode) 70%,transparent)}
 .harness-shell .pf-tabs button svg{color:var(--sec)}
-.harness-shell .pf-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#172124);border-color:var(--sec);color:#fff}
+.harness-shell .pf-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#1b1d21);border-color:var(--sec);color:#fff}
 .harness-shell .pf-tabs button.live .pf-led{background:var(--sec);box-shadow:0 0 8px var(--sec)}
 
 .harness-shell .pf .pf-seg button.on,.harness-shell .pf .pf-banks button.on,.harness-shell .pf .pf-modes button.on,
 .harness-shell .pf .pf-btn.on,.harness-shell .pf .pf-bar .pf-seg button.on,.harness-shell .pf .pf-roots button.on,.harness-shell .pf .pf-scales button.on{
-  background:color-mix(in srgb,var(--mode) 22%,#172124);border-color:var(--mode);color:#fff}
-.harness-shell .pf .pf-power.on{background:color-mix(in srgb,var(--mode) 24%,#172124);border-color:var(--mode);color:#fff;
+  background:color-mix(in srgb,var(--mode) 22%,#1b1d21);border-color:var(--mode);color:#fff}
+.harness-shell .pf .pf-power.on{background:color-mix(in srgb,var(--mode) 24%,#1b1d21);border-color:var(--mode);color:#fff;
   box-shadow:0 0 14px color-mix(in srgb,var(--mode) 35%,transparent)}
 .harness-shell .pf .pf-power.on svg{color:var(--mode)}
-.harness-shell .pf .pf-pads button.on{background:color-mix(in srgb,var(--mode) 24%,#172124);border-color:var(--mode)}
+.harness-shell .pf .pf-pads button.on{background:color-mix(in srgb,var(--mode) 24%,#1b1d21);border-color:var(--mode)}
 .harness-shell .pf .pf-pads button.playing{animation:c-pulse 1s ease-in-out infinite}
 .harness-shell .pf .pf-banks button i{background:var(--mode)}
 .harness-shell .pf .pf-grid-head span.live{color:var(--mode)}
 .harness-shell .pf .pf-row.root .pf-row-note{color:var(--mode)}
 .harness-shell .pf .pf-note{background:linear-gradient(180deg,color-mix(in srgb,var(--c-seq) 80%,#fff),var(--c-seq));box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--c-seq) 60%,#000)}
 .harness-shell .pf .pf-note.accent{background:linear-gradient(180deg,#97f2d5,#60d8af);box-shadow:inset 0 -2px 0 #389a78}
-.harness-shell .pf .pf-arp-step.active{background:color-mix(in srgb,var(--c-arp) 30%,#172124);border-color:var(--c-arp);
+.harness-shell .pf .pf-arp-step.active{background:color-mix(in srgb,var(--c-arp) 30%,#1b1d21);border-color:var(--c-arp);
   box-shadow:0 0 14px color-mix(in srgb,var(--c-arp) 40%,transparent)}
 .harness-shell .pf .pf-arp-step u{background:color-mix(in srgb,var(--c-arp) 20%,transparent)}
 .harness-shell .pf .pf-arp-step.active u{background:color-mix(in srgb,var(--c-arp) 55%,transparent)}
@@ -45,27 +45,27 @@
 /* ---------- tools: a coloured icon and a short label ---------- */
 .harness-shell .pf [style*="--tool"] svg,.harness-shell .pf [style*="--tool"]>b{color:var(--tool)}
 .harness-shell .pf .pf-rail{grid-auto-rows:50px}
-.harness-shell .pf .pf-rail button{flex-direction:column;gap:2px;background:color-mix(in srgb,var(--tool) 10%,#172124);
-  border-color:color-mix(in srgb,var(--tool) 40%,#2f3d42)}
+.harness-shell .pf .pf-rail button{flex-direction:column;gap:2px;background:color-mix(in srgb,var(--tool) 10%,#1b1d21);
+  border-color:color-mix(in srgb,var(--tool) 40%,#33363c)}
 .harness-shell .pf .pf-rail button>span,.harness-shell .pf .pf-lib-btn>span{font-size:9.5px;font-weight:800;line-height:1;color:color-mix(in srgb,var(--tool) 55%,#e6efec)}
 .harness-shell .pf .pf-rail button>b{font-size:14px;line-height:1}
-.harness-shell .pf .pf-rail button.primary{background:color-mix(in srgb,var(--tool) 26%,#172124);border-color:var(--tool);
+.harness-shell .pf .pf-rail button.primary{background:color-mix(in srgb,var(--tool) 26%,#1b1d21);border-color:var(--tool);
   box-shadow:0 0 12px color-mix(in srgb,var(--tool) 30%,transparent)}
-.harness-shell .pf .pf-rail button.on{background:color-mix(in srgb,var(--tool) 26%,#172124);border-color:var(--tool)}
+.harness-shell .pf .pf-rail button.on{background:color-mix(in srgb,var(--tool) 26%,#1b1d21);border-color:var(--tool)}
 .harness-shell .pf .pf-rail button:not(:disabled):active,.harness-shell .pf .pf-lib-btn:active{animation:c-flash .25s ease-out}
 .harness-shell .pf .pf-banks{grid-template-columns:52px repeat(4,1fr)}
-.harness-shell .pf .pf-lib-btn{flex-direction:column;gap:2px;background:color-mix(in srgb,var(--tool) 16%,#172124);border-color:color-mix(in srgb,var(--tool) 60%,#2f3d42)}
-.harness-shell .pf .pf-lib-btn.on{background:color-mix(in srgb,var(--tool) 30%,#172124);border-color:var(--tool)}
-.harness-shell .pf .pf-tool[style*="--tool"].on{background:color-mix(in srgb,var(--tool) 22%,#172124);border-color:var(--tool);color:#fff;box-shadow:none}
+.harness-shell .pf .pf-lib-btn{flex-direction:column;gap:2px;background:color-mix(in srgb,var(--tool) 16%,#1b1d21);border-color:color-mix(in srgb,var(--tool) 60%,#33363c)}
+.harness-shell .pf .pf-lib-btn.on{background:color-mix(in srgb,var(--tool) 30%,#1b1d21);border-color:var(--tool)}
+.harness-shell .pf .pf-tool[style*="--tool"].on{background:color-mix(in srgb,var(--tool) 22%,#1b1d21);border-color:var(--tool);color:#fff;box-shadow:none}
 .harness-shell .pf .pf-scale-btn b{color:var(--tool)}
 .harness-shell .pf .pf-btn.rec svg{color:#ff7b86}
 
 /* ---------- keyboard layers: pressed > sounding > held > chord outline > scale tint ---------- */
 .harness-shell .pf-white.in-scale{background:linear-gradient(180deg,#d4e2dd,#eef6f3 80%,#c9d6d2)}
 .harness-shell .pf-black.in-scale{background:linear-gradient(180deg,#1f2c2f,#34444a)}
-.harness-shell .pf-white.chord{background:linear-gradient(180deg,color-mix(in srgb,var(--c-chord) 22%,#dfe7e5),color-mix(in srgb,var(--c-chord) 14%,#f2f6f5) 80%,#c9d1cf);
-  box-shadow:inset 0 0 0 3px var(--c-chord),inset 0 -5px 0 #9aa5a3}
-.harness-shell .pf-black.chord{background:linear-gradient(180deg,color-mix(in srgb,var(--c-chord) 30%,#1a2124),color-mix(in srgb,var(--c-chord) 40%,#2b3438));
+.harness-shell .pf-white.chord{background:linear-gradient(180deg,color-mix(in srgb,var(--c-chord) 22%,#e3e6e9),color-mix(in srgb,var(--c-chord) 14%,#f4f5f7) 80%,#cbcfd3);
+  box-shadow:inset 0 0 0 3px var(--c-chord),inset 0 -5px 0 #9ca1a7}
+.harness-shell .pf-black.chord{background:linear-gradient(180deg,color-mix(in srgb,var(--c-chord) 30%,#1c1e22),color-mix(in srgb,var(--c-chord) 40%,#2c2f34));
   box-shadow:inset 0 0 0 2px var(--c-chord)}
 .harness-shell .pf-white.chord-root::after,.harness-shell .pf-black.chord-root::after{content:'';position:absolute;left:50%;bottom:26px;width:10px;height:10px;
   margin-left:-5px;border-radius:50%;background:var(--c-chord);box-shadow:0 0 6px var(--c-chord);pointer-events:none}
@@ -85,4 +85,4 @@
 /* ---------- Sound and FX: the page's own colour on its view tabs ---------- */
 .harness-shell .frame-sound{--sec:var(--c-sound)}
 .harness-shell .frame-fx{--sec:var(--c-fx)}
-.harness-shell .frame .frame-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#172124);border-color:var(--sec);color:#fff}
+.harness-shell .frame .frame-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#1b1d21);border-color:var(--sec);color:#fff}

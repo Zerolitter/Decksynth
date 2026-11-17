@@ -643,8 +643,8 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
               title={o==='Key'?'Every new key plays the next chord':'While a key is down, the chord changes every '+o+' (transport running)'}
               onClick={()=>set('chord','advance',o)}>{o==='Key'?'Each key':'Every '+o}</button>)}
           </div>
-          <div className="cb-readout" aria-live="polite" data-testid="cb-display" title="What the keys play">
-            <span>{!chord.enabled?'Chord off':following?(nowSlot>=0?'Playing '+(nowSlot+1):'Next '+(nextSlot+1)):'Keys play'}</span>
+          <div className="cb-readout" aria-live="polite" data-testid="cb-display"
+            title={!chord.enabled?'Chord off':following?(nowSlot>=0?'Playing my chord '+(nowSlot+1):'Next: my chord '+(nextSlot+1)):'What the keys play'}>
             <strong>{nameOf(readRaw)||'—'}</strong><em>{readRaw.length?chordText(shown(readRaw)):''}</em>
           </div>
           <button type="button" className="pf-btn cb-save-held" disabled={!held.length}
