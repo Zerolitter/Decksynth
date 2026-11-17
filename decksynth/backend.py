@@ -485,6 +485,12 @@ def worker(commands,updates):
                         keys=engine.structure_load(*args)
                         send(dict(message='Structure loaded into patterns '+keys[0].replace(':','·')+' to '+keys[-1].replace(':','·')+'. Undo takes it out.'))
                     elif cmd=='structure_set':engine.structure_set(*args)
+                    elif cmd=='structure_merge':
+                        key,length=engine.structure_merge()
+                        send(dict(message='Structure merged into pattern %s: %d steps. Undo takes it out.'%(key.replace(':','·'),length)))
+                    elif cmd=='structure_extend':
+                        first,last,bars=engine.structure_extend()
+                        send(dict(message='Structure added to the open clip on bars %d to %d (clip is now %d bars). Undo takes it out.'%(first,last,bars)))
                     elif cmd=='edit_note':
                         tr,idx,note=args; engine.snapshot(); engine.stop()
                         notes=engine.project.tracks[tr]['notes']

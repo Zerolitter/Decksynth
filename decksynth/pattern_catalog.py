@@ -1,7 +1,7 @@
 """Factory preview is transient, scheduled on Engine.absolute_frame, never REC."""
-import copy,re
+import copy,re,math
 from .genre_patterns import template,resolve_pattern,kit_roles
-from .keystep import validate_state as validate_performance,defaults as performance_defaults,schedule_notes,slot_key,reconcile_pattern_timing,validate_pattern,DIVISIONS
+from .keystep import MAX_STEPS,empty_pattern,song_from_pattern,validate_state as validate_performance,defaults as performance_defaults,schedule_notes,slot_key,reconcile_pattern_timing,validate_pattern,DIVISIONS
 from .devices import device_kind
 class PatternCatalogEngine:
  def catalog_action(self,action,target,expected,identity,source_expected=None):
@@ -100,6 +100,52 @@ class PatternCatalogEngine:
   if seq['chain_enabled']:seq['enabled']=True;state['arp']['enabled']=False
   state=validate_performance(state)
   self.release_performance('perf_seq');self.project.performance=state
+ def _merged_structure(self,state,limit=None):
+  """The Structure as one pattern: every play of every part, end to end (keystep plays the chain the same way)."""
+  seq=state['seq']
+  if not seq['chain_enabled'] and seq['chain']==[slot_key(seq['bank'],seq['slot'])]:raise ValueError('The Structure is empty; add parts first')
+  parts=[state['patterns'].get(k) or empty_pattern(seq['length'],seq['division']) for k in seq['chain']]
+  if len({p['division'] for p in parts})>1:raise ValueError('The parts use different step sizes; set them all to the same rate first')
+  steps=[list(map(dict,st)) for p in parts for st in p['steps']]
+  if limit and len(steps)>limit:raise ValueError('The Structure is %d steps; one pattern holds %d. Remove a part or a repeat.'%(len(steps),limit))
+  if not any(steps):raise ValueError('The Structure has no notes yet')
+  return dict(length=len(steps),division=parts[0]['division'],gate=parts[0]['gate'],swing=parts[0]['swing'],steps=steps)
+ def structure_merge(self):
+  """Send to pattern: the whole Structure becomes one pattern in an empty slot, which opens with its full
+  length (the sequencer grows to fit, up to 256 steps). Play in order turns off; the Structure stays. One undo step."""
+  if self.recording:raise ValueError('Finish the take first')
+  state=copy.deepcopy(self.project.performance);seq=state['seq']
+  merged=self._merged_structure(state,MAX_STEPS)
+  key=self._free_slots(state,1,seq['chain'])[0]
+  state['patterns'][key]=merged
+  b,s=map(int,key.split(':'));seq['bank'],seq['slot']=b,s;seq['chain_enabled']=False;seq['enabled']=True;state['arp']['enabled']=False
+  reconcile_pattern_timing(state,merged)
+  state=validate_performance(state)
+  self.stop_pattern_preview();self.release_performance('perf_seq');self.snapshot();self.project.performance=state
+  self.rec_step=0;self.rec_last=None
+  return key,merged['length']
+ def structure_extend(self):
+  """Extend: the whole Structure goes onto the end of the open clip (from the bar after its last note).
+  The loop grows to the next length that fits (up to 32 bars). Sequencer playback hands over to the clip. One undo step."""
+  if self.recording:raise ValueError('Finish the take first')
+  from .core import BAR_CHOICES
+  state=copy.deepcopy(self.project.performance);seq=state['seq']
+  merged=self._merged_structure(state)
+  notes=self.project.tracks[self.selected]['notes']
+  end=max((n['start']+n['duration'] for n in notes),default=0.)
+  offset=math.ceil(end/4-1e-6)*4
+  span=merged['length']*DIVISIONS[merged['division']]
+  bars=next((b for b in BAR_CHOICES if b*4>=offset+span-1e-6),None)
+  if bars is None:raise ValueError('The clip would pass 32 bars (it needs %d); clear some bars or shorten the Structure'%math.ceil((offset+span)/4))
+  added=song_from_pattern(merged,math.ceil(span/4-1e-6),seq['transpose'],fill=False,feel=dict(spice=seq['spice'],spice_seed=seq['spice_seed']))
+  for n in added:n['start']+=offset;n['duration']=min(n['duration'],bars*4-n['start'])
+  added=[n for n in added if n['start']<bars*4]
+  self.stop_pattern_preview();self.release_performance('perf_seq')
+  self.snapshot();self.stop()
+  if bars>self.project.bars:self.project.bars=bars  # growing never wraps a note, so no clamping is needed
+  self.project.tracks[self.selected]['notes'].extend(added)
+  seq_now=self.project.performance['seq'];seq_now['enabled']=False;seq_now['chain_enabled']=False
+  return int(offset//4)+1,math.ceil((offset+span)/4-1e-6),bars
  def stop_pattern_preview(self):
   preview=getattr(self,'_pattern_preview',None)
   if preview:
