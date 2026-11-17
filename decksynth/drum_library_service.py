@@ -8,7 +8,7 @@ from .drum_memory import KitMemory, read_settings, write_settings
 
 
 class DrumLibraryService:
-    def __init__(self, engine, directory=None):
+    def __init__(self, engine, directory=None, grow=True):
         self.engine=engine;self.directory=Path(directory) if directory is not None else None
         self.memory=KitMemory(self.directory) if self.directory else None
         self._io=ThreadPoolExecutor(max_workers=1,thread_name_prefix='drum-folder')
@@ -22,7 +22,7 @@ class DrumLibraryService:
         if self.memory:
             try:
                 remembered=self.memory.read()
-                self.memory.restore(engine,remembered)
+                self.memory.restore(engine,remembered,grow)
             except (OSError,ValueError) as exc:
                 memory_bad=True;self._state['memory_error']='Could not restore the last kit: '+str(exc)
         self._memory_seen=KitMemory.capture(engine)

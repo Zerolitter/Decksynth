@@ -51,6 +51,9 @@ class CleanupTests(unittest.TestCase):
         self.e.project.bpm = 97; self.e.project.tracks[0]['notes'] = [dict(note=60, velocity=100, start=0, duration=1)]
         self.e.cleanup('all')
         self.assertEqual(self.e.project.bpm, 120)
+        self.assertEqual(len(self.e.project.tracks), 1)  # a new session starts with one track
+        self.assertEqual((len(self.e.synths), len(self.e.fx), len(self.e.project.song['lanes'])), (1, 1, 1))
+        self.e.render_stereo(256)
         self.assertEqual(self.e.project.tracks[0]['notes'], [])
         from decksynth.library import preset
         start = self.e.project.tracks[0]

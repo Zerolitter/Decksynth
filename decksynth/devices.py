@@ -13,7 +13,7 @@ def device_kind(track):
     return kind
 
 
-MIN_TRACKS, MAX_TRACKS = 4, 8   # tracks can be added up to 8 (Sampler editing stage 10)
+MIN_TRACKS, MAX_TRACKS = 1, 8   # a new session starts with 1 track; tracks can be added up to 8
 
 
 def track_index(track):

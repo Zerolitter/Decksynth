@@ -94,13 +94,15 @@ class KitMemory:
         write_settings(self.path, self.validate(value))
 
     @staticmethod
-    def restore(engine, value):
+    def restore(engine, value, grow=True):
+        """grow: tracks added last time come back (up to 8). Without it (the app's launch, which starts with
+        one track) only the tracks the engine has are filled."""
         if value is None: return
         clean=KitMemory.validate(value)  # Validate every track before applying any.
-        grow=getattr(engine,'grow_tracks',None)   # tracks added last time come back (up to 8)
-        if grow: grow(len(clean['tracks']))
+        grower=getattr(engine,'grow_tracks',None) if grow else None
+        if grower: grower(len(clean['tracks']))
         for target, remembered in zip(engine.project.tracks,clean['tracks']):
             target.update(remembered)
         selected=clean['selected']
-        if engine.project.tracks[selected].get('device')=='drum_rack': engine.selected=selected
+        if selected<len(engine.project.tracks) and engine.project.tracks[selected].get('device')=='drum_rack': engine.selected=selected
         engine.configure()

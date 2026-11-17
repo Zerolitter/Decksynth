@@ -97,13 +97,14 @@ function App() {
   // live values (beat, meters, voices, load) changes; playheads and meters read the store and the clock themselves.
   const snapshot=useDeck(r=>r.snapshot,sameExceptLive);
   const setSnapshot=deckStore.set;
-  const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.page') as Page)||'SONG';}catch{return 'SONG';}});
+  // The app always opens on Sound (Sir, 17 Nov). A UI test can start elsewhere with 'decksynth.test-page'.
+  const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.test-page') as Page)||'SOUND';}catch{return 'SOUND';}});
   const [edit,setEdit]=useState<Source>({kind:'mod',index:0});
   const [armed,setArmed]=useState<Source|null>(null);
   const [settings,setSettingsState]=useState<AppSettings>(readSettings);
   const setSettings=(s:AppSettings)=>{setSettingsState(s);writeSettings(s);};
   // An armed macro or mod pad stays armed across pages, so knobs anywhere can be tapped to link (Sir, 16 Nov).
-  const setPage=(next:Page)=>{setPageState(next);try{localStorage.setItem('decksynth.page',next);}catch{/* optional */}};
+  const setPage=(next:Page)=>setPageState(next);
   const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
   const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
   const [fileMenu,setFileMenu]=useState(false);
@@ -625,7 +626,7 @@ function App() {
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
-        trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>command('cleanup',c)}
+        trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>{command('cleanup',c);if(c==='all')setPage('SOUND');}}
         midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'Deck speakers'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}

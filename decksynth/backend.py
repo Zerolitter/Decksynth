@@ -272,9 +272,9 @@ def worker(commands,updates):
     latency=LatencyGovernor('auto',time.monotonic()); load_peak=0.; load_shown=0.; load_since=time.monotonic()
     priority=raise_audio_priority()
     try:
-        try:audio=Audio(); engine=Engine(audio.rate); engine.factory_sounds()
+        try:audio=Audio(); engine=Engine(audio.rate); engine.keep_tracks(1); engine.factory_sounds()  # a new session: 1 track
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
-        library=DrumLibraryService(engine,data_directory())
+        library=DrumLibraryService(engine,data_directory(),grow=False)  # the remembered kit fills track 1 only
         if not library.snapshot()['root']:
             demo_root=os.environ.get('DECKSYNTH_DEMO_KITS_DIR')
             if demo_root and os.path.isdir(demo_root):

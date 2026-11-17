@@ -57,6 +57,14 @@ class TrackEngine:
         p.song['lanes'].append([])
         p.clips['slots'].append([[] for _ in range(songs.CLIPS)]); p.clips['open'].append(0)
 
+    def keep_tracks(self, count=1):
+        """A new session (launch, Start over): keep only the first count tracks (no undo step)."""
+        p = self.project
+        del p.tracks[count:]; del p.song['lanes'][count:]
+        del p.clips['slots'][count:]; del p.clips['open'][count:]
+        self.sync_tracks(); self.selected = min(self.selected, len(p.tracks)-1)
+        self.configure()
+
     def grow_tracks(self, count):
         """Startup: as many tracks as last time (no undo step); configure() follows."""
         while len(self.project.tracks) < min(count, MAX_TRACKS): self._append_track()

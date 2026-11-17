@@ -39,8 +39,11 @@ class AddAndRemove(unittest.TestCase):
         self.assertEqual(len(e.project.tracks),6);self.assertEqual(e.project.tracks[1]['name'],'Two');self.assertEqual(len(e.synths),6)
         e.render(256)
 
-    def test_four_is_the_least(self):
-        with self.assertRaises(ValueError):self.e.remove_track(0)
+    def test_one_is_the_least(self):
+        e=self.e
+        for _ in range(3):e.remove_track(0)
+        self.assertEqual((len(e.project.tracks),len(e.fx),len(e.synths)),(1,1,1));e.render_stereo(256)
+        with self.assertRaises(ValueError):e.remove_track(0)
 
     def test_undo_add(self):
         e=self.e;e.add_track();e.undo()

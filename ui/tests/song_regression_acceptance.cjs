@@ -18,7 +18,7 @@ snapshot.state.song={on:true,loop:true,length:17,markers:[],lanes:Array.from({le
  try{
   const page=await app.firstWindow();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.addInitScript(s=>{
-   localStorage.setItem('decksynth.page','SONG');
+   localStorage.setItem('decksynth.test-page','SONG');
    window.fixture=s;window.trace=[];window.tracing=false;
    window.commands=[];window.epochs=[];
    let listener;window.emit=()=>{window.receipt=performance.now();window.epochs.push({beat:s.song_beat,bpm:s.state.bpm,playing:s.playing});listener?.(structuredClone(window.fixture));};

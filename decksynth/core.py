@@ -779,7 +779,7 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
             for src in chain['macros']+chain['mods']:src['targets']=[]
             return chain
         if action=='all':
-            self.stop(); self.project=Project();self.init_workflow(); self.mutation_sessions.clear(); self.factory_sounds(); return
+            self.stop(); self.project=Project();self.init_workflow(); self.mutation_sessions.clear(); self.keep_tracks(1); self.factory_sounds(); return
         if action=='links':
             for i,t in enumerate(self.project.tracks):
                 if 'fx' in t:t['fx']=validate_fx(unlinked(copy.deepcopy(t['fx']))); self.fx[i].configure(t['fx'])

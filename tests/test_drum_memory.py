@@ -61,6 +61,14 @@ class DrumMemoryTests(unittest.TestCase):
         memory=self.memory();memory.write(memory.capture(e));new=Engine();memory.restore(new,memory.read())
         self.assertEqual(new.project.tracks[0]['device'],'synth');self.assertEqual(new.project.tracks[0]['drum_rack'],kit)
 
+    def test_launch_with_one_track_fills_only_that_track(self):
+        e=Engine();e.set_device(0,'drum_rack');e.set_device(2,'drum_rack');e.select(2)
+        memory=self.memory();memory.write(memory.capture(e))
+        new=Engine();new.keep_tracks(1);memory.restore(new,memory.read(),grow=False)
+        self.assertEqual(len(new.project.tracks),1)
+        self.assertEqual(new.project.tracks[0]['device'],'drum_rack');self.assertEqual(new.selected,0)
+        memory.write(memory.capture(new))  # a one-track session is remembered too
+
     def test_corrupt_or_oversized_memory_rejected_without_rewriting(self):
         memory=self.memory();memory.path.write_text('{bad JSON');before=memory.path.read_bytes()
         with self.assertRaises(ValueError):memory.read()

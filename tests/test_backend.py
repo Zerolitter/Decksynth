@@ -183,7 +183,8 @@ class BackendTests(unittest.TestCase):
             wait_for(lambda o:o.get('recording',False))
             state=wait_for(lambda o:'state' in o and not o['recording'] and len(o['state']['tracks'][0]['notes'])==1)
             self.assertTrue(state['playing']); self.assertEqual(state['state']['bars'],4)
-            send('select',1); send('record'); send('midi',(0x90,48,110)); time.sleep(.15); send('midi',(0x80,48,0))
+            self.assertEqual(len(state['state']['tracks']),1)  # a new session starts with one track
+            send('add_track'); send('select',1); send('record'); send('midi',(0x90,48,110)); time.sleep(.15); send('midi',(0x80,48,0))
             wait_for(lambda o:o.get('recording',False))
             state=wait_for(lambda o:'state' in o and not o['recording'] and len(o['state']['tracks'][1]['notes'])==1)
             self.assertTrue(state['playing']); self.assertEqual(len(state['state']['tracks'][0]['notes']),1)
