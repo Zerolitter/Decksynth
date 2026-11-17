@@ -54,7 +54,9 @@ export function ValueBox({ label, value, onChange, list, min = -Infinity, max = 
   const commitSoon = (n: number) => {
     setDraft(n); if (live) change.current(n);
     window.clearTimeout(settle.current);
-    settle.current = window.setTimeout(() => { setDraft(null); if (!live && n !== valueRef.current) change.current(n); }, SETTLE);
+    // Commit to the handler the edit started on: if the track is switched before it settles, the new track must not get it.
+    const target = change.current;
+    settle.current = window.setTimeout(() => { setDraft(null); if (!live && n !== valueRef.current) target(n); }, SETTLE);
   };
   const commitNow = (n: number) => { window.clearTimeout(settle.current); setDraft(null); if (n !== valueRef.current) change.current(n); };
   useEffect(() => () => window.clearTimeout(settle.current), []);

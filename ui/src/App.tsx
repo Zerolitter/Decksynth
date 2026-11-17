@@ -157,6 +157,9 @@ function App() {
   const isPreview=!api||!!snapshot?.preview;
   const project=snapshot?.state;
   const track=project?.tracks[selected];
+  // A counter that moves when the engine sends a new project state, instead of turning the whole project into text on every render.
+  const stateRev=useRef<{p:unknown;n:number}>({p:undefined,n:0});
+  const stateRevision=(p:unknown)=>{if(stateRev.current.p!==p)stateRev.current={p,n:stateRev.current.n+1};return stateRev.current.n;};
   const song=project?songOf(project):defaultSong();
   const songView:SongView=songViewPick??(song.on?'arrange':'clips');
   const position=transportPosition(snapshot,received.when,visualNow,isPreview?100000:220);
@@ -448,7 +451,7 @@ function App() {
   },[selected,dialog,command]);
 
   const instruments=project?.tracks.map(t=>t.preset)||[];
-  return <ContextWheelProvider revision={JSON.stringify([selected,page,project,snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>t.module!=='sound'?undefined:soundDefault(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined,t.param)} onAutomation={setAutomationEdit}><ModLinkProvider track={selected} chain={track?.fx} armed={armed} onChain={chain=>command('fx',[selected,chain])}><main className={'decksynth-shell harness-shell'+(settings.knobBubble?'':' no-knob-bubble')} data-page={page}>
+  return <ContextWheelProvider revision={JSON.stringify([selected,page,stateRevision(project),snapshot?.playing,snapshot?.recording,automationEdit,performClip,dialog,fileMenu])} navigation={{song:()=>setPage('SONG'),sound:()=>setPage('SOUND'),fx:()=>setPage('FX'),perform:()=>setPage('PERFORM')}} notify={setToast}><MidiLearnProvider selected={selected} mappings={track?.midi_cc??[]} active={snapshot?.midi_learn} send={command} onModulation={()=>setArmed(edit)} defaultValue={t=>t.module!=='sound'?undefined:soundDefault(LIBRARY.presets.find(p=>p.name===track?.preset)?.instrument as unknown as Record<string,unknown>|undefined,t.param)} onAutomation={setAutomationEdit}><ModLinkProvider track={selected} chain={track?.fx} armed={armed} onChain={chain=>command('fx',[selected,chain])}><main className={'decksynth-shell harness-shell'+(settings.knobBubble?'':' no-knob-bubble')} data-page={page}>
     <header className="app-header transport" aria-label="Music transport">
       <div className="transport-actions">
         <button type="button" className={'transport-pad play'+(snapshot?.playing?' engaged':'')}
