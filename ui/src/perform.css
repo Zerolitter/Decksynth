@@ -506,3 +506,45 @@
 .harness-shell .pf-ctl-chord .cb-card.cb-card{padding:6px 3px}
 .harness-shell .pf-ctl-chord .cb-card-title{padding-left:5px}
 .harness-shell .pf-ctl-chord .pf-seg[aria-label="Strum order"]{gap:1px!important}
+
+/* ===== Colour marks state, never structure (Sir, 17 Nov; reference: Chisper / Waveform web synth) =====
+   Structure is neutral: grey frame, grey 1 px card borders, flat grey header strips with grey titles.
+   Selected = the app-wide warm chip (as Sound: Poly, Unison 1). The mode colour only shows what is live:
+   tab LED, sounding pad / slot / key, the now / next markers, chord-tone dots on the active pad. */
+.harness-shell .pf.pf{border-color:#2e3238}
+/* cards and header strips */
+.harness-shell .cb-card.cb-card{background:#1b1d21;border:1px solid #2e3238;border-radius:8px;padding:0 8px 8px;gap:6px;overflow:hidden}
+.harness-shell .pf-ctl-chord .cb-card.cb-card{padding:0 3px 6px}
+.harness-shell .cb-card-title,.harness-shell .pf-ctl-chord .cb-card-title{margin:0 -8px;padding:0 10px;min-height:24px;background:#25282c;
+  border-bottom:1px solid #2e3238;color:#aeb4ba;font-size:10.5px;font-weight:800;letter-spacing:.6px}
+.harness-shell .pf-ctl-chord .cb-card-title{margin:0 -3px}
+.harness-shell .cb-card-title svg{color:#80868d}
+.harness-shell .cb-seq.cb-card.following{border-color:#2e3238}
+.harness-shell .cb-card .pf-btn svg,.harness-shell .cb-card .cb-follow svg{color:inherit}
+/* selected = warm chip, same as the rest of the app */
+.harness-shell .pf .cb-follow.on,.harness-shell .pf .cb-loop-btn.on,.harness-shell .pf .pf-btn.on{background:#3d3529;border-color:#bfa87e;color:#f2ede4;box-shadow:none}
+.harness-shell .pf .cb-follow.on svg,.harness-shell .pf .cb-loop-btn.on svg{color:#e6cf9f}
+/* chord pads: neutral; the numeral is grey; selected = warm edge; sounding = the chord colour (state) */
+.harness-shell .cb-pad,.harness-shell .cb-pad.suggest{background:#22252a;border-color:#33363c;box-shadow:none}
+.harness-shell .cb-pad b{color:#80868d}
+.harness-shell .cb-pad.on{background:#2a2924;border-color:#bfa87e}
+.harness-shell .cb-pad.on b{color:#e6cf9f}
+.harness-shell .cb-pad.on span,.harness-shell .cb-pad span{color:#80868d}
+.harness-shell .cb-hint-badge{color:#e7c46a}
+/* my chords: neutral; now = chord colour (it is sounding), next = dashed chord edge */
+.harness-shell .cb-slot.full{background:#22252a;border-color:#33363c}
+.harness-shell .cb-slot.on{border-color:#bfa87e}
+.harness-shell .cb-slot.now{background:color-mix(in srgb,var(--c-chord) 26%,#1b1d21);border-color:var(--c-chord);box-shadow:none}
+/* suggestion chips: neutral with a gold bulb */
+.harness-shell .pf .cb-chip{background:#22252a;border-color:#33363c}
+.harness-shell .pf .cb-chip svg{color:#e7c46a}
+/* the display well: white chord name, grey notes */
+.harness-shell .cb .cb-readout em{color:#9aa3a8}
+.harness-shell .pf-head .cb-suggest-title{color:#aeb4ba}
+.harness-shell .pf-head .cb-suggest-title svg{color:#e7c46a}
+.harness-shell .pf .cb-chip b{color:#9aa3a8}
+.harness-shell .pf .cb-chip.sounding{background:#2c2a22;border-color:#bfa87e}
+.harness-shell .pf-head .cb-suggest-title{background:none;border:0;margin:0;padding:0 2px;min-height:0}
+/* cards must not clip the slot menu */
+.harness-shell .cb-card.cb-card{overflow:visible}
+.harness-shell .cb-card-title,.harness-shell .pf-ctl-chord .cb-card-title{border-radius:7px 7px 0 0}

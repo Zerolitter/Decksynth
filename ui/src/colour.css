@@ -19,18 +19,17 @@
 .harness-shell .pf{--mode:var(--c-seq)}
 .harness-shell .pf.pf-mode-arp{--mode:var(--c-arp)}
 .harness-shell .pf.pf-mode-chord{--mode:var(--c-chord)}
-.harness-shell .pf{border-top:2px solid color-mix(in srgb,var(--mode) 70%,transparent)}
+/* Colour marks state only (Sir, 17 Nov, after Chisper/Waveform): the frame stays neutral */
 .harness-shell .pf-tabs button svg{color:var(--sec)}
-.harness-shell .pf-tabs button.active{background:color-mix(in srgb,var(--sec) 20%,#1b1d21);border-color:var(--sec);color:#fff}
+.harness-shell .pf-tabs button.active{background:#2c2f34;border-color:#4a4f57;color:#fff}
 .harness-shell .pf-tabs button.live .pf-led{background:var(--sec);box-shadow:0 0 8px var(--sec)}
 
 .harness-shell .pf .pf-seg button.on,.harness-shell .pf .pf-banks button.on,.harness-shell .pf .pf-modes button.on,
 .harness-shell .pf .pf-btn.on,.harness-shell .pf .pf-bar .pf-seg button.on,.harness-shell .pf .pf-roots button.on,.harness-shell .pf .pf-scales button.on{
-  background:color-mix(in srgb,var(--mode) 22%,#1b1d21);border-color:var(--mode);color:#fff}
-.harness-shell .pf .pf-power.on{background:color-mix(in srgb,var(--mode) 24%,#1b1d21);border-color:var(--mode);color:#fff;
-  box-shadow:0 0 14px color-mix(in srgb,var(--mode) 35%,transparent)}
+  background:#3d3529;border-color:#bfa87e;color:#f2ede4}
+.harness-shell .pf .pf-power.on{background:#3d3529;border-color:#bfa87e;color:#f2ede4;box-shadow:none}
 .harness-shell .pf .pf-power.on svg{color:var(--mode)}
-.harness-shell .pf .pf-pads button.on{background:color-mix(in srgb,var(--mode) 24%,#1b1d21);border-color:var(--mode)}
+.harness-shell .pf .pf-pads button.on{background:#3d3529;border-color:#bfa87e}
 .harness-shell .pf .pf-pads button.playing{animation:c-pulse 1s ease-in-out infinite}
 .harness-shell .pf .pf-banks button i{background:var(--mode)}
 .harness-shell .pf .pf-grid-head span.live{color:var(--mode)}
