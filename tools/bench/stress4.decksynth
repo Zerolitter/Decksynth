@@ -1,0 +1,2739 @@
+{
+  "version": 1,
+  "bpm": 120,
+  "bars": 8,
+  "metronome": false,
+  "tracks": [
+    {
+      "name": "Track 1",
+      "preset": "Warm Keys",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.5,
+          0.22,
+          0.12,
+          0.08,
+          0.04,
+          0.02,
+          0.01,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.005,
+        "decay": 0.02,
+        "sustain": 0.7,
+        "release": 0.1,
+        "filter": 0.85,
+        "modulation": 0.08,
+        "pan": -0.6
+      },
+      "volume": 0.15,
+      "mute": false,
+      "notes": [
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 48,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 52,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 56,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 60,
+          "velocity": 60
+        }
+      ],
+      "fx": {
+        "modules": [
+          {
+            "id": "stutter",
+            "on": false,
+            "params": {
+              "length": 3,
+              "speed": 0.6,
+              "repeats": 4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "filter",
+            "on": false,
+            "params": {
+              "mode": 0,
+              "cutoff": 0.7,
+              "reso": 0.3,
+              "mix": 1
+            }
+          },
+          {
+            "id": "overdrive",
+            "on": false,
+            "params": {
+              "drive": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "bitcrusher",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "bits": 9,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "volume",
+            "on": false,
+            "params": {
+              "level": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "phaser",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.6,
+              "feedback": 0.2,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "flanger",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "feedback": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "ringmod",
+            "on": false,
+            "params": {
+              "freq": 0.4,
+              "drive": 0.3,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "delay",
+            "on": true,
+            "params": {
+              "time": 2,
+              "feedback": 0.4,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "reverb",
+            "on": true,
+            "params": {
+              "predelay": 0.1,
+              "decay": 0.6,
+              "locut": 0.1,
+              "hicut": 0.8,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "time",
+            "on": false,
+            "params": {
+              "speed": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "chorus",
+            "on": true,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "voices": 2,
+              "mix": 0.5,
+              "width": 0.7,
+              "haas": 0.0
+            }
+          },
+          {
+            "id": "compressor",
+            "on": false,
+            "params": {
+              "amount": 0.4,
+              "ratio": 1,
+              "attack": 0.2,
+              "release": 0.3,
+              "makeup": 0.2,
+              "mix": 1
+            }
+          },
+          {
+            "id": "eq",
+            "on": false,
+            "params": {
+              "low": 0,
+              "mid": 0,
+              "freq": 0.5,
+              "high": 0
+            }
+          },
+          {
+            "id": "autowah",
+            "on": false,
+            "params": {
+              "sens": 0.5,
+              "base": 0.3,
+              "range": 0.6,
+              "reso": 0.6,
+              "mix": 0.8
+            }
+          },
+          {
+            "id": "resonator",
+            "on": false,
+            "params": {
+              "decay": 0.5,
+              "tone": 0.5,
+              "mix": 0.4,
+              "strings": 1
+            }
+          },
+          {
+            "id": "gate",
+            "on": false,
+            "params": {
+              "length": 2,
+              "division": 2,
+              "steps": 44461,
+              "smooth": 0.3,
+              "depth": 1,
+              "pump": 0
+            }
+          },
+          {
+            "id": "cloud",
+            "on": true,
+            "params": {
+              "time": 0.35,
+              "density": 0.7,
+              "scatter": 0.5,
+              "feedback": 0.4,
+              "tone": 0.6,
+              "mix": 0.4
+            }
+          }
+        ],
+        "macros": [
+          {
+            "name": "Macro 1",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 2",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 3",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 4",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 5",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 6",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 7",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 8",
+            "value": 0.0,
+            "targets": []
+          }
+        ],
+        "mods": [
+          {
+            "shape": "sine",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "triangle",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "saw",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "square",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "random",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "sine",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          }
+        ],
+        "morph": {
+          "x": 0.5,
+          "y": 0.5,
+          "xMacro": 0,
+          "yMacro": 1,
+          "mixMacro": -1,
+          "path": "hand",
+          "rate": 0,
+          "size": 0.8,
+          "wander": 0.2,
+          "spin": 0.0,
+          "mode": "follow"
+        }
+      }
+    },
+    {
+      "name": "Track 2",
+      "preset": "Bass",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.45,
+          0.22,
+          0.1,
+          0.06,
+          0.02,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.005,
+        "decay": 0.02,
+        "sustain": 0.7,
+        "release": 0.1,
+        "filter": 0.35,
+        "modulation": 0,
+        "pan": -0.2
+      },
+      "volume": 0.15,
+      "mute": false,
+      "notes": [
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 49,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 53,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 57,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 61,
+          "velocity": 60
+        }
+      ],
+      "fx": {
+        "modules": [
+          {
+            "id": "stutter",
+            "on": false,
+            "params": {
+              "length": 3,
+              "speed": 0.6,
+              "repeats": 4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "filter",
+            "on": false,
+            "params": {
+              "mode": 0,
+              "cutoff": 0.7,
+              "reso": 0.3,
+              "mix": 1
+            }
+          },
+          {
+            "id": "overdrive",
+            "on": false,
+            "params": {
+              "drive": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "bitcrusher",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "bits": 9,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "volume",
+            "on": false,
+            "params": {
+              "level": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "phaser",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.6,
+              "feedback": 0.2,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "flanger",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "feedback": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "ringmod",
+            "on": false,
+            "params": {
+              "freq": 0.4,
+              "drive": 0.3,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "delay",
+            "on": true,
+            "params": {
+              "time": 2,
+              "feedback": 0.4,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "reverb",
+            "on": true,
+            "params": {
+              "predelay": 0.1,
+              "decay": 0.6,
+              "locut": 0.1,
+              "hicut": 0.8,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "time",
+            "on": false,
+            "params": {
+              "speed": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "chorus",
+            "on": true,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "voices": 2,
+              "mix": 0.5,
+              "width": 0.7,
+              "haas": 0.0
+            }
+          },
+          {
+            "id": "compressor",
+            "on": false,
+            "params": {
+              "amount": 0.4,
+              "ratio": 1,
+              "attack": 0.2,
+              "release": 0.3,
+              "makeup": 0.2,
+              "mix": 1
+            }
+          },
+          {
+            "id": "eq",
+            "on": false,
+            "params": {
+              "low": 0,
+              "mid": 0,
+              "freq": 0.5,
+              "high": 0
+            }
+          },
+          {
+            "id": "autowah",
+            "on": false,
+            "params": {
+              "sens": 0.5,
+              "base": 0.3,
+              "range": 0.6,
+              "reso": 0.6,
+              "mix": 0.8
+            }
+          },
+          {
+            "id": "resonator",
+            "on": false,
+            "params": {
+              "decay": 0.5,
+              "tone": 0.5,
+              "mix": 0.4,
+              "strings": 1
+            }
+          },
+          {
+            "id": "gate",
+            "on": false,
+            "params": {
+              "length": 2,
+              "division": 2,
+              "steps": 44461,
+              "smooth": 0.3,
+              "depth": 1,
+              "pump": 0
+            }
+          },
+          {
+            "id": "cloud",
+            "on": true,
+            "params": {
+              "time": 0.35,
+              "density": 0.7,
+              "scatter": 0.5,
+              "feedback": 0.4,
+              "tone": 0.6,
+              "mix": 0.4
+            }
+          }
+        ],
+        "macros": [
+          {
+            "name": "Macro 1",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 2",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 3",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 4",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 5",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 6",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 7",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 8",
+            "value": 0.0,
+            "targets": []
+          }
+        ],
+        "mods": [
+          {
+            "shape": "sine",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "triangle",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "saw",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "square",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "random",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "sine",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          }
+        ],
+        "morph": {
+          "x": 0.5,
+          "y": 0.5,
+          "xMacro": 0,
+          "yMacro": 1,
+          "mixMacro": -1,
+          "path": "hand",
+          "rate": 0,
+          "size": 0.8,
+          "wander": 0.2,
+          "spin": 0.0,
+          "mode": "follow"
+        }
+      }
+    },
+    {
+      "name": "Track 3",
+      "preset": "Atmospheric Pad",
+      "instrument": {
+        "harmonics": [
+          1,
+          0.4,
+          0.25,
+          0.14,
+          0.12,
+          0.08,
+          0.06,
+          0.05,
+          0.04,
+          0.03,
+          0.02,
+          0.02,
+          0.01,
+          0.01,
+          0,
+          0
+        ],
+        "attack": 0.005,
+        "decay": 0.02,
+        "sustain": 0.7,
+        "release": 0.1,
+        "filter": 0.65,
+        "modulation": 0.25,
+        "pan": 0.2
+      },
+      "volume": 0.15,
+      "mute": false,
+      "notes": [
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 50,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 54,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 58,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 62,
+          "velocity": 60
+        }
+      ],
+      "fx": {
+        "modules": [
+          {
+            "id": "stutter",
+            "on": false,
+            "params": {
+              "length": 3,
+              "speed": 0.6,
+              "repeats": 4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "filter",
+            "on": false,
+            "params": {
+              "mode": 0,
+              "cutoff": 0.7,
+              "reso": 0.3,
+              "mix": 1
+            }
+          },
+          {
+            "id": "overdrive",
+            "on": false,
+            "params": {
+              "drive": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "bitcrusher",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "bits": 9,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "volume",
+            "on": false,
+            "params": {
+              "level": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "phaser",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.6,
+              "feedback": 0.2,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "flanger",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "feedback": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "ringmod",
+            "on": false,
+            "params": {
+              "freq": 0.4,
+              "drive": 0.3,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "delay",
+            "on": true,
+            "params": {
+              "time": 2,
+              "feedback": 0.4,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "reverb",
+            "on": true,
+            "params": {
+              "predelay": 0.1,
+              "decay": 0.6,
+              "locut": 0.1,
+              "hicut": 0.8,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "time",
+            "on": false,
+            "params": {
+              "speed": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "chorus",
+            "on": true,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "voices": 2,
+              "mix": 0.5,
+              "width": 0.7,
+              "haas": 0.0
+            }
+          },
+          {
+            "id": "compressor",
+            "on": false,
+            "params": {
+              "amount": 0.4,
+              "ratio": 1,
+              "attack": 0.2,
+              "release": 0.3,
+              "makeup": 0.2,
+              "mix": 1
+            }
+          },
+          {
+            "id": "eq",
+            "on": false,
+            "params": {
+              "low": 0,
+              "mid": 0,
+              "freq": 0.5,
+              "high": 0
+            }
+          },
+          {
+            "id": "autowah",
+            "on": false,
+            "params": {
+              "sens": 0.5,
+              "base": 0.3,
+              "range": 0.6,
+              "reso": 0.6,
+              "mix": 0.8
+            }
+          },
+          {
+            "id": "resonator",
+            "on": false,
+            "params": {
+              "decay": 0.5,
+              "tone": 0.5,
+              "mix": 0.4,
+              "strings": 1
+            }
+          },
+          {
+            "id": "gate",
+            "on": false,
+            "params": {
+              "length": 2,
+              "division": 2,
+              "steps": 44461,
+              "smooth": 0.3,
+              "depth": 1,
+              "pump": 0
+            }
+          },
+          {
+            "id": "cloud",
+            "on": true,
+            "params": {
+              "time": 0.35,
+              "density": 0.7,
+              "scatter": 0.5,
+              "feedback": 0.4,
+              "tone": 0.6,
+              "mix": 0.4
+            }
+          }
+        ],
+        "macros": [
+          {
+            "name": "Macro 1",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 2",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 3",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 4",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 5",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 6",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 7",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 8",
+            "value": 0.0,
+            "targets": []
+          }
+        ],
+        "mods": [
+          {
+            "shape": "sine",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "triangle",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "saw",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "square",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "random",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "sine",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          }
+        ],
+        "morph": {
+          "x": 0.5,
+          "y": 0.5,
+          "xMacro": 0,
+          "yMacro": 1,
+          "mixMacro": -1,
+          "path": "hand",
+          "rate": 0,
+          "size": 0.8,
+          "wander": 0.2,
+          "spin": 0.0,
+          "mode": "follow"
+        }
+      }
+    },
+    {
+      "name": "Track 4",
+      "preset": "Bell",
+      "instrument": {
+        "harmonics": [
+          1,
+          0,
+          0.55,
+          0,
+          0.3,
+          0,
+          0.12,
+          0.08,
+          0,
+          0.04,
+          0,
+          0,
+          0.02,
+          0,
+          0,
+          0
+        ],
+        "attack": 0.005,
+        "decay": 0.02,
+        "sustain": 0.7,
+        "release": 0.1,
+        "filter": 1.0,
+        "modulation": 0.12,
+        "pan": 0.6
+      },
+      "volume": 0.15,
+      "mute": false,
+      "notes": [
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 51,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 55,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 59,
+          "velocity": 60
+        },
+        {
+          "start": 0.0,
+          "duration": 32.0,
+          "note": 63,
+          "velocity": 60
+        }
+      ],
+      "fx": {
+        "modules": [
+          {
+            "id": "stutter",
+            "on": false,
+            "params": {
+              "length": 3,
+              "speed": 0.6,
+              "repeats": 4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "filter",
+            "on": false,
+            "params": {
+              "mode": 0,
+              "cutoff": 0.7,
+              "reso": 0.3,
+              "mix": 1
+            }
+          },
+          {
+            "id": "overdrive",
+            "on": false,
+            "params": {
+              "drive": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "bitcrusher",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "bits": 9,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "volume",
+            "on": false,
+            "params": {
+              "level": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "phaser",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.6,
+              "feedback": 0.2,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "flanger",
+            "on": false,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "feedback": 0.4,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "ringmod",
+            "on": false,
+            "params": {
+              "freq": 0.4,
+              "drive": 0.3,
+              "mix": 0.5
+            }
+          },
+          {
+            "id": "delay",
+            "on": true,
+            "params": {
+              "time": 2,
+              "feedback": 0.4,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "reverb",
+            "on": true,
+            "params": {
+              "predelay": 0.1,
+              "decay": 0.6,
+              "locut": 0.1,
+              "hicut": 0.8,
+              "mix": 0.5,
+              "width": 0.7
+            }
+          },
+          {
+            "id": "time",
+            "on": false,
+            "params": {
+              "speed": 1,
+              "mix": 1
+            }
+          },
+          {
+            "id": "chorus",
+            "on": true,
+            "params": {
+              "rate": 0.3,
+              "depth": 0.5,
+              "voices": 2,
+              "mix": 0.5,
+              "width": 0.7,
+              "haas": 0.0
+            }
+          },
+          {
+            "id": "compressor",
+            "on": false,
+            "params": {
+              "amount": 0.4,
+              "ratio": 1,
+              "attack": 0.2,
+              "release": 0.3,
+              "makeup": 0.2,
+              "mix": 1
+            }
+          },
+          {
+            "id": "eq",
+            "on": false,
+            "params": {
+              "low": 0,
+              "mid": 0,
+              "freq": 0.5,
+              "high": 0
+            }
+          },
+          {
+            "id": "autowah",
+            "on": false,
+            "params": {
+              "sens": 0.5,
+              "base": 0.3,
+              "range": 0.6,
+              "reso": 0.6,
+              "mix": 0.8
+            }
+          },
+          {
+            "id": "resonator",
+            "on": false,
+            "params": {
+              "decay": 0.5,
+              "tone": 0.5,
+              "mix": 0.4,
+              "strings": 1
+            }
+          },
+          {
+            "id": "gate",
+            "on": false,
+            "params": {
+              "length": 2,
+              "division": 2,
+              "steps": 44461,
+              "smooth": 0.3,
+              "depth": 1,
+              "pump": 0
+            }
+          },
+          {
+            "id": "cloud",
+            "on": true,
+            "params": {
+              "time": 0.35,
+              "density": 0.7,
+              "scatter": 0.5,
+              "feedback": 0.4,
+              "tone": 0.6,
+              "mix": 0.4
+            }
+          }
+        ],
+        "macros": [
+          {
+            "name": "Macro 1",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 2",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 3",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 4",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 5",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 6",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 7",
+            "value": 0.0,
+            "targets": []
+          },
+          {
+            "name": "Macro 8",
+            "value": 0.0,
+            "targets": []
+          }
+        ],
+        "mods": [
+          {
+            "shape": "sine",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "triangle",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "saw",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "square",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "random",
+            "rate": 2,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 3,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "sine",
+            "rate": 4,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          },
+          {
+            "shape": "steps",
+            "rate": 5,
+            "steps": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "targets": [],
+            "feel": "",
+            "count": 16,
+            "points": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.5,
+                1.0
+              ],
+              [
+                1.0,
+                0.0
+              ]
+            ]
+          }
+        ],
+        "morph": {
+          "x": 0.5,
+          "y": 0.5,
+          "xMacro": 0,
+          "yMacro": 1,
+          "mixMacro": -1,
+          "path": "hand",
+          "rate": 0,
+          "size": 0.8,
+          "wander": 0.2,
+          "spin": 0.0,
+          "mode": "follow"
+        }
+      }
+    }
+  ],
+  "performance": {
+    "seq": {
+      "enabled": false,
+      "recording": false,
+      "bank": 1,
+      "slot": 1,
+      "length": 16,
+      "division": "1/16",
+      "gate": 0.8,
+      "swing": 0.5,
+      "overdub": true,
+      "quantize_strength": 1.0,
+      "transpose": 0,
+      "spice": 0.0,
+      "spice_seed": 1,
+      "mutate_seed": 1,
+      "chain": [
+        "1:1"
+      ],
+      "chain_enabled": false
+    },
+    "arp": {
+      "enabled": false,
+      "mode": "Up",
+      "length": 16,
+      "division": "1/16",
+      "gate": 0.75,
+      "swing": 0.5,
+      "octaves": 1,
+      "hold": false,
+      "retrigger": true,
+      "spice": 0.0,
+      "seed": 1,
+      "velocity": "As played",
+      "spice_seed": 1,
+      "octave_mode": "Up",
+      "restart_bar": false
+    },
+    "chord": {
+      "enabled": false,
+      "preset": "Major Triad",
+      "user": [
+        0,
+        4,
+        7
+      ],
+      "spread": 0,
+      "strum_ms": 0,
+      "strum_type": "Up",
+      "voicing": false,
+      "strum_sync": "Off",
+      "bass": 0,
+      "slots": [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ]
+    },
+    "scale": {
+      "name": "Chromatic",
+      "root": 0,
+      "octave": 0,
+      "velocity_curve": "Linear",
+      "input_channel": 0
+    },
+    "sync": {
+      "source": "Internal",
+      "receive_transport": true
+    },
+    "patterns": {}
+  },
+  "song": {
+    "on": false,
+    "loop": true,
+    "length": 16,
+    "markers": [
+      {
+        "bar": 0,
+        "name": "Intro"
+      }
+    ],
+    "lanes": [
+      [
+        {
+          "at": 0,
+          "len": 16,
+          "clip": 0,
+          "off": 0
+        }
+      ],
+      [
+        {
+          "at": 0,
+          "len": 16,
+          "clip": 0,
+          "off": 0
+        }
+      ],
+      [
+        {
+          "at": 0,
+          "len": 16,
+          "clip": 0,
+          "off": 0
+        }
+      ],
+      [
+        {
+          "at": 0,
+          "len": 16,
+          "clip": 0,
+          "off": 0
+        }
+      ]
+    ]
+  },
+  "clips": {
+    "open": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "slots": [
+      [
+        [
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 48,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 52,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 56,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 60,
+            "velocity": 60
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [
+        [
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 49,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 53,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 57,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 61,
+            "velocity": 60
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [
+        [
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 50,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 54,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 58,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 62,
+            "velocity": 60
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [
+        [
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 51,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 55,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 59,
+            "velocity": 60
+          },
+          {
+            "start": 0.0,
+            "duration": 32.0,
+            "note": 63,
+            "velocity": 60
+          }
+        ],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        []
+      ]
+    ]
+  }
+}

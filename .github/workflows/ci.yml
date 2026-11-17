@@ -1,0 +1,33 @@
+name: Checks
+
+# Runs the same checks as ./precheck.sh on every push and pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build the native kernels
+        run: tools/build-native.sh
+      - name: Python tests, sound goldens, render check
+        run: ./check.sh
+      - name: UI type check and build
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+      - name: UI unit tests
+        working-directory: ui
+        run: npm test

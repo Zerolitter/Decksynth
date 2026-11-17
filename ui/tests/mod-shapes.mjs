@@ -17,7 +17,8 @@ print(json.dumps({s:[shape_value(s,i/128,[((k*5)%7)/3-1 for k in range(16)],c,16
   js.forEach((v,i)=>{assert.ok(v>=-1&&v<=1,s);assert.ok(Math.abs(v-py[s][i])<1e-9,s+' at '+i+': '+v+' vs '+py[s][i]);});
  }
 });
-test('8 and 16 bars keep old rate numbers',()=>{
+test('8, 16 and 32 bars keep their rate numbers, longest first in the picker',()=>{
  assert.deepEqual(fx.MOD_RATES.slice(0,7),['4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16']);
- assert.equal(fx.MOD_RATES[fx.MOD_RATE_ORDER[0]],'16 bars');assert.equal(fx.MOD_RATES[fx.MOD_RATE_ORDER[1]],'8 bars');
+ assert.deepEqual(fx.MOD_RATES.slice(7),['8 bars','16 bars','32 bars']);
+ assert.deepEqual(fx.MOD_RATE_ORDER.slice(0,3).map(i=>fx.MOD_RATES[i]),['32 bars','16 bars','8 bars']);
 });
