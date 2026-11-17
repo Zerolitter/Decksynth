@@ -1,20 +1,20 @@
 /* Value boxes (UI-RULES 36): a live value with a small grey ⇕ cue, no − / + buttons. Neutral grey edges, never a green outline (Sir). */
-.vbox{--vb-accent:var(--pad-accent,#e6e9eb);position:relative;display:inline-flex;align-items:center;gap:8px;min-height:44px;min-width:72px;
-  padding:0 22px 0 10px;border-radius:9px;border:1px solid #3a3d41;background:#1f2124;cursor:ns-resize;touch-action:none;outline:none;
+.vbox{--vb-accent:var(--pad-accent,var(--ui-text));position:relative;display:inline-flex;align-items:center;gap:8px;min-height:44px;min-width:72px;
+  padding:0 22px 0 10px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-surface);cursor:ns-resize;touch-action:none;outline:none;
   transition:border-color .12s,background .12s;
   -webkit-user-select:none;user-select:none}
 .vbox:hover{border-color:#5a5f65}
-.vbox .vbox-label{font-size:12px;color:#9aa3a8;white-space:nowrap}
+.vbox .vbox-label{font-size:12px;color:var(--ui-text-3);white-space:nowrap}
 .vbox .vbox-value{font-variant-numeric:tabular-nums;font-weight:700;color:var(--vb-accent);white-space:nowrap}
 .vbox .vbox-cue{position:absolute;right:7px;top:50%;width:7px;height:16px;transform:translateY(-50%);opacity:.45;pointer-events:none;
   background:linear-gradient(#8b9196,#8b9196) center/1.5px 100% no-repeat}
 .vbox .vbox-cue::before,.vbox .vbox-cue::after{content:"";position:absolute;left:0;width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent}
 .vbox .vbox-cue::before{top:-2px;border-bottom:4px solid #8b9196}
 .vbox .vbox-cue::after{bottom:-2px;border-top:4px solid #8b9196}
-.vbox.armed{border-color:#a7adb3;background:#27292c}
+.vbox.armed{border-color:#a7adb3;background:var(--ui-raised)}
 .vbox.armed .vbox-cue{opacity:1}
-.vbox.moving .vbox-value{color:#fff}
+.vbox.moving .vbox-value{color:var(--ui-white)}
 .vbox[aria-disabled="true"]{opacity:.45;cursor:default;box-shadow:none}
-.vbox .vbox-input{width:7ch;min-height:30px;border:0;border-radius:6px;padding:0 6px;background:#111416;color:#fff;font:inherit;font-weight:700;
+.vbox .vbox-input{width:7ch;min-height:30px;border:0;border-radius:6px;padding:0 6px;background:var(--ui-bg);color:var(--ui-white);font:inherit;font-weight:700;
   -webkit-user-select:text;user-select:text;outline:1px solid #a7adb3}
 @media (prefers-reduced-motion:reduce){.vbox{transition:none}}

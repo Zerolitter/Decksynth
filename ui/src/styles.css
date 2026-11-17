@@ -24,23 +24,23 @@ button svg{flex:none}
 .app-identity{display:flex;align-items:center;gap:9px;min-width:250px}
 .brand-glyph{width:38px;height:38px;display:grid;place-items:center;color:var(--accent);
   background:linear-gradient(150deg,#2b4142,#1d2b31);border:1px solid #625740;border-radius:9px;
-  box-shadow:inset 0 1px rgba(255,255,255,.09),0 3px 7px #101517}
+  box-shadow:inset 0 1px rgba(255,255,255,.09),0 3px 7px var(--ui-well)}
 .brand-names{display:flex;flex-direction:column;gap:3px;white-space:nowrap}
 .brand-names strong{font-size:16px;letter-spacing:.035em;font-weight:850}
 .brand-names strong span{font-size:11px;font-weight:650;color:#c9b483}
 .brand-names small{font-size:9px;color:#a1b0b9;letter-spacing:.15em;font-weight:700}
-.app-mode-switch{display:flex;align-items:center;padding:3px;background:#10171d;
-  border:1px solid #3b4750;border-radius:8px;box-shadow:inset 0 2px 4px #0a1015}
+.app-mode-switch{display:flex;align-items:center;padding:3px;background:var(--ui-well);
+  border:1px solid #3b4750;border-radius:8px;box-shadow:inset 0 2px 4px var(--ui-bg)}
 .app-mode-switch button{height:39px;min-width:130px;border:0;border-radius:5px;color:#9cb0b7;
   background:transparent;display:flex;align-items:center;justify-content:center;gap:9px;
   text-transform:uppercase;font-size:11px;letter-spacing:.09em;font-weight:850;
   transition:background .12s,color .12s,box-shadow .12s}
 .app-mode-switch button.active{background:linear-gradient(#4b4535,#453e2c);color:#dafbf1;
-  box-shadow:inset 0 1px rgba(255,255,255,.12),0 2px 5px #080d10}
+  box-shadow:inset 0 1px rgba(255,255,255,.12),0 2px 5px var(--ui-black)}
 .app-mode-switch button:active{transform:translateY(1px)}
 .app-header-right{display:flex;align-items:center;gap:9px;margin-left:auto;min-width:0}
 .device-pill{max-width:205px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  padding:9px 12px;border-radius:5px;background:#141b22;border:1px solid var(--line-soft);
+  padding:9px 12px;border-radius:5px;background:var(--ui-surface);border:1px solid var(--line-soft);
   color:var(--soft);font-size:11px}
 .device-pill.connected{border-color:#635841;color:#e4d4b9}
 .pill-led{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:9px;
@@ -49,7 +49,7 @@ button svg{flex:none}
 .demo-badge{font-size:9px;letter-spacing:.07em;font-weight:800;color:#a3e6cf;
   border:1px solid #4f856f;border-radius:4px;padding:8px;background:#263e34}
 .icon-button,.transport-utility{width:40px;height:40px;display:grid;place-items:center;
-  border:1px solid #3b4955;border-radius:6px;color:#b9c6cb;
+  border:1px solid #3b4955;border-radius:6px;color:var(--t-more);
   background:linear-gradient(160deg,#34404b,#26313a)}
 .icon-button:hover,.transport-utility:hover{color:white;border-color:#66807d}
 .icon-button:active,.transport-utility:active{transform:translateY(1px);background:#22313a}
@@ -64,7 +64,7 @@ button svg{flex:none}
   transition:transform .09s,box-shadow .09s,background .11s,border-color .11s}
 .transport-pad.play{border-color:#6a604b}
 .transport-pad.play svg{color:var(--accent)}
-.transport-pad.stop svg{color:#bdcad3}
+.transport-pad.stop svg{color:var(--t-more)}
 .transport-pad.record{background:linear-gradient(#59363a,#492a30);border-color:#9e5356;min-width:128px}
 .transport-pad.record svg{color:#f2aba5}
 .transport-pad.engaged{background:linear-gradient(#5c5140,#443b24);border-color:#c7a976;
@@ -98,7 +98,7 @@ button svg{flex:none}
 .metronome-button.active .button-led,.sync-dot.active{background:#e6ba7c;box-shadow:0 0 10px #d7ae7399}
 .transport-spacer{flex:1;min-width:4px}
 .transport-beat{height:53px;display:flex;align-items:flex-end;justify-content:center;
-  flex-direction:column;gap:1px;padding:0 12px;border:1px solid #534934;
+  flex-direction:column;gap:1px;padding:0 12px;border:1px solid var(--ui-accent-deep);
   background:linear-gradient(#241e14,#1b1711);border-radius:5px}
 .transport-beat strong{font:700 22px/1 "DejaVu Sans Mono",monospace;color:var(--accent);letter-spacing:.09em;
   text-shadow:0 0 12px #d3ae6b4d}
@@ -159,7 +159,7 @@ button svg{flex:none}
   color:#9caeb4;padding-left:6px}
 .clip-note,.clip-tail{position:absolute;height:13px;min-width:6px;background:var(--track-accent);
   border:1px solid color-mix(in srgb,var(--track-accent) 40%,white);
-  border-radius:3px;box-shadow:0 1px 3px #0c1015;z-index:2;touch-action:none;cursor:grab;
+  border-radius:3px;box-shadow:0 1px 3px var(--ui-bg);z-index:2;touch-action:none;cursor:grab;
   transition:filter .08s,box-shadow .08s,transform .08s}
 .clip-note span{font:750 9px/12px "DejaVu Sans",sans-serif;color:#12202a;padding:0 4px;
   white-space:nowrap;display:block;overflow:hidden}
@@ -183,7 +183,7 @@ button svg{flex:none}
 .pattern-panel{display:flex;flex-direction:column;padding:0 10px 5px}
 .pattern-header{height:38px;display:flex;align-items:center;justify-content:space-between;
   border-bottom:1px solid #2f3e45;gap:10px;flex:none}
-.pattern-heading{display:flex;align-items:center;gap:9px;color:#ddc18a}
+.pattern-heading{display:flex;align-items:center;gap:9px;color:var(--ui-accent)}
 .pattern-heading strong{font-weight:770;color:var(--text);font-size:13px}
 .pattern-head-right{display:flex;align-items:center;gap:7px;color:var(--soft);
   font-size:10px;font-weight:800;letter-spacing:.05em}
@@ -221,7 +221,7 @@ button svg{flex:none}
 .audio-scope{display:flex;flex-direction:column}
 .scope-top{flex:none;height:38px;padding:0 12px;display:flex;align-items:center;
   justify-content:space-between;border-bottom:1px solid #31404a;gap:7px}
-.scope-title{display:flex;align-items:center;gap:7px;color:#dec285}
+.scope-title{display:flex;align-items:center;gap:7px;color:var(--ui-accent)}
 .scope-title span{font-size:9px;font-weight:800;letter-spacing:.07em}
 .scope-title strong{color:var(--text);font-size:12px}
 .scope-stat{display:flex;align-items:center;gap:9px;color:#8fa4ac;font-size:9px}
@@ -252,7 +252,7 @@ button svg{flex:none}
 .sound-lab-head h2 span{color:#877d68;margin:0 4px}
 .sound-lab-head h2 strong{color:#dfcaa7;font-weight:700}
 .sound-save{height:37px;display:flex;gap:8px;align-items:center;
-  border:1px solid #67583e;color:#e4d0b2;background:#40392b;
+  border:1px solid #67583e;color:#e4d0b2;background:var(--ui-accent-bg);
   padding:0 11px;border-radius:5px;font-size:10px;font-weight:800}
 .sound-save:active{transform:translateY(1px)}
 .sound-lab-body{display:grid;grid-template-columns:174px minmax(0,1fr);
@@ -272,7 +272,7 @@ button svg{flex:none}
 .patch-row>span:nth-child(2){min-width:0;display:flex;flex-direction:column;gap:1px}
 .patch-row strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .patch-row small{font-size:8px;color:#85a0a9;letter-spacing:.08em}
-.patch-active{color:#dabe8b;margin-left:auto;flex:none}
+.patch-active{color:var(--ui-accent);margin-left:auto;flex:none}
 .patch-note{margin-top:auto;display:flex;flex-direction:column;padding:10px;gap:4px;
   border-top:1px solid #31434c;color:#90aab2;font-size:9px;line-height:1.3}
 .patch-note strong{color:#e4d7bf}
@@ -293,7 +293,7 @@ button svg{flex:none}
 .harmonic-bar{position:relative;border:1px solid transparent;min-width:0;
   background:transparent;color:#9dafb7;display:flex;flex-direction:column;
   align-items:center;justify-content:space-between;padding:1px 1px 0;cursor:ns-resize}
-.harmonic-bar.current{border-color:#97825f;border-radius:3px;background:#342f1e}
+.harmonic-bar.current{border-color:var(--ui-accent-dim);border-radius:3px;background:#342f1e}
 .harmonic-bar .bar-index{font:750 9px "DejaVu Sans Mono",monospace;z-index:2}
 .bar-line{position:absolute;top:22px;bottom:16px;width:52%;display:flex;align-items:flex-end;
   background:var(--raised);border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
@@ -368,11 +368,11 @@ button svg{flex:none}
 .knob-target{width:64px;height:64px;border-radius:50%;cursor:ns-resize;outline:none;
   touch-action:none;display:grid;place-items:center;transition:filter .12s}
 .knob-target:active{filter:brightness(1.3)}
-.knob-svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 3px 3px #070e13)}
+.knob-svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 3px 3px var(--ui-black))}
 .knob-track{stroke:#45545f;stroke-width:3.7;fill:none;stroke-linecap:round}
 .knob-progress{stroke-width:3.7;fill:none;stroke-linecap:round;
   filter:drop-shadow(0 0 3px #d9b88080)}
-.knob-face{fill:#303942;stroke:#10151a;stroke-width:1.6}
+.knob-face{fill:#303942;stroke:var(--ui-well);stroke-width:1.6}
 .knob-indicator{stroke-width:2.5;stroke-linecap:round}
 .knob-value{color:#e4dfd2;font:700 10px "DejaVu Sans Mono",monospace;
   padding:3px 4px;border:1px solid transparent;background:transparent;white-space:nowrap;
@@ -384,7 +384,7 @@ button svg{flex:none}
 .float-shade,.modal-screen{position:fixed;inset:0;background:#060a0ebd;z-index:100;
   display:grid;place-items:center;padding:20px;backdrop-filter:blur(2px)}
 .floating-envelope,.settings-dialog{width:min(750px,95vw);background:#1b252d;border:1px solid #79705b;
-  border-radius:9px;box-shadow:0 15px 50px #030607;display:flex;flex-direction:column;padding:13px;gap:12px}
+  border-radius:9px;box-shadow:0 15px 50px var(--ui-black-pure);display:flex;flex-direction:column;padding:13px;gap:12px}
 .floating-envelope>header,.settings-dialog>header{display:flex;align-items:center;justify-content:space-between}
 .floating-envelope h3,.settings-dialog h2{margin:4px 0;font-size:19px}
 .floating-envelope>.env-graph{width:100%;height:165px;background:#101c24;border:1px solid #354b51;border-radius:5px}
@@ -396,7 +396,7 @@ button svg{flex:none}
 .setting-field>span{display:flex;align-items:center;gap:8px;color:#9db6b7;
   font-size:10px;letter-spacing:.06em;font-weight:800}
 .setting-field select{min-height:50px;padding:0 14px;background:#263740;
-  color:#f0f4f5;border:1px solid #706752;border-radius:6px;font-size:14px}
+  color:var(--ui-text-hi);border:1px solid #706752;border-radius:6px;font-size:14px}
 .panic-action{height:46px;border:1px solid #bd7877;color:#f7babb;background:#59353b;
   border-radius:5px;font-size:12px;font-weight:800}
 .app-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -415,7 +415,7 @@ button svg{flex:none}
 .toast{position:fixed;left:50%;bottom:53px;transform:translateX(-50%);
   z-index:120;display:flex;align-items:center;gap:14px;max-width:85vw;
   background:#1d2f34;border:1px solid #938970;border-radius:6px;
-  color:#dcf9ed;padding:11px 13px;font-size:12px;box-shadow:0 6px 25px #070e13}
+  color:#dcf9ed;padding:11px 13px;font-size:12px;box-shadow:0 6px 25px var(--ui-black)}
 .toast button{background:transparent;border:0;color:#c3efdf}
 @keyframes led-throb{50%{opacity:.33;box-shadow:0 0 2px #e6888277}}
 @keyframes step-flash{0%{filter:brightness(1.8)}100%{filter:brightness(1)}}
@@ -452,34 +452,34 @@ input,textarea,[contenteditable="true"],.selectable{-webkit-user-select:text;use
 /* No green outlines on value boxes (Sir, 15 Nov evening; UI-RULES 39): knob readouts and the live value bubble get
    neutral charcoal edges, a light grey edge on hover or focus. !important because several older sheets set teal edges
    with deeper selectors. */
-.knob-value{border-color:#3a3d41!important}
-.knob-value:hover,.knob-value:focus-visible{border-color:#6b7076!important;background-color:#26282b!important;outline:none}
-.knob-entry{border-color:#6b7076!important;outline-color:#a7adb3!important}
-.knob-live-value{border-color:#5a5f65!important;box-shadow:0 6px 18px #0008!important;color:#d9dde0!important}
+.knob-value{border-color:var(--ui-line)!important}
+.knob-value:hover,.knob-value:focus-visible{border-color:var(--ui-text-faint)!important;background-color:var(--ui-raised)!important;outline:none}
+.knob-entry{border-color:var(--ui-text-faint)!important;outline-color:#a7adb3!important}
+.knob-live-value{border-color:#5a5f65!important;box-shadow:0 6px 18px #0008!important;color:var(--ui-text-1)!important}
 /* Sampler editing stage 9: who moves a Sampler / Drum Rack knob (mod source colours). */
 .knob-link-dots{position:absolute;top:0;right:2px;display:flex;gap:2px;pointer-events:none}
-.knob-link-dots i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px #101417}
+.knob-link-dots i{width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1px var(--ui-well)}
 
 /* Armed value box (rule 36): the wheel moves it. Neutral, never green (rule 39). */
-.knob-value.armed{border-color:#a7adb3!important;background-color:#2b2e32!important;box-shadow:inset 0 0 0 1px #a7adb355}
+.knob-value.armed{border-color:#a7adb3!important;background-color:var(--ui-raised)!important;box-shadow:inset 0 0 0 1px #a7adb355}
 .midi-hidden-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .icon-button.has-midi{position:relative}
 .icon-button .gear-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .icon-button .gear-dot.error{background:#e78d88}
-.setting-midi-status{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border:1px solid #3a3d43;border-radius:8px;background:#1d1f23;margin-bottom:8px}
+.setting-midi-status{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-surface);margin-bottom:8px}
 .setting-midi-status i{width:9px;height:9px;border-radius:50%;background:#8b9196;flex:none}
 .setting-midi-status.connected i{background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .setting-midi-status strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.setting-midi-status span{font:750 10px ui-monospace,monospace;padding:4px 8px;border-radius:4px;background:#2b2e32;color:#d6d9df}
+.setting-midi-status span{font:750 10px ui-monospace,monospace;padding:4px 8px;border-radius:4px;background:var(--ui-raised);color:var(--ui-text-1)}
 .setting-midi-status span.error{background:#51373b;color:#f0b6b3}
 
 /* Round 2 effects: track picker (Ducking, Vocoder) and live readouts (Auto-tune, Ducking) */
 .fx-track-pick{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;min-width:0}
-.fx-track-pick select{min-height:44px;border-radius:8px;border:1px solid #3b3f46;background:#1d1f23;color:#f1f2f4;padding:0 10px;font:inherit;font-size:13px}
-.fx-track-warn{color:#f2a65a;font-size:11.5px}
-.fx-readout{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12px;color:#aeb3bb;min-height:28px}
-.fx-readout strong{color:#f1f2f4;font-variant-numeric:tabular-nums;min-width:52px}
-.fx-readout-bar{flex:1;height:8px;border-radius:4px;background:#2a2d33;overflow:hidden;display:block}
+.fx-track-pick select{min-height:44px;border-radius:8px;border:1px solid var(--ui-line);background:var(--ui-surface);color:var(--ui-text-hi);padding:0 10px;font:inherit;font-size:13px}
+.fx-track-warn{color:var(--ui-accent-strong);font-size:11.5px}
+.fx-readout{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ui-text-2);min-height:28px}
+.fx-readout strong{color:var(--ui-text-hi);font-variant-numeric:tabular-nums;min-width:52px}
+.fx-readout-bar{flex:1;height:8px;border-radius:4px;background:var(--ui-raised);overflow:hidden;display:block}
 .fx-readout-bar b{display:block;height:100%;transition:width 60ms linear}
 
 .fx-track-buttons{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px}

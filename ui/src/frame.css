@@ -12,7 +12,7 @@
 .harness-shell .mod-band .fx-pad{min-height:0;justify-content:space-between}
 .harness-shell .mod-band .fx-pad.editing,.harness-shell .mod-band .fx-macro.editing{border-color:var(--src);
   background:color-mix(in srgb,var(--src) 14%,var(--panel))}
-.harness-shell .mod-band .fx-macro.editing .fx-src-arm{background:color-mix(in srgb,var(--src) 26%,var(--raised));color:#f4f8f6;border-color:var(--src)}
+.harness-shell .mod-band .fx-macro.editing .fx-src-arm{background:color-mix(in srgb,var(--src) 26%,var(--raised));color:var(--ui-text-hi);border-color:var(--src)}
 .harness-shell .mod-band .fx-macro{justify-content:space-between}
 
 .harness-shell .pad-editor{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid color-mix(in srgb,var(--src) 45%,var(--line));
@@ -28,7 +28,7 @@
 .harness-shell .pe-action:disabled{opacity:.35}
 .harness-shell .pe-link{border-color:color-mix(in srgb,var(--src) 60%,var(--line));color:var(--src)}
 .harness-shell .pe-linking{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#e8f2ee}
-.harness-shell .pe-linking button{min-height:34px;padding:0 14px;border-radius:8px;background:var(--src);border:0;color:#10171a;font-weight:800}
+.harness-shell .pe-linking button{min-height:34px;padding:0 14px;border-radius:8px;background:var(--src);border:0;color:var(--ui-well);font-weight:800}
 .harness-shell .pe-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 150px 210px;grid-template-rows:minmax(0,1fr) 44px;gap:8px;padding:6px 8px 8px}
 .harness-shell .pe-graph{min-width:0;min-height:0;display:flex;border-radius:8px;background:var(--inset)}
 .harness-shell .pe-graph .mod-shape{width:100%;height:100%;background:transparent}
@@ -58,7 +58,7 @@
 .harness-shell .frame-tabs{display:flex;gap:3px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--inset)}
 .harness-shell .frame-tabs button{min-height:36px;min-width:84px;padding:0 10px;border-radius:7px;background:transparent;border:1px solid transparent;
   color:#aebbb9;font-weight:740;font-size:12.5px}
-.harness-shell .frame-tabs button.active{background:#514631;border-color:#9a835b;color:#f4dbb2}
+.harness-shell .frame-tabs button.active{background:var(--ui-accent-deep);border-color:var(--ui-accent-dim);color:#f4dbb2}
 .harness-shell .frame-window-actions{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
 .harness-shell .frame-window-actions .fx-spectrum{width:360px;height:34px;flex:none}
 .harness-shell .frame-window-actions .spectral-legend{position:static;flex-direction:column;gap:2px;margin-right:6px}
@@ -109,7 +109,7 @@
 .harness-shell .fx-add-open{flex:1;flex-direction:column;gap:2px;padding:4px}
 .harness-shell .fx-add-open strong{font-size:13px}
 .harness-shell .fx-add-open span{font-size:11px}
-.harness-shell .fx-cards .fx-picker{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border:1.5px solid #9a835b;border-radius:12px;
+.harness-shell .fx-cards .fx-picker{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border:1.5px solid var(--ui-accent-dim);border-radius:12px;
   padding:8px;box-shadow:0 -12px 32px #000a}
 .harness-shell .fx-picker-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .harness-shell .fx-picker-head span{font-size:11.5px;color:var(--soft)}
@@ -166,12 +166,12 @@
 .setting-switch input:checked::after{transform:translateX(20px);background:#e6efeb}
 .clean-item{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 10px;border-radius:10px;background:var(--raised);border:1px solid var(--line);color:#dbe6e2;text-align:left}
 .clean-item span{display:flex;flex-direction:column;gap:1px}
-.clean-item:hover{border-color:#9a835b}
+.clean-item:hover{border-color:var(--ui-accent-dim)}
 .clean-item.danger{border-color:#8a4a4a;background:#2c1d1d;color:#ffd6d6}
 .clean-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:#2c1d1d;border:1px solid #c46a6a;color:#ffd6d6;font-size:12.5px}
 .clean-confirm span{flex:1 1 100%}
 .clean-confirm button{min-height:40px;padding:0 14px;border-radius:8px;background:var(--raised);border:1px solid #4a5a60;color:#e6efeb;font-weight:750}
-.clean-confirm button.danger{background:#a04646;border-color:#e08a8a;color:#fff}
+.clean-confirm button.danger{background:#a04646;border-color:#e08a8a;color:var(--ui-white)}
 /* ---------- Morph pad with path symbols ---------- */
 .harness-shell .morph-v2{display:flex;gap:16px;align-items:stretch;min-height:0}
 .harness-shell .morph-v2 .morph-pad{flex:none;height:100%;aspect-ratio:1;border-radius:10px;border-color:var(--line)}
@@ -191,7 +191,7 @@
 .harness-shell .morph-symbols svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .harness-shell .morph-symbols button.active{background:#3a3156;border-color:#7d6bb8;color:#e4dafc}
 .harness-shell .morph-row{display:flex;gap:8px;align-items:center}
-.harness-shell .morph-modes{--src:#b79cf0;flex:1;flex-wrap:nowrap;padding:2px}
+.harness-shell .morph-modes{--src:var(--c-fx);flex:1;flex-wrap:nowrap;padding:2px}
 .harness-shell .morph-modes button{min-height:38px}
 .harness-shell .morph-modes button:disabled{opacity:.4}
 .harness-shell .morph-rate{display:flex;align-items:center;gap:3px}
@@ -238,7 +238,7 @@
 .harness-shell .pe-rates{grid-column:1 / 3;grid-row:2;display:flex;gap:3px;flex-wrap:nowrap}
 .harness-shell .pe-rates button{flex:1;min-width:44px;min-height:44px;padding:0 4px;font-size:11px}
 .harness-shell .pe-body>.pe-links{grid-column:3;grid-row:1 / 3}
-.harness-shell .pe-no{display:grid;place-items:center;width:21px;height:21px;flex:none;border-radius:50%;background:var(--src);color:#101316;font-weight:800}
+.harness-shell .pe-no{display:grid;place-items:center;width:21px;height:21px;flex:none;border-radius:50%;background:var(--src);color:var(--ui-bg);font-weight:800}
 .harness-shell .pe-bar>.pe-dot{display:none}
 
 /* Upright rack rails, separate from generic title-bar folding. */
@@ -277,7 +277,7 @@
 /* Review 2026-11-15 round 2: Partials / Morph pad folded to their title bar; the sound cards wrap into rows instead of scrolling sideways. */
 .harness-shell .frame-window-fold{display:flex;align-items:center;gap:6px;min-width:76px;min-height:44px;padding:0 12px;font:inherit;font-size:12px;font-weight:700;border-radius:8px;border:1px solid var(--line);background:var(--raised);color:#dbe6e2;cursor:pointer}
 .harness-shell .frame-window-fold:hover{background:#2e4145;border-color:#ac9c7a}
-.harness-shell .frame-window.is-folded .frame-window-fold{border-color:#9a835b;color:#f4dbb2}
+.harness-shell .frame-window.is-folded .frame-window-fold{border-color:var(--ui-accent-dim);color:#f4dbb2}
 .harness-shell .frame-window.is-folded .frame-window-bar{border-bottom:0}
 .harness-shell .frame.frame-sound.sound-folded{grid-template-rows:172px 46px minmax(0,1fr)}
 .harness-shell .frame.sound-folded .frame-rack{height:auto;min-height:0;max-height:none;flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto}

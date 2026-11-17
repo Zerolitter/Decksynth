@@ -5,11 +5,11 @@
 .harness-shell .env-axis{stroke:#3a484d}
 .harness-shell .env-noteoff{stroke:#ffffff40;stroke-dasharray:3 4}
 .harness-shell .env-tag{fill:var(--soft);font-size:11px;font-weight:700;letter-spacing:.04em;pointer-events:none}
-.harness-shell .env-live{fill:none;stroke:#fff;stroke-opacity:.45;stroke-width:1.5;stroke-dasharray:2 3}
+.harness-shell .env-live{fill:none;stroke:var(--ui-white);stroke-opacity:.45;stroke-width:1.5;stroke-dasharray:2 3}
 .harness-shell .env-handle{cursor:grab;outline:none}
 .harness-shell .env-handle:focus-visible circle:last-of-type{stroke:var(--env);stroke-width:3}
-.harness-shell .env-bubble rect{fill:#0b1113;stroke:var(--env)}
-.harness-shell .env-bubble text{fill:#fff;font-size:12px;font-weight:800}
+.harness-shell .env-bubble rect{fill:var(--ui-bg);stroke:var(--env)}
+.harness-shell .env-bubble text{fill:var(--ui-white);font-size:12px;font-weight:800}
 .harness-shell .env-help{margin:0;font-size:11px;color:var(--soft)}
 .harness-shell button.rack-mini-env{border:1px solid var(--line);cursor:pointer}
 .harness-shell button.rack-mini-env:hover{border-color:#7ce3c2}
@@ -17,17 +17,17 @@
 .harness-shell .frame:has(.frame-window[data-window="sound"][data-view="ENVELOPE"]) .rack-mini-env{display:none}
 .harness-shell .frame:has(.frame-window[data-window="sound"][data-view="ENVELOPE"]) .card-envelope{border-color:#7ce3c2}
 /* on-knob depth: the value bubble above the dial while the ring is dragged */
-.ring-bubble{position:fixed;z-index:200;transform:translate(-50%,-110%);padding:4px 9px;border-radius:8px;background:#0b1113;
-  border:1px solid var(--src);color:#fff;font:800 13px/1.2 Inter,system-ui,sans-serif;pointer-events:none;white-space:nowrap}
+.ring-bubble{position:fixed;z-index:200;transform:translate(-50%,-110%);padding:4px 9px;border-radius:8px;background:var(--ui-bg);
+  border:1px solid var(--src);color:var(--ui-white);font:800 13px/1.2 Inter,system-ui,sans-serif;pointer-events:none;white-space:nowrap}
 /* linking: a linked knob's outer ring is grabbable */
 .harness-shell .is-assigning .has-mod .knob-svg{cursor:ew-resize}
-.harness-shell .pe-title-input{background:transparent;border:1px solid transparent;border-radius:6px;color:#fff;font:inherit;font-weight:800;
+.harness-shell .pe-title-input{background:transparent;border:1px solid transparent;border-radius:6px;color:var(--ui-white);font:inherit;font-weight:800;
   font-size:14px;padding:3px 6px;min-width:0;width:12ch}
 .harness-shell .pe-title-input:hover,.harness-shell .pe-title-input:focus{border-color:var(--src);background:var(--inset);outline:none}
 .harness-shell .bipolar.typing{display:flex;align-items:center;gap:6px;padding:0 10px}
-.harness-shell .bipolar.typing input{flex:1;min-width:0;height:34px;background:#0b1113;border:1px solid var(--src);border-radius:6px;color:#fff;
+.harness-shell .bipolar.typing input{flex:1;min-width:0;height:34px;background:var(--ui-bg);border:1px solid var(--src);border-radius:6px;color:var(--ui-white);
   font:800 15px Inter,system-ui,sans-serif;padding:0 8px}
 .harness-shell .bipolar.typing span{color:var(--soft);font-weight:800}
 /* macro editor: the link summary uses the whole body now that the copied slider is gone */
 .harness-shell .pe-links.wide{grid-column:1 / -1;overflow:hidden}
-.harness-shell .scope-stat .warn{color:#6eedbe}
+.harness-shell .scope-stat .warn{color:var(--t-library)}
