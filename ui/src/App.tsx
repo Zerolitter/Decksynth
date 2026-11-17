@@ -496,6 +496,7 @@ function App() {
           {freezeOpen?<FreezeSheet tracks={project.tracks} infos={snapshot?.freeze} colors={TRACK_COLORS}
             onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)} onClose={()=>setFreezeOpen(false)}/>:null}
         </div>;})():null}
+      {page==='PERFORM'?<div id="pf-oct-slot" className="pf-oct-slot"/>:null}
       <div className="transport-spacer"/>
       {isPreview?<span className="demo-badge">PREVIEW · NO AUDIO</span>
         :<span className={'footer-status midi-hidden-status'+(bridgeStatus==='ERROR'?' error':'')}>{bridgeStatus}</span>}

@@ -430,3 +430,37 @@
 .harness-shell .cb-pad.on .cb-dots circle,.harness-shell .cb-pad.sounding .cb-dots circle{fill:color-mix(in srgb,var(--c-chord) 70%,#7d8a90)}
 .harness-shell .cb-pad.on .cb-dots circle.root,.harness-shell .cb-pad.sounding .cb-dots circle.root{fill:var(--c-chord)}
 .harness-shell .cb-strum .pf-seg[aria-label="Strum order"] button{display:flex;align-items:center;justify-content:center}
+
+/* Chords as modules (Sir, 17 Nov, Sampler page as the model): each part is a bordered card with a coloured title,
+   so the panel reads at a glance. Suggest moved up into the panel head; the keys octave lives in the top bar. */
+.harness-shell .cb-card.cb-card{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border-radius:10px;
+  border:1px solid color-mix(in srgb,var(--c-chord) 34%,#2b393e);background:#162023}
+.harness-shell .cb-card-title{display:flex;align-items:center;gap:6px;min-height:16px;font-size:11.5px;font-weight:850;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--c-chord);white-space:nowrap}
+.harness-shell .cb-card-title svg{flex:none}
+.harness-shell .pf-ctl-chord{gap:8px}
+.harness-shell .pf-ctl-chord .cb-strum .pf-group-label{margin-top:2px}
+.harness-shell .cb .cb-seq.cb-card{gap:6px}
+.harness-shell .cb-seq.cb-card.following{border-color:color-mix(in srgb,var(--c-chord) 60%,#2b393e)}
+.harness-shell .cb-card .pf-btn svg,.harness-shell .cb-card .cb-follow svg{color:var(--c-chord)}
+.harness-shell .cb-card .cb-save-held:disabled svg{color:inherit}
+/* Suggest in the panel head, where the octave box was */
+.harness-shell .pf-head .cb-suggest{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:0 4px;min-height:44px;
+  border:0;background:none;border-radius:0}
+.harness-shell .pf-head .cb-suggest-title{color:#e7c46a}
+.harness-shell .pf-head .cb-suggest-info{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--pf-soft)}
+.harness-shell .pf-head .cb-suggest-chips{display:flex;gap:6px;margin-left:auto;flex:none}
+.harness-shell .pf-head .cb-tension{flex:none}
+/* Keys octave in the top bar, next to Freeze */
+.harness-shell .pf-oct-slot{display:flex;align-items:center;margin-left:6px}
+.harness-shell .pf-oct-slot .pf-transpose{border-color:color-mix(in srgb,var(--t-oct) 40%,#33444a)}
+.harness-shell .pf-oct-slot .pf-vbox{min-height:44px;min-width:76px}
+.harness-shell .pf-view-oct .pf-vbox{min-height:38px;min-width:84px}
+.harness-shell .pf-ctl-chord .cb-card.cb-card{padding:6px 5px 6px}
+.harness-shell .pf-ctl-chord .cb-card-title{padding-left:3px}
+/* Top-bar Oct is compact: small label over the value, so the bar still fits at 1280 */
+.harness-shell .pf-oct-slot{margin-left:0}
+.harness-shell .pf-oct-slot .pf-transpose{padding:0}
+.harness-shell .pf-oct-slot .pf-vbox{min-width:52px;min-height:44px;padding:0 16px 0 8px;flex-direction:column;align-items:flex-start;justify-content:center;gap:0}
+.harness-shell .pf-oct-slot .vbox-label{font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;line-height:1}
+.harness-shell .pf-oct-slot .vbox-value{font-size:16px;line-height:1.1}
