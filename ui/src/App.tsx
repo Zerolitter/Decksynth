@@ -9,7 +9,9 @@ import {FreezeSheet} from './components/Freeze';
 import type {ControlTarget} from './parameter-registry';
 import {MidiLearnProvider} from './components/MidiLearn';
 import {FILTER_ENV_KEYS} from './sound-cards';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {deckStore,useDeck,useLive,sameExceptLive} from './deck-store';
+import {useFrame,useClockValue} from './frame-clock';
 import {
   AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
   FolderOpen, Pause, Play, Redo2,
@@ -18,7 +20,7 @@ import {
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
 import { CLIP_NAMES, MAX_BARS, clipsOf, defaultSong, markerAt, previewClip, songOf,type Song } from './song';
-import {transportPosition,clipPlayback} from './transport-clock';
+import {clipPlayback} from './transport-clock';
 import {LoopBars} from './components/LoopBars';
 import {DrumSteps} from './components/DrumSteps';
 import { AudioScope } from './components/AudioScope';
@@ -65,27 +67,36 @@ function renderMIDI(value:string|null) {
   return value ? value.split('/').pop()||'MIDI device' : 'No MIDI keyboard';
 }
 
+/** The bar:beat readout in the top bar. Only this element renders as the beat moves. */
+function TransportBeat({song,bars}:{song:Song;bars:number}){
+  const b=Math.floor(useClockValue(p=>song.on?p.songBeat:p.clipBeat));
+  const m=song.on?markerAt(song,Math.floor(b/4)):-1;
+  return <div className="transport-beat" aria-label="Position"><strong>
+    {String(Math.floor(b/4)+1).padStart(2,'0')}<i>:</i>
+    {String(b%4+1).padStart(2,'0')}</strong>
+    <span>{song.on?(m>=0?song.markers[m].name:'song')+' · '+song.length+' bars':'loop · '+bars+(bars===1?' bar':' bars')}</span></div>;
+}
+/** Meters, voices and load go straight from the store to the scope, without App. */
+function LiveScope(props:{underruns:number;preview:boolean;bufferMs?:number}){
+  const meter=useLive(s=>s?.meter??null),voices=useLive(s=>s?.voices??0),load=useLive(s=>s?.dsp_load);
+  return <AudioScope monitor={meter} voices={voices} load={load} {...props}/>;
+}
+/** The live effect and mod values of the selected track, for the page that shows them. */
+function FxLive({children}:{children:(live:NonNullable<DeckUpdate['meter']>['fx_live'])=>React.ReactNode}){
+  return <>{children(useLive(s=>s?.meter?.fx_live))}</>;
+}
+function ArpLive({children}:{children:(arp:DeckUpdate['arp_view'])=>React.ReactNode}){
+  return <>{children(useLive(s=>s?.arp_view))}</>;
+}
+
 /** Preview mode: notes each chord pad key started, so its note-off releases them all. */
 const previewPads=new Map<number,number[]>();
 
 function App() {
-  const [received,setReceived]=useState(()=>({snapshot:api?null:demoInitial as DeckUpdate|null,when:performance.now()}));
-  const snapshot=received.snapshot;
-  const clockEpoch=useRef(received);clockEpoch.current=received;
-  const [visualNow,setVisualNow]=useState(()=>performance.now());
-  const setSnapshot=useCallback((update:SetStateAction<DeckUpdate|null>)=>{
-    const when=performance.now();
-    setReceived(previous=>{
-      // Local preview commands also rebase at the current position, so editing
-      // a sound or opening a clip cannot reset the preview's running clock.
-      let prior=previous.snapshot;
-      if(typeof update==='function'&&prior){
-        const p=transportPosition(prior,previous.when,when,!api||prior.preview?100000:220);
-        prior={...prior,beat:p.clipBeat,song_beat:p.absoluteBeat};
-      }
-      return {snapshot:typeof update==='function'?update(prior):update,when};
-    });
-  },[]);
+  // The engine state lives in one small store (deck-store.ts). App re-renders only when something other than the
+  // live values (beat, meters, voices, load) changes; playheads and meters read the store and the clock themselves.
+  const snapshot=useDeck(r=>r.snapshot,sameExceptLive);
+  const setSnapshot=deckStore.set;
   const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.page') as Page)||'SONG';}catch{return 'SONG';}});
   const [edit,setEdit]=useState<Source>({kind:'mod',index:0});
   const [armed,setArmed]=useState<Source|null>(null);
@@ -130,7 +141,6 @@ function App() {
   const [clipSheet,setClipSheet]=useState<number|null>(null);
   const [toast,setToast]=useState('');
   const [bridgeStatus,setBridgeStatus]=useState(api?'CONNECTING':'PREVIEW');
-  const lastVisualFrame=useRef(0);
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
   const [keysSheet,setKeysSheet]=useState<{track:number;pad:number}|null>(null);
@@ -162,17 +172,17 @@ function App() {
   const stateRevision=(p:unknown)=>{if(stateRev.current.p!==p)stateRev.current={p,n:stateRev.current.n+1};return stateRev.current.n;};
   const song=project?songOf(project):defaultSong();
   const songView:SongView=songViewPick??(song.on?'arrange':'clips');
-  const position=transportPosition(snapshot,received.when,visualNow,isPreview?100000:220);
-  const playhead=position.clipBeat,songBeat=position.songBeat;
-  const editorClock=project?clipPlayback(project,selected,songBeat,playhead,!!snapshot?.playing):null;
   // Follow the playhead: when it runs out of the bars in view, page along with it (paging away yourself is kept).
-  const headBar=Math.floor(songBeat/4),lastHead=useRef(headBar);
-  useLayoutEffect(()=>{
-    const was=lastHead.current;lastHead.current=headBar;
-    if(!(snapshot?.playing&&song.on)||was===headBar)return;
+  // Read from the shared frame clock: App only renders when the page actually turns.
+  const lastHead=useRef(-1);
+  useFrame(p=>{
+    const headBar=Math.floor(p.songBeat/4),was=lastHead.current;lastHead.current=headBar;
+    if(!(p.playing&&song.on)||was===headBar||was<0)return;
     const inView=(b:number)=>b>=songStart&&b<songStart+songZoom;
     if(inView(was)&&!inView(headBar))setSongStart(Math.min(MAX_BARS-songZoom,Math.floor(headBar/songZoom)*songZoom));
-  },[headBar]);// eslint-disable-line react-hooks/exhaustive-deps
+  });
+  // Where the open clip of the selected track plays, for the note editor's playhead (song blocks can play another clip).
+  const clipClock=useCallback((p:{songBeat:number;clipBeat:number;playing:boolean})=>project?clipPlayback(project,selected,p.songBeat,p.clipBeat,p.playing):null,[project,selected]);
   useEffect(()=>{setArmed(null);},[selected]);
   // Link mode ends on Done, a second tap on the label, Esc, the Deck's B button, or a tap on blank space.
   useEffect(()=>{
@@ -195,29 +205,10 @@ function App() {
       if(obj.error){window.dispatchEvent(new CustomEvent('decksynth-command-rejected'));setToast(obj.error);setBridgeStatus('ERROR');return;}
       if(obj.message){setToast(obj.message);return;}
       if(obj.bridge==='ready'){setBridgeStatus('CONNECTED');return;}
-      // The engine sends only what changed: merge it into what the screen has. The first message is complete.
-      setSnapshot(prev=>{
-        if(!prev)return obj.state&&typeof obj.beat==='number'?obj as DeckUpdate:prev;
-        return {...prev,...obj} as DeckUpdate;
-      });
+      // The engine sends only what changed: the store merges it into what the screen has.
+      deckStore.merge(obj);
       setBridgeStatus(obj.preview?'PREVIEW':'CONNECTED');
     });
-  },[]);
-
-  useEffect(()=>{
-    let raf=0,active=true;
-    const tick=(now:number)=>{
-      if(!active)return;
-      raf=requestAnimationFrame(tick);
-      if(now-lastVisualFrame.current<32)return;
-      lastVisualFrame.current=now;
-      const epoch=clockEpoch.current;
-      if(!epoch.snapshot?.playing)return;
-      const cap=!api||epoch.snapshot.preview?100000:220;
-      setVisualNow(Math.min(now,epoch.when+cap));
-    };
-    raf=requestAnimationFrame(tick);
-    return()=>{active=false;cancelAnimationFrame(raf);};
   },[]);
 
   useEffect(()=>{
@@ -480,11 +471,7 @@ function App() {
       <div className="bars-display">
         <LoopBars value={project?.bars??4} onChange={bars=>command('bars',bars)}/>
       </div>
-      {(()=>{const b=song.on?songBeat:playhead,m=song.on?markerAt(song,Math.floor(songBeat/4)):-1;
-        return <div className="transport-beat" aria-label="Position"><strong>
-          {String(Math.floor(b/4)+1).padStart(2,'0')}<i>:</i>
-          {String(Math.floor(b%4)+1).padStart(2,'0')}</strong>
-          <span>{song.on?(m>=0?song.markers[m].name:'song')+' · '+song.length+' bars':'loop · '+(project?.bars??4)+(project?.bars===1?' bar':' bars')}</span></div>;})()}
+      <TransportBeat song={song} bars={project?.bars??4}/>
       </div>
       <button type="button" className={'metronome-button'+(project?.metronome?' active':'')} aria-pressed={!!project?.metronome}
         title="Metronome click" onClick={()=>command('metronome',!project?.metronome)}>
@@ -522,12 +509,12 @@ function App() {
         onClick={()=>setDialog('settings')}><SettingsIcon size={19}/>{bridgeStatus==='ERROR'?<i className="gear-dot error"/>:snapshot?.connected?<i className="gear-dot"/>:null}</button>
     </header>
 
-    {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} beat={project.song?.on?songBeat:playhead} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
+    {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} song={!!project.song?.on} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
     {sendsOpen&&project?<SendsSheet sends={project.sends} tracks={project.tracks} onSetting={(bus,key,value)=>command('send_setting',[bus,key,value])} onClose={()=>setSendsOpen(false)}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
       {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={selected}
-        onSelect={index=>command('select',index)} beat={playhead} beats={project.bars*4} playing={snapshot?.playing??false}
+        onSelect={index=>command('select',index)} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           {(track.device??'synth')==='synth'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
             {(['A','B'] as const).map(slot=><button key={slot} type="button" aria-label={'Compare sound '+slot} aria-pressed={(track.sound_ab?.active??'A')===slot} onClick={()=>command('sound_ab',[selected,slot])}>{slot}</button>)}
@@ -537,25 +524,25 @@ function App() {
           <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
           {/* The kit button sits next to the pads now (Sir, 16 Nov). */}
           {/* The synth's preset and Save live in the Sound tool rack now (Sir, 16 Nov). */}
-        </>:page==='PERFORM'?<PerformTools
-          onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!snapshot?.arp_view?.paused}
-          onArp={a=>command('perform_action',[a,null])}/>:undefined}/>}
+        </>:page==='PERFORM'?<ArpLive>{view=><PerformTools
+          onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!view?.paused}
+          onArp={a=>command('perform_action',[a,null])}/>}</ArpLive>:undefined}/>}
       <div className="page-body">
       {page==='SONG'?<div className="song-page">
         {(()=>{
           const bar=<SongBar project={project} song={song} view={songView} onView={v=>{setSongView(v);setSongSel(null);}} onSong={s=>command('song',s)}
             zoom={songZoom} onZoom={z=>{setSongZoom(z);setSongStart(Math.floor(songStart/z)*z);}} start={songStart} onStart={setSongStart}
-            sel={songSel} onSel={setSongSel} songBeat={songBeat}
+            sel={songSel} onSel={setSongSel}
             onClip={(t,action,clip,source)=>command('clip',[t,action,clip,source??null])}
             onEditClip={(t,clip)=>{command('clip',[t,'open',clip,null]);command('select',t);setSongSel(null);setSongView('clips');}}/>;
           return songView==='arrange'?<section className="timeline song-timeline" aria-label="Song">
             {bar}
             <Arranger project={project} song={song} selected={selected} zoom={songZoom} start={songStart} sel={songSel} onSel={setSongSel}
-              onSong={s=>command('song',s)} playing={snapshot?.playing??false} songBeat={songBeat}
+              onSong={s=>command('song',s)} playing={snapshot?.playing??false}
               onSelect={index=>command('select',index)} onMute={(idx,next)=>command('track',[idx,'mute',next])} onClips={t=>setClipSheet(t)}
               freeze={snapshot?.freeze} onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)}/>
           </section>
-          :<Timeline project={project} selected={selected} beat={playhead} songBeat={songBeat} playing={snapshot?.playing??false}
+          :<Timeline project={project} selected={selected} playing={snapshot?.playing??false}
             recording={snapshot?.recording??false} header={bar}
             loops={project.tracks.map((_,t)=>{const k=clipsOf(project).open[t];
               return {label:CLIP_NAMES[k],sub:'clip',aria:'Clips of track '+(t+1)+': clip '+CLIP_NAMES[k]+' is open',title:'Open, copy or clear this track\'s clips'};})}
@@ -569,14 +556,12 @@ function App() {
         {clipSheet!==null?<ClipSheet project={project} song={song} track={clipSheet}
           container={document.querySelector('.song-page')} onClose={()=>setClipSheet(null)}
           onClip={(t,action,clip,source)=>command('clip',[t,action,clip,source??null])}/>:null}
-        <AudioScope monitor={snapshot?.meter??null}
-          voices={snapshot?.voices??0} underruns={snapshot?.underruns??0} preview={isPreview}
-          load={snapshot?.dsp_load} bufferMs={snapshot?.buffer_ms}/>
+        <LiveScope underruns={snapshot?.underruns??0} preview={isPreview} bufferMs={snapshot?.buffer_ms}/>
       </div>
       :page==='SOUND'&&track.device==='drum_rack'?<DrumRack key={selected+':'+track.drum_rack?.id} track={track} trackIndex={selected}
         runtime={snapshot?.drum_racks?.[selected]??undefined}
         steps={pad=><DrumSteps track={selected} kitId={track.drum_rack?.id??''} pad={pad} seq={project.performance.seq} patterns={project.performance.patterns}
-            playing={snapshot?.playing??false} beat={playhead} recording={!!snapshot?.recording} recStep={snapshot?.rec_step??0}
+            playing={snapshot?.playing??false} recording={!!snapshot?.recording} recStep={snapshot?.rec_step??0}
             onEdit={(target,expected,notes)=>command('note_edit',[target,expected,notes])}
             onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])}
             onSeq={(key,value)=>command('perform_set',['seq',key,value])}
@@ -603,24 +588,24 @@ function App() {
         onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
         onMake={p=>command('sampler_make',[p.track,p.kit,p.pad,selected,null,p.family])}
         onMidi={(s,a,b)=>command('midi',[s,a,b])} sends={sendKnobs}/>
-      :page==='SOUND'?<ContextAreaScope area="sound"><PanelScope scope={'track:'+selected}><SynthSound key={selected} track={track} selected={selected}
+      :page==='SOUND'?<ContextAreaScope area="sound"><PanelScope scope={'track:'+selected}><FxLive>{live=><SynthSound key={selected} track={track} selected={selected}
           onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} onShape={name=>command('spectral_seed',[selected,name])}
-          onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={snapshot?.meter?.fx_live}
+          onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={live}
           preset={<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
             <button type="button" className="page-tool-icon ss-save" aria-label="Save patch" title="Save patch"
-              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>} sends={sendProps?<SendKnobs {...sendProps} inHeader/>:null} sendsAction={<SendsOpen small open={sendsOpen} onOpen={()=>setSendsOpen(o=>!o)}/>}/></PanelScope></ContextAreaScope>
+              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>} sends={sendProps?<SendKnobs {...sendProps} inHeader/>:null} sendsAction={<SendsOpen small open={sendsOpen} onOpen={()=>setSendsOpen(o=>!o)}/>}/>}</FxLive></PanelScope></ContextAreaScope>
       :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx">
-          <FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
+          <FxLive>{live=><FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
             onReorder={ids=>command('fx_reorder',[selected,ids])}
-            live={snapshot?.meter?.fx_live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
-            beat={snapshot?.song_beat??playhead} playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>
+            live={live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
+            playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>}</FxLive>
       </div></PanelScope></ContextAreaScope>
-      :page==='LINK'?<ContextAreaScope area="fx"><LinkPage key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])} beat={playhead}
-          live={snapshot?.meter?.fx_live} bpm={project.bpm} edit={edit} onEdit={setEdit} armed={armed} onLink={setArmed}/></ContextAreaScope>
-      :<div className="perform-page"><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance} beat={playhead}
+      :page==='LINK'?<ContextAreaScope area="fx"><FxLive>{live=><LinkPage key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
+          live={live} bpm={project.bpm} edit={edit} onEdit={setEdit} armed={armed} onLink={setArmed}/>}</FxLive></ContextAreaScope>
+      :<div className="perform-page"><ArpLive>{arpView=><Performance track={track} catalogStatus={snapshot?.pattern_library} onCommand={command} state={project.performance}
           transfer={{clip:clipsOf(project).open[selected],bars:project.bars}}
-          clipEdit={performClip} onClipEdit={setPerformClip} clipBeat={editorClock?.beat??playhead} clipPlaying={editorClock?.playing??false}
-          playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={snapshot?.arp_view} recStep={snapshot?.rec_step??0} chordStep={snapshot?.chord_step??0} chordNow={snapshot?.chord_now??-1}
+          clipEdit={performClip} onClipEdit={setPerformClip} clipClock={clipClock}
+          playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={arpView} recStep={snapshot?.rec_step??0} chordStep={snapshot?.chord_step??0} chordNow={snapshot?.chord_now??-1}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
           onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
           onSet={(section,key,value)=>command('perform_set',[section,key,value])}
@@ -628,7 +613,7 @@ function App() {
           onAction={(action,value,expected)=>command('perform_action',expected?[action,value??null,expected]:[action,value??null])}
           onPlay={()=>command('play')}
           onTempo={bpm=>command('tempo',bpm)}
-          onMidi={(status,a,b,notes)=>command('midi',notes?[status,a,b,notes]:[status,a,b])}/></div>}
+          onMidi={(status,a,b,notes)=>command('midi',notes?[status,a,b,notes]:[status,a,b])}/>}</ArpLive></div>}
       </div>
     </>:<div className="workspace loading-workspace"><AudioWaveform size={40}/><p>Connecting to the Decksynth audio engine…</p></div>}
     </div>

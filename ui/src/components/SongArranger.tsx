@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, CopyPlus, Eraser, Flag, GanttChart, Layers3, AudioWaveform, Pencil, Piano, RectangleHorizontal, RotateCw,
   Scissors, Sparkles, Trash2, Volume2, VolumeX, Copy,
 } from 'lucide-react';
+import { useClockValue, useFrame } from '../frame-clock';
 import { SONG_TRACK_COLORS, type FreezeInfo, type Note, type Project } from '../types';
 import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
 import { ValueBox } from './ValueBox';
@@ -23,14 +24,16 @@ const pad2 = (n:number) => String(n).padStart(2, '0');
 type BarProps = {
   project:Project; song:Song; view:SongView; onView(v:SongView):void; onSong(s:Song):void;
   zoom:number; onZoom(z:number):void; start:number; onStart(bar:number):void;
-  sel:SongSel; onSel(s:SongSel):void; songBeat:number;
+  sel:SongSel; onSel(s:SongSel):void;
   onClip(track:number, action:'open'|'copy'|'clear', clip:number, source?:number):void; onEditClip(track:number, clip:number):void;
 };
 
 export function SongBar(props:BarProps) {
-  const {project, song, view, onView, onSong, zoom, onZoom, start, onStart, songBeat} = props;
+  const {project, song, view, onView, onSong, zoom, onZoom, start, onStart} = props;
   const bars = project.bars, step = Math.max(1, bars);
-  const marker = song.on ? markerAt(song, Math.floor(songBeat / 4)) : -1;
+  // Only the bar matters here, so the bar re-renders once per bar while playing.
+  const headBar = useClockValue(p => Math.floor(p.songBeat / 4));
+  const marker = song.on ? markerAt(song, headBar) : -1;
   return <div className="song-bar">
     <div className="song-row song-toolbar">
       <div className="fx-segment song-view" role="radiogroup" aria-label="View">
@@ -149,13 +152,25 @@ function BlockNotes({notes, b, from, to, bars, color}:{notes:Note[]; b:Block; fr
   return <svg className="blk-notes" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">{rects}</svg>;
 }
 
+/** The song playhead in one lane: moved on the shared frame clock, hidden outside the bars in view. */
+function ArrPlayhead({start, zoom}:{start:number; zoom:number}) {
+  const el = useRef<HTMLElement>(null);
+  useFrame(p => {
+    const node = el.current; if (!node) return;
+    const pos = (p.songBeat / 4 - start) / zoom * 100, show = pos >= 0 && pos <= 100;
+    node.style.display = show ? '' : 'none';
+    if (show) node.style.left = pos + '%';
+  });
+  return <i ref={el} className="arr-playhead" aria-hidden="true"/>;
+}
+
 type ArrProps = {
   project:Project; song:Song; selected:number; zoom:number; start:number; sel:SongSel; onSel(s:SongSel):void; onSong(s:Song):void;
-  playing:boolean; songBeat:number; onSelect(track:number):void; onMute(track:number, next:boolean):void; onClips(track:number):void;
+  playing:boolean; onSelect(track:number):void; onMute(track:number, next:boolean):void; onClips(track:number):void;
   freeze?:FreezeInfo[]; onFreeze?(track:number):void; onUnfreeze?(track:number):void;
 };
 
-export function Arranger({project, song, selected, zoom, start, sel, onSel, onSong, playing, songBeat, onSelect, onMute, onClips, freeze, onFreeze, onUnfreeze}:ArrProps) {
+export function Arranger({project, song, selected, zoom, start, sel, onSel, onSong, playing, onSelect, onMute, onClips, freeze, onFreeze, onUnfreeze}:ArrProps) {
   const open = clipsOf(project).open, bars = project.bars;
   const area = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{track:number; at:number; x:number; id:number; by:number; moved:boolean}|null>(null);
@@ -166,7 +181,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
   };
   useEffect(() => { const k = (e:KeyboardEvent) => { if (e.key==='Escape') onSel(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onSel]);
   const cells = Array.from({length:zoom}, (_, i) => start + i);
-  const head = Math.floor(songBeat / 4), headPos = (songBeat / 4 - start) / zoom * 100;
+  const head = useClockValue(p => Math.floor(p.songBeat / 4));
   const tapLane = (track:number, e:React.MouseEvent) => {
     if (e.target!==e.currentTarget && !(e.target as Element).classList.contains('arr-cell')) return;
     onSelect(track);
@@ -235,7 +250,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
             })}
             {onFreeze && onUnfreeze ? <FreezeOverlay info={freeze?.[tr]} meta={freezeFor(t,'song')} mode={song.on ? 'song' : 'loop'} waveMode={'song'} from={start * 4} span={zoom * 4}
               passBeats={song.length * 4} onFreeze={() => onFreeze(tr)} onUnfreeze={() => onUnfreeze(tr)}/> : null}
-            {playing && song.on && headPos >= 0 && headPos <= 100 ? <i className="arr-playhead" style={{left:headPos + '%'}} aria-hidden="true"/> : null}
+            {playing && song.on ? <ArrPlayhead start={start} zoom={zoom}/> : null}
           </div>
         </div>;
       })}

@@ -1,13 +1,14 @@
 import {useEffect,useRef,useState} from 'react';
 import {ChevronLeft,ChevronRight,Power,Undo2,Volume2} from 'lucide-react';
 import {useNoteEditing} from './useNoteEditing';
+import {useClockValue} from '../frame-clock';
 import {patternEvents,type NoteTarget} from '../note-ops';
 import {noteName,type Note,type DrumPad,type PerformanceState,type StepPattern} from '../types';
 
 const RATE_BEATS:Record<string,number>={'1/2D':3,'1/2':2,'1/2T':4/3,'1/4D':1.5,'1/4':1,'1/4T':2/3,'1/8D':.75,'1/8':.5,'1/8T':1/3,'1/16D':.375,'1/16':.25,'1/16T':1/6,'1/32D':.1875,'1/32':.125,'1/32T':1/12};
 
 type Props={track:number;kitId:string;pad:DrumPad;seq:PerformanceState['seq'];patterns:Record<string,StepPattern>;
- playing:boolean;beat:number;recording:boolean;recStep:number;
+ playing:boolean;recording:boolean;recStep:number;
  onEdit:(target:NoteTarget,expected:StepPattern,notes:Note[])=>void;
  onEditorNote:(track:number,id:string,pitch:number,velocity:number)=>void;
  onSeq:(key:string,value:unknown)=>void;
@@ -15,7 +16,7 @@ type Props={track:number;kitId:string;pad:DrumPad;seq:PerformanceState['seq'];pa
 type Intent={id:number;capture:HTMLButtonElement;owner:string;source:string;step:number;events:Note[];expected:StepPattern;target:Extract<NoteTarget,{kind:'pattern'}>};
 
 /** The selected pad's row of the open SEQ pattern: the same pattern Perform edits and SEQ plays. */
-export function DrumSteps({track,kitId,pad,seq,patterns,playing,beat,recording,recStep,onEdit,onEditorNote,onSeq,onUndo}:Props){
+export function DrumSteps({track,kitId,pad,seq,patterns,playing,recording,recStep,onEdit,onEditorNote,onSeq,onUndo}:Props){
  const pat:StepPattern=patterns[seq.bank+':'+seq.slot]??{length:seq.length,division:seq.division,gate:.8,swing:.5,steps:Array.from({length:seq.length},()=>[])};
  const pages=Math.max(1,Math.ceil(pat.length/16));
  const [page,setPage]=useState(0),intent=useRef<Intent|null>(null);
@@ -27,7 +28,8 @@ export function DrumSteps({track,kitId,pad,seq,patterns,playing,beat,recording,r
  useEffect(()=>{cancel();return cancel;},[owner,source,recording,playing]);
  useEffect(()=>{window.addEventListener('blur',cancel);window.addEventListener('decksynth-undo',cancel);return()=>{window.removeEventListener('blur',cancel);window.removeEventListener('decksynth-undo',cancel);};},[]);
  useEffect(()=>{if(page>=pages){cancel();setPage(pages-1);}},[pages,page]);
- const current=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
+ // The current step from the shared clock: this row re-renders once per step, not per frame.
+ const current=useClockValue(p=>playing&&seq.enabled?Math.floor(p.clipBeat/(RATE_BEATS[pat.division]??.25))%pat.length:-1);
  const cursor=seq.recording?recStep%pat.length:-1;
  // Follow the playhead (or the step-rec cursor) across pages, like the Perform grid.
  const follow=cursor>=0?cursor:current;

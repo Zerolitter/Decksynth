@@ -6,9 +6,10 @@ import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, STEP_COUNTS, nor
   type FxChain, type FxModSource, type FxTarget, type ModFeel } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview, sourceColor, type Live, type Source } from './ModParts';
 import { BipolarDepth, MacroSheet, ModSheet, PadGraphEditor, ShapePicker, pointsFrom, type SheetTab } from './ModSheet';
+import {useClockValue} from '../frame-clock';
 
 type Props = {
-  selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; beat:number; live?:Live; bpm:number;
+  selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm:number;
   edit:Source; onEdit:(s:Source)=>void;
   armed:Source|null; onLink:(s:Source|null)=>void;
 };
@@ -17,7 +18,7 @@ type Props = {
  *  Left: the 8 macros, the 8 mod pads and the Morph pad. Right: the editor of the tapped source with its shape and
  *  every link as a depth bar. Tap a name (or Link knobs) to arm it: the Link box in the top bar lights, and every knob
  *  tapped on any page is linked to it until the box, blank space, Esc or B clears it. */
-export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,armed,onLink}:Props) {
+export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed,onLink}:Props) {
   const chain=normalizeChain(raw);
   const page=useRef<HTMLElement>(null);
   const [sheet,setSheet]=useState<SheetTab|null>(null);
@@ -28,7 +29,10 @@ export function LinkPage({selected,chain:raw,onChange,beat,live,bpm,edit,onEdit,
   const [morph,setMorph]=useState(false);
   const pick=(s:Source)=>{setMorph(false);onEdit(s);};
   useEffect(()=>{setSheet(null);setPointsEdit(false);},[selected,edit.kind,edit.index]);
-  const phaseOf=(i:number)=>chain.mods[i].targets.length&&live?.phases?live.phases[i]
+  // A mod pad that drives nothing shows its phase from the shared clock; the engine reports the linked ones.
+  const engineDriven=(i:number)=>!!(chain.mods[i].targets.length&&live?.phases);
+  const beat=useClockValue(p=>chain.mods.every((_,i)=>engineDriven(i))?0:p.clipBeat);
+  const phaseOf=(i:number)=>engineDriven(i)?live!.phases![i]
     :(beat/(RATE_BEATS[chain.mods[i].rate]*FEEL_FACTOR[chain.mods[i].feel??'']))%1;
   const isEdit=(k:Source['kind'],i:number)=>edit.kind===k&&edit.index===i;
   const isArmed=(k:Source['kind'],i:number)=>armed?.kind===k&&armed.index===i;

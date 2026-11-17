@@ -3,6 +3,7 @@ import {editNotes} from '../note-ops';
 import type {NoteTarget} from '../note-ops';
 import {clipsOf,CLIP_NAMES} from '../song';
 import {clipPlayback} from '../transport-clock';
+import {readPosition,useClockValue,useFrame,type Position} from '../frame-clock';
 import { useEffect, useRef, useState } from 'react';
 import { AudioWaveform, CircleDot, Pencil,Layers3, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { LIBRARY } from './PresetBrowser';
@@ -12,8 +13,8 @@ import { clamp, noteName, SONG_TRACK_COLORS, type FreezeInfo, type Project, type
 import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
 
 type Props = {
-  project: Project; selected: number; beat: number;
-  playing: boolean; recording: boolean; songBeat?:number;
+  project: Project; selected: number;
+  playing: boolean; recording: boolean;
   onSelect(index:number):void; onMute(index:number,next:boolean):void;
   onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;onOpenNotes?:(track:number)=>void;
   onOpenSound?(index:number):void; compact?:boolean;
@@ -28,9 +29,23 @@ function pitchSpan(notes:Note[]) {
   return {low:Math.max(0,lo-3), high:Math.min(127,Math.max(lo+15,hi+3))};
 }
 
-function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip,playbackLabel,overlay}:{
+/** A clip's playhead, moved on the shared frame clock (no React render per frame). */
+function ClipPlayhead({beatAt,beats}:{beatAt:(p:Position)=>number;beats:number}){
+  const el=useRef<HTMLDivElement>(null);
+  const left=(p:Position)=>clamp(beatAt(p)/beats,0,1)*100+'%';
+  useFrame(p=>{if(el.current)el.current.style.left=left(p);});
+  return <div ref={el} className="clip-playhead" style={{left:left(readPosition())}} aria-hidden="true"><span className="playhead-cap"/></div>;
+}
+/** The bar:beat readout of the loop. */
+function MeasureReadout(){
+  const beat=useClockValue(p=>Math.floor(p.clipBeat));
+  return <span className="measure-readout">{String(Math.floor(beat/4)+1).padStart(2,'0')}
+    <span>:</span>{String(beat%4+1).padStart(2,'0')}</span>;
+}
+
+function ClipGrid({track,idx,bars,beatAt,selected,recording,playing,onSelect,onEdit,onOpenNotes,clip,playbackLabel,overlay}:{
   overlay?:React.ReactNode;
-  track:Project['tracks'][number];idx:number;bars:number;beat:number;
+  track:Project['tracks'][number];idx:number;bars:number;beatAt:(p:Position)=>number;
   selected:boolean;recording:boolean;playing:boolean;
   clip:number;playbackLabel?:string;onOpenNotes?:()=>void;onSelect():void;onEdit(target:NoteTarget,expected:Note[],events:Note[]):void;
 }) {
@@ -49,7 +64,6 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
     const fraction=(high-pitch)/Math.max(1,high-low);
     return `calc(${fraction*100}% + ${24-41*fraction}px)`;
   };
-  const pos=clamp(beat/beats,0,1);
   const preview=(n:Note,i:number):Note=>{
     if(drag?.noteIndex!==i)return n;
     return {...n,start:(n.start+drag.shiftBeat+beats)%beats,note:clamp(n.note+drag.shiftPitch,0,127)};
@@ -104,15 +118,17 @@ function ClipGrid({track,idx,bars,beat,selected,recording,playing,onSelect,onEdi
                 top:noteTop(n.note)}}/>
     )}
     {overlay}
-    {(playing||recording)&&<div className="clip-playhead" style={{left:(pos*100)+'%'}} aria-hidden="true"><span className="playhead-cap"/></div>}
+    {(playing||recording)&&<ClipPlayhead beatAt={beatAt} beats={beats}/>}
     <span className="clip-status">{recording?'● RECORDING':playbackLabel??(track.notes.length?
       track.notes.length+' NOTES':'EMPTY')}</span>
   </div>;
 }
 
-export function Timeline({project,selected,beat,songBeat=beat,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header,freeze,onFreeze,onUnfreeze}:Props) {
+export function Timeline({project,selected,playing,recording,onSelect,onMute,onEdit,onOpenNotes,onOpenSound,compact=false,loops,onLoops,header,freeze,onFreeze,onUnfreeze}:Props) {
   const canFreeze=!!(onFreeze&&onUnfreeze);
   const noteCount=project.tracks.reduce((sum,t)=>sum+t.notes.length,0);
+  // Which clip each lane hears depends only on the bar, so the lanes re-render once per bar, not per frame.
+  const bar=useClockValue(p=>Math.floor(p.songBeat/4));
   return <section className={'timeline'+(compact?' compact':'')} aria-label="Four-track MIDI looping timeline">
     {header??(compact?null:<div className="timeline-toolbar">
       <div className="timeline-toolbar-left">
@@ -125,15 +141,14 @@ export function Timeline({project,selected,beat,songBeat=beat,playing,recording,
           <span className="state-led"/>
           {recording?'RECORDING':playing?'LOOP ACTIVE':'READY'}
         </span>
-        <span className="measure-readout">{String(Math.floor(beat/4)+1).padStart(2,'0')}
-          <span>:</span>{String(Math.floor(beat%4)+1).padStart(2,'0')}</span>
+        <MeasureReadout/>
       </div>
     </div>)}
     <div className="tracks" role="group" aria-label="Music tracks">
       {project.tracks.map((track,i)=>{
         const active=selected===i;
         const loop=loops?.[i];
-        const clock=clipPlayback(project,i,songBeat,beat,playing);
+        const clock=clipPlayback(project,i,bar*4,0,playing);
         return <div key={i} className={'track-row'+(active?' active':'')}
           style={{'--track-accent':SONG_TRACK_COLORS[i],...(onOpenNotes?{gridTemplateColumns:'170px '+(loop&&onLoops?'50px ':'')+'repeat('+(2+(onOpenSound?1:0)+(canFreeze?1:0))+',44px) minmax(0,1fr)'}:{})} as React.CSSProperties}>
           <button className="track-title" type="button" aria-pressed={active}
@@ -155,7 +170,7 @@ export function Timeline({project,selected,beat,songBeat=beat,playing,recording,
             onClick={()=>onMute(i,!track.mute)}>
             {track.mute?<VolumeX size={19}/>:<Volume2 size={19}/>}
           </button>
-          <ClipGrid track={track} idx={i} bars={project.bars} beat={clock.beat}
+          <ClipGrid track={track} idx={i} bars={project.bars} beatAt={p=>clipPlayback(project,i,p.songBeat,p.clipBeat,playing).beat}
             selected={active} recording={recording&&active} playing={clock.playing}
             playbackLabel={playing&&clock.heard!==clock.open?`${CLIP_NAMES[clock.open]} OPEN · ${clock.heard===undefined?'NO BLOCK':CLIP_NAMES[clock.heard]+' PLAYING'}`:undefined}
             clip={clipsOf(project).open[i]} onOpenNotes={()=>onOpenNotes?.(i)} onSelect={()=>onSelect(i)} onEdit={onEdit}

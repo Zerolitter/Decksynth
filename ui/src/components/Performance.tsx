@@ -7,6 +7,7 @@ import {useNoteContext} from './useNoteContext';
 import {useContextTarget,ContextAreaScope} from './ContextWheel';
 import {useNoteEditing,type NoteTool} from './useNoteEditing';
 import {patternEvents,type NoteTarget} from '../note-ops';
+import {useClockValue,type Position} from '../frame-clock';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb } from 'lucide-react';
@@ -65,7 +66,7 @@ type TransferTarget={track:number;device:string;clip:number;bars:number;bank:num
 
 export type ArpView={groups:number[][];step:number;phase?:number;paused?:boolean};
 type Props={
-  track:import('../types').Track;catalogStatus:import('../types').DeckUpdate['pattern_library'];onCommand:(command:string,args?:unknown)=>void;state:PerformanceState; beat:number; playing:boolean; held:number[]; arpView?:ArpView|null;
+  track:import('../types').Track;catalogStatus:import('../types').DeckUpdate['pattern_library'];onCommand:(command:string,args?:unknown)=>void;state:PerformanceState; playing:boolean; held:number[]; arpView?:ArpView|null;
   /** Step record cursor from the engine: the step the next recorded key goes to. */
   recStep?:number;
   selectedTrack:number;recording?:boolean;device?:string;onNoteEdit:(target:NoteTarget,expected:StepPattern,events:import('../types').Note[])=>void;onEditorNote:(track:number,id:string,note:number,velocity:number)=>void;onUndo:()=>void;onSet:(section:Section,key:string,value:unknown)=>void;
@@ -75,8 +76,8 @@ type Props={
   /** The note grid edits the selected track's open Song clip instead of the SEQ pattern (SONG → Edit notes opens it here). */
   clipEdit?:boolean;
   onClipEdit?:(on:boolean)=>void;
-  /** Where the open clip is playing, in beats, for the playhead while editing a clip. */
-  clipBeat?:number;clipPlaying?:boolean;
+  /** Where the open clip is playing (song blocks can play another clip), for the playhead while editing a clip. */
+  clipClock?:(p:Position)=>{beat:number;playing:boolean}|null;
   onPlay:()=>void;
   onTempo:(bpm:number)=>void;
   /** Raw MIDI from the touch keyboard and strips: status, data1, data2. */
@@ -105,7 +106,7 @@ export function PerformTools({onPanic,arp=false,paused=false,onArp}:{onPanic:()=
   </>;
 }
 
-export function Performance({track,catalogStatus,onCommand,state,beat,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,chordStep=0,chordNow=-1,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo,transfer,clipEdit=false,onClipEdit,clipBeat=0,clipPlaying=false}:Props){
+export function Performance({track,catalogStatus,onCommand,state,playing,held,arpView,recStep=0,onSet,onStep,onAction,onTempo,onMidi,chordStep=0,chordNow=-1,selectedTrack,recording=false,device='synth',onNoteEdit,onEditorNote,onUndo,transfer,clipEdit=false,onClipEdit,clipClock}:Props){
   const [noteEditorOpen,setNoteEditorOpen]=useState(false);
   const [mode,setMode]=useState<Mode>('seq');
   const [page,setPage]=useState(0);
@@ -164,7 +165,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   // (one bar for clips up to 4 bars). Four page buttons always reach the whole pattern or clip.
   const pageSize=clipMode?Math.max(4,Math.ceil(transfer.bars/4)*4):Math.max(16,Math.ceil(pat.length/64)*16);
   const pages=clipMode?Math.min(4,Math.ceil(clipSpan/pageSize)):Math.max(1,Math.min(4,Math.ceil(pat.length/pageSize)));
-  const currentStep=playing&&seq.enabled?Math.floor(beat/(RATE_BEATS[pat.division]??.25))%pat.length:-1;
+  // Steps come from the shared clock: Perform re-renders once per step while playing, not per frame.
+  const currentStep=useClockValue(p=>playing&&seq.enabled?Math.floor(p.clipBeat/(RATE_BEATS[pat.division]??.25))%pat.length:-1);
+  const clipPlaying=useClockValue(p=>clipMode&&!!clipClock?.(p)?.playing);
   const cursor=seq.recording?recStep%pat.length:-1;
   const channel=scale.input_channel?scale.input_channel-1:0;
   const set=(sec:Section,key:string,value:unknown)=>onSet(sec,key,value);
@@ -232,8 +235,9 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   useEffect(()=>{if(!message)return;const id=setTimeout(()=>setMessage(''),5000);return()=>clearTimeout(id);},[message]);
 
   const lane=arpView&&arpView.groups.length?arpView.groups:arpOrder(held,arp.mode,arp.octaves,arp.octave_mode);
+  const arpStep=useClockValue(p=>playing&&lane.length?Math.floor(p.clipBeat/(RATE_BEATS[arp.division]??.25))%lane.length:-1);
   const laneStep=arpView&&arpView.groups.length?arpView.step
-    :playing&&lane.length?Math.floor(beat/(RATE_BEATS[arp.division]??.25))%lane.length:-1;
+    :arpStep;
   const sounding=new Set(arp.enabled&&laneStep>=0?lane[laneStep]??[]:[]);
 
   const tapTempo=()=>{
@@ -455,7 +459,7 @@ export function Performance({track,catalogStatus,onCommand,state,beat,playing,he
   let suggestBar:ReactNode=null;
 
   const chordContext=useContextTarget(el=>{const key=el.closest<HTMLElement>('[data-chord]');if(!key)return null;const notes=JSON.parse(key.dataset.chord!) as number[],raw=key.dataset.raw?JSON.parse(key.dataset.raw) as number[]:notes.map(n=>n-12*keysOct);return {kind:'chord.key',label:'Chord · '+chordText(notes),caps:{play:()=>{notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,100));setTimeout(()=>notes.forEach((n,i)=>onEditorNote(selectedTrack,'wheel-chord-'+i,n,0)),180);},invert:()=>setInversion(inversion>=3?0:inversion+1),spread:()=>set('chord','spread',chord.spread===3?4:3),chordType:()=>setExt(CHORD_EXTS[(CHORD_EXTS.findIndex(([v])=>v===ext)+1)%CHORD_EXTS.length][0]),saveChord:()=>saveSlot(raw)}};});
-  const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beat={clipMode?clipBeat:currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
+  const grid=<PianoRoll key={viewKey+(clipMode?':clip':'')} ref={roll} compact pitchBase={gridBase} edit={edit} target={noteTarget} bounds={noteBounds} context={noteContext} playing={clipMode?clipPlaying:playing&&seq.enabled} beatAt={clipMode?p=>clipClock?.(p)?.beat??p.clipBeat:()=>currentStep} recording={recording} scale={device==='drum_rack'?{name:'Chromatic',root:0}:scale} onTime={time=>setPage(Math.min(pages-1,Math.floor(time/pageSize)))}/>;
 
   let laneView:ReactNode;
   const rb=rateParts(pat.division);

@@ -3,9 +3,10 @@ import {createPortal} from 'react-dom';
 import {Plus} from 'lucide-react';
 import {controlName,type ControlTarget} from '../parameter-registry';
 import type {AutomationLane} from '../types';
+import {useFrame} from '../frame-clock';
 
 type Point=[number,number];
-type Props={track:number;lanes:AutomationLane[];target:ControlTarget|null;beats:number;beat:number;playing:boolean;armed:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void};
+type Props={track:number;lanes:AutomationLane[];target:ControlTarget|null;beats:number;/** the lane runs over the song (else over the loop) */song:boolean;playing:boolean;armed:boolean;send:(cmd:string,args?:unknown)=>void;close:()=>void};
 
 /** Sound and macro targets offered when adding a lane (a grid of buttons, rule 11). Every one exists in the engine registry. */
 export const AUTOMATION_CHOICES:ControlTarget[]=[
@@ -30,7 +31,7 @@ export function thinPoints(points:Point[],tolerance=.004):Point[]{
   return out;
 }
 
-export function AutomationEditor({track,lanes,target,beats,beat,playing,armed,send,close}:Props){
+export function AutomationEditor({track,lanes,target,beats,song,playing,armed,send,close}:Props){
   const [selected,setSelected]=useState<ControlTarget>(target??lanes[0]??{module:'sound',param:'filter'});
   const [index,setIndex]=useState(0),[adding,setAdding]=useState(false);
   const done=useRef<HTMLButtonElement>(null),drag=useRef(false),points=useRef<Point[]>([]);
@@ -72,7 +73,9 @@ export function AutomationEditor({track,lanes,target,beats,beat,playing,armed,se
   const point=draft[Math.max(0,Math.min(index,draft.length-1))];
   const W=width;
   const path=useMemo(()=>draft.length?'M0 '+(1-draft[0][1])*H+' '+draft.map(p=>'L'+(p[0]/beats*W).toFixed(1)+' '+((1-p[1])*H).toFixed(1)).join(' ')+' L'+W+' '+((1-draft[draft.length-1][1])*H):'',[draft,beats,W]);
-  const head=playing?((beat%beats)+beats)%beats/beats*W:null;
+  // The playhead moves on the shared frame clock, without re-rendering the editor.
+  const headLine=useRef<SVGLineElement>(null);
+  useFrame(p=>{const el=headLine.current;if(!el)return;const b=song?p.songBeat:p.clipBeat,x=String(((b%beats)+beats)%beats/beats*W);el.setAttribute('x1',x);el.setAttribute('x2',x);});
   // A slim strip over the page's focus window, not a modal: the knobs stay visible and playable below it.
   return createPortal(<section ref={strip} role="dialog" aria-label="Parameter automation" className="automation-editor automation-strip" style={place}>
       <header>
@@ -98,7 +101,7 @@ export function AutomationEditor({track,lanes,target,beats,beat,playing,armed,se
           {path?<path d={path} fill="none" stroke="currentColor" strokeWidth="3"/>:null}
           {draft.length<=MAX_HANDLES?draft.map((p,i)=><circle key={p[0]} cx={p[0]/beats*W} cy={(1-p[1])*H} r={i===index?6:4}/>)
             :point?<circle cx={point[0]/beats*W} cy={(1-point[1])*H} r={6}/>:null}
-          {head!==null?<line className="automation-head" x1={head} x2={head} y1={0} y2={H}/>:null}
+          {playing?<line ref={headLine} className="automation-head" x1={0} x2={0} y1={0} y2={H}/>:null}
         </svg>
         </div>}
       </div>

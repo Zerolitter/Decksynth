@@ -1,5 +1,6 @@
 import {useContextTarget,useContextNavigation} from './ContextWheel';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useFrame } from '../frame-clock';
 import { CircleDot, Disc3, Link2, Plus, Snowflake, Sparkles, Waves } from 'lucide-react';
 import type { Source } from './ModParts';
 import { sourceColor } from './ModParts';
@@ -15,15 +16,17 @@ const PAGES:{id:Page,label:string,icon:ReactNode}[]=[
 ];
 
 type Props = { tracks:Track[]; selected:number; onSelect:(i:number)=>void;
-  beat:number; beats:number; playing:boolean; tools?:ReactNode; freeze?:FreezeInfo[];onContext?:(track:number)=>import('../context-actions').Capabilities };
+  beats:number; playing:boolean; tools?:ReactNode; freeze?:FreezeInfo[];onContext?:(track:number)=>import('../context-actions').Capabilities };
 
 /** The track's recorded notes as a thin line, with the playhead, so the song stays in view. */
-function NoteLine({track,beats,beat,playing}:{track:Track;beats:number;beat:number;playing:boolean}){
-  const span=Math.max(1,beats);
+function NoteLine({track,beats,playing}:{track:Track;beats:number;playing:boolean}){
+  const span=Math.max(1,beats),head=useRef<SVGRectElement>(null);
+  // The playhead moves on the shared frame clock: no React render per frame.
+  useFrame(p=>head.current?.setAttribute('x',String((p.clipBeat%span)/span*100)));
   return <svg className="page-track-notes" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">
     <rect x="0" y="2.5" width="100" height="1" fill="currentColor" opacity=".18"/>
     {track.notes.map((n,i)=><rect key={i} x={n.start/span*100} y="1" width={Math.max(.8,n.duration/span*100)} height="4" rx=".6" fill="var(--track-accent)"/>)}
-    {playing?<rect x={(beat%span)/span*100} y="0" width=".9" height="6" fill="#fff"/>:null}
+    {playing?<rect ref={head} x="0" y="0" width=".9" height="6" fill="#fff"/>:null}
   </svg>;
 }
 
@@ -50,7 +53,7 @@ export function LinkBox({armed,name,onClear,onOpen}:{armed:Source|null;name:stri
 }
 
 /** The second row on Sound, FX and Perform: the track you are working on, and the page's own tools on the right. */
-export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,freeze,onContext,onAdd,onRemove}:Props&{onAdd?:()=>void;onRemove?:(track:number)=>void}){
+export function PageBar({tracks,selected,onSelect,beats,playing,tools,freeze,onContext,onAdd,onRemove}:Props&{onAdd?:()=>void;onRemove?:(track:number)=>void}){
   const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {area:tracks[i].device==='drum_rack'?'drum':'sound',kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{}),...(onAdd&&tracks.length<MAX_TRACKS?{addTrack:onAdd}:{}),...(onRemove&&tracks.length>MIN_TRACKS?{removeTrack:()=>onRemove(i)}:{})}};});
   return <nav {...context} className="page-bar" aria-label="Tracks">
     <div className={"page-tracks"+(tracks.length>5?" many":"")} role="group" aria-label="Track to edit">
@@ -60,7 +63,7 @@ export function PageBar({tracks,selected,onSelect,beat,beats,playing,tools,freez
         style={{['--track-accent' as string]:TRACK_COLORS[i]}} onClick={()=>onSelect(i)}>
         <span className="page-track-no">{i+1}</span>
         <span className="page-track-text"><span className="page-track-name">{deviceName(t)}</span>
-          <NoteLine track={t} beats={beats} beat={beat} playing={playing}/></span>
+          <NoteLine track={t} beats={beats} playing={playing}/></span>
         {freeze?.[i]?.state==='frozen'?<span className="page-track-ice" title="Frozen: plays as audio"><Snowflake size={14}/></span>:null}
       </button>)}
       {onAdd&&tracks.length<MAX_TRACKS?<button type="button" className="page-track-add" aria-label="Add track" title={'Add a track ('+tracks.length+' of '+MAX_TRACKS+'). Right-click a track to remove it.'} onClick={onAdd}><Plus size={18}/></button>:null}

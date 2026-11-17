@@ -5,6 +5,7 @@ import {SCALES} from '../chords';
 import {performanceRange} from '../piano-viewport';
 import {usePianoViewport} from './usePianoViewport';
 import type {useNoteEditing} from './useNoteEditing';
+import {useFrame,type Position} from '../frame-clock';
 
 export type PianoRollHandle={fit:()=>void;timeTo:(time:number)=>void;pitchTo:(pitch:number)=>void;panTime:(direction:number)=>void;panPitch:(direction:number)=>void};
 type Props={
@@ -13,7 +14,8 @@ type Props={
   bounds:NoteBounds;
   context:Record<string,string>;
   playing:boolean;
-  beat:number;
+  /** Where the playhead is, in grid units, read on each frame of the shared clock. */
+  beatAt:(p:Position)=>number;
   recording:boolean;
   compact?:boolean;
   pitchBase?:number;
@@ -25,7 +27,7 @@ const KEY_WIDTH=44;
 const RULER_HEIGHT=24;
 
 export const PianoRoll=forwardRef<PianoRollHandle,Props>(function PianoRoll(
-  {edit,target,bounds,context,playing,beat,recording,compact=false,pitchBase,scale,onTime},handle
+  {edit,target,bounds,context,playing,beatAt,recording,compact=false,pitchBase,scale,onTime},handle
 ){
   const grid=useRef<HTMLDivElement>(null);
   const keyPointer=useRef<number|null>(null);
@@ -76,9 +78,15 @@ export const PianoRoll=forwardRef<PianoRollHandle,Props>(function PianoRoll(
     const column=Math.floor(note.start/bounds.snap);
     guides.set(column,(guides.get(column)??0)|side);
   }
-  const playhead=xAt(beat);
-  const showPlayhead=(playing||recording)&&beat>=0&&beat<bounds.span
-    &&playhead>=nav.left+KEY_WIDTH&&playhead<nav.left+nav.width;
+  // The playhead moves on the shared frame clock: one style change per frame, no React render.
+  const head=useRef<HTMLDivElement>(null);
+  useFrame(p=>{
+    const el=head.current;if(!el)return;
+    const beat=beatAt(p),x=xAt(beat);
+    const show=beat>=0&&beat<bounds.span&&x>=nav.left+KEY_WIDTH&&x<nav.left+nav.width;
+    el.style.display=show?'':'none';
+    if(show){el.style.left=x+'px';el.style.top=nav.top+'px';}
+  });
   const box=edit.box&&{
     left:xAt(edit.box.from),
     top:RULER_HEIGHT+pitches.indexOf(edit.box.high)*rowHeight,
@@ -173,8 +181,8 @@ export const PianoRoll=forwardRef<PianoRollHandle,Props>(function PianoRoll(
       })}
       <div className="piano-edit-cursor" style={{left:xAt(edit.cursor)}} aria-hidden="true"/>
       {box&&<div className="piano-box-selection" style={box} aria-hidden="true"/>}
-      {showPlayhead&&<div className={'piano-playhead'+(recording?' recording':'')}
-        style={{left:playhead,top:nav.top}} aria-hidden="true"/>}
+      {(playing||recording)&&<div ref={head} className={'piano-playhead'+(recording?' recording':'')}
+        aria-hidden="true"/>}
     </div>
   </div>;
 });
