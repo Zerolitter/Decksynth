@@ -6,13 +6,20 @@ import { FEEL_FACTOR, MOD_RATES, MOD_RATE_ORDER, RANDOM_SHAPES, STEP_COUNTS, nor
   type FxChain, type FxModSource, type FxTarget, type ModFeel } from '../fx';
 import { MACRO_COLORS, MOD_COLORS, RATE_BEATS, SHAPE_LABEL, ShapePreview, sourceColor, type Live, type Source } from './ModParts';
 import { BipolarDepth, MacroSheet, ModSheet, PadGraphEditor, ShapePicker, pointsFrom, type SheetTab } from './ModSheet';
-import {useClockValue} from '../frame-clock';
+import {readPosition,useClockValue} from '../frame-clock';
+import {deckStore} from '../deck-store';
 
 type Props = {
   selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live; bpm:number;
   edit:Source; onEdit:(s:Source)=>void;
   armed:Source|null; onLink:(s:Source|null)=>void;
 };
+
+/** The big shape editor follows the clock itself, so only it (not the whole page) re-renders on each frame. */
+function LivePadGraph({phaseNow,liveNow,...rest}:{phaseNow:()=>number;liveNow:()=>number|undefined}&Omit<React.ComponentProps<typeof PadGraphEditor>,'phase'|'live'>){
+  useClockValue(p=>p.clipBeat);
+  return <PadGraphEditor {...rest} phase={phaseNow()} live={liveNow()}/>;
+}
 
 /** The Link page (Sir, 16 Nov): every modulation source in one ordered place, away from Sound and FX.
  *  Left: the 8 macros, the 8 mod pads and the Morph pad. Right: the editor of the tapped source with its shape and
@@ -30,10 +37,14 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
   const pick=(s:Source)=>{setMorph(false);onEdit(s);};
   useEffect(()=>{setSheet(null);setPointsEdit(false);},[selected,edit.kind,edit.index]);
   // A mod pad that drives nothing shows its phase from the shared clock; the engine reports the linked ones.
-  const engineDriven=(i:number)=>!!(chain.mods[i].targets.length&&live?.phases);
-  const beat=useClockValue(p=>chain.mods.every((_,i)=>engineDriven(i))?0:p.clipBeat);
-  const phaseOf=(i:number)=>engineDriven(i)?live!.phases![i]
-    :(beat/(RATE_BEATS[chain.mods[i].rate]*FEEL_FACTOR[chain.mods[i].feel??'']))%1;
+  // The moving dots are drawn on canvases that read the store and the clock on every frame (see ShapePreview), so the
+  // page itself does not re-render for them.
+  const phaseNow=(i:number)=>{
+    const m=chain.mods[i],phases=deckStore.get().snapshot?.meter?.fx_live?.phases;
+    return m.targets.length&&phases?phases[i]:(readPosition().clipBeat/(RATE_BEATS[m.rate]*FEEL_FACTOR[m.feel??'']))%1;
+  };
+  const liveNow=(i:number)=>chain.mods[i].targets.length?deckStore.get().snapshot?.meter?.fx_live?.mods?.[i]:undefined;
+  const phaseOf=phaseNow;
   const isEdit=(k:Source['kind'],i:number)=>edit.kind===k&&edit.index===i;
   const isArmed=(k:Source['kind'],i:number)=>armed?.kind===k&&armed.index===i;
   const lip=(src:Source)=>{if(isArmed(src.kind,src.index))onLink(null);else{pick(src);onLink(src);}};
@@ -68,8 +79,8 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
             style={{['--src' as string]:MOD_COLORS[i]}}>
             <button type="button" className="fx-pad-main" aria-pressed={isEdit('mod',i)} aria-label={'Mod pad '+(i+1)+' '+m.shape}
               onClick={()=>pick({kind:'mod',index:i})}>
-              <ShapePreview shape={m.shape} steps={m.steps} count={m.count} points={m.points} phase={phaseOf(i)} color={MOD_COLORS[i]}
-                live={m.targets.length?live?.mods?.[i]:undefined} active={m.targets.length>0}/>
+              <ShapePreview shape={m.shape} steps={m.steps} count={m.count} points={m.points} phase={()=>phaseNow(i)} color={MOD_COLORS[i]}
+                live={()=>liveNow(i)} active={m.targets.length>0}/>
               {m.targets.length?<b className="fx-pad-count" title={m.targets.length+(m.targets.length===1?' link':' links')}>{m.targets.length}</b>:null}
             </button>
             <button type="button" className="fx-pad-label" aria-pressed={isArmed('mod',i)} aria-label={'Link Mod pad '+(i+1)+' to knobs'}
@@ -117,7 +128,7 @@ export function LinkPage({selected,chain:raw,onChange,live,bpm,edit,onEdit,armed
           disabled={!targets.length} onClick={()=>setTargets([])}><Eraser size={16}/></button>
       </header>
       {mod?<div className="lp-shape">
-        <PadGraphEditor mod={mod} color={color} phase={phaseOf(edit.index)} live={mod.targets.length?live?.mods?.[edit.index]:undefined} snap={snap} editing={pointsEdit} onChange={setMod}/>
+        <LivePadGraph phaseNow={()=>phaseNow(edit.index)} liveNow={()=>liveNow(edit.index)} mod={mod} color={color} snap={snap} editing={pointsEdit} onChange={setMod}/>
         <ShapePicker key={edit.index} mod={mod} color={color} label={label} onChange={patch=>{if(patch.shape&&patch.shape!=='curve')setPointsEdit(false);setMod(patch);}}/>
         <div className="lp-shape-tools">
           <div className="fx-segment" role="radiogroup" aria-label="Mod pad feel">

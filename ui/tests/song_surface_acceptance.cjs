@@ -31,7 +31,8 @@ const { launch } = require('./usability-harness.cjs');
     assert.equal(await page.locator('.page-bar').count(), 0);
     assert.equal(await surface.getByText(/Tap an empty bar to place/).count(), 0);
     assert.equal(await surface.locator('.arr-title').count(), 4);
-    assert.equal(await surface.locator('.audio-scope canvas').count(), 0);
+    // The level meters are two small canvases (one per channel); there is no oscilloscope.
+    assert.equal(await surface.locator('.audio-scope canvas').count(), 2);
     const output = surface.getByRole('region', { name: 'Live output' });
     await output.getByText('LIVE OUTPUT', { exact: true }).waitFor();
     await output.getByText(/voices/).waitFor();
@@ -82,8 +83,8 @@ const { launch } = require('./usability-harness.cjs');
     await send('midi', [0x90, 60, 110]);
     await page.waitForFunction(() => window.usabilityState.meter?.channels?.[1]?.peak > .01
       && window.usabilityState.meter.channels[0].peak === 0);
-    assert.equal(await meters.first().locator('.lit').count(), 0);
-    assert.ok(await meters.last().locator('.lit').count() > 1);
+    assert.equal(Number(await meters.first().getAttribute('data-lit')), 0);
+    assert.ok(Number(await meters.last().getAttribute('data-lit')) > 1);
     await shot('right-channel-live-peak', 718);
     await send('midi', [0x80, 60, 0]);
     await tab('Sound').click();

@@ -107,6 +107,8 @@ def _catalog():
  for item in melodies()+effects(ROLES):validate_pattern(item['pattern']);out.append(item)
  from .pattern_more import more
  for item in more(ROLES):validate_pattern(item['pattern']);out.append(item)
+ from .pattern_more2 import more2
+ for item in more2(ROLES):validate_pattern(item['pattern']);out.append(item)
  return out
 
 def catalog():return copy.deepcopy(_catalog())
@@ -154,7 +156,8 @@ def resolve_pattern(item,track,rack):
 def structures():
  """Factory Structures: library patterns in order, each with a repeat count."""
  from .pattern_more import structures as made
- ids={p['id'] for p in _catalog()};out=made()
+ from .pattern_more2 import structures as made2
+ ids={p['id'] for p in _catalog()};out=made()+made2()
  for st in out:
   if any(i not in ids or not 1<=n<=16 for i,n in st['parts']):raise ValueError('Structure '+st['id']+' names an unknown pattern')
  return out

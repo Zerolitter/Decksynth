@@ -19,7 +19,7 @@ let app;
   await page.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),{timeout:15000});
   await page.getByRole('tab',{name:/^FX$/i}).first().click();
   assert.equal(await page.locator('.fx-card-module').count(),0,'a new track starts with an empty rack');
-  await page.getByRole('button',{name:'Add effect'}).click();
+  // An empty rack shows the effect picker itself (UI rule 5): no button to press first.
   await page.getByRole('button',{name:'Add Reverb'}).click();
   await page.locator('.fx-card-module').first().waitFor({timeout:5000});
   assert.equal(await page.locator('.fx-card-module').count(),1);

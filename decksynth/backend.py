@@ -259,6 +259,9 @@ def worker(commands,updates):
     monitor_left=deque(maxlen=6144);monitor_right=deque(maxlen=6144)
     # Full-rate tail of the mix for the UI spectrum; the FFT itself runs in the renderer.
     spectrum_samples=deque(maxlen=512)
+    # What the screen is showing (sent as 'meters_watched'): levels = the LED meters, wave = the 96-point waves,
+    # spectrum = the FFT tail. Nothing is built for a meter that is not on screen.
+    watched={'levels','wave','spectrum'}
     def send(obj):
         try:updates.put_nowait(obj)
         except queue.Full:pass
@@ -301,6 +304,11 @@ def worker(commands,updates):
                     elif cmd=='sound_gesture':engine.sound_gesture(*args)
                     elif cmd=='sound_undo':engine.sound_undo(args)
                     elif cmd=='sound_ab':engine.ab_action(*args)
+                    elif cmd=='meters_watched':
+                        if not isinstance(args,list) or any(a not in ('levels','wave','spectrum') for a in args):raise ValueError('Invalid meters list')
+                        watched.clear();watched.update(args)
+                        if 'spectrum' not in watched:spectrum_samples.clear()
+                        if not watched&{'levels','wave'}:monitor_samples.clear();monitor_left.clear();monitor_right.clear()
                     elif cmd=='automation_arm':
                         if type(args) is not bool:raise ValueError('Invalid automation arm')
                         engine.automation_arm=args
@@ -603,8 +611,10 @@ def worker(commands,updates):
                     t0=time.perf_counter(); block=engine.render_stereo(256)
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
-                    left=block[::2];right=block[1::2];mono=[l+r for l,r in zip(left,right)]
-                    monitor_left.extend(left);monitor_right.extend(right);monitor_samples.extend(mono);spectrum_samples.extend(mono)
+                    if watched:
+                        left=block[::2];right=block[1::2];mono=[l+r for l,r in zip(left,right)]
+                        if 'levels' in watched or 'wave' in watched:monitor_left.extend(left);monitor_right.extend(right);monitor_samples.extend(mono)
+                        if 'spectrum' in watched:spectrum_samples.extend(mono)
                 if not started:audio.start(); started=True
             now=time.monotonic()
             if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
@@ -612,16 +622,17 @@ def worker(commands,updates):
                 last_status=now
                 library.observe()
                 samples=list(monitor_samples)
+                want_wave='wave' in watched
                 if samples:
                     n=len(samples)
-                    display=[round(samples[min(n-1,i*n//96)],4) for i in range(96)]
+                    display=[round(samples[min(n-1,i*n//96)],4) for i in range(96)] if want_wave else []
                     rms=math.sqrt(sum(v*v for v in samples)/n)
                     peak=max(abs(v) for v in samples)
                 else:
                     display=[]; rms=0.; peak=0.
                 def channel(values):
                     a=list(values);n=len(a)
-                    return dict(rms=round(math.sqrt(sum(x*x for x in a)/n),5) if n else 0.,peak=round(max(map(abs,a),default=0.),5),wave=[round(a[min(n-1,i*n//96)],4) for i in range(96)] if n else [])
+                    return dict(rms=round(math.sqrt(sum(x*x for x in a)/n),5) if n else 0.,peak=round(max(map(abs,a),default=0.),5),wave=[round(a[min(n-1,i*n//96)],4) for i in range(96)] if n and want_wave else [])
                 stereo=[channel(monitor_left),channel(monitor_right)]
                 meter=dict(channels=stereo,rms=round(rms,5),peak=round(peak,5),wave=display,
                            spectrum=[round(v,4) for v in spectrum_samples],fx=engine.fx_levels(),

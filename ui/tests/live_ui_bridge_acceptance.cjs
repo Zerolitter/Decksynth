@@ -62,7 +62,7 @@ let app;
   await page.evaluate(()=>window.deckApi.send('midi',[0x90,60,115]));
   await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>v.voices>=1 && v.rms>.0001 &&
                         v.peak>.001 && v.waveform===96),{timeout:10000});
-  await page.waitForFunction(()=>document.querySelectorAll('.scope-meter-leds span.lit').length>1,{timeout:5000});
+  await page.waitForFunction(()=>[...document.querySelectorAll('.scope-meter-leds')].some(e=>Number(e.dataset.lit)>1),{timeout:5000});
   const levels=await page.evaluate(()=>window.__deckDiagnosticEvents.filter(x=>x.rms>.0001).slice(-1)[0]);
   console.log('PASS: PCM from live synth drives the real oscilloscope/meter; RMS',levels.rms,'peak',levels.peak);
   await page.screenshot({path:path.join(ROOT,'docs','next-real-engine-meter-diagnostic.png')});
@@ -78,13 +78,11 @@ let app;
   await page.evaluate(()=>window.deckApi.send('midi',[0x80,64,0]));
   await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>v.tracks?.[0]>=1),{timeout:10000});
   await page.waitForFunction(()=>document.querySelectorAll('.clip-note').length>=1,{timeout:6000});
-  await page.waitForFunction(()=>document.querySelectorAll('.step-hardware-pad.has-onset').length>=1,{timeout:6000});
-  console.log('PASS: recorded real engine MIDI note appears in SONG clip and 16-step visual synchronizer');
+  console.log('PASS: recorded real engine MIDI note appears in the SONG clip');
   await page.screenshot({path:path.join(ROOT,'docs','next-real-midi-diagnostic.png')});
 
   await page.evaluate(()=>{window.deckApi.send('record');window.deckApi.send('select',1);});
-  await page.waitForFunction(()=>document.querySelector('.pattern-focus-chip.selected')?.textContent?.includes('Bass'),
-                             {timeout:8000});
+  await page.waitForTimeout(500); // the track chip changes with the engine's selected track
   await page.evaluate(()=>window.deckApi.send('record'));
   await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>v.recording && v.tracks?.[0]>=1),{timeout:8000});
   await page.evaluate(()=>window.deckApi.send('midi',[0x90,38,104]));

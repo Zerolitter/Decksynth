@@ -1,4 +1,4 @@
-import {useRef,useSyncExternalStore,type SetStateAction} from 'react';
+import {useEffect,useRef,useSyncExternalStore,type SetStateAction} from 'react';
 import type {BridgeMessage,DeckUpdate} from './types';
 import {transportPosition} from './transport-clock';
 
@@ -71,6 +71,25 @@ export function sameExceptLive(a:DeckUpdate|null,b:DeckUpdate|null){
   if(ka.length!==kb.length)return false;
   for(const k of ka)if(!LIVE.has(k)&&(a as Record<string,unknown>)[k]!==(b as Record<string,unknown>)[k])return false;
   return true;
+}
+
+/** Which meters are on screen. The engine builds the level, wave and spectrum data only for these (see `meters_watched`
+ * in backend.py); a component that draws one calls `useMetersWatched('levels')` and it is counted while it is mounted. */
+export type MeterKind='levels'|'wave'|'spectrum';
+const watchedCount:Record<MeterKind,number>={levels:0,wave:0,spectrum:0};
+let watchTimer:ReturnType<typeof setTimeout>|0=0;
+function sendWatched(){
+  watchTimer=0;
+  try{window.deckApi?.send('meters_watched',(Object.keys(watchedCount) as MeterKind[]).filter(k=>watchedCount[k]>0));}catch{/* no engine (preview) */}
+}
+/** Count `kind` as watched while the calling component is mounted. A page change unmounts one and mounts another in
+ * the same tick, so the message is sent once, after the tick. */
+export function useMetersWatched(kind:MeterKind){
+  useEffect(()=>{
+    watchedCount[kind]++;
+    if(!watchTimer)watchTimer=setTimeout(sendWatched,0);
+    return()=>{watchedCount[kind]--;if(!watchTimer)watchTimer=setTimeout(sendWatched,0);};
+  },[kind]);
 }
 
 /** One live slice of the snapshot, e.g. `useLive(s=>s?.meter?.fx_live)`. */

@@ -78,8 +78,8 @@ function TransportBeat({song,bars}:{song:Song;bars:number}){
 }
 /** Meters, voices and load go straight from the store to the scope, without App. */
 function LiveScope(props:{underruns:number;preview:boolean;bufferMs?:number}){
-  const meter=useLive(s=>s?.meter??null),voices=useLive(s=>s?.voices??0),load=useLive(s=>s?.dsp_load);
-  return <AudioScope monitor={meter} voices={voices} load={load} {...props}/>;
+  const voices=useLive(s=>s?.voices??0),load=useLive(s=>s?.dsp_load);
+  return <AudioScope voices={voices} load={load} {...props}/>;
 }
 /** The live effect and mod values of the selected track, for the page that shows them. */
 function FxLive({children}:{children:(live:NonNullable<DeckUpdate['meter']>['fx_live'])=>React.ReactNode}){

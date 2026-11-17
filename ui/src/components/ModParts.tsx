@@ -1,4 +1,6 @@
+import { useMemo, useRef } from 'react';
 import { Plus } from 'lucide-react';
+import { useFrame } from '../frame-clock';
 import { shapeValue, targetInfo, type FxChain, type FxTarget, type ModShape } from '../fx';
 
 /** Shared modulation pieces used by the mod band, the FX page and the Sound page. */
@@ -42,16 +44,35 @@ export function LinkSummary({targets,onOpen}:{targets:FxTarget[];onOpen:()=>void
   </div>;
 }
 
-export function ShapePreview({shape,steps,phase,active,color,live,wide,count=16,points}:{shape:ModShape,steps:number[],phase:number,active:boolean,color:string,live?:number,wide?:boolean,
-  count?:number,points?:[number,number][]}) {
-  const W=wide?480:120,H=wide?90:44,mid=H/2,amp=H*.39;
-  const N=wide?160:64;
-  const pts=Array.from({length:N+1},(_,i)=>{const x=i/N;return (i?'L':'M')+(x*W).toFixed(1)+' '+(mid-shapeValue(shape,x,steps,0,count,points)*amp).toFixed(1);}).join(' ');
-  const y=mid-(live??shapeValue(shape,phase,steps,0,count,points))*amp;
-  return <svg className={'mod-shape'+(active?' active':'')} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-    <path d={pts} fill="none" stroke={color} strokeWidth={wide?3:2} opacity={active?1:.55}/>
-    <line x1={phase*W} x2={phase*W} y1="2" y2={H-2} stroke="#ffffff55" strokeWidth="1"/>
-    <circle cx={phase*W} cy={y} r={wide?6:4} fill={color} style={{filter:`drop-shadow(0 0 4px ${color})`}}/>
-  </svg>;
-}
+/** A value that is either fixed or read on every frame (so the moving dot never needs a React render). */
+type Live1<T>=T|(()=>T);
+const read=<T,>(v:Live1<T>):T=>typeof v==='function'?(v as ()=>T)():v;
 
+/** A mod shape with its moving dot, drawn on a canvas. The curve is painted once into an offscreen layer; each frame only
+ * copies it and draws the playhead and dot (`useFrame`). `phase` and `live` may be functions, read on each frame. */
+export function ShapePreview({shape,steps,phase,active,color,live,wide,count=16,points}:{shape:ModShape,steps:number[],phase:Live1<number>,active:boolean,color:string,live?:Live1<number|undefined>,wide?:boolean,
+  count?:number,points?:[number,number][]}) {
+  const W=wide?480:120,H=wide?90:44,S=2,mid=H/2,amp=H*.39;
+  const canvas=useRef<HTMLCanvasElement>(null);
+  const layer=useMemo(()=>{
+    if(typeof document==='undefined')return null;
+    const c=document.createElement('canvas');c.width=W*S;c.height=H*S;
+    const g=c.getContext('2d');if(!g)return null;
+    const N=wide?160:64;
+    g.scale(S,S);g.beginPath();
+    for(let i=0;i<=N;i++){const x=i/N,y=mid-shapeValue(shape,x,steps,0,count,points)*amp;if(i)g.lineTo(x*W,y);else g.moveTo(x*W,y);}
+    g.strokeStyle=color;g.lineWidth=wide?3:2;g.globalAlpha=active?1:.55;g.lineJoin='round';g.stroke();
+    return c;
+  },[shape,steps,count,points,color,active,wide,W,H,mid,amp]);
+  useFrame(()=>{
+    const c=canvas.current,g=c?.getContext('2d');if(!c||!g)return;
+    const p=read(phase),v=read(live);
+    g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,c.width,c.height);
+    if(layer)g.drawImage(layer,0,0);
+    g.scale(S,S);
+    const x=p*W,y=mid-(v??shapeValue(shape,p,steps,0,count,points))*amp;
+    g.strokeStyle='rgba(255,255,255,.33)';g.lineWidth=1;g.beginPath();g.moveTo(x,2);g.lineTo(x,H-2);g.stroke();
+    g.shadowColor=color;g.shadowBlur=4;g.fillStyle=color;g.beginPath();g.arc(x,y,wide?6:4,0,Math.PI*2);g.fill();
+  });
+  return <canvas ref={canvas} className={'mod-shape'+(active?' active':'')} width={W*S} height={H*S} aria-hidden="true"/>;
+}
