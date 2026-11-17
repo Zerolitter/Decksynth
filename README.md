@@ -2,20 +2,28 @@
 
 A touch-first synthesizer, sampler, sequencer and drum machine for the Steam Deck
 and Linux desktops. Built to be played with fingers on the Deck's screen.
-<img width="1410" height="930" alt="Preview1" src="https://github.com/user-attachments/assets/e9a29140-31b3-46db-bc74-5fbfdbca9b38" />
-<img width="1410" height="930" alt="Preview2" src="https://github.com/user-attachments/assets/975f0d8d-6c74-4004-b02d-425a6e877bd9" />
-<img width="1410" height="930" alt="Preview3" src="https://github.com/user-attachments/assets/a9681098-7b80-45a7-88f1-ae274cc70c35" />
-<img width="1410" height="930" alt="Preview4" src="https://github.com/user-attachments/assets/3aea7580-1c7c-403f-8ef1-ae632e8adf6d" />
 
 ## Features
 
-- Spectral synth with 16 editable partials, filter morph and envelopes you drag.
-- Sixteen-pad Drum Rack and a sampler with chop, trim and envelope.
-- Pattern sequencer, arpeggiator and chord builder with a playable keyboard.
-- Song view with tracks, blocks and freeze-to-audio.
-- FX rack and a Link panel for modulation, shown live on every knob.
-- USB MIDI input, SDL/PipeWire audio output, WAV export.
-- Five bundled demo kits, plus your own WAV libraries and kits.
+**Play**
+- **Synth:** 16 drawable partials, a filter and envelopes you drag. 150 presets.
+- **Drum Rack:** 16 pads with a waveform editor, per-pad shaping, EQ and compressor. Hold a pad to record onto it.
+- **Sampler:** load, record or chop a sample and play it across the keys.
+- **Perform:** a playable keyboard with chords, an arpeggiator and a step sequencer.
+
+**Write**
+- **Pattern library:** 500+ ready patterns (bass, chords, arps, melodies, drums) across many genres.
+- **Structure:** put patterns in order with repeats, or load one of 26 ready song structures.
+- **Song:** tracks and clips on a timeline, with clips from 1 to 32 bars. Freeze a track to audio.
+
+**Shape**
+- **FX rack:** 22 effects per track, each with 6 presets, plus shared reverb and delay sends.
+- **Link:** macros, mod pads and a Morph pad move any knob on any page. The knob shows the movement live.
+
+**Everything else**
+- Touch first and built for the Steam Deck. Also runs on Linux desktops.
+- USB MIDI in, WAV export, adjustable audio latency.
+- Five demo kits, or load your own WAV libraries.
 
 ## Install
 

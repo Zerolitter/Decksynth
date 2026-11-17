@@ -14,20 +14,6 @@
   <url type="vcs-browser">https://github.com/Zerolitter/Decksynth</url>
   <url type="donation">https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE</url>
   <launchable type="desktop-id">io.github.zerolitter.Decksynth.desktop</launchable>
-  <screenshots>
-    <screenshot type="default">
-      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-synth.png</image>
-      <caption>The synth Sound page: draw the partials, shape the sound with knobs</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-drum-rack.png</image>
-      <caption>The Drum Rack: sixteen pads, the waveform editor and step sequencer</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://raw.githubusercontent.com/Zerolitter/Decksynth/v0.2.2/packaging/flatpak/screenshot-sends.png</image>
-      <caption>A shared reverb and delay every track can feed</caption>
-    </screenshot>
-  </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
     <release version="0.2.2" date="2026-11-16">
