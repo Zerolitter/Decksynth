@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { CircleDot, Eraser, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
+import { CircleDot, Eraser, Gauge, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
 /** knobBubble: the value that pops up over a knob while it turns (Sir, 16 Nov: can be turned off; the value box stays). */
-export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean};
-const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true};
+/** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 11 ms (grows after a dropout and shrinks back), safe 21 ms. */
+export type Latency = 'low'|'auto'|'safe';
+export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency};
+const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto'};
 const KEY='decksynth.settings';
 export function readSettings():AppSettings{
   try{return {...DEFAULTS,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return {...DEFAULTS};}
@@ -17,12 +19,12 @@ type Props = {
   trackName:string; onCleanup:(c:Cleanup)=>void;
   devices:string[]; audioOutput:string; audioOutputs:string[];
   /** The connected MIDI keyboard (null: none) and the engine link, shown here instead of the top bar. */
-  midiName?:string|null; bridgeStatus?:string;
+  midiName?:string|null; bridgeStatus?:string; bufferMs?:number;
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
 };
 
 /** Settings: layout, clean-up and audio/MIDI routing in one place behind the gear icon. */
-export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
   const [confirm,setConfirm]=useState(false);
   const win=window.deckApi?.windowAction;
   const item=(c:Cleanup,icon:React.ReactNode,title:string,sub:string)=><button type="button" className="clean-item"
@@ -92,6 +94,15 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
             </div></div>
           <small>{settings.recWait?(settings.countIn?'Your first note (keys, pads or MIDI) starts 4 clicks.':'Your first note (keys, pads or MIDI) starts the take.')
             :settings.countIn?'4 clicks, then the take starts on beat 1.':'The take starts when you press REC.'}{settings.countIn||settings.recWait?' From a stopped loop.':''}</small>
+        </div>
+        <h3><Gauge size={15}/> Latency{bufferMs!==undefined?' · '+bufferMs+' ms now':''}</h3>
+        <div className="setting-rec">
+          <div className="setting-choice" role="group" aria-label="Latency"
+            title="Low: keys answer in about 5 ms, a busy song can click. Auto: about 11 ms, steps up after a dropout and back down after 30 quiet seconds. Safe: at least 21 ms, the most room for big songs."><strong>Buffer</strong>
+            <div className="setting-seg">
+              {([['low','Low'],['auto','Auto'],['safe','Safe']] as const).map(([v,label])=><button key={v} type="button" aria-pressed={settings.latency===v}
+                className={settings.latency===v?'on':''} onClick={()=>onSettings({...settings,latency:v})}>{label}</button>)}
+            </div></div>
         </div>
       </div>
     </div>

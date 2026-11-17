@@ -111,15 +111,23 @@ class MidiCapacityTests(unittest.TestCase):
         m.fd=None
 
 
+def merge_status(whole,obj):
+    """The engine sends only what changed in its status; keep the whole, as the screen does."""
+    if any(k in obj for k in ('message','error','bridge')):return obj
+    whole.update(obj);return dict(whole)
+
+
 class BackendTests(unittest.TestCase):
     def test_project_load_discards_mutation_baselines(self):
         ctx=mp.get_context('spawn');commands=ctx.Queue();updates=ctx.Queue(64)
         proc=ctx.Process(target=diagnostic_worker,args=(commands,updates));proc.start()
+        whole={}
         def receive(predicate):
             deadline=time.monotonic()+8
             while time.monotonic()<deadline:
                 try:obj=updates.get(timeout=.2)
                 except queue.Empty:continue
+                obj=merge_status(whole,obj)
                 if predicate(obj):return obj
             self.fail('Timed out waiting for mutation load boundary')
         try:
@@ -147,12 +155,14 @@ class BackendTests(unittest.TestCase):
         ctx=mp.get_context('spawn'); commands=ctx.Queue(); updates=ctx.Queue(32)
         proc=ctx.Process(target=diagnostic_worker,args=(commands,updates)); proc.start()
         def send(c,a=None):commands.put((c,a))
+        whole={}
         def wait_for(predicate,seconds=8):
             deadline=time.monotonic()+seconds
             while time.monotonic()<deadline:
                 try:obj=updates.get(timeout=.2)
                 except queue.Empty:continue
                 self.assertNotIn('error',obj,str(obj))
+                obj=merge_status(whole,obj)
                 if predicate(obj):return obj
             self.fail('Timed out waiting for audio worker state')
         try:
@@ -194,6 +204,7 @@ class BackendTests(unittest.TestCase):
         ctx=mp.get_context('spawn');commands=ctx.Queue();updates=ctx.Queue(64)
         batch=bytes([0x90,72,110,0x80,72,0])
         proc=ctx.Process(target=diagnostic_worker,args=(commands,updates,batch));proc.start()
+        whole={}
         def receive(predicate):
             deadline=time.monotonic()+8
             while time.monotonic()<deadline:
@@ -201,6 +212,7 @@ class BackendTests(unittest.TestCase):
                 except queue.Empty:continue
                 if 'error' in obj:
                     self.assertEqual(obj['error'],'Maximum eight notes per step',obj)
+                obj=merge_status(whole,obj)
                 if predicate(obj):return obj
             self.fail('Timed out waiting for live audio worker after raw MIDI')
         try:

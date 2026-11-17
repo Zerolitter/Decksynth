@@ -1,4 +1,5 @@
 """SDL audio and Linux raw MIDI adapter, isolated from the desktop UI."""
+import pickle
 import array
 import copy
 import json as jsonlib
@@ -204,6 +205,44 @@ def raise_audio_priority():
         return 'nice -5 (no rtkit)'
     except (OSError,AttributeError,ImportError,ValueError):return 'normal priority (the system did not allow a higher one)'
 
+def status_delta(status, blobs, everything=False):
+    """The part of a status message that changed since the last one. blobs remembers each value as bytes.
+
+    The project (with every note), the libraries and the kit state make up almost all of a status message
+    and change only on an edit; sending them ten times a second kept the bridge and the screen busy for nothing."""
+    out = {}
+    for key, value in status.items():
+        blob = pickle.dumps(value, 5)
+        if everything or blobs.get(key) != blob:
+            out[key] = value; blobs[key] = blob
+    return out
+
+
+class LatencyGovernor:
+    """How much audio is kept queued ahead of the speakers (the latency you hear).
+
+    It starts at the mode's floor, grows by 256 frames after each dropout and shrinks again after a quiet
+    stretch, so a short spike costs a few seconds of extra delay, not the rest of the session.
+    low: 256 frames (5 ms) to 1024; auto: 512 (11 ms) to 2048; safe: 1024 (21 ms) to 2048."""
+    MODES = {'low': (256, 1024, 20.), 'auto': (512, 2048, 30.), 'safe': (1024, 2048, 60.)}
+    STEP = 256
+
+    def __init__(self, mode='auto', now=0.):
+        self.set_mode(mode, now)
+
+    def set_mode(self, mode, now=0.):
+        self.mode = mode if mode in self.MODES else 'auto'
+        self.floor, self.cap, self.patience = self.MODES[self.mode]
+        self.target = self.floor; self.last_event = now
+
+    def underrun(self, now):
+        self.target = min(self.cap, self.target + self.STEP); self.last_event = now
+
+    def tick(self, now):
+        if self.target > self.floor and now - self.last_event >= self.patience:
+            self.target = max(self.floor, self.target - self.STEP); self.last_event = now
+
+
 def worker(commands,updates):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
@@ -226,7 +265,8 @@ def worker(commands,updates):
     # Audio safety: a deeper buffer that grows after a dropout, no long garbage-collector pauses,
     # and a higher priority when the system allows it. dsp_load is the worst render time per block
     # over the last second, as a share of the block's own length (over 100 % means a dropout).
-    target=1024; load_peak=0.; load_shown=0.; load_since=time.monotonic()
+    status_blobs={}; last_full=0.
+    latency=LatencyGovernor('auto',time.monotonic()); load_peak=0.; load_shown=0.; load_since=time.monotonic()
     priority=raise_audio_priority()
     try:
         try:audio=Audio(); engine=Engine(audio.rate)
@@ -352,6 +392,7 @@ def worker(commands,updates):
                     elif cmd=='panic':engine.panic(); audio and audio.clear()
                     elif cmd=='record':engine.record_button()
                     elif cmd=='record_options':engine.set_record_options(*args)
+                    elif cmd=='audio_latency':latency.set_mode(args[0] if isinstance(args,(list,tuple)) and args else args,time.monotonic())
                     elif cmd=='undo':engine.undo_any()
                     elif cmd=='quantize':engine.quantize(engine.selected)
                     elif cmd=='clear':engine.snapshot(); engine.stop(); engine.project.tracks[engine.selected]['notes']=[]
@@ -538,8 +579,11 @@ def worker(commands,updates):
             for rejection in midi.poll(engine):send(dict(error=rejection))
             if audio:
                 if started and audio.queued()==0:
-                    underruns+=1; target=min(2048,target+256)
-                while audio.queued()<target:
+                    underruns+=1; latency.underrun(time.monotonic())
+                else:latency.tick(time.monotonic())
+                while audio.queued()<latency.target:
+                    # Keys are read before every block, so a key never waits for the whole queue to be topped up.
+                    for rejection in midi.poll(engine):send(dict(error=rejection))
                     t0=time.perf_counter(); block=engine.render_stereo(256)
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
@@ -569,18 +613,24 @@ def worker(commands,updates):
                 freezes=engine.freeze_status()
                 for key,job in renders.items():
                     if key!='export':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
-                send(dict(freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
+                status=dict(freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
                           drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
-                          dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(target/(audio.rate if audio else 48000)*1000,1),
+                          dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(latency.target/(audio.rate if audio else 48000)*1000,1),latency_mode=latency.mode,
                           meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,chord_step=engine.chord_step,chord_now=engine.chord_now,
                           arp_view=dict(arp_view(engine.project.performance,engine.perform_held.held(),engine.beat,engine.arp_anchor_beat),
                                         **(dict(step=-1,phase=-1) if engine.arp_paused else {}),paused=engine.arp_paused)
-                          if engine.project.performance['arp']['enabled'] else None,song_beat=round(engine.beat,4)))
+                          if engine.project.performance['arp']['enabled'] else None,song_beat=round(engine.beat,4))
+                # Only what changed is sent (the project, libraries and kits rarely do); the screen merges it into
+                # what it has. A full copy goes out every 2 s and on the first tick, so nothing can drift.
+                full_due=now-last_full>2. or not status_blobs
+                if full_due:last_full=now
+                delta=status_delta(status,status_blobs,full_due)
+                if delta:send(delta)
             time.sleep(.002)
     except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
     finally:

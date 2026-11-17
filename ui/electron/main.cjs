@@ -15,15 +15,20 @@ if (PREVIEW) app.setPath('userData',path.join(os.tmpdir(),'decksynth-preview'));
 let window = null;
 let backend = null;
 let lastMessage = { bridge: 'starting' };
+let lastStatus = null;
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
  'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_draft','drum_clear','drum_crop','drum_export','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','song','clip','perform_set','perform_step','perform_action',
- 'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','undo','quantize',
+ 'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','audio_latency','undo','quantize',
  'clear','device','audio_device','preset','parameter','edit_note','note_edit','editor_note','catalog_action','track','send','send_setting','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
  'metronome','save','load','export','export_wav','freeze','unfreeze','save_preset','load_preset']);
 
+// Status messages from the engine carry only what changed; keep the merged whole for a window that (re)loads.
+function isStatus(message) {
+  return message && typeof message === 'object' && !message.error && !message.message && !message.bridge;
+}
 function publish(message) {
-  lastMessage = message;
+  lastMessage = isStatus(message) ? (lastStatus = { ...(lastStatus || {}), ...message }) : message;
   if (window && !window.isDestroyed()) window.webContents.send('deck-message', message);
 }
 
@@ -92,7 +97,7 @@ function makeWindow() {
   });
   window.webContents.on('did-finish-load', () => {
     console.log('Decksynth: UI loaded',window.webContents.getURL());
-    window.webContents.send('deck-message', lastMessage);
+    window.webContents.send('deck-message', lastStatus || lastMessage);
     if (!window.isVisible()) { window.maximize(); window.show(); }
   });
   window.loadFile(path.join(UI_ROOT, 'dist', 'index.html')).catch(error => {
@@ -149,7 +154,7 @@ else {
     else if (op === 'minimize') { if (window.isFullScreen()) window.setFullScreen(false); window.minimize(); }
   });
   ipcMain.on('deck-snapshot-request', (event) => {
-    if (!event.sender.isDestroyed()) event.sender.send('deck-message', lastMessage);
+    if (!event.sender.isDestroyed()) event.sender.send('deck-message', lastStatus || lastMessage);
   });
   ipcMain.on('deck-command', (event, command, args) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return;

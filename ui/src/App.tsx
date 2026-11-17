@@ -192,10 +192,12 @@ function App() {
       if(obj.error){window.dispatchEvent(new CustomEvent('decksynth-command-rejected'));setToast(obj.error);setBridgeStatus('ERROR');return;}
       if(obj.message){setToast(obj.message);return;}
       if(obj.bridge==='ready'){setBridgeStatus('CONNECTED');return;}
-      if(obj.state&&typeof obj.beat==='number'){
-        setSnapshot(obj as DeckUpdate);
-        setBridgeStatus(obj.preview?'PREVIEW':'CONNECTED');
-      }
+      // The engine sends only what changed: merge it into what the screen has. The first message is complete.
+      setSnapshot(prev=>{
+        if(!prev)return obj.state&&typeof obj.beat==='number'?obj as DeckUpdate:prev;
+        return {...prev,...obj} as DeckUpdate;
+      });
+      setBridgeStatus(obj.preview?'PREVIEW':'CONNECTED');
     });
   },[]);
 
@@ -222,6 +224,7 @@ function App() {
   },[toast]);
 
   // Count-in settings live in the UI; the engine gets them whenever it (re)connects or they change.
+  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('audio_latency',[settings.latency]);},[settings.latency,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('record_options',[settings.countIn?4:0,!!settings.recWait]);},[settings.countIn,settings.recWait,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const command=useCallback((cmd:string,args:unknown=null)=>{
     if(cmd==='undo')window.dispatchEvent(new Event('decksynth-undo'));
@@ -635,7 +638,7 @@ function App() {
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
         trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>command('cleanup',c)}
-        midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus}
+        midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'Deck speakers'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
         onClose={()=>setDialog(null)}/>

@@ -13,6 +13,7 @@ proc=subprocess.Popen([sys.executable,'-u',str(ROOT/'electron'/'bridge.py')],
                       stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                       cwd=str(ROOT),env=env,bufsize=0)
 buffer=bytearray()
+merged={}   # the engine sends only what changed in its status; this is the whole, like the screen's copy
 
 def receive(predicate,timeout=12):
     end=time.monotonic()+timeout
@@ -30,6 +31,7 @@ def receive(predicate,timeout=12):
             try:
                 obj=json.loads(line)
                 if 'error' in obj:raise AssertionError(obj)
+                if not any(k in obj for k in ('message','bridge')):merged.update(obj);obj=dict(merged)
                 if predicate(obj):return obj
             except json.JSONDecodeError as exc:
                 raise AssertionError('Non-JSON stdout from bridge') from exc
