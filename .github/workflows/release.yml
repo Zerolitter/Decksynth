@@ -27,6 +27,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          # The release builder needs pip to vendor the hash-locked, pure-Python
+          # optional telemetry wheels. The archive itself still runs the user's
+          # host Python through launch.sh.
+          python-version: '3.13'
       - name: Build download
         run: packaging/release/build-release.sh "$TAG"
       - name: Attach to release

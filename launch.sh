@@ -7,6 +7,13 @@ ROOT=${DECKSYNTH_ROOT:-$SCRIPT_DIR}
 ELECTRON="$ROOT/ui/node_modules/electron/dist/electron"
 RELEASES=https://github.com/Zerolitter/Decksynth/releases/latest
 
+# GitHub Release archives contain optional, pure-Python telemetry dependencies.
+# A source checkout has no such directory and remains unchanged.
+if [ -d "$ROOT/observability" ]; then
+  export DECKSYNTH_OBSERVABILITY_PYTHONPATH="$ROOT/observability"
+  export PYTHONPATH="$DECKSYNTH_OBSERVABILITY_PYTHONPATH${PYTHONPATH:+:$PYTHONPATH}"
+fi
+
 ready() { [ -x "$ELECTRON" ] && [ -e "$ROOT/ui/dist/index.html" ]; }
 
 if ! ready; then

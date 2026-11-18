@@ -69,9 +69,13 @@ them prebuilt; in a clone `install.sh` builds them only if a C compiler is insta
 
 Run the checks with `./check.sh` (engine) and `cd ui && npm test` (UI).
 
+Optional Dash0/OpenTelemetry health telemetry is disabled by default; see
+[Observability](docs/OBSERVABILITY.md) for the GitHub Release and local
+Flatpak opt-in configuration.
+
 ### Flatpak
 
-A Flatpak (`io.github.zerolitter.Decksynth`) is in progress. The recipe is in
+A local Flatpak (`io.github.zerolitter.Decksynth`) recipe is available for users who build it themselves; DeckSynth is distributed through GitHub Releases. The recipe is in
 [`packaging/flatpak/`](packaging/flatpak/) and
 [docs/FLATPAK-DISTRIBUTION.md](docs/FLATPAK-DISTRIBUTION.md) explains it.
 

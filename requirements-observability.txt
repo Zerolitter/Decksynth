@@ -1,0 +1,10 @@
+# Optional OBS-1 telemetry only. DeckSynth never installs these into the host
+# Python; GitHub Release builds vendor the hash-locked pure-Python wheels.
+#
+# Deliberately excluded: dash0-opentelemetry. Its distribution enables a broad
+# auto-instrumentation set; OBS-1 uses explicit SDK/exporter setup instead.
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+dash0-opentelemetry-pyproto==1.44.0.post1
+dash0-opentelemetry-exporter-otlp-pyproto-common==1.44.0.post1
+dash0-opentelemetry-exporter-otlp-pyproto-http==1.44.0.post1

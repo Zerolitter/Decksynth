@@ -243,7 +243,76 @@ class LatencyGovernor:
             self.target = max(self.floor, self.target - self.STEP); self.last_event = now
 
 
-def worker(commands,updates):
+class AudioAggregatePublisher:
+    """Bounded, primitive-only worker -> bridge telemetry publication.
+
+    This class deliberately knows nothing about OpenTelemetry. `put_nowait` is
+    the only queue operation it performs, so a stalled bridge can never hold
+    the SDL queue-fill loop.
+    """
+    def __init__(self, events, report_interval_s=1.):
+        self.events = events
+        self.report_interval_s = report_interval_s
+        self.last_report = 0.
+        self.dropped_aggregates = 0
+        self.render_count = 0
+        self.render_duration_sum_s = 0.
+        self.render_duration_max_s = 0.
+        self.render_budget_overrun_count = 0
+        self.sdl_queue_empty_count = 0
+
+    def record_render(self, duration_s, budget_s):
+        self.render_count += 1
+        self.render_duration_sum_s += duration_s
+        self.render_duration_max_s = max(self.render_duration_max_s, duration_s)
+        if duration_s > budget_s:
+            self.render_budget_overrun_count += 1
+
+    def record_sdl_queue_empty(self):
+        self.sdl_queue_empty_count += 1
+
+    def snapshot(self, now, queue_frames, buffer_target_frames):
+        return dict(render_count=self.render_count, render_duration_sum_s=self.render_duration_sum_s,
+                    render_duration_max_s=self.render_duration_max_s,
+                    render_budget_overrun_count=self.render_budget_overrun_count,
+                    sdl_queue_empty_count=self.sdl_queue_empty_count,
+                    queue_frames=max(0, int(queue_frames)), buffer_target_frames=max(0, int(buffer_target_frames)),
+                    dropped_aggregate_count=self.dropped_aggregates, heartbeat_monotonic_s=now)
+
+    def publish_if_due(self, now, queue_frames, buffer_target_frames):
+        if now - self.last_report < self.report_interval_s:
+            return None
+        self.last_report = now
+        aggregate = self.snapshot(now, queue_frames, buffer_target_frames)
+        try:
+            self.events.put_nowait(dict(kind='audio_aggregate', aggregate=aggregate))
+        except queue.Full:
+            self.dropped_aggregates += 1
+            return None
+        self.dropped_aggregates = 0
+        self.render_count = 0
+        self.render_duration_sum_s = 0.
+        self.render_duration_max_s = 0.
+        self.render_budget_overrun_count = 0
+        self.sdl_queue_empty_count = 0
+        return aggregate
+
+
+def telemetry_event(events, event):
+    """Best-effort lifecycle/command event; never block the audio worker."""
+    if events is None:
+        return False
+    try:
+        events.put_nowait(event)
+        return True
+    except queue.Full:
+        return False
+
+
+_TELEMETRY_COMMANDS = {'play', 'stop', 'save', 'load', 'audio_device', 'export_wav', 'freeze', 'unfreeze'}
+
+
+def worker(commands,updates,telemetry_events=None):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
     parent=getattr(multiprocessing.parent_process(),'pid',None) or os.getppid()
@@ -271,6 +340,9 @@ def worker(commands,updates):
     status_blobs={}; last_full=0.
     latency=LatencyGovernor('auto',time.monotonic()); load_peak=0.; load_shown=0.; load_since=time.monotonic()
     priority=raise_audio_priority()
+    telemetry = AudioAggregatePublisher(telemetry_events) if telemetry_events is not None else None
+    stop_reason = 'unexpected_exit'
+    worker_started_at = time.monotonic()
     try:
         try:audio=Audio(); engine=Engine(audio.rate); engine.keep_tracks(1); engine.factory_sounds()  # a new session: 1 track
         except Exception as exc:send(dict(error='Audio unavailable: '+str(exc)))
@@ -284,6 +356,8 @@ def worker(commands,updates):
         sample_lib=engine.sample_library=SampleLibrary(data_directory(),engine.rate);sample_lib.scan()
         loader=DrumLoader(engine)
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
+        telemetry_event(telemetry_events, dict(kind='worker_lifecycle', state='started',
+                                                startup_duration_s=max(0., time.monotonic()-worker_started_at)))
         running=True
         # The worker belongs to the process that started it (the bridge). If that one dies without saying
         # quit (the app was killed), the worker is handed to another parent: stop then, so nothing keeps playing.
@@ -295,11 +369,13 @@ def worker(commands,updates):
                 if os.getppid()!=parent:running=False;break
             handled=False
             for _ in range(128):
-                try:cmd,args=commands.get_nowait()
+                try:item=commands.get_nowait()
                 except queue.Empty:break
+                cmd,args = item[:2]
+                request_id = item[2] if len(item) == 3 and cmd in _TELEMETRY_COMMANDS and type(item[2]) is int else None
                 handled=True
                 try:
-                    if cmd=='quit':running=False; break
+                    if cmd=='quit':stop_reason='stopped';running=False; break
                     elif cmd=='midi':engine.midi(*args)
                     elif cmd=='sound_gesture':engine.sound_gesture(*args)
                     elif cmd=='sound_undo':engine.sound_undo(args)
@@ -566,7 +642,11 @@ def worker(commands,updates):
                         with tempfile.TemporaryDirectory() as d:
                             f=Path(d)/'validate.json'; p.save(f); p=Project.load(f)
                         engine.snapshot(); t=engine.project.tracks[engine.selected]; t['instrument']=p.tracks[0]['instrument']; t['preset']='Custom'; engine.configure()
-                except Exception as exc:send(dict(error=str(exc)))
+                except Exception as exc:
+                    if request_id is not None:telemetry_event(telemetry_events, dict(kind='command_result', request_id=request_id, ok=False))
+                    send(dict(error=str(exc)))
+                else:
+                    if request_id is not None:telemetry_event(telemetry_events, dict(kind='command_result', request_id=request_id, ok=True))
             if not running:break
             library.poll()
             heard=sample_lib.poll()
@@ -604,12 +684,14 @@ def worker(commands,updates):
             if audio:
                 if started and audio.queued()==0:
                     underruns+=1; latency.underrun(time.monotonic())
+                    if telemetry is not None:telemetry.record_sdl_queue_empty()
                 else:latency.tick(time.monotonic())
                 while audio.queued()<latency.target:
                     # Keys are read before every block, so a key never waits for the whole queue to be topped up.
                     for rejection in midi.poll(engine):send(dict(error=rejection))
-                    t0=time.perf_counter(); block=engine.render_stereo(256)
-                    load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
+                    t0=time.perf_counter(); block=engine.render_stereo(256); render_duration=time.perf_counter()-t0
+                    load_peak=max(load_peak,render_duration*audio.rate/256)
+                    if telemetry is not None:telemetry.record_render(render_duration,256/audio.rate)
                     audio.write(block)
                     if watched:
                         left=block[::2];right=block[1::2];mono=[l+r for l,r in zip(left,right)]
@@ -617,6 +699,8 @@ def worker(commands,updates):
                         if 'spectrum' in watched:spectrum_samples.extend(mono)
                 if not started:audio.start(); started=True
             now=time.monotonic()
+            if telemetry is not None and audio is not None:
+                telemetry.publish_if_due(now, audio.queued(), latency.target)
             if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
             if now-last_status>.1:
                 last_status=now
@@ -659,7 +743,10 @@ def worker(commands,updates):
                 delta=status_delta(status,status_blobs,full_due)
                 if delta:send(delta)
             time.sleep(.002)
-    except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
+    except Exception as exc:
+        telemetry_event(telemetry_events, dict(kind='worker_exception', operation='worker_loop',
+                                                exception_type=type(exc).__name__))
+        send(dict(error='Audio worker stopped: '+str(exc)))
     finally:
         for job in renders.values():job.cancel()
         if library:library.close()
@@ -669,3 +756,4 @@ def worker(commands,updates):
         if engine is not None and hasattr(engine,'sampler_tasks'):engine.sampler_tasks.close()
         midi.close()
         if audio:audio.close()
+        telemetry_event(telemetry_events, dict(kind='worker_lifecycle', state=stop_reason))
