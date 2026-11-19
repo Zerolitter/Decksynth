@@ -95,7 +95,7 @@ A local Flatpak (`io.github.zerolitter.Decksynth`) recipe is available for users
 - `docs/` packaging and demo-kit notes.
 
 
-## Community Use & Attribution
+## community attribution request,
 
 We encourage developers to explore DeckSynth's internal code, study its implementations, and reuse or adapt its features in their own projects.
 
