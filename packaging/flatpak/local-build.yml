@@ -1,4 +1,4 @@
-# Local Flatpak build manifest for user-installed packages. DeckSynth releases through GitHub Releases.
+# Local build manifest. Human review and a clean source release are required before any Flathub submission.
 id: io.github.zerolitter.Decksynth
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'

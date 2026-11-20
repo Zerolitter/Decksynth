@@ -4,12 +4,6 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
 const { readFileSync, mkdirSync } = require('node:fs');
-const { extractTelemetryEnv, isTelemetryKey } = require('./telemetry-env.cjs');
-
-// Capture credentials only for the bridge.  Electron and its renderer retain no
-// DASH0_/OTEL_ values after this point.
-const bridgeTelemetryEnv = extractTelemetryEnv(process.env);
-for (const key of Object.keys(process.env)) if (isTelemetryKey(key)) delete process.env[key];
 
 const ROOT = path.resolve(__dirname, '../..');
 const UI_ROOT = path.resolve(__dirname, '..');
@@ -48,7 +42,7 @@ function startBackend() {
   }
   backend = spawn(process.env.DECKSYNTH_PYTHON || 'python3', ['-u', path.join(__dirname, 'bridge.py')], {
     cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...bridgeTelemetryEnv, DECKSYNTH_DEMO_KITS_DIR: path.join(UI_ROOT, 'demo-kits') },
+    env: { ...process.env, DECKSYNTH_DEMO_KITS_DIR: path.join(UI_ROOT, 'demo-kits') },
   });
   let stdout = '';
   backend.stdout.setEncoding('utf8');
