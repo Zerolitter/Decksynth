@@ -121,8 +121,45 @@ let app,page;
  for(const [i,k] of mk.entries())await inside(k,'motion knob '+(i+1));
  await p.screenshot({path:path.join(OUT,'grain-motion-'+H+'.png')});
 
+ // Rhythm: without slices the page offers Chop; with four slices it steps through them, and taps on the waveform turn slices off or reverse them.
+ await send('sampler_edit',[0,id,'patch',{g_roam:'off',g_jump:0,g_wander:0}]);
+ await pages.getByRole('radio',{name:'Rhythm',exact:true}).click();
+ await inside(card.getByRole('button',{name:/Chop the sample/}),'Chop the sample (empty Rhythm)');
+ await send('sampler_edit',[0,id,'patch',{slices:[[0,.25],[.25,.5],[.5,.75],[.75,1]],g_pos:.3,g_density:40,g_size:.06}]);
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.slices.length===4);
+ for(const name of ['Off','Skip','Hold','Gate','Flow','Random step','Ping-pong'])await inside(card.getByRole('radio',{name,exact:true}),'rhythm '+name);
+ for(const name of ['1/4','1/8','1/16','1/32','1/8t','1/16t','Pattern A','Pattern B','Pattern C','Pattern D','On/off','Reverse'])await inside(card.getByRole('radio',{name,exact:true}),'rhythm '+name);
+ for(const name of ['even','sparse','dense','random','all','invert'])await inside(card.getByRole('button',{name:'Generate '+name,exact:true}),'generate '+name);
+ const hk=await card.locator('.knob-target').all();assert.equal(hk.length,2,'Swing and Chance');for(const [i,k] of hk.entries())await inside(k,'rhythm knob '+(i+1));
+ await card.getByRole('radio',{name:'Skip',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_rhythm==='skip');
+ assert.equal(await p.locator('.smp-wave .smp-step').count(),4,'the slices show on the waveform');
+ assert.equal(await p.getByRole('button',{name:/^Position \d/}).count(),0,'Position is inside each slice now: no tag');
+ const tapAt=async f=>{const w=await p.locator('.smp-wave-shell').boundingBox();await p.mouse.click(w.x+w.width*f,w.y+w.height*.6);};
+ await tapAt(.37);await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_off)==='[[1],[],[],[]]');
+ await card.getByRole('radio',{name:'Reverse',exact:true}).click();
+ await tapAt(.62);await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_flip)==='[[2],[],[],[]]');
+ await p.mouse.move(rb.x+rb.width/2,rb.y+rb.height-14);await p.mouse.down();
+ const seen=new Set();for(let i=0;i<16;i++){await p.waitForTimeout(110);for(const k of (await p.evaluate(()=>window.__smp?.[0]?.steps??[])))seen.add(k);}
+ assert.ok(seen.has(0)&&seen.has(2)&&seen.has(3)&&!seen.has(1),'steps skip slice 2: '+[...seen]);
+ assert.ok(await p.locator('.smp-wave .smp-step.now').count()>0,'the sounding slice lights up');
+ await p.screenshot({path:path.join(OUT,'grain-rhythm-'+H+'.png')});
+ await p.mouse.up();
+ await p.waitForFunction(()=>(window.__smp?.[0]?.voices??1)===0,null,{timeout:8000});
+ await card.getByRole('button',{name:'Generate all',exact:true}).click();
+ await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_off)==='[[],[],[],[]]'&&JSON.stringify(window.__latest.state.tracks[0].sampler.g_flip)==='[[],[],[],[]]');
+
+ // Presets: twenty, one tap sets the whole grain sound (one undo step) and keeps Position and the slices.
+ await pages.getByRole('radio',{name:'Presets',exact:true}).click();
+ const pr=await card.locator('.smp-preset').all();assert.equal(pr.length,20,'twenty presets');for(const [i,b] of pr.entries())await inside(b,'preset '+(i+1));
+ await p.screenshot({path:path.join(OUT,'grain-presets-'+H+'.png')});
+ const keep=(await latest()).state.tracks[0].sampler.g_pos;
+ await card.getByRole('button',{name:'Tidal',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_roam==='bounce'&&window.__latest.state.tracks[0].sampler.g_rhythm==='off');
+ const tid=(await latest()).state.tracks[0].sampler;assert.equal(tid.g_pos,keep,'Position stays');assert.equal(tid.slices.length,4,'slices stay');assert.equal(tid.g_pulse,.8);
+
  // Leaving Grain brings Pitch and Filter back; old modes still work.
- await p.getByRole('radio',{name:'Hold',exact:true}).click();
+ await p.locator('section.smp-play').getByRole('radio',{name:'Hold',exact:true}).click();
  await p.locator('section.smp-pitch').waitFor();assert.equal(await card.count(),0,'the Grain card goes with Grain mode');
  assert.equal(await p.getByRole('radio',{name:'Grain',exact:true}).count(),1,'only the play mode is left');
  assert.deepEqual(errors,[],'no page errors');

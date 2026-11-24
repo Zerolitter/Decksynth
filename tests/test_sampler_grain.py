@@ -172,5 +172,110 @@ class GrainTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=key): validate_sampler(dict(clean, **{key: bad}))
 
 
+    QUARTERS = [[0., .25], [.25, .5], [.5, .75], [.75, 1.]]
+
+    def stepped(self, **edits):
+        spec = dict(g_rhythm='skip', g_div='1/8', slices=self.QUARTERS, g_spray=0., g_size=.03, g_density=60.)
+        spec.update(edits); return self.grain(**spec)
+
+    def walk(self, s, steps):
+        """The slice each 1/8 step reads at 120 BPM (0.25 s a step), sampled mid-step; None while gated."""
+        seen = []; length = int(R*.25)
+        self.render(length//2 - 256)
+        for _ in range(steps):
+            st = s.state()['steps']; seen.append(st[0] if st else None); self.render(length)
+        return seen
+
+    def test_rhythm_skip_steps_through_the_slices_and_skips_the_ones_that_are_off(self):
+        self.stepped(g_off=[[2], [], [], []])
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 6), [0, 1, 3, 3, 0, 1])
+
+    def test_rhythm_hold_stays_and_gate_goes_quiet(self):
+        self.stepped(g_rhythm='hold', g_off=[[1, 2], [], [], []])
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 5), [0, 0, 0, 3, 0])
+        s.panic(); self.stepped(g_rhythm='gate', g_off=[[1], [], [], []])
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 4), [0, None, 2, 3])
+
+    def test_gated_steps_are_silent(self):
+        self.stepped(g_rhythm='gate', g_off=[[1], [], [], []], release=.01)
+        s, _ = self.play(1, 60, 256)
+        length = int(R*.25); self.render(length - 256)          # step 0 sounds
+        quiet = self.render(length)                              # step 1 is gated: only the grain tails at its start
+        self.assertLess(max(map(abs, quiet[R//20:])), 1e-9)
+        loud = self.render(length)
+        self.assertGreater(max(map(abs, loud)), .01)
+
+    def test_pingpong_and_variations(self):
+        self.stepped(g_rhythm='pingpong')
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 8), [0, 1, 2, 3, 2, 1, 0, 1])
+        s.panic(); self.stepped(g_var='B', g_off=[[], [0, 1], [], []])
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 4), [2, 2, 2, 3])
+
+    def test_flipped_slices_play_their_grains_backwards(self):
+        self.stepped(g_flip=[[0], [], [], []])
+        s, _ = self.play(1, 60, R//8)
+        steps = [g.step for g in s.grains if g.active]
+        self.assertTrue(steps and all(x < 0 for x in steps))
+        self.render(R//4)
+        newest = min((g for g in s.grains if g.active), key=lambda g: g.wpos)
+        self.assertGreater(newest.step, 0, 'slice 2 plays forwards')
+
+    def test_swing_and_prob(self):
+        self.stepped(g_swing=.75)
+        s, _ = self.play(1, 60, 256)
+        length = int(R*.25)
+        self.render(length + length//4)       # a quarter into step 1: with swing it has not started yet
+        self.assertEqual(s.state()['steps'], [0])
+        self.render(length//2)
+        self.assertEqual(s.state()['steps'], [1])
+        s.panic(); self.stepped(g_prob=0.)
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(self.walk(s, 4), [0, 0, 0, 0])
+
+    def test_rhythm_needs_slices(self):
+        self.grain(g_rhythm='skip', g_pos=.4)
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(s.state()['steps'], [])
+        self.assertAlmostEqual(s.state()['playing'][0], .4, delta=.01)
+
+    def test_native_and_python_match_with_rhythm(self):
+        self.stepped(g_rhythm='flow', g_flip=[[1], [], [], []], g_off=[[2], [], [], []], g_reverse=.3, g_spread=5.)
+        s = self.e.samplers[1]
+        if s._grain_kernel is None: self.skipTest('no native grain kernel here')
+        s.on(60, 100, 'a')
+        import copy
+        twin = copy.deepcopy(s.steppers)
+        voices = (type(s.voices[0]) * len(s.voices))(); ctypes.memmove(voices, s.voices, ctypes.sizeof(s.voices))
+        clouds = (grain.Cloud * len(s.clouds))(); ctypes.memmove(clouds, s.clouds, ctypes.sizeof(s.clouds))
+        grains = (grain.Grain * len(s.grains))(); ctypes.memmove(grains, s.grains, ctypes.sizeof(s.grains))
+        n = R*3//4
+        native = [0.]*n; s.render_into(native, n)
+        python = [0.]*n; at = 0; v = voices[0]; zone = float(v.end - v.start); total = float(s.params.frames)
+        while at < n:
+            part = [0.]*256
+            if v.active:
+                pos, flags = twin[0].step(s.spec, s._e, s.rate, s.bpm, float(v.age), 256, total)
+                pos = min(float(v.end) - 1., max(float(v.start), pos))
+                clouds[0].offset = pos - float(v.start) - s._e('g_pos')*zone; clouds[0].flags = flags
+            grain.mix_grains_python(voices, clouds, s.params, s.gparams, grains, s.sample.data, part, 256)
+            python[at:at+256] = part; at += 256
+        self.assertGreater(max(map(abs, native)), .01)
+        self.assertLess(max(abs(a-b) for a, b in zip(native, python)), 1e-9)
+
+    def test_rhythm_patterns_are_checked(self):
+        clean = validate_sampler(new_sampler())
+        self.assertEqual(clean['g_off'], [[], [], [], []])
+        self.assertEqual(validate_sampler(dict(clean, g_off=[[3, 1, 3], [], [], []]))['g_off'][0], [1, 3])
+        for bad in ([[]], [[64], [], [], []], [['1'], [], [], []], 'A'):
+            with self.assertRaises(ValueError): validate_sampler(dict(clean, g_off=bad))
+        for key, bad in (('g_rhythm', 'shuffle'), ('g_div', '1/64'), ('g_var', 'E'), ('g_swing', .9)):
+            with self.assertRaises(ValueError, msg=key): validate_sampler(dict(clean, **{key: bad}))
+
+
 if __name__ == '__main__':
     unittest.main()

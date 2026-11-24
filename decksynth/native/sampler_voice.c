@@ -123,7 +123,7 @@ typedef struct {
 
 typedef struct {
     double next, offset;
-    uint32_t rng, pad;
+    uint32_t rng, flags;                  /* flags: 1 every grain backwards (a reversed slice), 2 gate closed */
 } SamplerCloud;
 
 typedef struct {
@@ -162,9 +162,10 @@ static double grain_spawn(const SamplerVoice *v, SamplerCloud *c, const SamplerG
         if (k > g->spread) k = g->spread;
     }
     double step = v->step * v->pmul * g->ratio[k + 12];
-    if (u4 < g->reverse) step = -step;
+    if ((u4 < g->reverse) != ((c->flags & 1u) != 0u)) step = -step;
     double gap = g->interval * (1.0 + g->jitter * (2.0 * u6 - 1.0));
     if (gap < 1.0) gap = 1.0;
+    if (c->flags & 2u) return gap;
     for (int i = 0; i < g->grains; ++i) {
         SamplerGrain *gr = &grains[i];
         if (gr->active) continue;

@@ -269,7 +269,7 @@ export const SAMPLER_LABELS:Record<string,string>={gain:'Gain',tune:'Tune',fine:
   f_velocity:'Filter velocity',p_decay:'Env time',g_pos:'Grain position',g_size:'Grain size',g_density:'Grain density',g_spray:'Grain spray',
   g_scan:'Grain scan',g_spread:'Grain spread',g_reverse:'Grain reverse',g_jitter:'Grain timing',g_size_rnd:'Grain size var',g_amp_rnd:'Grain level var',
   g_range:'Roam range',g_speed:'Roam speed',g_wander:'Roam wander',g_smooth:'Roam smooth',
-  g_jump:'Motion jump',g_hold:'Motion hold',g_rev:'Motion reverse',g_chaos:'Motion chaos',g_pulse:'Motion pulse'};
+  g_jump:'Motion jump',g_hold:'Motion hold',g_rev:'Motion reverse',g_chaos:'Motion chaos',g_pulse:'Motion pulse',g_swing:'Rhythm swing',g_prob:'Rhythm chance'};
 export const DRUM_LABELS:Record<string,string>={gain:'Gain',tune:'Tune',pan:'Pan',velocity:'Velocity',attack:'Attack',hold:'Hold',decay:'Decay',fade_in:'Fade in',fade_out:'Fade out',
   eq_low:'EQ low',eq_mid:'EQ mid',eq_freq:'Mid freq',eq_high:'EQ high',low_cut:'Low cut',high_cut:'High cut',drive:'Drive',comp_threshold:'Comp threshold',
   comp_ratio:'Comp ratio',comp_attack:'Comp attack',comp_release:'Comp release',comp_makeup:'Comp gain'};

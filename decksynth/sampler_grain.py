@@ -23,6 +23,13 @@ Roam (G3): the read point travels by itself while a key is held, inside the brac
   g_sync      free, or bars for one pass of the bracket at the song's BPM
   g_wander    0..1 random drift on top of the travel
   g_smooth    0..1 makes the drift slow and heavy
+Rhythm (G4): with Chop slices, the read point steps from slice to slice in time (Roam stops while it does)
+  g_rhythm    off / skip / hold / gate / flow / random / pingpong
+  g_div       step length, '1/4' .. '1/32', triplets '1/8t' '1/16t'
+  g_swing     0..0.75 every second step comes late
+  g_prob      0..1 chance that a step moves
+  g_var       which of the four patterns A-D plays
+  g_off       four lists (A-D) of slices that are off      g_flip  four lists of slices whose grains play backwards
 Motion (G3, on top of Roam; with Roam off the point only jumps and drifts): g_jump, g_hold, g_rev (random jumps, short freezes, backwards stretches),
   g_chaos (uneven timing: calm spells and bursts), g_pulse (the speed swells like breathing)
 """
@@ -35,17 +42,24 @@ WINDOWS = ('hann', 'tri', 'welch', 'perc', 'rect')
 SCALES = ('chromatic', 'major', 'minor', 'penta', 'octaves', 'fifths')
 ROAMS = ('off', 'forward', 'reverse', 'bounce')
 SYNCS = ('free', '1/4', '1/2', '1', '2', '4', '8', '16')
+RHYTHMS = ('off', 'skip', 'hold', 'gate', 'flow', 'random', 'pingpong')
+DIVS = ('1/4', '1/8', '1/16', '1/32', '1/8t', '1/16t')
+DIV_BEATS = {'1/4': 1., '1/8': .5, '1/16': .25, '1/32': .125, '1/8t': 1./3., '1/16t': 1./6.}
+VARIATIONS = ('A', 'B', 'C', 'D')
+MASKS = ('g_off', 'g_flip')
 SCALE_STEPS = dict(chromatic=tuple(range(12)), major=(0, 2, 4, 5, 7, 9, 11), minor=(0, 2, 3, 5, 7, 8, 10),
                    penta=(0, 3, 5, 7, 10), octaves=(0,), fifths=(0, 7))
 DEFAULTS = dict(g_pos=.3, g_size=.12, g_density=14., g_spray=.08, g_scan=0., g_spread=0., g_scale='chromatic',
                 g_reverse=0., g_jitter=0., g_size_rnd=0., g_amp_rnd=0., g_window='hann',
                 g_roam='off', g_range=.4, g_speed=.25, g_sync='free', g_wander=0., g_smooth=.5,
-                g_jump=0., g_hold=0., g_rev=0., g_chaos=0., g_pulse=0.)
+                g_jump=0., g_hold=0., g_rev=0., g_chaos=0., g_pulse=0.,
+                g_rhythm='off', g_div='1/8', g_swing=0., g_prob=1., g_var='A', g_off=((), (), (), ()), g_flip=((), (), (), ()))
 RANGES = dict(g_pos=(0., 1.), g_size=(.01, 1.), g_density=(1., 80.), g_spray=(0., 1.), g_scan=(-2., 2.),
               g_spread=(0., 12.), g_reverse=(0., 1.), g_jitter=(0., 1.), g_size_rnd=(0., 1.), g_amp_rnd=(0., 1.),
               g_range=(.02, 1.), g_speed=(.02, 4.), g_wander=(0., 1.), g_smooth=(0., 1.),
-              g_jump=(0., 1.), g_hold=(0., 1.), g_rev=(0., 1.), g_chaos=(0., 1.), g_pulse=(0., 1.))
-CHOICES = dict(g_scale=SCALES, g_window=WINDOWS, g_roam=ROAMS, g_sync=SYNCS)
+              g_jump=(0., 1.), g_hold=(0., 1.), g_rev=(0., 1.), g_chaos=(0., 1.), g_pulse=(0., 1.),
+              g_swing=(0., .75), g_prob=(0., 1.))
+CHOICES = dict(g_scale=SCALES, g_window=WINDOWS, g_roam=ROAMS, g_sync=SYNCS, g_rhythm=RHYTHMS, g_div=DIVS, g_var=VARIATIONS)
 KEYS = tuple(DEFAULTS)
 
 
@@ -56,7 +70,7 @@ class Grain(C.Structure):
 
 
 class Cloud(C.Structure):
-    _fields_ = [('next', C.c_double), ('offset', C.c_double), ('rng', C.c_uint32), ('pad', C.c_uint32)]
+    _fields_ = [('next', C.c_double), ('offset', C.c_double), ('rng', C.c_uint32), ('flags', C.c_uint32)]
 
 
 class GrainParams(C.Structure):
@@ -107,7 +121,7 @@ def fill(g, spec, value, rate, voices):
 
 
 def reset_cloud(cloud, seed):
-    cloud.next = 0.; cloud.offset = 0.
+    cloud.next = 0.; cloud.offset = 0.; cloud.flags = 0
     cloud.rng = (seed*2654435761 + 12345) & 0xffffffff or 1
 
 
@@ -133,9 +147,10 @@ def _spawn(v, c, g, grains, slot, at):
         k = int(u3*float(2*g.spread + 1)) - g.spread
         if k > g.spread: k = g.spread
     step = v.step*v.pmul*g.ratio[k + 12]
-    if u4 < g.reverse: step = -step
+    if (u4 < g.reverse) != bool(c.flags & 1): step = -step
     gap = g.interval*(1. + g.jitter*(2.*u6 - 1.))
     if gap < 1.: gap = 1.
+    if c.flags & 2: return gap
     for gr in grains[:g.grains]:
         if gr.active: continue
         gr.pos = centre - .5*float(frames)*step; gr.step = step
@@ -211,6 +226,63 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
 
 
 TABLES_BY_ADDRESS = {C.addressof(t): t for t in TABLES.values()}
+
+
+def valid_masks(value, slices=64):
+    """Four lists (patterns A-D) of slice numbers, each sorted and without repeats."""
+    if not isinstance(value, (list, tuple)) or len(value) != 4: raise ValueError('Invalid Rhythm pattern')
+    out = []
+    for part in value:
+        if not isinstance(part, (list, tuple)) or len(part) > 64 or any(type(i) is not int or not 0 <= i < slices for i in part):
+            raise ValueError('Invalid Rhythm pattern')
+        out.append(sorted(set(part)))
+    return out
+
+
+def stepping(spec):
+    """Whether Rhythm steps this cloud through the Chop slices."""
+    return spec.get('g_rhythm', 'off') != 'off' and bool(spec.get('slices'))
+
+
+class Stepper:
+    """Rhythm for one cloud: on each step it picks a slice; between steps grains come from Position inside that slice.
+    Steps count from the key going down, at the song's tempo."""
+    __slots__ = ('rng', 'k', 'index', 'gated', 'flow', 'order')
+
+    def __init__(self, seed):
+        import random
+        self.rng = random.Random(seed); self.k = -1; self.index = 0; self.gated = False; self.flow = 0.; self.order = 0
+
+    def step(self, spec, value, rate, bpm, age, frames, total):
+        """Returns (absolute read frame, flags) for the coming block."""
+        slices = spec['slices']; n = len(slices); var = VARIATIONS.index(spec.get('g_var', 'A'))
+        off = set(spec['g_off'][var]); flip = set(spec['g_flip'][var]); on = [i for i in range(n) if i not in off]
+        length = max(16., DIV_BEATS[spec.get('g_div', '1/8')]*60./max(1., bpm)*rate)
+        late = (2./3.)*value('g_swing')*length; pair = int(age // (2.*length)); inside = age - pair*2.*length
+        k = 2*pair + (1 if inside >= length + late else 0)
+        mode = spec['g_rhythm']
+        if k != self.k:
+            first = self.k < 0; self.k = k; self.flow = 0.
+            if first or self.rng.random() < value('g_prob'):
+                at = k % n; self.gated = False
+                if mode == 'random': self.index = self.rng.choice(on) if on else at; self.gated = not on
+                elif mode == 'pingpong':
+                    if on:
+                        span = max(1, 2*(len(on) - 1)); p = self.order % span if len(on) > 1 else 0
+                        self.index = on[p if p < len(on) else span - p]; self.order += 1
+                    else: self.gated = True
+                elif at in on or mode == 'gate': self.index = at; self.gated = at not in on
+                elif mode == 'hold': pass                                    # stay on the last slice that was on
+                else:                                                          # skip, flow: the next slice that is on
+                    nxt = [i for i in on if i > at] or on
+                    if nxt: self.index = nxt[0]
+                    else: self.gated = True
+        a, b = slices[self.index][0]*total, slices[self.index][1]*total
+        width = max(1., b - a)
+        inner = value('g_pos')*width
+        if mode == 'flow': inner = (inner + self.flow) % width; self.flow += frames
+        flags = (1 if self.index in flip else 0) | (2 if self.gated else 0)
+        return a + inner, flags
 
 
 def roaming(spec):

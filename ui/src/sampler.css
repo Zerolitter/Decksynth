@@ -510,3 +510,26 @@
 :is(.sampler-page,.drum-smp) .smp-handle.h-grain{bottom:50%}
 :is(.sampler-page,.drum-smp) .smp-handle.h-roam{top:50%}
 .smp-handle.h-roam b{top:auto;bottom:4px;left:auto;right:23px}
+
+/* G4 (24 Nov): Rhythm over the Chop slices. */
+:is(.sampler-page) .smp-rhythms button{min-width:56px}
+:is(.sampler-page) .smp-divs button,:is(.sampler-page) .smp-vars button{min-width:44px;padding:0 6px}
+.smp-generate{gap:5px}
+:is(.sampler-page) .smp-generate .smp-gen{flex:1 1 0;min-width:44px;min-height:44px;padding:0 6px;border-radius:8px;border:1px solid var(--ui-line);background:var(--ui-surface);color:var(--ui-text-hi);font-size:12px;font-weight:750}
+.smp-rhythm-row{justify-content:space-between;align-items:center}
+.sampler-page .smp-knobs.two.smp-knobs-rhythm{grid-template-columns:repeat(2,126px)}
+:is(.sampler-page) .smp-tapmode button{min-width:80px;display:flex;align-items:center;justify-content:center;gap:5px}
+.smp-rhythm-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:8px 2px;color:#c9d0d4;font-size:13px}
+.smp-rhythm-empty p{margin:0}
+.smp-wave .smp-step{fill:color-mix(in srgb,#f0c94b 7%,transparent);stroke:#f0c94b55;stroke-width:1;vector-effect:non-scaling-stroke}
+.smp-wave .smp-step.flip{fill:color-mix(in srgb,#b38cff 16%,transparent);stroke:#b38cff88}
+.smp-wave .smp-step.off{fill:#0b0d0fb0;stroke:none}
+.smp-wave .smp-step.now{fill:color-mix(in srgb,#f0c94b 24%,transparent);stroke:#f0c94b}
+.smp-wave .smp-step.flip.now{fill:color-mix(in srgb,#b38cff 32%,transparent);stroke:#b38cff}
+
+/* G5: grain presets, a grid of buttons (UI-RULES 11) coloured by kind. */
+:is(.sampler-page) .smp-grain-pages button{min-width:70px}
+.smp-grain-presets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+:is(.sampler-page) .smp-grain-presets .smp-preset{min-height:44px;padding:0 8px;border-radius:8px;border:1px solid color-mix(in srgb,var(--tool) 45%,var(--ui-line));
+  background:color-mix(in srgb,var(--tool) 10%,var(--ui-surface));color:var(--ui-text-hi);font-size:12.5px;font-weight:750;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:is(.sampler-page) .smp-grain-presets .smp-preset:hover{background:color-mix(in srgb,var(--tool) 22%,var(--ui-surface))}
