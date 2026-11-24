@@ -4,7 +4,7 @@ import { CircleDot, Eraser, Gauge, Headphones, LayoutGrid, Maximize, Minus, Powe
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
 /** knobBubble: the value that pops up over a knob while it turns (Sir, 16 Nov: can be turned off; the value box stays). */
-/** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 11 ms (grows after a dropout and shrinks back), safe 21 ms. */
+/** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 16 ms (grows after a dropout and shrinks back), safe 21 ms. */
 export type Latency = 'low'|'auto'|'safe';
 export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency;editSound:boolean};
 const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto',editSound:true};
@@ -104,7 +104,7 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
         <h3><Gauge size={15}/> Latency{bufferMs!==undefined?' · '+bufferMs+' ms now':''}</h3>
         <div className="setting-rec">
           <div className="setting-choice" role="group" aria-label="Latency"
-            title="Low: keys answer in about 5 ms, a busy song can click. Auto: about 11 ms, steps up after a dropout and back down after 30 quiet seconds. Safe: at least 21 ms, the most room for big songs."><strong>Buffer</strong>
+            title="Low: keys answer in about 5 ms, a busy song can click. Auto: about 16 ms, steps up after a dropout and back down after 2 quiet minutes. Safe: at least 21 ms, the most room for big songs."><strong>Buffer</strong>
             <div className="setting-seg">
               {([['low','Low'],['auto','Auto'],['safe','Safe']] as const).map(([v,label])=><button key={v} type="button" aria-pressed={settings.latency===v}
                 className={settings.latency===v?'on':''} onClick={()=>onSettings({...settings,latency:v})}>{label}</button>)}

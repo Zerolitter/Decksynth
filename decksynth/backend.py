@@ -223,8 +223,10 @@ class LatencyGovernor:
 
     It starts at the mode's floor, grows by 256 frames after each dropout and shrinks again after a quiet
     stretch, so a short spike costs a few seconds of extra delay, not the rest of the session.
-    low: 256 frames (5 ms) to 1024; auto: 512 (11 ms) to 2048; safe: 1024 (21 ms) to 2048."""
-    MODES = {'low': (256, 1024, 20.), 'auto': (512, 2048, 30.), 'safe': (1024, 2048, 60.)}
+    low: 256 frames (5 ms) to 1024; auto: 768 (16 ms) to 2048; safe: 1024 (21 ms) to 2048.
+    Auto started at 512 and shrank back after 30 s until 24 Nov: on a busy Deck a slow block (9-12 ms measured) then
+    emptied the queue about twice a minute, which can be heard as a click. It now starts one step up and waits 2 minutes."""
+    MODES = {'low': (256, 1024, 20.), 'auto': (768, 2048, 120.), 'safe': (1024, 2048, 60.)}
     STEP = 256
 
     def __init__(self, mode='auto', now=0.):
