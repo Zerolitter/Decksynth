@@ -105,3 +105,151 @@ void sampler_mix(SamplerVoice *voices, int count, const SamplerParams *p, double
         }
     }
 }
+
+/* ---- Grain mode (24 Nov) ----------------------------------------------------------------------
+ * Each held key is a "cloud": many short overlapping grains read from the voice's region around a
+ * read point (Position plus how far Scan has moved it). The cloud then goes through the same
+ * filter, amp envelope and steal fade as a normal voice. Grains start on the exact frame.
+ * Window shapes and the pitch steps of Spread (already snapped to the scale) come from Python as
+ * tables, and random numbers from a small xorshift per cloud, so this part needs no libm either.
+ * The Python fallback (sampler.mix_grains_python) runs the same arithmetic in the same order. */
+#define GRAIN_WINDOW 1024
+
+typedef struct {
+    double pos, step, amp, wpos, winc;
+    int64_t left, delay;
+    int32_t active, voice, pad0, pad1;
+} SamplerGrain;
+
+typedef struct {
+    double next, offset;
+    uint32_t rng, flags;                  /* flags: 1 every grain backwards (a reversed slice), 2 gate closed */
+} SamplerCloud;
+
+typedef struct {
+    const double *window;                 /* GRAIN_WINDOW + 1 points */
+    double position, size, interval, spray, scan, jitter, size_rnd, amp_rnd, reverse, level;
+    double ratio[25];                     /* pitch ratio for a spread of -12..12 semitones */
+    int32_t spread, grains;
+} SamplerGrainParams;
+
+size_t sampler_grain_size(void) { return sizeof(SamplerGrain); }
+size_t sampler_cloud_size(void) { return sizeof(SamplerCloud); }
+size_t sampler_grain_params_size(void) { return sizeof(SamplerGrainParams); }
+
+static double grain_rnd(SamplerCloud *c) {
+    uint32_t x = c->rng;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    c->rng = x;
+    return (double)(x >> 8) * (1.0 / 16777216.0);
+}
+
+/* A new grain for voice `slot`, starting `at` frames into this block. Returns the next gap in frames. */
+static double grain_spawn(const SamplerVoice *v, SamplerCloud *c, const SamplerGrainParams *g, SamplerGrain *grains,
+                          int slot, int at) {
+    double u1 = grain_rnd(c), u2 = grain_rnd(c), u3 = grain_rnd(c), u4 = grain_rnd(c), u5 = grain_rnd(c), u6 = grain_rnd(c);
+    double zone = (double)(v->end - v->start);
+    double o = g->position * zone + c->offset;
+    while (o >= zone) o -= zone;
+    while (o < 0.0) o += zone;
+    double centre = (double)v->start + o + g->spray * (2.0 * u1 - 1.0) * 0.5 * zone;
+    double len = g->size * (1.0 + g->size_rnd * (1.75 * u2 - 0.75));
+    if (len < 16.0) len = 16.0;
+    int64_t frames = (int64_t)len;
+    int k = 0;
+    if (g->spread > 0) {
+        k = (int)(u3 * (double)(2 * g->spread + 1)) - g->spread;
+        if (k > g->spread) k = g->spread;
+    }
+    double step = v->step * v->pmul * g->ratio[k + 12];
+    if ((u4 < g->reverse) != ((c->flags & 1u) != 0u)) step = -step;
+    double gap = g->interval * (1.0 + g->jitter * (2.0 * u6 - 1.0));
+    if (gap < 1.0) gap = 1.0;
+    if (c->flags & 2u) return gap;
+    for (int i = 0; i < g->grains; ++i) {
+        SamplerGrain *gr = &grains[i];
+        if (gr->active) continue;
+        gr->pos = centre - 0.5 * (double)frames * step;
+        gr->step = step;
+        gr->amp = g->level * (1.0 - g->amp_rnd * u5);
+        gr->wpos = 0.0;
+        gr->winc = (double)GRAIN_WINDOW / (double)frames;
+        gr->left = frames;
+        gr->delay = at;
+        gr->voice = slot;
+        gr->active = 1;
+        break;
+    }
+    return gap;
+}
+
+void sampler_grain_mix(SamplerVoice *voices, SamplerCloud *clouds, int count, const SamplerParams *p,
+                       const SamplerGrainParams *g, SamplerGrain *grains, double *out, int frames) { ds_ftz();
+    if (!p->data || !g->window || count < 0 || count > 64 || frames < 0 || frames > 4096 || g->grains < 0 || g->grains > 1024) return;
+    double buf[4096];
+    for (int slot = 0; slot < count; ++slot) {
+        SamplerVoice *v = &voices[slot];
+        if (!v->active) continue;
+        SamplerCloud *c = &clouds[slot];
+        double zone = (double)(v->end - v->start);
+        if (zone < 2.0) { v->active = 0; continue; }
+        double t = c->next;
+        while (t < (double)frames) t += grain_spawn(v, c, g, grains, slot, (int)t);
+        c->next = t - (double)frames;
+        c->offset += g->scan * (double)frames;
+        while (c->offset >= zone) c->offset -= zone;
+        while (c->offset < 0.0) c->offset += zone;
+        for (int f = 0; f < frames; ++f) buf[f] = 0.0;
+        for (int i = 0; i < g->grains; ++i) {
+            SamplerGrain *gr = &grains[i];
+            if (!gr->active || gr->voice != slot) continue;
+            for (int64_t f = gr->delay; f < frames && gr->left > 0; ++f) {
+                int w = (int)gr->wpos;
+                double frac = gr->wpos - (double)w;
+                double shape = g->window[w] + (g->window[w + 1] - g->window[w]) * frac;
+                buf[f] += interp(p, v, gr->pos) * shape * gr->amp;
+                gr->pos += gr->step; gr->wpos += gr->winc; --gr->left;
+            }
+            gr->delay = 0;
+            if (gr->left <= 0) gr->active = 0;
+        }
+        for (int f = 0; f < frames; ++f) {
+            double value = buf[f];
+            if (p->filter > 0) {
+                double v3 = value - v->ic2;
+                double v1 = v->a1 * v->ic1 + v->a2 * v3;
+                double v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
+                v->ic1 = 2.0 * v1 - v->ic1;
+                v->ic2 = 2.0 * v2 - v->ic2;
+                value = p->filter == 1 ? v2 : p->filter == 2 ? v1 : value - v->k * v1 - v2;
+            }
+            if (v->stage == 0) {
+                v->env += p->attack;
+                if (v->env >= 1.0) { v->env = 1.0; v->stage = 1; }
+            } else if (v->stage == 1) {
+                v->env -= p->decay;
+                if (v->env <= p->sustain) { v->env = p->sustain; v->stage = 2; }
+            } else if (v->stage == 3) {
+                v->env -= v->rel;
+                if (v->env <= 0.0) { v->env = 0.0; v->active = 0; }
+            }
+            value *= v->env * v->gain;
+            if (v->fade_left >= 0) {
+                value *= (double)v->fade_left / (double)v->fade_len;
+                if (--v->fade_left < 0) v->active = 0;
+            }
+            out[f] += value;
+            if (v->glide != 0.0) {
+                v->step += v->glide;
+                if ((v->glide > 0.0 && v->step >= v->target) || (v->glide < 0.0 && v->step <= v->target)) {
+                    v->step = v->target; v->glide = 0.0;
+                }
+            }
+            ++v->age;
+            if (!v->active) break;
+        }
+        v->pos = (double)v->start + c->offset;
+        if (!v->active)
+            for (int i = 0; i < g->grains; ++i) if (grains[i].voice == slot) grains[i].active = 0;
+    }
+}

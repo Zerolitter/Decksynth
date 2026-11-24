@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowRight, ArrowUp, AudioWaveform, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -11,7 +11,7 @@ import { ValueBox, parseNote } from './ValueBox';
 import { type Env } from './EnvEditor';
 import { FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
-import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode } from '../types';
+import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv, type GrainHarm } from '../types';
 import '../sampler.css';
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -37,14 +37,115 @@ function FilterIcon({ shape }: { shape: FilterShape }) {
     <path className="axis" d="M2 16 H28" /><path className="curve" d={FILTER_PATH[shape]} /></svg>;
 }
 /** Tool colours, as on the SEQ panel's rail: a coloured icon and a short label. */
-const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
+const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', grain: '#f0c94b', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
 const tool = (k: keyof typeof TOOL_COLOR) => ({ ['--tool' as string]: TOOL_COLOR[k] });
 const hz = (f: number) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz';
 const MODES: [SamplerMode, string, string][] = [
   ['oneshot', 'One shot', 'Plays to the end, whatever the key does'],
   ['hold', 'Hold', 'Plays while the key is held, then the release'],
   ['loop', 'Loop', 'Repeats the loop while the key is held'],
+  ['grain', 'Grain', 'Every key plays a cloud of short grains from around Position (Grain tab)'],
 ];
+/** Grain mode: the fade of each grain, drawn (as the filter types are), and the steps Spread may land on. */
+const WINDOWS: [GrainWindow, string, string, string][] = [
+  ['hann', 'Soft', 'M2 16 C8 16 9 3 15 3 C21 3 22 16 28 16', 'Soft: a smooth bell, the classic grain'],
+  ['tri', 'Tri', 'M2 16 L15 3 L28 16', 'Triangle: straight in and out'],
+  ['welch', 'Round', 'M2 16 C4 4 9 3 15 3 C21 3 26 4 28 16', 'Round: fuller in the middle'],
+  ['perc', 'Hit', 'M2 16 L3 3 C8 7 16 13 28 16', 'Hit: a fast attack and a decay, percussive grains'],
+  ['rect', 'Flat', 'M2 16 L3 3 H27 L28 16', 'Flat: full level with tiny fades, grainy and dense'],
+];
+const SCALES: [GrainScale, string, string][] = [
+  ['chromatic', 'All', 'Spread may land on any semitone'], ['major', 'Maj', 'Spread lands on a major scale from the played note'],
+  ['minor', 'Min', 'Spread lands on a minor scale from the played note'], ['penta', 'Pent', 'Spread lands on a minor pentatonic scale'],
+  ['octaves', 'Oct', 'Spread jumps only in octaves'], ['fifths', '5th', 'Spread lands on fifths and octaves'],
+];
+/** Harmony (24 Nov): which notes the sample holds. Spread then only uses shifts that keep all of them in the key
+    (major or minor on the sample's root); the same rule as sampler_grain.harmony. */
+const HARMS: [GrainHarm, string, string][] = [
+  ['off', 'Off', 'Harmony off: Spread follows the scale on the Grain page'],
+  ['root', 'Root', 'The sample is one note, its root'], ['fifth', 'Fifth', 'The sample holds its root and the fifth'],
+  ['triad', 'Triad', 'The sample is a chord: root, third and fifth'], ['scale', 'Scale', 'The sample uses the whole scale (only octaves fit then)'],
+  ['own', 'Own notes', 'Pick the notes the sample holds yourself'],
+];
+const KEY_STEPS = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+function harmonySteps(spec: SamplerSpec): number[] | null {
+  const held = spec.g_harm ?? 'off'; if (held === 'off') return null;
+  const minor = spec.g_kmode === 'minor', key = KEY_STEPS[minor ? 'minor' : 'major'];
+  const notes = held === 'root' ? [0] : held === 'fifth' ? [0, 7] : held === 'triad' ? (minor ? [0, 3, 7] : [0, 4, 7]) : held === 'scale' ? key : (spec.g_notes?.length ? spec.g_notes : [0]);
+  return Array.from({ length: 12 }, (_, s) => s).filter(s => s === 0 || notes.every(n => key.includes((n + s) % 12)));
+}
+const pitchName = (n: number) => noteName(n).replace(/-?\d+$/, '');
+const ROAMS: [GrainRoam, string, typeof ArrowRight, string][] = [
+  ['off', 'Off', Ban, 'Roam off: grains stay around Position (Jump and Wander can still move it)'],
+  ['forward', 'Forward', ArrowRight, 'Roam forward through the bracket, then start again'],
+  ['reverse', 'Reverse', ArrowLeft, 'Roam backwards through the bracket'],
+  ['bounce', 'Bounce', ArrowLeftRight, 'Roam to the end of the bracket and back'],
+];
+const SYNCS: [GrainSync, string, string][] = [
+  ['free', 'Free', 'Free speed: the Speed knob sets it'], ['1/4', '¼', 'One pass every quarter bar'], ['1/2', '½', 'One pass every half bar'],
+  ['1', '1', 'One pass a bar'], ['2', '2', 'One pass every 2 bars'], ['4', '4', 'One pass every 4 bars'], ['8', '8', 'One pass every 8 bars'],
+  ['16', '16', 'One pass every 16 bars'],
+];
+const RHYTHMS: [GrainRhythm, string, string][] = [
+  ['off', 'Off', 'Rhythm off: Position, Roam and Motion place the grains'],
+  ['skip', 'Skip', 'Each step moves to the next slice; slices that are off are skipped'],
+  ['hold', 'Hold', 'Each step moves to its slice; on a slice that is off it stays where it was'],
+  ['gate', 'Gate', 'Each step moves to its slice; slices that are off are silent'],
+  ['flow', 'Flow', 'Like Skip, but the grains travel on through the slice between steps'],
+  ['random', 'Rand', 'Each step picks a random slice that is on'],
+  ['pingpong', 'Ping', 'Forwards through the slices that are on, then back'],
+];
+const DIVS: [GrainDiv, string, string][] = [
+  ['1/4', '¼', 'A step every quarter note'], ['1/8', '⅛', 'A step every eighth note'], ['1/16', '1/16', 'A step every sixteenth note'],
+  ['1/32', '1/32', 'A step every 32nd note'], ['1/8t', '⅛T', 'Eighth-note triplets'], ['1/16t', '1/16T', 'Sixteenth-note triplets'],
+];
+const VARS = ['A', 'B', 'C', 'D'] as const;
+const NO_MASKS = [[], [], [], []] as number[][];
+/** Rhythm's Generate: which slices are on, as a fresh list of the ones that are off. */
+const GENERATE: [string, string, (n: number, off: Set<number>) => number[]][] = [
+  ['Even', 'Every other slice on', n => [...Array(n).keys()].filter(i => i % 2)],
+  ['Sparse', 'About a third of the slices on', n => { const on = [...Array(n).keys()].filter(() => Math.random() < .33); if (!on.length) on.push(0); return [...Array(n).keys()].filter(i => !on.includes(i)); }],
+  ['Dense', 'About three quarters of the slices on', n => [...Array(n).keys()].filter(i => i && Math.random() < .25)],
+  ['Random', 'Each slice on or off at random', n => [...Array(n).keys()].filter(i => i && Math.random() < .5)],
+  ['All', 'Every slice on, and none reversed', () => []],
+  ['Invert', 'Slices that are on go off, and the other way round', (n, off) => [...Array(n).keys()].filter(i => !off.has(i))],
+];
+/** Grain presets (G5): a whole grain setting in one tap, on whatever sample is loaded. Position and the Rhythm patterns stay
+    (they belong to the sample); everything else starts from the grain defaults. One tap is one undo step. */
+const GRAIN_BASE: Partial<SamplerSpec> = { g_size: .12, g_density: 14, g_spray: .08, g_scan: 0, g_spread: 0, g_scale: 'chromatic', g_reverse: 0, g_jitter: 0,
+  g_size_rnd: 0, g_amp_rnd: 0, g_window: 'hann', g_roam: 'off', g_range: .4, g_speed: .25, g_sync: 'free', g_wander: 0, g_smooth: .5, g_jump: 0, g_hold: 0,
+  g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1 };
+const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
+  ['Cloud Pad', 'pad', 'Long soft grains, a slow swell', { g_size: .25, g_density: 20, g_spray: .15, attack: .4, release: 1.2 }],
+  ['Shimmer', 'pad', 'Octaves above and below, drifting forward', { g_size: .2, g_density: 30, g_spray: .1, g_spread: 12, g_scale: 'octaves', g_roam: 'forward', g_speed: .05, g_range: .3, attack: .3, release: 1.5 }],
+  ['Glass Choir', 'pad', 'Fifths and octaves, round grains', { g_size: .3, g_density: 24, g_spread: 7, g_scale: 'fifths', g_window: 'welch', attack: .5, release: 1.5 }],
+  ['Major Bloom', 'pad', 'A cloud on a major scale', { g_size: .15, g_density: 35, g_spread: 12, g_scale: 'major', g_amp_rnd: .4, attack: .2, release: 1 }],
+  ['Minor Haze', 'pad', 'A minor-scale haze with some grains backwards', { g_size: .18, g_density: 28, g_spray: .2, g_spread: 7, g_scale: 'minor', g_reverse: .3, attack: .3, release: 1.2 }],
+  ['Frozen', 'drone', 'Holds one moment of the sample', { g_size: .4, g_density: 25, g_spray: .02, g_jitter: .3, attack: .2, release: .8 }],
+  ['Slow Drift', 'drone', 'Wanders slowly through most of the sample', { g_size: .35, g_density: 18, g_roam: 'forward', g_speed: .05, g_range: .8, g_wander: .4, g_smooth: .8, attack: .5, release: 1.5 }],
+  ['Tidal', 'drone', 'Bounces back and forth, breathing', { g_size: .25, g_density: 22, g_roam: 'bounce', g_speed: .3, g_range: .6, g_pulse: .8, attack: .3, release: 1 }],
+  ['Backwards Tape', 'drone', 'Every grain backwards, rolling back', { g_size: .3, g_density: 16, g_reverse: 1, g_roam: 'reverse', g_speed: .5, g_range: .5, release: .8 }],
+  ['Wanderer', 'drone', 'Drifts and jumps around Position', { g_size: .2, g_density: 20, g_range: .6, g_wander: .8, g_smooth: .9, g_jump: .2, release: 1 }],
+  ['Dust', 'texture', 'Tiny flat grains scattered everywhere', { g_size: .02, g_density: 60, g_spray: .6, g_window: 'rect', g_amp_rnd: .8, g_jitter: 1 }],
+  ['Swarm', 'texture', 'A dense buzz of short, detuned grains', { g_size: .04, g_density: 80, g_spray: .4, g_spread: 3, g_jitter: .7 }],
+  ['Scatter', 'texture', 'Grains from anywhere, half of them backwards', { g_size: .08, g_density: 25, g_spray: 1, g_reverse: .5, g_size_rnd: .5 }],
+  ['Grain Hits', 'texture', 'Sparse percussive grains', { g_size: .05, g_density: 8, g_spray: .3, g_window: 'perc', g_jitter: .5 }],
+  ['Glitch Jumps', 'glitch', 'Plays through, jumping and freezing', { g_size: .05, g_density: 40, g_window: 'perc', g_roam: 'forward', g_speed: 1, g_range: 1, g_jump: .8, g_hold: .6, g_chaos: .8 }],
+  ['Hiccup', 'glitch', 'Stops and turns back at random', { g_size: .08, g_density: 30, g_roam: 'forward', g_speed: 1, g_range: 1, g_hold: 1, g_rev: .5, g_chaos: 1 }],
+  ['Slice Skip', 'rhythm', 'Steps through the Chop slices in eighths', { g_size: .1, g_density: 30, g_spray: .02, g_rhythm: 'skip', g_div: '1/8' }],
+  ['Gated 16ths', 'rhythm', 'Sixteenths through the slices, some steps stay', { g_size: .06, g_density: 50, g_spray: .02, g_window: 'rect', g_rhythm: 'gate', g_div: '1/16', g_prob: .8 }],
+  ['Random Chops', 'rhythm', 'A random slice each sixteenth, swung', { g_size: .07, g_density: 40, g_window: 'perc', g_rhythm: 'random', g_div: '1/16', g_swing: .3 }],
+  ['Ping Flow', 'rhythm', 'Through the slices and back, flowing', { g_size: .12, g_density: 30, g_rhythm: 'pingpong', g_div: '1/8' }],
+];
+const PRESET_COLOR: Record<string, string> = { pad: '#f0c94b', drone: '#61e3bf', texture: '#a7b4ff', glitch: '#ff8f5c', rhythm: '#e47cf5' };
+/** Rhythm steps the read point through the Chop slices. */
+const stepping = (s: SamplerSpec) => (s.g_rhythm ?? 'off') !== 'off' && (s.slices?.length ?? 0) > 0;
+/** Roam or Motion moves the read point inside the bracket Position .. Position + Range. */
+const roaming = (s: SamplerSpec) => (s.g_roam ?? 'off') !== 'off' || (s.g_jump ?? 0) > 0 || (s.g_wander ?? 0) > 0;
+function WindowIcon({ path }: { path: string }) {
+  return <svg className="smp-filter-icon" viewBox="0 0 30 19" width={30} height={19} aria-hidden="true">
+    <path className="axis" d="M2 16 H28" /><path className="curve" d={path} /></svg>;
+}
 export const familyColor = (family?: string) => DRUM_KINDS[(family as DrumKind) in DRUM_KINDS ? family as DrumKind : 'other'].color;
 
 type Edit = (key: string, value: unknown) => void;
@@ -64,11 +165,14 @@ const fitView = (a: number, b: number): [number, number] => {
     Works like the MIDI editor: wheel scrolls, Ctrl+wheel zooms at the pointer, middle-drag (or a one-finger drag when zoomed)
     pans, two fingers pinch. Keys: F fit, Z zoom to the slice, + / − zoom, ← / → previous / next slice, S split, J join,
     Delete removes the slice's start edge, Space / Enter plays it. Every handle has a 44 px hit zone; one drag is one undo step. */
-export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit, onView, onChop, onAudition, onLibrary }: {
-  spec: SamplerSpec; runtime?: SamplerRuntime | null; mode: 'trim' | 'chop'; selected: number; marker: number | null;
-  onSelect(index: number, at: number): void; onEdit: Edit; onView(a: number, b: number): void;
+export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, onEdit, onLive, onView, onChop, onAudition, onLibrary, onSliceTap, tapFlip }: {
+  spec: SamplerSpec; runtime?: SamplerRuntime | null; mode: 'trim' | 'chop' | 'grain'; selected: number; marker: number | null;
+  onSliceTap?(index: number): void; tapFlip?: boolean;
+  onSelect(index: number, at: number): void; onEdit: Edit; onLive?: Edit; onView(a: number, b: number): void;
   onChop(mode: string, options?: Record<string, unknown>): void; onAudition(index: number): void; onLibrary?(slice: number): void;
 }) {
+  // Live input: the window is the last 8 s of the input; Position counts back from now, and Roam / Rhythm rest.
+  if (runtime?.live && mode === 'grain') spec = { ...spec, start: 0, end: 1, g_roam: 'off', g_jump: 0, g_wander: 0, g_rhythm: 'off' };
   const slices = spec.slices ?? [];
   const trim0 = (): Record<TrimKey, number> => ({ start: spec.start, end: spec.end, loop_start: spec.loop_start, loop_end: spec.loop_end });
   const [trimDraft, setTrimDraft] = useState<Partial<Record<TrimKey, number>> | null>(null);
@@ -81,6 +185,18 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
   const pinch = useRef<{ dist: number; mid: number; a: number; b: number } | null>(null);
   const sendView = useRef<{ timer?: number; next?: [number, number] }>({});
   const t = { ...trim0(), ...trimDraft };
+  // Grain: Position is a tag inside the trimmed part; dragging it is heard at once and is one undo step on release.
+  const [posDraft, setPosDraft] = useState<number | null>(null);
+  const gdrag = useRef<{ left: number; width: number; x: number; moved: boolean; value: number; key: 'g_pos' | 'g_range' } | null>(null);
+  const [rangeDraft, setRangeDraft] = useState<number | null>(null);
+  const gpos = posDraft ?? spec.g_pos ?? .3, zoneU = Math.max(1e-6, spec.end - spec.start);
+  const posAt = spec.start + gpos * zoneU, sprayU = (spec.g_spray ?? .08) * .5 * zoneU;
+  const toPos = (u: number) => Math.round(Math.max(0, Math.min(1, (u - spec.start) / zoneU)) * 1e4) / 1e4;
+  const steps = stepping(spec), vi = Math.max(0, VARS.indexOf(spec.g_var ?? 'A'));
+  const offs = new Set((spec.g_off ?? NO_MASKS)[vi] ?? []), flips = new Set((spec.g_flip ?? NO_MASKS)[vi] ?? []), now = new Set(runtime?.steps ?? []);
+  const roams = !steps && roaming(spec), grange = rangeDraft ?? spec.g_range ?? .4, gEnd = gpos + grange;
+  const roamEndAt = spec.start + (gEnd > 1 + 1e-9 ? gEnd - 1 : gEnd) * zoneU;
+  const toRange = (u: number) => { let r = toPos(u) - gpos; if (r < .02) r += 1; return Math.round(Math.max(.02, Math.min(1, r)) * 1e4) / 1e4; };
   const shown = sliceDraft ?? slices;
   const looping = spec.mode === 'loop' && mode === 'trim';
   const pv = runtime?.view ?? [0, 1];
@@ -225,6 +341,7 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
     touches.current.delete(e.pointerId); if (touches.current.size < 2) pinch.current = null;
     const p = pan.current; if (!p || p.id !== e.pointerId) return; pan.current = null;
     if (!p.moved && p.tap && mode === 'chop') { const at = toU(e.clientX); onSelect(slices.findIndex(([a, b]) => at >= a && at < b), at); }
+    else if (!p.moved && p.tap && mode === 'grain' && steps && onSliceTap) { const at = toU(e.clientX), i = slices.findIndex(([a, b]) => at >= a && at < b); if (i >= 0) onSliceTap(i); }
   };
   const key = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;   // a focused handle nudges
@@ -277,7 +394,18 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
           x={x(a) * W} y={0} width={Math.max(.5, (x(b) - x(a)) * W)} height={120} />) : null}
         <path d="M0 60H512" className="smp-zero" />
         <path className="smp-wave-fill" d={wavePath(peaks, u => x(u) * W, pv[0], pspan)} />
-        {mode === 'trim' ? <>
+        {mode === 'grain' ? <>
+          <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(spec.start) * W)} height={120} />
+          <rect className="smp-cut" x={x(spec.end) * W} y={0} width={Math.max(0, (1 - x(spec.end)) * W)} height={120} />
+          {steps ? slices.map(([a, b], i) => <rect key={'st' + i} className={'smp-step' + (offs.has(i) ? ' off' : '') + (flips.has(i) ? ' flip' : '') + (now.has(i) ? ' now' : '')}
+            x={x(a) * W + .5} y={0} width={Math.max(.5, (x(b) - x(a)) * W - 1)} height={120} />) : null}
+          {roams ? (gEnd <= 1 ? [[posAt, roamEndAt]] : [[posAt, spec.end], [spec.start, roamEndAt]]).map(([a, b], i) =>
+            <rect key={'r' + i} className="smp-roam" x={x(a) * W} y={0} width={Math.max(.5, (x(b) - x(a)) * W)} height={120} />) : null}
+          {roams && visible(roamEndAt) ? <line className="smp-edge roam" x1={x(roamEndAt) * W} x2={x(roamEndAt) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
+          {steps ? null : <rect className="smp-spray" x={x(Math.max(spec.start, posAt - sprayU)) * W} y={0} width={Math.max(.5, (x(Math.min(spec.end, posAt + sprayU)) - x(Math.max(spec.start, posAt - sprayU))) * W)} height={120} />}
+          {(runtime?.grains ?? []).map((at, i) => visible(at) ? <line key={'g' + i} className="smp-grain-tick" x1={x(at) * W} x2={x(at) * W} y1={84 + (i * 7) % 30} y2={92 + (i * 7) % 30} vectorEffect="non-scaling-stroke" /> : null)}
+          {!steps && visible(posAt) ? <line className="smp-edge grain" x1={x(posAt) * W} x2={x(posAt) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
+        </> : mode === 'trim' ? <>
           <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(t.start) * W)} height={120} />
           <rect className="smp-cut" x={x(t.end) * W} y={0} width={Math.max(0, (1 - x(t.end)) * W)} height={120} />
           {looping ? <rect className="smp-loop" x={x(t.loop_start) * W} y={0} width={(x(t.loop_end) - x(t.loop_start)) * W} height={120} /> : null}
@@ -297,6 +425,28 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
         {looping ? <>{handle({ kind: 'trim', key: 'loop_start' }, 'Loop', t.loop_start, 'h-loop_start', 'Loop')}
           {handle({ kind: 'trim', key: 'loop_end' }, 'Loop end', t.loop_end, 'h-loop_end', 'Loop end')}</> : null}
       </> : null}
+      {peaks.length && mode === 'grain' && !steps && visible(posAt) ? <button type="button" className="smp-handle h-grain" style={{ left: pct(posAt) }}
+        aria-label={'Position ' + Math.round(gpos * 100) + '%'} title="Position: where the grains come from. Drag it; arrow keys nudge"
+        onPointerDown={e => { if (e.button !== 0) return; e.stopPropagation(); const box = shell.current!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
+          gdrag.current = { left: box.left, width: box.width, x: e.clientX, moved: false, value: gpos, key: 'g_pos' }; }}
+        onPointerMove={e => { const d = gdrag.current; if (!d || (!d.moved && Math.abs(e.clientX - d.x) < 3)) return; d.moved = true;
+          d.value = toPos(toU(e.clientX, d.left, d.width)); setPosDraft(d.value); onLive?.('g_pos', d.value); }}
+        onPointerUp={() => { const d = gdrag.current; gdrag.current = null; setPosDraft(null); if (d?.moved) onEdit('g_pos', d.value); }}
+        onPointerCancel={() => { const d = gdrag.current; gdrag.current = null; setPosDraft(null); if (d?.moved) onLive?.('g_pos', spec.g_pos ?? .3); }}
+        onKeyDown={e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation();
+          const step = (e.shiftKey ? .1 : e.ctrlKey ? .001 : .01) * (e.key === 'ArrowLeft' ? -1 : 1); onEdit('g_pos', Math.round(Math.max(0, Math.min(1, gpos + step)) * 1e4) / 1e4); }}>
+        <i /><b>Position</b></button> : null}
+      {peaks.length && mode === 'grain' && roams && visible(roamEndAt) ? <button type="button" className="smp-handle h-roam" style={{ left: pct(roamEndAt) }}
+        aria-label={'Roam end ' + Math.round(grange * 100) + '%'} title="Roam end: how far the grains travel from Position. Drag it; arrow keys nudge"
+        onPointerDown={e => { if (e.button !== 0) return; e.stopPropagation(); const box = shell.current!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
+          gdrag.current = { left: box.left, width: box.width, x: e.clientX, moved: false, value: grange, key: 'g_range' }; }}
+        onPointerMove={e => { const d = gdrag.current; if (!d || (!d.moved && Math.abs(e.clientX - d.x) < 3)) return; d.moved = true;
+          d.value = toRange(toU(e.clientX, d.left, d.width)); setRangeDraft(d.value); onLive?.('g_range', d.value); }}
+        onPointerUp={() => { const d = gdrag.current; gdrag.current = null; setRangeDraft(null); if (d?.moved) onEdit('g_range', d.value); }}
+        onPointerCancel={() => { const d = gdrag.current; gdrag.current = null; setRangeDraft(null); if (d?.moved) onLive?.('g_range', spec.g_range ?? .4); }}
+        onKeyDown={e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation();
+          const step = (e.shiftKey ? .1 : e.ctrlKey ? .001 : .01) * (e.key === 'ArrowLeft' ? -1 : 1); onEdit('g_range', Math.round(Math.max(.02, Math.min(1, grange + step)) * 1e4) / 1e4); }}>
+        <i /><b>Roam end</b></button> : null}
       {peaks.length && mode === 'chop' ? <>
         {shown.map(([a, b], i) => handle({ kind: 'slice', i, edge: 0 }, 'Slice ' + (i + 1), a, 'h-slice_start' + (i === selected ? ' on' : ''),
           i === selected || x(Math.min(b, shown[i + 1]?.[0] ?? b)) - x(a) > .022 ? String(i + 1) : null))}
@@ -304,8 +454,10 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
           ? handle({ kind: 'slice', i: selected, edge: 1 }, 'Slice ' + (selected + 1) + ' end', sel[1], 'h-slice_end on', null) : null}
       </> : null}
     </div>
-    <span className="smp-caption">{secs ? (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
-      + (vb - va < .999 ? (mode === 'trim' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
+    <span className="smp-caption">{secs ? (mode === 'grain' && runtime?.live ? 'Live input, the last ' + Math.round(secs) + ' s' + (runtime.live.frozen ? ' (frozen)' : '') + ' · grains from ' + (((1 - gpos) * secs) < .05 ? 'just now' : ((1 - gpos) * secs).toFixed(1) + ' s ago') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding'
+      : mode === 'grain' && steps ? 'Rhythm over ' + slices.length + ' slices, pattern ' + VARS[vi] + ' · tap a slice to ' + (tapFlip ? 'reverse it' : 'turn it on or off') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding'
+      : mode === 'grain' ? 'Grains from ' + ms(posAt) + ' ms' + (roams ? ' to ' + ms(roamEndAt) + ' ms' + ((spec.g_roam ?? 'off') === 'off' ? ' (Motion)' : ' (Roam)') : '') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding' + ((spec.keymap ?? 'whole') !== 'whole' ? ' · each key reads its own slice' : '') : '') + (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
+      + (vb - va < .999 ? (mode !== 'chop' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
   </div>;
 }
 
@@ -498,6 +650,155 @@ function SamplerKeys({ spec, onMidi }: { spec: SamplerSpec; onMidi: (s: number, 
 }
 
 /** Amp card: the envelope you drag, with the same four values as knobs. A drag is one undo step. */
+/** Grain mode's controls (24 Nov). The card's title is its page switch (UI-RULES 18): Grain shapes each grain,
+    Roam moves the read point through the bracket on the waveform, Motion adds jumps, holds and backwards stretches. */
+type GrainPage = 'grain' | 'roam' | 'motion' | 'rhythm' | 'harmony' | 'presets';
+const GRAIN_PAGES: [GrainPage, string, string][] = [
+  ['grain', 'Grain', 'Each grain: its shape, length, density, spread and scale'],
+  ['roam', 'Roam', 'The read point travels through the bracket on the waveform'],
+  ['motion', 'Motion', 'Jumps, holds, backwards stretches and a breathing pulse'],
+  ['rhythm', 'Rhythm', 'Steps through the Chop slices in time'],
+  ['harmony', 'Harmony', 'Spread keeps the notes of the sample in key'],
+  ['presets', 'Presets', 'Ready-made grain sounds for the loaded sample'],
+];
+function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit;
+  onChop(): void; tapFlip: boolean; onTapFlip(flip: boolean): void }) {
+  const [page, setPage] = useState<GrainPage>('grain');
+  const pct = (n: number) => Math.round(n * 100) + '%';
+  const secs = (n: number) => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s';
+  const off = (n: number) => n < .005 ? 'Off' : pct(n);
+  const knob = (key: string, name: string, min: number, max: number, def: number, step: number, format: (n: number) => string, description: string) =>
+    <CommittedKnob key={key} id={id + '-' + key} defaultValue={def} name={name} value={(spec as Record<string, unknown>)[key] as number ?? def} min={min} max={max} step={step}
+      description={description} format={format} onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
+  const win = spec.g_window ?? 'hann', scale = spec.g_scale ?? 'chromatic', roam = spec.g_roam ?? 'off', sync = spec.g_sync ?? 'free';
+  return <section className={'smp-card smp-grain page-' + page} aria-label="Grain">
+    <div className="smp-seg smp-grain-pages" role="radiogroup" aria-label="Grain page">
+      {GRAIN_PAGES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={page === k} title={title} onClick={() => setPage(k)}>
+        {label}{k === 'roam' && roam !== 'off' ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
+        {k === 'rhythm' && stepping(spec) ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
+        {k === 'harmony' && (spec.g_harm ?? 'off') !== 'off' ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
+        {k === 'motion' && ((spec.g_jump ?? 0) + (spec.g_hold ?? 0) + (spec.g_rev ?? 0) + (spec.g_pulse ?? 0)) > 0 ? <i className="smp-grain-dot" aria-hidden="true" /> : null}</button>)}
+    </div>
+    {page === 'grain' ? <>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-filter-shapes smp-windows" role="radiogroup" aria-label="Grain shape">
+          {WINDOWS.map(([w, label, path, title]) => <button key={w} type="button" role="radio" aria-label={label} aria-checked={win === w} title={title}
+            onClick={() => onEdit('g_window', w)}><WindowIcon path={path} /><span>{label}</span></button>)}</div>
+        {harmonySteps(spec) ? <button type="button" className="smp-harm-tag" title="Harmony picks the steps Spread lands on. Tap to open it." onClick={() => setPage('harmony')}>Steps: Harmony</button>
+          : <div className="smp-seg smp-scales" role="radiogroup" aria-label="Spread scale">
+          {SCALES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={scale === k} title={title} onClick={() => onEdit('g_scale', k)}>{label}</button>)}</div>}
+      </div>
+      <div className="smp-knobs two smp-knobs-grain">
+        {knob('g_pos', 'Position', 0, 1, .3, .001, pct, 'Where in the sample the grains come from (also the tag on the waveform)')}
+        {knob('g_size', 'Size', .01, 1, .12, .001, secs, 'How long each grain is')}
+        {knob('g_density', 'Density', 1, 80, 14, .1, n => (n < 10 ? n.toFixed(1) : Math.round(n)) + ' /s', 'How many new grains start each second')}
+        {knob('g_spray', 'Spray', 0, 1, .08, .001, pct, 'Scatters each grain\'s start around Position (100% is the whole region)')}
+        {knob('g_spread', 'Spread', 0, 12, 0, 1, n => n < .5 ? 'Off' : '±' + Math.round(n) + ' st', 'Each grain gets its own random pitch, up to this many semitones, on the scale above')}
+        {knob('g_reverse', 'Reverse', 0, 1, 0, .01, off, 'Chance that a grain plays backwards')}
+        {knob('g_jitter', 'Timing', 0, 1, 0, .01, n => n < .005 ? 'Even' : pct(n), 'Uneven gaps between grains: clusters and pauses, same average')}
+        {knob('g_size_rnd', 'Size var', 0, 1, 0, .01, off, 'Each grain gets its own length, from a quarter to twice Size at 100%')}
+        {knob('g_amp_rnd', 'Level var', 0, 1, 0, .01, off, 'Each grain gets its own level')}
+      </div>
+    </> : page === 'roam' ? <>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-roams" role="radiogroup" aria-label="Roam direction">
+          {ROAMS.map(([k, label, Icon, title]) => <button key={k} type="button" role="radio" aria-label={label} aria-checked={roam === k} title={title}
+            onClick={() => onEdit('g_roam', k)}><Icon size={16} /><span>{label}</span></button>)}</div>
+      </div>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-syncs" role="radiogroup" aria-label="Roam speed: free or bars per pass">
+          {SYNCS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={k === 'free' ? 'Free' : k + (k === '1' ? ' bar' : ' bars')} aria-checked={sync === k} title={title}
+            onClick={() => onEdit('g_sync', k)}>{label}</button>)}<span className="smp-seg-unit">bars</span></div>
+      </div>
+      <div className="smp-knobs two smp-knobs-grain">
+        {knob('g_range', 'Range', .02, 1, .4, .001, pct, 'How much of the sample it travels from Position (also the Roam end tag on the waveform)')}
+        {sync === 'free' ? knob('g_speed', 'Speed', .02, 4, .25, .01, n => n.toFixed(2) + '×', 'Travel speed: 1× is playing speed') : null}
+        {knob('g_wander', 'Wander', 0, 1, 0, .01, off, 'A random drift on top of the travel')}
+        {knob('g_smooth', 'Smooth', 0, 1, .5, .01, pct, 'Makes the drift slow and heavy')}
+      </div>
+    </> : page === 'presets' ? <div className="smp-grain-presets" role="group" aria-label="Grain presets">
+      {GRAIN_PRESETS.map(([name, kind, title, patch]) => <button key={name} type="button" className="smp-preset" style={{ ['--tool' as string]: PRESET_COLOR[kind] }}
+        title={title + (kind === 'rhythm' && !(spec.slices?.length) ? ' (chop the sample to hear the steps)' : '')} onClick={() => onEdit('patch', { ...GRAIN_BASE, attack: 0, release: .25, ...patch })}>{name}</button>)}
+    </div> : page === 'harmony' ? <HarmonyPage spec={spec} onEdit={onEdit} onSpread={() => setPage('grain')} />
+    : page === 'rhythm' ? <RhythmPage spec={spec} onEdit={onEdit} onChop={onChop} tapFlip={tapFlip} onTapFlip={onTapFlip} knob={knob} />
+    : <div className="smp-knobs two smp-knobs-grain">
+      {knob('g_jump', 'Jump', 0, 1, 0, .01, off, 'Random jumps to another place in the bracket')}
+      {knob('g_hold', 'Hold', 0, 1, 0, .01, off, 'Freezes the travel for a moment now and then')}
+      {knob('g_rev', 'Rev', 0, 1, 0, .01, off, 'Travels backwards for a stretch now and then')}
+      {knob('g_chaos', 'Chaos', 0, 1, 0, .01, n => n < .005 ? 'Even' : pct(n), 'Uneven timing for Jump, Hold and Rev: calm spells and bursts')}
+      {knob('g_pulse', 'Pulse', 0, 1, 0, .01, off, 'The travel speed swells up and down like breathing')}
+    </div>}
+  </section>;
+}
+
+/** Harmony: what the sample holds, major or minor on its root, and the shifts Spread may use (true values, rule 2). */
+function HarmonyPage({ spec, onEdit, onSpread }: { spec: SamplerSpec; onEdit: Edit; onSpread(): void }) {
+  const held = spec.g_harm ?? 'off', kmode = spec.g_kmode ?? 'major', notes = spec.g_notes ?? [0, 4, 7], root = spec.root ?? 60;
+  const steps = harmonySteps(spec), spread = Math.round(spec.g_spread ?? 0);
+  const toggle = (n: number) => { const next = notes.includes(n) ? notes.filter(x => x !== n) : [...notes, n].sort((a, b) => a - b); if (next.length) onEdit('g_notes', next); };
+  const lands = steps ? [...new Set(Array.from({ length: 2 * spread + 1 }, (_, i) => i - spread).map(k => {
+    const o = Math.floor(k / 12) * 12, r = k - o; let best = 12;
+    for (const d of [...steps, 12]) if (Math.abs(r - d) < Math.abs(r - best) || (Math.abs(r - d) === Math.abs(r - best) && d < best)) best = d;
+    return o + best; }))].sort((a, b) => a - b) : [];
+  return <>
+    <div className="smp-grain-head">
+      <div className="smp-seg smp-harms" role="radiogroup" aria-label="The sample holds">
+        {HARMS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={label} aria-checked={held === k} title={title} onClick={() => onEdit('g_harm', k)}>{k === 'own' ? 'Own' : label}</button>)}</div>
+    </div>
+    <div className="smp-grain-head smp-harm-row">
+      <div className="smp-seg smp-kmodes" role="radiogroup" aria-label="Key">
+        {(['major', 'minor'] as const).map(k => <button key={k} type="button" role="radio" aria-checked={kmode === k}
+          title={'The sample is in ' + pitchName(root) + ' ' + k + ' (its root is set in the Play card)'} onClick={() => onEdit('g_kmode', k)}>{pitchName(root)} {k}</button>)}</div>
+      {steps ? <p className="smp-harm-lands" aria-label="Spread lands on">{spread ? <>Spread lands on <b>{lands.map(k => (k > 0 ? '+' : '') + k).join('  ')}</b> st</>
+        : <>Spread is off. <button type="button" className="smp-harm-link" onClick={onSpread}>Turn it up on the Grain page</button></>}</p> : null}
+    </div>
+    {held === 'own' ? <div className="smp-seg smp-notes" role="group" aria-label="Notes the sample holds">
+      {Array.from({ length: 12 }, (_, n) => <button key={n} type="button" aria-pressed={notes.includes(n)} aria-label={'Note ' + pitchName(root + n)}
+        title={notes.includes(n) && notes.length === 1 ? 'At least one note stays' : 'The sample holds ' + pitchName(root + n)} onClick={() => toggle(n)}>{pitchName(root + n)}</button>)}
+    </div> : null}
+  </>;
+}
+
+/** Rhythm (G4): the read point steps through the Chop slices. Which slices are on, and which play backwards,
+    is tapped on the waveform; four patterns A-D, and Generate fills the one that plays. */
+function RhythmPage({ spec, onEdit, onChop, tapFlip, onTapFlip, knob }: { spec: SamplerSpec; onEdit: Edit; onChop(): void; tapFlip: boolean;
+  onTapFlip(flip: boolean): void; knob: (key: string, name: string, min: number, max: number, def: number, step: number, format: (n: number) => string, description: string) => React.ReactElement }) {
+  const n = spec.slices?.length ?? 0, rhythm = spec.g_rhythm ?? 'off', div = spec.g_div ?? '1/8', v = spec.g_var ?? 'A', vi = VARS.indexOf(v);
+  if (!n) return <div className="smp-rhythm-empty">
+    <p>Rhythm steps through the slices of the sample. Chop it first.</p>
+    <button type="button" className="smp-send" onClick={onChop}><Scissors size={16} />Chop the sample</button></div>;
+  const masks = (key: 'g_off' | 'g_flip') => (spec[key] ?? NO_MASKS).map(a => [...a]);
+  const generate = (make: (n: number, off: Set<number>) => number[]) => {
+    const off = masks('g_off'), flip = masks('g_flip'); off[vi] = make(n, new Set(off[vi])); flip[vi] = []; onEdit('patch', { g_off: off, g_flip: flip }); };
+  return <>
+    <div className="smp-grain-head">
+      <div className="smp-seg smp-rhythms" role="radiogroup" aria-label="Rhythm mode">
+        {RHYTHMS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={k === 'random' ? 'Random step' : k === 'pingpong' ? 'Ping-pong' : label}
+          aria-checked={rhythm === k} title={title} onClick={() => onEdit('g_rhythm', k)}>{label}</button>)}</div>
+    </div>
+    <div className="smp-grain-head">
+      <div className="smp-seg smp-divs" role="radiogroup" aria-label="Step length">
+        {DIVS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={k} aria-checked={div === k} title={title} onClick={() => onEdit('g_div', k)}>{label}</button>)}</div>
+      <div className="smp-seg smp-vars" role="radiogroup" aria-label="Pattern">
+        {VARS.map(k => <button key={k} type="button" role="radio" aria-label={'Pattern ' + k} aria-checked={v === k} title={'Play pattern ' + k} onClick={() => onEdit('g_var', k)}>{k}</button>)}</div>
+    </div>
+    <div className="smp-grain-head smp-generate" role="group" aria-label="Generate a pattern">
+      {GENERATE.map(([label, title, make]) => <button key={label} type="button" className="smp-gen" aria-label={'Generate ' + label.toLowerCase()} title={title + ' (pattern ' + v + ')'}
+        onClick={() => generate(make)}>{label}</button>)}
+    </div>
+    <div className="smp-grain-head smp-rhythm-row">
+      <div className="smp-knobs two smp-knobs-rhythm">
+        {knob('g_swing', 'Swing', 0, .75, 0, .01, n => n < .005 ? 'Straight' : Math.round(50 + n * 100 / 3 * 2) + '%', 'Every second step comes late')}
+        {knob('g_prob', 'Chance', 0, 1, 1, .01, n => Math.round(n * 100) + '%', 'The chance that a step moves on (else it stays on its slice)')}
+      </div>
+      <div className="smp-seg smp-tapmode" role="radiogroup" aria-label="Tapping a slice">
+        <button type="button" role="radio" aria-checked={!tapFlip} title="Tap a slice on the waveform to turn it on or off" onClick={() => onTapFlip(false)}>On/off</button>
+        <button type="button" role="radio" aria-checked={tapFlip} title="Tap a slice on the waveform to make its grains play backwards" onClick={() => onTapFlip(true)}><Undo2 size={15} />Reverse</button>
+      </div>
+    </div>
+  </>;
+}
+
 function AmpCard({ spec, id, onEdit, onLive, shown: onBig, onShow }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit; shown: boolean; onShow(): void }) {
   const [draft, setDraft] = useState<Partial<Env>>({});
   const held = useRef(false), latest = useRef<Partial<Env>>({});
@@ -543,7 +844,14 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mode, setMode] = useState<'trim' | 'chop'>(() => (spec?.slices?.length ? 'chop' : 'trim'));
   // Round 2: the big panel can also show the amp envelope or the filter curve, with points to drag.
-  const [big, setBig] = useState<'wave' | 'env' | 'filter'>('wave');
+  const [big, setBig] = useState<'wave' | 'env' | 'filter' | 'grain'>(() => spec?.mode === 'grain' ? 'grain' : 'wave');
+  // Choosing Grain opens its view; leaving Grain mode leaves it.
+  const lastMode = useRef(spec?.mode);
+  useEffect(() => {
+    if (spec?.mode === 'grain' && lastMode.current !== 'grain') setBig('grain');
+    if (spec?.mode !== 'grain' && lastMode.current === 'grain') setBig(b => b === 'grain' ? 'wave' : b);
+    lastMode.current = spec?.mode;
+  }, [spec?.mode]);
   const [scale, setScale] = useState<'sound' | 'env'>('sound');
   const lastFilter = useRef<FilterShape>('lp');
   const [selected, setSelected] = useState(-1);
@@ -576,7 +884,10 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const setView = (a: number, b: number) => send('sampler_view', [trackIndex, spec.id, Math.max(0, a), Math.min(1, b)]);
   /** A knob that is still turning: the engine plays the value now; the edit (and its undo step) comes on release. */
   const onLive: Edit = (key, value) => send('sampler_live', [trackIndex, spec.id, { [key]: value }]);
-  const toMode = (m: 'trim' | 'chop') => { setMode(m); setBig('wave'); };   // the zoom stays: F (or Fit) shows the whole sample
+  const toMode = (m: 'trim' | 'chop') => { setMode(m); setBig('wave'); };
+  const [tapFlip, setTapFlip] = useState(false);
+  const sliceTap = (i: number) => { if (!spec) return; const key = tapFlip ? 'g_flip' : 'g_off', vi = Math.max(0, VARS.indexOf(spec.g_var ?? 'A'));
+    const all = (spec[key] ?? NO_MASKS).map(a => [...a]); all[vi] = all[vi].includes(i) ? all[vi].filter(x => x !== i) : [...all[vi], i].sort((a, b) => a - b); onEdit(key, all); };   // the zoom stays: F (or Fit) shows the whole sample
   const chopShown = mode === 'chop' && big === 'wave';
   const filterOn = (spec.filter ?? 'off') !== 'off';
   if (filterOn) lastFilter.current = spec.filter as FilterShape;
@@ -605,7 +916,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
         onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
       : big === 'filter' ? <div className="smp-drag-shell"><FilterView type={spec.filter ?? 'off'} cutoff={spec.cutoff ?? 2000} resonance={spec.resonance ?? .2}
         onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
-      : <SampleWindow spec={spec} runtime={runtime} mode={mode} selected={sel} marker={marker} onEdit={onEdit}
+      : <SampleWindow spec={spec} runtime={runtime} mode={big === 'grain' ? 'grain' : mode} selected={sel} marker={marker} onEdit={onEdit} onLive={onLive} onSliceTap={sliceTap} tapFlip={tapFlip}
         onView={setView} onChop={(m, o) => { chop(m, o); }} onAudition={i => send('sampler_audition', [trackIndex, spec.id, i])}
         onLibrary={i => { if (i >= 0) setSelected(i); setLibraryOpen(true); }}
         onSelect={(i, at) => { setSelected(i); setMarker(at); if (i >= 0) send('sampler_audition', [trackIndex, spec.id, i]); }} />}
@@ -620,7 +931,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           else if (marker !== null) setView(marker - .04, marker + .04);
         }}
         /> : null}
-      <div className="smp-cards" key={spec.id}>
+      <div className={"smp-cards" + (big === 'grain' ? ' has-grain' : '')} key={spec.id}>
         <section className="smp-card smp-play" aria-label="Play">
           <h2>Play</h2>
           <div className="smp-seg" role="radiogroup" aria-label="Play mode">
@@ -631,7 +942,8 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
               <button type="button" role="radio" aria-checked={spec.poly} title="Chords: up to 16 notes at once" onClick={() => onEdit('poly', true)}>Poly</button>
               <button type="button" role="radio" aria-checked={!spec.poly} title="One note at a time; glides between held keys" onClick={() => onEdit('poly', false)}>Mono</button>
             </div>
-            <button type="button" className="smp-toggle" aria-pressed={!!spec.reverse} title="Play backwards" onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} />Reverse</button>
+            <button type="button" className="smp-toggle" aria-pressed={!!spec.reverse} disabled={spec.mode === 'grain'}
+              title={spec.mode === 'grain' ? 'In Grain mode, Reverse on the Grain card sets how many grains play backwards' : 'Play backwards'} onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} />Reverse</button>
           </div>
           <div className="smp-knobs two">
             <CommittedKnob id={id + '-glide'} defaultValue={0} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
@@ -640,8 +952,15 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             <CommittedKnob id={id + '-velocity'} defaultValue={1} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
               description="How much softer soft notes are: 0 is fixed level, 1 is linear" onDraft={n => onLive('velocity', n)} onCommit={n => onEdit('velocity', n)} />
             <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
+            {spec.mode === 'grain' ? <>
+              <button type="button" className="smp-toggle smp-live-in" aria-pressed={!!runtime?.live} title="Live input: grains from the input as it comes in (the last 8 seconds) instead of the sample"
+                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime?.live ? 'off' : 'on'])}><Mic size={15} />Live in</button>
+              {runtime?.live ? <button type="button" className="smp-toggle" aria-pressed={runtime.live.frozen} title="Freeze: stop listening and keep the last 8 seconds"
+                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime.live!.frozen ? 'thaw' : 'freeze'])}><Snowflake size={15} />Freeze</button> : null}
+            </> : null}
           </div>
         </section>
+        {big === 'grain' ? <GrainCard key={'g' + spec.id} spec={spec} id={id} onEdit={onEdit} onLive={onLive} onChop={() => toMode('chop')} tapFlip={tapFlip} onTapFlip={setTapFlip} /> : <>
         <section className="smp-card smp-pitch" aria-label="Pitch">
           <h2>Pitch</h2>
           <div className="smp-seg" role="radiogroup" aria-label="Keys">
@@ -693,16 +1012,18 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             <CommittedKnob id={id + '-f_decay'} defaultValue={0.3} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
               description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('f_decay', n)} onCommit={n => onEdit('f_decay', n)} />
           </div>
-        </section>
+        </section></>}
       </div>
       <aside className="smp-side">
-        <div className="smp-rack smp-tools" role="toolbar" aria-label="Sampler tools">
+        <div className={"smp-rack smp-tools" + (spec.mode === 'grain' ? ' has-grain' : '')} role="toolbar" aria-label="Sampler tools">
           <div className="smp-rack-main"><div className="smp-rack-grid">
           <div className="smp-rack-row smp-tabs" role="radiogroup" aria-label="Edit">
             <button type="button" role="radio" className="smp-tool" style={tool('trim')} aria-label="Trim" aria-checked={big === 'wave' && mode === 'trim'} title="Trim: where the sample starts and ends, and its loop" onClick={() => toMode('trim')}><Crop size={18} /><span>Trim</span></button>
             <button type="button" role="radio" className="smp-tool" style={tool('chop')} aria-label="Chop" aria-checked={big === 'wave' && mode === 'chop'} title="Chop: cut it into slices for pads" onClick={() => toMode('chop')}><Scissors size={18} /><span>Chop</span></button>
             <button type="button" role="radio" className="smp-tool" style={tool('env')} aria-label="Envelope" aria-checked={big === 'env'} title="Envelope: drag Attack, Decay, Sustain and Release over the sound" onClick={() => setBig('env')}><Activity size={18} /><span>Env</span></button>
             <button type="button" role="radio" className="smp-tool" style={tool('filter')} aria-label="Filter" aria-checked={big === 'filter'} title="Filter: drag the cutoff and resonance" onClick={() => setBig('filter')}><SlidersHorizontal size={18} /><span>Filter</span></button>
+            {spec.mode === 'grain' ? <button type="button" role="radio" className="smp-tool" style={tool('grain')} aria-label="Grain" aria-checked={big === 'grain'}
+              title="Grain: Position on the waveform, the grains as they sound, and the Grain card" onClick={() => setBig('grain')}><Sparkles size={18} /><span>Grain</span></button> : null}
           </div>
           <div className="smp-rack-row">
             <button type="button" className="smp-tool smp-lib-open" style={tool('library')} aria-label="Library" aria-pressed={libraryOpen} onClick={() => setLibraryOpen(o => !o)} title="Library: load a saved sample, or save this one"><BookOpen size={18} /><span>Library</span></button>

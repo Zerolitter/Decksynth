@@ -1715,7 +1715,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 # Drum Rack tracks carry their own right channel (per-pad pan).
                 ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)
                 self.drums[tr].render_into_buffers(left,right,pos,count)
-            elif kind=='sampler':self.samplers[tr].render_into_buffer(left,pos,count)
+            elif kind=='sampler':
+                smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(getattr(self,'_block_start',0)+pos)/self.fpb if self.playing else None
+                smp.render_into_buffer(left,pos,count)
     def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on):
         """FX, sends, mix and master for a block whose audio is in C buffers (the C twin of the Python mix in
         _render_bus, same order and arithmetic). Returns the interleaved block, or None when the master stage
@@ -1780,7 +1782,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             n=self.automation_block(min(remaining,128))
             if self.recording:n=min(n,max(1,self.record_end-self.frame))
             if self.count_end is not None:n=min(n,max(1,self.count_end-self.absolute_frame))
-            events={0:[]}; start=self.frame; end=start+n
+            events={0:[]}; start=self.frame; end=start+n; self._block_start=start
             abs_start=self.absolute_frame; abs_end=abs_start+n
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
             for tr,(fx,synth) in enumerate(zip(self.fx,self.synths)):
@@ -1912,7 +1914,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         if drum_right[tr] is not None:
                             rpart=list(part);self.drums[tr].render_into(part,count,rpart);drum_right[tr].extend(rpart)
                         else:self.drums[tr].render_into(part,count)
-                    elif device_kind(self.project.tracks[tr])=='sampler':self.samplers[tr].render_into(part,count)
+                    elif device_kind(self.project.tracks[tr])=='sampler':
+                        smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(start+pos)/self.fpb if self.playing else None;smp.render_into(part,count)
                     buf.extend(part)
                 if self.click_age>=self.rate*.025:click.extend([None]*count)  # metronome silent: no per-sample work
                 else:
