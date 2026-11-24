@@ -16,6 +16,15 @@ Spec keys (all optional; older projects get the defaults):
   g_size_rnd  0..1 each grain's own length, 1/4 to 2x Size at 1
   g_amp_rnd   0..1 each grain's own level
   g_window    the fade of each grain
+Roam (G3): the read point travels by itself while a key is held, inside the bracket g_pos .. g_pos + g_range
+  g_roam      off / forward / reverse / bounce
+  g_range     0.02..1 how much of the region it travels (wraps past the end)
+  g_speed     0.02..4 travel speed, 1 = playing speed (g_sync 'free')
+  g_sync      free, or bars for one pass of the bracket at the song's BPM
+  g_wander    0..1 random drift on top of the travel
+  g_smooth    0..1 makes the drift slow and heavy
+Motion (G3, on top of Roam; with Roam off the point only jumps and drifts): g_jump, g_hold, g_rev (random jumps, short freezes, backwards stretches),
+  g_chaos (uneven timing: calm spells and bursts), g_pulse (the speed swells like breathing)
 """
 import ctypes as C
 import math
@@ -24,13 +33,19 @@ GRAIN_POOL = 256
 WINDOW = 1024
 WINDOWS = ('hann', 'tri', 'welch', 'perc', 'rect')
 SCALES = ('chromatic', 'major', 'minor', 'penta', 'octaves', 'fifths')
+ROAMS = ('off', 'forward', 'reverse', 'bounce')
+SYNCS = ('free', '1/4', '1/2', '1', '2', '4', '8', '16')
 SCALE_STEPS = dict(chromatic=tuple(range(12)), major=(0, 2, 4, 5, 7, 9, 11), minor=(0, 2, 3, 5, 7, 8, 10),
                    penta=(0, 3, 5, 7, 10), octaves=(0,), fifths=(0, 7))
 DEFAULTS = dict(g_pos=.3, g_size=.12, g_density=14., g_spray=.08, g_scan=0., g_spread=0., g_scale='chromatic',
-                g_reverse=0., g_jitter=0., g_size_rnd=0., g_amp_rnd=0., g_window='hann')
+                g_reverse=0., g_jitter=0., g_size_rnd=0., g_amp_rnd=0., g_window='hann',
+                g_roam='off', g_range=.4, g_speed=.25, g_sync='free', g_wander=0., g_smooth=.5,
+                g_jump=0., g_hold=0., g_rev=0., g_chaos=0., g_pulse=0.)
 RANGES = dict(g_pos=(0., 1.), g_size=(.01, 1.), g_density=(1., 80.), g_spray=(0., 1.), g_scan=(-2., 2.),
-              g_spread=(0., 12.), g_reverse=(0., 1.), g_jitter=(0., 1.), g_size_rnd=(0., 1.), g_amp_rnd=(0., 1.))
-CHOICES = dict(g_scale=SCALES, g_window=WINDOWS)
+              g_spread=(0., 12.), g_reverse=(0., 1.), g_jitter=(0., 1.), g_size_rnd=(0., 1.), g_amp_rnd=(0., 1.),
+              g_range=(.02, 1.), g_speed=(.02, 4.), g_wander=(0., 1.), g_smooth=(0., 1.),
+              g_jump=(0., 1.), g_hold=(0., 1.), g_rev=(0., 1.), g_chaos=(0., 1.), g_pulse=(0., 1.))
+CHOICES = dict(g_scale=SCALES, g_window=WINDOWS, g_roam=ROAMS, g_sync=SYNCS)
 KEYS = tuple(DEFAULTS)
 
 
@@ -196,3 +211,68 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
 
 
 TABLES_BY_ADDRESS = {C.addressof(t): t for t in TABLES.values()}
+
+
+def roaming(spec):
+    """Whether Roam or Motion moves this cloud's read point (else it stays at Position, plus Scan)."""
+    return spec.get('g_roam', 'off') != 'off' or spec.get('g_jump', 0.) > 0. or spec.get('g_wander', 0.) > 0.
+
+
+class Roamer:
+    """Roam and Motion for one cloud, at block rate. The same code drives the C kernel and the Python mirror:
+    it only writes the cloud's offset (where Position has moved to) before each block."""
+    __slots__ = ('rng', 'u', 'dir', 'drift', 'hold', 'rev', 'wait', 'phase', 'period')
+
+    def __init__(self, seed, mode):
+        import random
+        self.rng = random.Random(seed)
+        self.u = .999999 if mode == 'reverse' else 0.   # 0..1 through the bracket
+        self.dir = -1. if mode == 'reverse' else 1.
+        self.drift = 0.; self.hold = 0; self.rev = 0
+        self.wait = -1.                                   # frames to the next Motion event (-1: not drawn yet)
+        self.phase = self.rng.random(); self.period = 1.3 + 7.7*self.rng.random()   # Pulse: one swell every 1.3..9 s
+
+    def step(self, spec, value, rate, bpm, frames, zone):
+        """Advance by `frames`; returns the offset from Position in frames."""
+        r = self.rng; mode = spec.get('g_roam', 'off'); span = value('g_range')
+        sync = spec.get('g_sync', 'free')
+        if mode == 'off': speed = 0.                                             # Motion and Wander only
+        elif sync == 'free': speed = value('g_speed')/max(1., span*zone)         # bracket per frame
+        else:
+            bars = {'1/4': .25, '1/2': .5}.get(sync) or float(sync)
+            speed = 1./max(1., bars*4.*60./max(1., bpm)*rate)
+        pulse = value('g_pulse')
+        if pulse > 0.:
+            self.phase = (self.phase + frames/(self.period*rate)) % 1.
+            speed *= 1. + pulse*math.sin(2.*math.pi*self.phase)
+        # Motion: jumps, holds and backwards stretches at random moments
+        jump, hold, rev = value('g_jump'), value('g_hold'), value('g_rev'); busy = jump + hold + rev
+        if busy > 0.:
+            chaos = value('g_chaos'); mean = 3.*rate/max(.05, busy)
+            if self.wait < 0.: self.wait = mean*(.25 + .75*r.random())
+            self.wait -= frames
+            if self.wait <= 0.:
+                pick = r.random()*busy
+                if pick < jump: self.u = r.random()
+                elif pick < jump + hold: self.hold = int((.06 + .5*r.random())*rate*(.4 + hold))
+                else: self.rev = int((.15 + .8*r.random())*rate*(.4 + rev))
+                gap = (1. - chaos) + chaos*-math.log(max(1e-6, 1. - r.random()))   # chaos: exponential gaps, bursts and calm
+                self.wait = mean*max(.05, gap)
+        else: self.wait = -1.; self.hold = 0; self.rev = 0
+        # Wander: a random drift, made slow and heavy by Smooth
+        wander = value('g_wander')
+        if wander > 0.:
+            a = 1. - .985*value('g_smooth')
+            self.drift += a*((2.*r.random() - 1.) - self.drift)
+        else: self.drift = 0.
+        if self.hold > 0: self.hold -= frames; return self.u*span*zone
+        direction = self.dir*(-1. if self.rev > 0 else 1.)
+        if self.rev > 0: self.rev -= frames
+        u = self.u + direction*speed*frames + wander*self.drift*.6*frames/rate
+        if mode == 'bounce':
+            if u > 1.: u = 2. - u; self.dir = -self.dir
+            if u < 0.: u = -u; self.dir = -self.dir
+            u = min(1., max(0., u))
+        else: u %= 1.
+        self.u = u
+        return u*span*zone

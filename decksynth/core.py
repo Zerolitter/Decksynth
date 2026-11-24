@@ -1672,7 +1672,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 # Drum Rack tracks carry their own right channel (per-pad pan).
                 ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)
                 self.drums[tr].render_into_buffers(left,right,pos,count)
-            elif kind=='sampler':self.samplers[tr].render_into_buffer(left,pos,count)
+            elif kind=='sampler':self.samplers[tr].bpm=self.project.bpm;self.samplers[tr].render_into_buffer(left,pos,count)
     def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on):
         """FX, sends, mix and master for a block whose audio is in C buffers (the C twin of the Python mix in
         _render_bus, same order and arithmetic). Returns the interleaved block, or None when the master stage
@@ -1869,7 +1869,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         if drum_right[tr] is not None:
                             rpart=list(part);self.drums[tr].render_into(part,count,rpart);drum_right[tr].extend(rpart)
                         else:self.drums[tr].render_into(part,count)
-                    elif device_kind(self.project.tracks[tr])=='sampler':self.samplers[tr].render_into(part,count)
+                    elif device_kind(self.project.tracks[tr])=='sampler':self.samplers[tr].bpm=self.project.bpm;self.samplers[tr].render_into(part,count)
                     buf.extend(part)
                 if self.click_age>=self.rate*.025:click.extend([None]*count)  # metronome silent: no per-sample work
                 else:

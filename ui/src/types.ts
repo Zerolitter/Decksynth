@@ -66,7 +66,11 @@ export type SamplerSpec={version:1;id:string;name:string;family:string;source:Dr
   f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number;
   /** Grain mode (24 Nov, decksynth/sampler_grain.py). */
   g_pos?:number;g_size?:number;g_density?:number;g_spray?:number;g_scan?:number;g_spread?:number;g_scale?:GrainScale;
-  g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow};
+  g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow;
+  g_roam?:GrainRoam;g_range?:number;g_speed?:number;g_sync?:GrainSync;g_wander?:number;g_smooth?:number;
+  g_jump?:number;g_hold?:number;g_rev?:number;g_chaos?:number;g_pulse?:number};
+export type GrainRoam='off'|'forward'|'reverse'|'bounce';
+export type GrainSync='free'|'1/4'|'1/2'|'1'|'2'|'4'|'8'|'16';
 export type GrainScale='chromatic'|'major'|'minor'|'penta'|'octaves'|'fifths';
 export type GrainWindow='hann'|'tri'|'welch'|'perc'|'rect';
 export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING';peaks:number[][];seconds:number;playing:number[];event:number;voices:number;error?:string|null;accelerated?:boolean;native_warning?:string|null;

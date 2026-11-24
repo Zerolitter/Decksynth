@@ -495,3 +495,18 @@
 /* With the Grain tab in the rack: five tabs in the top row, so the frame and the display give a little room. */
 .sampler-page .smp-tools.smp-rack.has-grain{padding:7px 10px}
 .sampler-page .smp-tools.has-grain .smp-rack-display{flex-basis:80px}
+
+/* G3 (24 Nov): the Grain card's pages in its title bar; Roam's bracket and end tag on the waveform. */
+.smp-grain-pages{align-self:flex-start}
+:is(.sampler-page) .smp-grain-pages button{min-width:76px;min-height:44px;font-weight:800;position:relative}
+.smp-grain-dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:#f0c94b}
+.smp-grain{display:flex;flex-direction:column;gap:8px}
+:is(.sampler-page) .smp-roams button{min-width:84px;display:flex;align-items:center;justify-content:center;gap:6px}
+:is(.sampler-page) .smp-syncs button{min-width:44px;padding:0 6px}
+.smp-seg-unit{align-self:center;padding:0 8px;font-size:11px;color:#aab0b6}
+.smp-wave .smp-roam{fill:color-mix(in srgb,#ff9f43 12%,transparent)}
+.smp-wave .smp-edge.roam{stroke:#ff9f43;stroke-width:2;stroke-dasharray:4 3}
+:is(.sampler-page,.drum-smp) .smp-handle.h-roam b{background:#ff9f43;color:#1b1e22}
+:is(.sampler-page,.drum-smp) .smp-handle.h-grain{bottom:50%}
+:is(.sampler-page,.drum-smp) .smp-handle.h-roam{top:50%}
+.smp-handle.h-roam b{top:auto;bottom:4px;left:auto;right:23px}

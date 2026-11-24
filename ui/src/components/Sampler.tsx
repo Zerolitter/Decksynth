@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowRight, ArrowUp, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -11,7 +11,7 @@ import { ValueBox, parseNote } from './ValueBox';
 import { type Env } from './EnvEditor';
 import { FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
-import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow } from '../types';
+import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync } from '../types';
 import '../sampler.css';
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -59,6 +59,19 @@ const SCALES: [GrainScale, string, string][] = [
   ['minor', 'Min', 'Spread lands on a minor scale from the played note'], ['penta', 'Pent', 'Spread lands on a minor pentatonic scale'],
   ['octaves', 'Oct', 'Spread jumps only in octaves'], ['fifths', '5th', 'Spread lands on fifths and octaves'],
 ];
+const ROAMS: [GrainRoam, string, typeof ArrowRight, string][] = [
+  ['off', 'Off', Ban, 'Roam off: grains stay around Position (Jump and Wander can still move it)'],
+  ['forward', 'Forward', ArrowRight, 'Roam forward through the bracket, then start again'],
+  ['reverse', 'Reverse', ArrowLeft, 'Roam backwards through the bracket'],
+  ['bounce', 'Bounce', ArrowLeftRight, 'Roam to the end of the bracket and back'],
+];
+const SYNCS: [GrainSync, string, string][] = [
+  ['free', 'Free', 'Free speed: the Speed knob sets it'], ['1/4', '¼', 'One pass every quarter bar'], ['1/2', '½', 'One pass every half bar'],
+  ['1', '1', 'One pass a bar'], ['2', '2', 'One pass every 2 bars'], ['4', '4', 'One pass every 4 bars'], ['8', '8', 'One pass every 8 bars'],
+  ['16', '16', 'One pass every 16 bars'],
+];
+/** Roam or Motion moves the read point inside the bracket Position .. Position + Range. */
+const roaming = (s: SamplerSpec) => (s.g_roam ?? 'off') !== 'off' || (s.g_jump ?? 0) > 0 || (s.g_wander ?? 0) > 0;
 function WindowIcon({ path }: { path: string }) {
   return <svg className="smp-filter-icon" viewBox="0 0 30 19" width={30} height={19} aria-hidden="true">
     <path className="axis" d="M2 16 H28" /><path className="curve" d={path} /></svg>;
@@ -101,10 +114,14 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
   const t = { ...trim0(), ...trimDraft };
   // Grain: Position is a tag inside the trimmed part; dragging it is heard at once and is one undo step on release.
   const [posDraft, setPosDraft] = useState<number | null>(null);
-  const gdrag = useRef<{ left: number; width: number; x: number; moved: boolean; value: number } | null>(null);
+  const gdrag = useRef<{ left: number; width: number; x: number; moved: boolean; value: number; key: 'g_pos' | 'g_range' } | null>(null);
+  const [rangeDraft, setRangeDraft] = useState<number | null>(null);
   const gpos = posDraft ?? spec.g_pos ?? .3, zoneU = Math.max(1e-6, spec.end - spec.start);
   const posAt = spec.start + gpos * zoneU, sprayU = (spec.g_spray ?? .08) * .5 * zoneU;
   const toPos = (u: number) => Math.round(Math.max(0, Math.min(1, (u - spec.start) / zoneU)) * 1e4) / 1e4;
+  const roams = roaming(spec), grange = rangeDraft ?? spec.g_range ?? .4, gEnd = gpos + grange;
+  const roamEndAt = spec.start + (gEnd > 1 + 1e-9 ? gEnd - 1 : gEnd) * zoneU;
+  const toRange = (u: number) => { let r = toPos(u) - gpos; if (r < .02) r += 1; return Math.round(Math.max(.02, Math.min(1, r)) * 1e4) / 1e4; };
   const shown = sliceDraft ?? slices;
   const looping = spec.mode === 'loop' && mode === 'trim';
   const pv = runtime?.view ?? [0, 1];
@@ -304,6 +321,9 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
         {mode === 'grain' ? <>
           <rect className="smp-cut" x={0} y={0} width={Math.max(0, x(spec.start) * W)} height={120} />
           <rect className="smp-cut" x={x(spec.end) * W} y={0} width={Math.max(0, (1 - x(spec.end)) * W)} height={120} />
+          {roams ? (gEnd <= 1 ? [[posAt, roamEndAt]] : [[posAt, spec.end], [spec.start, roamEndAt]]).map(([a, b], i) =>
+            <rect key={'r' + i} className="smp-roam" x={x(a) * W} y={0} width={Math.max(.5, (x(b) - x(a)) * W)} height={120} />) : null}
+          {roams && visible(roamEndAt) ? <line className="smp-edge roam" x1={x(roamEndAt) * W} x2={x(roamEndAt) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
           <rect className="smp-spray" x={x(Math.max(spec.start, posAt - sprayU)) * W} y={0} width={Math.max(.5, (x(Math.min(spec.end, posAt + sprayU)) - x(Math.max(spec.start, posAt - sprayU))) * W)} height={120} />
           {(runtime?.grains ?? []).map((at, i) => visible(at) ? <line key={'g' + i} className="smp-grain-tick" x1={x(at) * W} x2={x(at) * W} y1={84 + (i * 7) % 30} y2={92 + (i * 7) % 30} vectorEffect="non-scaling-stroke" /> : null)}
           {visible(posAt) ? <line className="smp-edge grain" x1={x(posAt) * W} x2={x(posAt) * W} y1={0} y2={120} vectorEffect="non-scaling-stroke" /> : null}
@@ -330,7 +350,7 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
       {peaks.length && mode === 'grain' && visible(posAt) ? <button type="button" className="smp-handle h-grain" style={{ left: pct(posAt) }}
         aria-label={'Position ' + Math.round(gpos * 100) + '%'} title="Position: where the grains come from. Drag it; arrow keys nudge"
         onPointerDown={e => { if (e.button !== 0) return; e.stopPropagation(); const box = shell.current!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
-          gdrag.current = { left: box.left, width: box.width, x: e.clientX, moved: false, value: gpos }; }}
+          gdrag.current = { left: box.left, width: box.width, x: e.clientX, moved: false, value: gpos, key: 'g_pos' }; }}
         onPointerMove={e => { const d = gdrag.current; if (!d || (!d.moved && Math.abs(e.clientX - d.x) < 3)) return; d.moved = true;
           d.value = toPos(toU(e.clientX, d.left, d.width)); setPosDraft(d.value); onLive?.('g_pos', d.value); }}
         onPointerUp={() => { const d = gdrag.current; gdrag.current = null; setPosDraft(null); if (d?.moved) onEdit('g_pos', d.value); }}
@@ -338,6 +358,17 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
         onKeyDown={e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation();
           const step = (e.shiftKey ? .1 : e.ctrlKey ? .001 : .01) * (e.key === 'ArrowLeft' ? -1 : 1); onEdit('g_pos', Math.round(Math.max(0, Math.min(1, gpos + step)) * 1e4) / 1e4); }}>
         <i /><b>Position</b></button> : null}
+      {peaks.length && mode === 'grain' && roams && visible(roamEndAt) ? <button type="button" className="smp-handle h-roam" style={{ left: pct(roamEndAt) }}
+        aria-label={'Roam end ' + Math.round(grange * 100) + '%'} title="Roam end: how far the grains travel from Position. Drag it; arrow keys nudge"
+        onPointerDown={e => { if (e.button !== 0) return; e.stopPropagation(); const box = shell.current!.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId);
+          gdrag.current = { left: box.left, width: box.width, x: e.clientX, moved: false, value: grange, key: 'g_range' }; }}
+        onPointerMove={e => { const d = gdrag.current; if (!d || (!d.moved && Math.abs(e.clientX - d.x) < 3)) return; d.moved = true;
+          d.value = toRange(toU(e.clientX, d.left, d.width)); setRangeDraft(d.value); onLive?.('g_range', d.value); }}
+        onPointerUp={() => { const d = gdrag.current; gdrag.current = null; setRangeDraft(null); if (d?.moved) onEdit('g_range', d.value); }}
+        onPointerCancel={() => { const d = gdrag.current; gdrag.current = null; setRangeDraft(null); if (d?.moved) onLive?.('g_range', spec.g_range ?? .4); }}
+        onKeyDown={e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); e.stopPropagation();
+          const step = (e.shiftKey ? .1 : e.ctrlKey ? .001 : .01) * (e.key === 'ArrowLeft' ? -1 : 1); onEdit('g_range', Math.round(Math.max(.02, Math.min(1, grange + step)) * 1e4) / 1e4); }}>
+        <i /><b>Roam end</b></button> : null}
       {peaks.length && mode === 'chop' ? <>
         {shown.map(([a, b], i) => handle({ kind: 'slice', i, edge: 0 }, 'Slice ' + (i + 1), a, 'h-slice_start' + (i === selected ? ' on' : ''),
           i === selected || x(Math.min(b, shown[i + 1]?.[0] ?? b)) - x(a) > .022 ? String(i + 1) : null))}
@@ -345,7 +376,7 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
           ? handle({ kind: 'slice', i: selected, edge: 1 }, 'Slice ' + (selected + 1) + ' end', sel[1], 'h-slice_end on', null) : null}
       </> : null}
     </div>
-    <span className="smp-caption">{secs ? (mode === 'grain' ? 'Grains from ' + ms(posAt) + ' ms · ' + (runtime?.grains?.length ?? 0) + ' sounding' + ((spec.keymap ?? 'whole') !== 'whole' ? ' · each key reads its own slice' : '') : '') + (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
+    <span className="smp-caption">{secs ? (mode === 'grain' ? 'Grains from ' + ms(posAt) + ' ms' + (roams ? ' to ' + ms(roamEndAt) + ' ms' + ((spec.g_roam ?? 'off') === 'off' ? ' (Motion)' : ' (Roam)') : '') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding' + ((spec.keymap ?? 'whole') !== 'whole' ? ' · each key reads its own slice' : '') : '') + (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
       + (vb - va < .999 ? (mode !== 'chop' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
   </div>;
 }
@@ -539,34 +570,72 @@ function SamplerKeys({ spec, onMidi }: { spec: SamplerSpec; onMidi: (s: number, 
 }
 
 /** Amp card: the envelope you drag, with the same four values as knobs. A drag is one undo step. */
-/** Grain mode's controls (24 Nov): the fade of each grain, the scale Spread lands on, and ten knobs. */
+/** Grain mode's controls (24 Nov). The card's title is its page switch (UI-RULES 18): Grain shapes each grain,
+    Roam moves the read point through the bracket on the waveform, Motion adds jumps, holds and backwards stretches. */
+type GrainPage = 'grain' | 'roam' | 'motion';
+const GRAIN_PAGES: [GrainPage, string, string][] = [
+  ['grain', 'Grain', 'Each grain: its shape, length, density, spread and scale'],
+  ['roam', 'Roam', 'The read point travels through the bracket on the waveform'],
+  ['motion', 'Motion', 'Jumps, holds, backwards stretches and a breathing pulse'],
+];
 function GrainCard({ spec, id, onEdit, onLive }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit }) {
+  const [page, setPage] = useState<GrainPage>('grain');
   const pct = (n: number) => Math.round(n * 100) + '%';
   const secs = (n: number) => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s';
+  const off = (n: number) => n < .005 ? 'Off' : pct(n);
   const knob = (key: string, name: string, min: number, max: number, def: number, step: number, format: (n: number) => string, description: string) =>
-    <CommittedKnob id={id + '-' + key} defaultValue={def} name={name} value={(spec as Record<string, unknown>)[key] as number ?? def} min={min} max={max} step={step}
+    <CommittedKnob key={key} id={id + '-' + key} defaultValue={def} name={name} value={(spec as Record<string, unknown>)[key] as number ?? def} min={min} max={max} step={step}
       description={description} format={format} onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
-  const win = spec.g_window ?? 'hann', scale = spec.g_scale ?? 'chromatic';
-  return <section className="smp-card smp-grain" aria-label="Grain">
-    <div className="smp-grain-head"><h2>Grain</h2>
-      <div className="smp-seg smp-filter-shapes smp-windows" role="radiogroup" aria-label="Grain shape">
-        {WINDOWS.map(([w, label, path, title]) => <button key={w} type="button" role="radio" aria-label={label} aria-checked={win === w} title={title}
-          onClick={() => onEdit('g_window', w)}><WindowIcon path={path} /><span>{label}</span></button>)}</div>
-      <div className="smp-seg smp-scales" role="radiogroup" aria-label="Spread scale">
-        {SCALES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={scale === k} title={title} onClick={() => onEdit('g_scale', k)}>{label}</button>)}</div>
+  const win = spec.g_window ?? 'hann', scale = spec.g_scale ?? 'chromatic', roam = spec.g_roam ?? 'off', sync = spec.g_sync ?? 'free';
+  return <section className={'smp-card smp-grain page-' + page} aria-label="Grain">
+    <div className="smp-seg smp-grain-pages" role="radiogroup" aria-label="Grain page">
+      {GRAIN_PAGES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={page === k} title={title} onClick={() => setPage(k)}>
+        {label}{k === 'roam' && roam !== 'off' ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
+        {k === 'motion' && ((spec.g_jump ?? 0) + (spec.g_hold ?? 0) + (spec.g_rev ?? 0) + (spec.g_pulse ?? 0)) > 0 ? <i className="smp-grain-dot" aria-hidden="true" /> : null}</button>)}
     </div>
-    <div className="smp-knobs two smp-knobs-grain">
-      {knob('g_pos', 'Position', 0, 1, .3, .001, pct, 'Where in the sample the grains come from (also the tag on the waveform)')}
-      {knob('g_size', 'Size', .01, 1, .12, .001, secs, 'How long each grain is')}
-      {knob('g_density', 'Density', 1, 80, 14, .1, n => (n < 10 ? n.toFixed(1) : Math.round(n)) + ' /s', 'How many new grains start each second')}
-      {knob('g_spray', 'Spray', 0, 1, .08, .001, pct, 'Scatters each grain\'s start around Position (100% is the whole region)')}
-      {knob('g_scan', 'Scan', -2, 2, 0, .01, n => Math.abs(n) < .005 ? 'Still' : (n > 0 ? '+' : '') + n.toFixed(2) + '×', 'Moves Position through the sample while a key is held: 1× is playing speed, minus goes backwards')}
-      {knob('g_spread', 'Spread', 0, 12, 0, 1, n => n < .5 ? 'Off' : '±' + Math.round(n) + ' st', 'Each grain gets its own random pitch, up to this many semitones, on the scale above')}
-      {knob('g_reverse', 'Reverse', 0, 1, 0, .01, n => n < .005 ? 'Off' : pct(n), 'Chance that a grain plays backwards')}
-      {knob('g_jitter', 'Timing', 0, 1, 0, .01, n => n < .005 ? 'Even' : pct(n), 'Uneven gaps between grains: clusters and pauses, same average')}
-      {knob('g_size_rnd', 'Size var', 0, 1, 0, .01, n => n < .005 ? 'Off' : pct(n), 'Each grain gets its own length, from a quarter to twice Size at 100%')}
-      {knob('g_amp_rnd', 'Level var', 0, 1, 0, .01, n => n < .005 ? 'Off' : pct(n), 'Each grain gets its own level')}
-    </div>
+    {page === 'grain' ? <>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-filter-shapes smp-windows" role="radiogroup" aria-label="Grain shape">
+          {WINDOWS.map(([w, label, path, title]) => <button key={w} type="button" role="radio" aria-label={label} aria-checked={win === w} title={title}
+            onClick={() => onEdit('g_window', w)}><WindowIcon path={path} /><span>{label}</span></button>)}</div>
+        <div className="smp-seg smp-scales" role="radiogroup" aria-label="Spread scale">
+          {SCALES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={scale === k} title={title} onClick={() => onEdit('g_scale', k)}>{label}</button>)}</div>
+      </div>
+      <div className="smp-knobs two smp-knobs-grain">
+        {knob('g_pos', 'Position', 0, 1, .3, .001, pct, 'Where in the sample the grains come from (also the tag on the waveform)')}
+        {knob('g_size', 'Size', .01, 1, .12, .001, secs, 'How long each grain is')}
+        {knob('g_density', 'Density', 1, 80, 14, .1, n => (n < 10 ? n.toFixed(1) : Math.round(n)) + ' /s', 'How many new grains start each second')}
+        {knob('g_spray', 'Spray', 0, 1, .08, .001, pct, 'Scatters each grain\'s start around Position (100% is the whole region)')}
+        {knob('g_spread', 'Spread', 0, 12, 0, 1, n => n < .5 ? 'Off' : '±' + Math.round(n) + ' st', 'Each grain gets its own random pitch, up to this many semitones, on the scale above')}
+        {knob('g_reverse', 'Reverse', 0, 1, 0, .01, off, 'Chance that a grain plays backwards')}
+        {knob('g_jitter', 'Timing', 0, 1, 0, .01, n => n < .005 ? 'Even' : pct(n), 'Uneven gaps between grains: clusters and pauses, same average')}
+        {knob('g_size_rnd', 'Size var', 0, 1, 0, .01, off, 'Each grain gets its own length, from a quarter to twice Size at 100%')}
+        {knob('g_amp_rnd', 'Level var', 0, 1, 0, .01, off, 'Each grain gets its own level')}
+      </div>
+    </> : page === 'roam' ? <>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-roams" role="radiogroup" aria-label="Roam direction">
+          {ROAMS.map(([k, label, Icon, title]) => <button key={k} type="button" role="radio" aria-label={label} aria-checked={roam === k} title={title}
+            onClick={() => onEdit('g_roam', k)}><Icon size={16} /><span>{label}</span></button>)}</div>
+      </div>
+      <div className="smp-grain-head">
+        <div className="smp-seg smp-syncs" role="radiogroup" aria-label="Roam speed: free or bars per pass">
+          {SYNCS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={k === 'free' ? 'Free' : k + (k === '1' ? ' bar' : ' bars')} aria-checked={sync === k} title={title}
+            onClick={() => onEdit('g_sync', k)}>{label}</button>)}<span className="smp-seg-unit">bars</span></div>
+      </div>
+      <div className="smp-knobs two smp-knobs-grain">
+        {knob('g_range', 'Range', .02, 1, .4, .001, pct, 'How much of the sample it travels from Position (also the Roam end tag on the waveform)')}
+        {sync === 'free' ? knob('g_speed', 'Speed', .02, 4, .25, .01, n => n.toFixed(2) + '×', 'Travel speed: 1× is playing speed') : null}
+        {knob('g_wander', 'Wander', 0, 1, 0, .01, off, 'A random drift on top of the travel')}
+        {knob('g_smooth', 'Smooth', 0, 1, .5, .01, pct, 'Makes the drift slow and heavy')}
+      </div>
+    </> : <div className="smp-knobs two smp-knobs-grain">
+      {knob('g_jump', 'Jump', 0, 1, 0, .01, off, 'Random jumps to another place in the bracket')}
+      {knob('g_hold', 'Hold', 0, 1, 0, .01, off, 'Freezes the travel for a moment now and then')}
+      {knob('g_rev', 'Rev', 0, 1, 0, .01, off, 'Travels backwards for a stretch now and then')}
+      {knob('g_chaos', 'Chaos', 0, 1, 0, .01, n => n < .005 ? 'Even' : pct(n), 'Uneven timing for Jump, Hold and Rev: calm spells and bursts')}
+      {knob('g_pulse', 'Pulse', 0, 1, 0, .01, off, 'The travel speed swells up and down like breathing')}
+    </div>}
   </section>;
 }
 

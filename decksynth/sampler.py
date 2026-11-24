@@ -155,6 +155,7 @@ class Sampler:
             self._kernel.argtypes = [C.POINTER(Voice), C.c_int, C.POINTER(Params), C.POINTER(C.c_double), C.c_int]
         # Grain mode: one cloud per voice slot, a shared pool of grains
         self.clouds = (grain.Cloud * SLOTS)(); self.grains = (grain.Grain * grain.GRAIN_POOL)(); self.gparams = grain.GrainParams()
+        self.roamers = [None]*SLOTS; self.bpm = 120.   # Roam / Motion per slot; the engine keeps bpm up to date
         self._grain_kernel = sampler_native.grain_kernel()
         if self._grain_kernel is not None:
             self._grain_kernel.argtypes = [C.POINTER(Voice), C.POINTER(grain.Cloud), C.c_int, C.POINTER(Params),
@@ -302,6 +303,7 @@ class Sampler:
         v.fade_left = -1; v.fade_len = self.fade_frames; v.age = 0; v.stamp = self.stamp; v.active = 1; v.stage = 0
         if s['mode'] == 'grain':
             v.dir = 1; grain.reset_cloud(self.clouds[i], self.stamp)
+            self.roamers[i] = grain.Roamer(self.stamp*7919 + i, s.get('g_roam', 'off'))
             for gr in self.grains:
                 if gr.voice == i: gr.active = 0
         self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.sustained.discard(i); self.events += 1
@@ -362,10 +364,22 @@ class Sampler:
         while at < frames:
             count = min(256, frames-at)
             self._modulate()
+            if self.grain_mode: self._roam(count)
             C.memset(self.scratch, 0, 8*count)
             self._mix_native(count)
             c.dsfx_buf_add(cbus.addr(buf, offset+at), C.addressof(self.scratch), count, g)
             at += count
+
+    def _roam(self, frames):
+        """Roam and Motion: move each held cloud's read point for the coming block."""
+        s = self.spec
+        if not grain.roaming(s): return
+        for i, v in enumerate(self.voices):
+            if not v.active: continue
+            zone = float(v.end - v.start); r = self.roamers[i]
+            if zone < 2.: continue
+            if r is None: r = self.roamers[i] = grain.Roamer(i, s['g_roam'])
+            self.clouds[i].offset = r.step(s, self._e, self.rate, self.bpm, frames, zone)
 
     @property
     def grain_mode(self):
@@ -386,6 +400,7 @@ class Sampler:
         while offset < frames:
             count = min(256, frames-offset)
             self._modulate()
+            if self.grain_mode: self._roam(count)
             if self._kernel is not None and (self._grain_kernel is not None or not self.grain_mode):
                 scratch = self.scratch
                 C.memset(scratch, 0, 8*count)
@@ -422,7 +437,9 @@ class Sampler:
         s = self.spec
         if s is None: return
         m = self.mod
-        if s['mode'] == 'grain': grain.fill(self.gparams, s, self._e, self.rate, self.voices)
+        if s['mode'] == 'grain':
+            grain.fill(self.gparams, s, self._e, self.rate, self.voices)
+            if grain.roaming(s): self.gparams.scan = 0.   # Roam / Motion move the read point instead of Scan
         moved = 'attack' in m or 'decay' in m or 'sustain' in m
         if moved or self._amp_live: self._amp(); self._amp_live = moved
         rate = self.rate; p_env = s['p_env'] + m.get('p_env', 0.); filtered = s['filter'] != 'off'

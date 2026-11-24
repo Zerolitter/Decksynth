@@ -52,11 +52,12 @@ let app,page;
  await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.mode==='grain');
  const card=p.locator('section.smp-grain');await card.waitFor();
  assert.equal(await p.locator('section.smp-pitch').count(),0,'Pitch makes way for the Grain card');
- await inside(p.getByRole('radio',{name:'Grain',exact:true}).last(),'Grain tab');
+ await inside(p.locator('.smp-tools').getByRole('radio',{name:'Grain',exact:true}),'Grain tab');
+ for(const name of ['Grain','Roam','Motion'])await inside(card.getByRole('radiogroup',{name:'Grain page'}).getByRole('radio',{name,exact:true}),'card page '+name);
  const pos=p.getByRole('button',{name:/^Position \d/});await inside(pos,'Position tag');
  for(const name of ['Soft','Tri','Round','Hit','Flat'])await inside(card.getByRole('radio',{name,exact:true}),'shape '+name);
  for(const name of ['All','Maj','Min','Pent','Oct','5th'])await inside(card.getByRole('radio',{name,exact:true}),'scale '+name);
- const knobs=await card.locator('.knob-target').all();assert.equal(knobs.length,10,'ten grain knobs');
+ const knobs=await card.locator('.knob-target').all();assert.equal(knobs.length,9,'nine grain knobs');
  for(const [i,k] of knobs.entries())await inside(k,'grain knob '+(i+1));
  await p.screenshot({path:path.join(OUT,'grain-card-'+H+'.png')});
 
@@ -64,7 +65,7 @@ let app,page;
  await card.getByRole('radio',{name:'Hit',exact:true}).click();
  await card.getByRole('radio',{name:'Min',exact:true}).click();
  const id=(await latest()).state.tracks[0].sampler.id;
- await send('sampler_edit',[0,id,'patch',{g_spread:7,g_spray:.25,g_density:30,g_scan:.3}]);
+ await send('sampler_edit',[0,id,'patch',{g_spread:7,g_spray:.25,g_density:30}]);
  await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_spread===7);
  const root=p.locator('.smp-white.root');const rb=await root.boundingBox();
  await p.mouse.move(rb.x+rb.width/2,rb.y+rb.height-14);await p.mouse.down();
@@ -82,6 +83,43 @@ let app,page;
  await p.mouse.move(wave.x+wave.width*.7,pb.y+20,{steps:8});await p.mouse.up();
  await p.waitForFunction(b=>Math.abs(window.__latest.state.tracks[0].sampler.g_pos-b)>.1,before);
  const after=(await latest()).state.tracks[0].sampler.g_pos;assert.ok(after>.55&&after<.85,'Position follows the drag: '+after);
+
+ // Roam: direction and sync as buttons, the bracket and its end tag on the waveform, the read point travels while held.
+ const pages=card.getByRole('radiogroup',{name:'Grain page'});
+ await pages.getByRole('radio',{name:'Roam',exact:true}).click();
+ for(const name of ['Off','Forward','Reverse','Bounce'])await inside(card.getByRole('radio',{name,exact:true}),'roam '+name);
+ for(const name of ['Free','1/4 bars','1/2 bars','1 bar','2 bars','4 bars','8 bars','16 bars'])await inside(card.getByRole('radio',{name,exact:true}),'sync '+name);
+ let rk=await card.locator('.knob-target').all();assert.equal(rk.length,4,'Range, Speed, Wander, Smooth');for(const [i,k] of rk.entries())await inside(k,'roam knob '+(i+1));
+ assert.equal(await p.getByRole('button',{name:/^Roam end/}).count(),0,'no bracket while Roam is off');
+ await card.getByRole('radio',{name:'Forward',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_roam==='forward');
+ const rend=p.getByRole('button',{name:/^Roam end/});await inside(rend,'Roam end tag');
+ assert.ok(await p.locator('.smp-wave .smp-roam').count()>0,'the bracket is shaded');
+ // drag Roam end closer to Position: Range shrinks, as one edit
+ const g0=(await latest()).state.tracks[0].sampler;const reb=await rend.boundingBox();
+ const target=wave.x+wave.width*(g0.g_pos+.15);
+ await p.mouse.move(reb.x+reb.width/2,reb.y+reb.height-20);await p.mouse.down();
+ await p.mouse.move(target,reb.y+reb.height-20,{steps:8});await p.mouse.up();
+ await p.waitForFunction(r=>Math.abs(window.__latest.state.tracks[0].sampler.g_range-r)>.05,g0.g_range);
+ const rg=(await latest()).state.tracks[0].sampler.g_range;assert.ok(rg>.08&&rg<.25,'Range follows the drag: '+rg);
+ await card.getByRole('radio',{name:'1 bar',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_sync==='1');
+ rk=await card.locator('.knob-target').all();assert.equal(rk.length,3,'Speed goes while synced to bars');
+ await card.getByRole('radio',{name:'Free',exact:true}).click();
+ await send('sampler_edit',[0,id,'patch',{g_range:.5,g_speed:2,g_pos:.2}]);
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_speed===2);
+ await p.mouse.move(rb.x+rb.width/2,rb.y+rb.height-14);await p.mouse.down();
+ await p.waitForFunction(()=>(window.__smp?.[0]?.playing?.length??0)>0,null,{timeout:8000});
+ const heads=new Set();for(let i=0;i<8;i++){await p.waitForTimeout(120);heads.add((await p.evaluate(()=>window.__smp?.[0]?.playing?.[0]))?.toFixed(3));}
+ assert.ok(heads.size>=3,'the read point travels: '+[...heads]);
+ await p.screenshot({path:path.join(OUT,'grain-roam-'+H+'.png')});
+ await p.mouse.up();
+ await p.waitForFunction(()=>(window.__smp?.[0]?.voices??1)===0,null,{timeout:8000});
+ // Motion: five knobs.
+ await pages.getByRole('radio',{name:'Motion',exact:true}).click();
+ const mk=await card.locator('.knob-target').all();assert.equal(mk.length,5,'Jump, Hold, Rev, Chaos, Pulse');
+ for(const [i,k] of mk.entries())await inside(k,'motion knob '+(i+1));
+ await p.screenshot({path:path.join(OUT,'grain-motion-'+H+'.png')});
 
  // Leaving Grain brings Pitch and Filter back; old modes still work.
  await p.getByRole('radio',{name:'Hold',exact:true}).click();
