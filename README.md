@@ -90,6 +90,22 @@ A Flatpak (`io.github.zerolitter.Decksynth`) is in progress. The recipe is in
 - `packaging/release/` builds the ready-to-run download (`.github/workflows/release.yml` runs it for each version tag).
 - `docs/` packaging and demo-kit notes.
 
+
+## community attribution request,
+
+We encourage developers to explore DeckSynth's internal code, study its implementations, and reuse or adapt its features in their own projects.
+
+If you use, adapt, or reproduce code or functionality from DeckSynth, we ask that you include a reference to this repository in your project's README:
+
+**Source reference:** [DeckSynth](https://github.com/Zerolitter/Decksynth)
+
+This helps others discover DeckSynth, find existing implementations, and bring useful features into a wider range of projects and creative tools.
+
+The goal is to encourage knowledge sharing, collaboration, and the wider development of accessible creative software. We believe good ideas should be discoverable and that giving credit helps the entire community grow.
+
+
+
+
 ## Support
 
 Development donations: https://www.paypal.com/donate/?hosted_button_id=EWZ2SZB92EYJE
