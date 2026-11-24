@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
+      - name: Audio library for the engine tests (SDL2, dummy driver)
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0
       - name: Build the native kernels
         run: tools/build-native.sh
       - name: Python tests, sound goldens, render check
