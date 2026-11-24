@@ -6,8 +6,8 @@ export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** knobBubble: the value that pops up over a knob while it turns (Sir, 16 Nov: can be turned off; the value box stays). */
 /** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 11 ms (grows after a dropout and shrinks back), safe 21 ms. */
 export type Latency = 'low'|'auto'|'safe';
-export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency};
-const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto'};
+export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency;editSound:boolean};
+const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto',editSound:true};
 const KEY='decksynth.settings';
 export function readSettings():AppSettings{
   try{return {...DEFAULTS,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return {...DEFAULTS};}
@@ -46,6 +46,12 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
             <small>On: the value pops up over a knob while you turn it. Off: only the value box under the knob shows it.</small></span>
           <input type="checkbox" role="switch" aria-label="Knob pop-up value" checked={settings.knobBubble}
             onChange={e=>onSettings({...settings,knobBubble:e.target.checked})}/>
+        </label>
+        <label className="setting-switch">
+          <span><strong>Hear notes while editing</strong>
+            <small>On: drawing, moving or picking a note in the Perform grid plays it briefly. Off: editing is silent.</small></span>
+          <input type="checkbox" role="switch" aria-label="Hear notes while editing" checked={settings.editSound}
+            onChange={e=>onSettings({...settings,editSound:e.target.checked})}/>
         </label>
         {win?<><h3><Maximize size={15}/> Window</h3>
         <div className="setting-seg setting-window" role="group" aria-label="Window">

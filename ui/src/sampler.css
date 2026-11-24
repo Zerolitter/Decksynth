@@ -469,3 +469,13 @@
 .sampler-page .smp-drag .drag-axis-label.top{left:auto;right:6px}
 .sampler-page .smp-filter .smp-card-head .smp-power:is(:hover,:active,:focus):not(:disabled),.sampler-page .smp-filter .smp-card-head .smp-power{background:none;border:0;box-shadow:none}
 .sampler-page .smp-drag:not(.drag-envelope) .drag-axis-label.top{left:6px;right:auto}
+
+/* Export loop as WAV (File menu) */
+.export-loop-sheet .xl-row{display:flex;align-items:center;gap:6px}
+.export-loop-sheet .xl-row>span{width:64px;color:var(--soft);font-weight:700}
+.export-loop-sheet .xl-row button{flex:1;padding:0 12px}
+.export-loop-sheet .xl-row button:disabled{opacity:.55;cursor:default}
+.export-loop-sheet .xl-hint{min-height:18px}
+.export-loop-sheet .xl-progress{position:relative;flex:1;height:44px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--raised)}
+.export-loop-sheet .xl-progress i{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--accent) 35%,var(--panel));transition:width .2s}
+.export-loop-sheet .xl-progress b{position:relative;display:grid;place-items:center;height:100%}

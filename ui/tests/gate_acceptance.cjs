@@ -13,11 +13,10 @@ const ROOT=path.resolve(__dirname,'..');
   const p=await app.firstWindow({timeout:15000});
   p.setDefaultTimeout(8000);
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1280,722));
+  await p.setViewportSize({width:1280,height:720});
+  await p.waitForFunction(()=>innerWidth===1280&&innerHeight===720,{timeout:5000});
   await p.getByRole('tab',{name:/^FX$/}).click();
-  await p.getByRole('button',{name:'Add effect'}).click();
-  await p.getByRole('dialog',{name:'Add effect'}).getByRole('button',{name:'Add Audio gate'}).click();
-  if(await p.locator('.fx-picker-sheet').count())await p.keyboard.press('Escape');
+  await p.getByRole('button',{name:'Add Audio gate'}).click();
   const card=p.locator('[data-panel="fx-gate"]');
   assert.ok(await card.isVisible(),'gate card in the rack');
   const strip=card.getByRole('button',{name:'Edit gate steps'});
@@ -46,7 +45,7 @@ const ROOT=path.resolve(__dirname,'..');
   await sheet.getByRole('button',{name:'Invert'}).click();
   assert.equal(await sheet.getByRole('button',{name:/^Cell 1,/}).getAttribute('aria-pressed'),'true');
   const b=await sheet.boundingBox();
-  assert.ok(b.y+b.height<=722,'sheet fits the window');
+  assert.ok(b.y+b.height<=720,'sheet fits the window');
   for(const cell of await sheet.locator('.gate-cell').all()){const r=await cell.boundingBox();assert.ok(r.width>=44&&r.height>=44,'44 px cells');}
   await p.screenshot({path:path.join(ROOT,'docs/gate-sheet-acceptance.png')});
   await p.keyboard.press('Escape');
@@ -56,9 +55,11 @@ const ROOT=path.resolve(__dirname,'..');
   assert.equal(await sheet.count(),0,'Done closes');
 
   // Steps, cells and size are not link targets; Smooth, Depth and Pump are.
-  await p.locator('.mod-band').getByRole('button',{name:/Add target|Edit links/}).first().click();
-  await p.getByRole('radiogroup',{name:'Target effect'}).getByRole('radio',{name:'Audio gate'}).click();
-  const params=p.locator('.mod-link-params');
+  await p.getByRole('tab',{name:'Link',exact:true}).click();
+  await p.locator('.lp-links').getByRole('button',{name:'By name'}).click();
+  const linkEditor=p.getByRole('dialog',{name:'Mod pad 1 editor'});
+  await linkEditor.getByRole('radiogroup',{name:'Target effect'}).getByRole('radio',{name:'Audio gate'}).click();
+  const params=linkEditor.locator('.mod-link-params');
   for(const n of ['Smooth','Depth','Pump'])assert.ok(await params.getByRole('button',{name:n,exact:true}).isVisible(),n+' linkable');
   for(const n of ['Steps','Cells','Cell size'])assert.equal(await params.getByRole('button',{name:n,exact:true}).count(),0,n+' not linkable');
   await p.keyboard.press('Escape');

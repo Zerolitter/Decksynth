@@ -35,6 +35,8 @@ export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads
   /** Where the pad's sounding voices are, 0..1 of the sample (round 2: a moving playhead). */ at?:number[];/** while playing: dBFS going into the compressor and coming out */lvl?:number[]|null}[]};
 export type AutomationLane={module:string;param:string;points:[number,number][]};
 export type Track = {
+  /** Names of the 8 clips (A–H); '' shows the letter. */
+  clip_names?:string[];
   sound_ab?:{active:'A'|'B';A:unknown;B:unknown};automation?:AutomationLane[];
   midi_cc?:import('./parameter-registry').MidiMapping[];
   device?:'synth'|'drum_rack'|'sampler';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
@@ -120,7 +122,7 @@ export type DeckUpdate = {
   count_in?: {state:'count';beat:number;of:number}|{state:'armed';count:number}|null;
   devices: string[]; audio: string; audio_output: string;
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; latency_mode?: string; preview?: boolean;
-  sound_undo?:number[];automation_arm?:boolean;audio_channels?:number;
+  sound_undo?:number[];can_redo?:boolean;automation_arm?:boolean;audio_channels?:number;
   meter?: { channels?:{rms:number;peak:number;wave:number[]}[];rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;partials?:number[]|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };
   held_notes?: number[];
   /** Step record cursor: the step the next recorded key goes to. */
@@ -135,13 +137,14 @@ export type DeckUpdate = {
   /** WAV export progress 0..1 while it runs. */
   exporting?: number|null;
 };
-export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string };
+export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string;
+  midi_file?: { path: string; channels: { channel: number; notes: number; low: number; high: number }[] } };
 export type DeckApi = {
   available: true;
   send(command: string, args?: unknown): void;
   onMessage(callback: (message: BridgeMessage) => void): () => void;
   windowAction?(op:'quit'|'minimize'|'fullscreen'):void;
-  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder'): Promise<string|null>;
+  chooseFile(operation: 'save'|'open', extension:'project'|'midi'|'instrument'|'wav'|'sample'|'sample_folder', name?: string): Promise<string|null>;
 };
 declare global { interface Window { deckApi?: DeckApi } }
 export const TRACK_COLORS = ['#d7b67c','#78d8bf','#ad9ce6','#8baddf','#e59a7a','#6fc6d8','#d68fc0','#a9b4c2'] as const;

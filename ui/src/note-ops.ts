@@ -1,6 +1,6 @@
 import type {Note,StepPattern} from './types';
 export type NoteBounds={span:number;snap:number;maxDuration:number};
-export type NoteAction={kind:'move';time:number;pitch:number}|{kind:'length';delta:number}|{kind:'velocity';value:number}|{kind:'duplicate'|'delete'|'quantize'};
+export type NoteAction={kind:'move';time:number;pitch:number}|{kind:'length';delta:number}|{kind:'velocity';value:number}|{kind:'duplicate'|'delete'|'quantize'|'legato'};
 export type NoteTarget={kind:'clip';track:number;clip:number;bars:number;device?:string}|{kind:'pattern';track:number;bank:number;slot:number;device?:string};
 const clamp=(v:number,lo:number,hi:number)=>Math.max(lo,Math.min(hi,v));
 export const sameNotes=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
@@ -12,11 +12,11 @@ export function notesInCell(events:Note[],time:number,pitch:number,snap:number,p
  return events.flatMap((note,index)=>note.note===pitch&&((note.start>=time&&note.start<time+snap)||(time===pageStart&&note.start<time&&note.start+note.duration>time))?[{note,index}]:[]);
 }
 export function patternEvents(p:StepPattern):Note[]{return p.steps.flatMap((step,start)=>step.map(n=>({start,note:n.note,duration:n.tie,velocity:n.velocity})));}
-export function paintNotes(events:Note[],from:number,to:number,pitch:number,b:NoteBounds,erase=false):Note[]{
+export function paintNotes(events:Note[],from:number,to:number,pitch:number,b:NoteBounds,erase=false,duration=b.snap):Note[]{
  const lo=Math.max(0,Math.min(from,to)),hi=Math.min(b.span-b.snap,Math.max(from,to));let out=events.map(n=>({...n}));
  for(let start=lo;start<=hi+b.snap*.01;start=Math.round((start+b.snap)*1e6)/1e6){
   if(erase)out=out.filter(n=>!(n.note===pitch&&start>=n.start&&start<n.start+n.duration));
-  else if(!out.some(n=>n.start===start&&n.note===pitch))out.push({start,duration:b.snap,note:pitch,velocity:100});
+  else if(!out.some(n=>n.start===start&&n.note===pitch))out.push({start,duration:Math.min(duration,b.span-start,b.maxDuration),note:pitch,velocity:100});
  }
  return out;
 }
@@ -38,6 +38,12 @@ export function editNotes(events:Note[],selected:number[],action:NoteAction,b:No
   if(action.kind==='length')n.duration=clamp(Math.round((n.duration+action.delta)*1e6)/1e6,b.snap,b.maxDuration);
   if(action.kind==='velocity')n.velocity=clamp(Math.round(action.value),1,127);
   if(action.kind==='quantize')n.start=clamp(Math.round(n.start/b.snap)*b.snap,0,b.span-b.snap);
+  if(action.kind==='legato'){
+   // A chord shares the next musical onset: its voices lengthen together rather
+   // than leaving one member behind.  The final event keeps its existing tail.
+   const next=out.reduce<number|undefined>((at,other)=>other.start>n.start&&(at===undefined||other.start<at)?other.start:at,undefined);
+   if(next!==undefined)n.duration=clamp(Math.round((next-n.start)*1e6)/1e6,b.snap,b.maxDuration);
+  }
  }
  return {events:out,selection:ids};
 }

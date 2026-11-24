@@ -12,7 +12,7 @@ import { SONG_TRACK_COLORS, type FreezeInfo, type Note, type Project } from '../
 import { FreezeButton, FreezeOverlay, freezeFor } from './Freeze';
 import { ValueBox } from './ValueBox';
 import {
-  CLIP_NAMES, CLIPS, MARKER_NAMES, MAX_BARS, blockAt, changeBlock, clipNotes, clipsOf, deleteBlock, duplicateBlock,
+  CLIP_NAMES, CLIPS, clipLabel, MARKER_NAMES, MAX_BARS, blockAt, changeBlock, clipNotes, clipsOf, deleteBlock, duplicateBlock,
   emptyClip, markerAt, moveBlock, nextMarkerName, phase, place, setLength, setMarker, splitBlock, type Block, type Song,
 } from '../song';
 
@@ -25,7 +25,7 @@ type BarProps = {
   project:Project; song:Song; view:SongView; onView(v:SongView):void; onSong(s:Song):void;
   zoom:number; onZoom(z:number):void; start:number; onStart(bar:number):void;
   sel:SongSel; onSel(s:SongSel):void;
-  onClip(track:number, action:'open'|'copy'|'clear', clip:number, source?:number):void; onEditClip(track:number, clip:number):void;
+  onClip(track:number, action:'open'|'copy'|'clear'|'rename', clip:number, source?:number|string):void; onEditClip(track:number, clip:number):void;
 };
 
 export function SongBar(props:BarProps) {
@@ -216,7 +216,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
               <strong>{t.preset}</strong>
             </button>
             <button type="button" className="lane-loop" aria-label={'Clips of track ' + (tr + 1) + ': clip ' + CLIP_NAMES[open[tr]] + ' is open'}
-              title="The open clip: you record into it and empty bars get it" onClick={() => onClips(tr)}><b>{CLIP_NAMES[open[tr]]}</b><small>clip</small></button>
+              title="The open clip: you record into it and empty bars get it" onClick={() => onClips(tr)}><b>{CLIP_NAMES[open[tr]]}</b><small>{project.tracks[tr].clip_names?.[open[tr]] || 'clip'}</small></button>
             {onFreeze && onUnfreeze ? <FreezeButton info={freeze?.[tr]} name={t.preset} onFreeze={() => onFreeze(tr)} onUnfreeze={() => onUnfreeze(tr)}/> : null}
             <button type="button" className={'lane-mute' + (t.mute ? ' muted' : '')} aria-label={(t.mute ? 'Unmute ' : 'Mute ') + t.preset} aria-pressed={t.mute}
               onClick={() => onMute(tr, !t.mute)}>{t.mute ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>
@@ -243,7 +243,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
                   else if (!d.moved) onSel(picked ? null : {kind:'block', track:tr, at:b.at, bar:barOf(e)}); }}
                 onPointerCancel={() => setDrag(null)} onClick={e => e.stopPropagation()}
                 onKeyDown={e => { if (e.key==='Enter' || e.key===' ') { e.preventDefault(); onSel({kind:'block', track:tr, at:b.at, bar:b.at}); } }}>
-                <b className="blk-name">{CLIP_NAMES[b.clip]}</b>
+                <b className="blk-name">{clipLabel(project, tr, b.clip)}</b>
                 <BlockNotes notes={notes} b={b} from={from} to={to} bars={bars} color={color}/>
                 {notes.length ? null : <small className="blk-empty">empty</small>}
               </div>;
@@ -268,7 +268,7 @@ function MiniLoop({notes, beats, color}:{notes:Note[]; beats:number; color:strin
 
 type SheetProps = {
   project:Project; song:Song; track:number; container:Element|null; onClose():void;
-  onClip(track:number, action:'open'|'copy'|'clear', clip:number, source?:number):void;
+  onClip(track:number, action:'open'|'copy'|'clear'|'rename', clip:number, source?:number|string):void;
 };
 
 /** One track's 8 clips: open one (you record into it and edit it; in Loop mode it plays), copy it to a new clip, or clear it. */
@@ -294,7 +294,7 @@ export function ClipSheet({project, song, track, container, onClose, onClip}:She
             const notes = clipNotes(project, track, k), used = uses(k);
             return <button key={k} type="button" role="radio" aria-checked={open===k} aria-label={'Clip ' + CLIP_NAMES[k] + (notes.length ? ', ' + notes.length + ' notes' : ', empty')}
               className={'loop-slot' + (open===k ? ' active' : '') + (notes.length ? ' full' : '')} onClick={() => onClip(track, 'open', k)}>
-              <b>{CLIP_NAMES[k]}</b><MiniLoop notes={notes} beats={beats} color={color}/>
+              <b>{CLIP_NAMES[k]}{project.tracks[track].clip_names?.[k] ? <em className="ls-name"> {project.tracks[track].clip_names![k]}</em> : null}</b><MiniLoop notes={notes} beats={beats} color={color}/>
               <small className="ls-use">{used ? 'in song: ' + used + (used===1 ? ' bar' : ' bars') : 'not in song'}</small>
             </button>;
           })}
@@ -305,9 +305,21 @@ export function ClipSheet({project, song, track, container, onClose, onClip}:She
             <CopyPlus size={17}/>Copy {CLIP_NAMES[open]} to a new clip{empty!==undefined ? ' (' + CLIP_NAMES[empty] + ')' : ''}</button>
           <button type="button" disabled={!clipNotes(project, track, open).length} onClick={() => onClip(track, 'clear', open)}>
             <Eraser size={17}/>Clear clip {CLIP_NAMES[open]}</button>
+          <ClipName key={track + ':' + open} value={project.tracks[track].clip_names?.[open] ?? ''} letter={CLIP_NAMES[open]}
+            onName={name => onClip(track, 'rename', open, name)}/>
           <span className="loop-tip">For a variation or a fill: copy a clip, change the copy, then put it on the timeline (tap a block and pick its letter).</span>
         </div>
       </div>
     </section>
   </div>, container);
+}
+
+/** The open clip's name, typed in place. Enter or leaving the field keeps it; Esc puts it back; empty shows the letter. */
+function ClipName({value, letter, onName}:{value:string; letter:string; onName(name:string):void}) {
+  const [text, setText] = useState(value);
+  const done = () => { const name = text.split(/\s+/).filter(Boolean).join(' ').slice(0, 24); if (name!==value) onName(name); };
+  return <label className="clip-name">Name of {letter}
+    <input type="text" value={text} maxLength={24} placeholder={letter} spellCheck={false} aria-label={'Name of clip ' + letter}
+      onChange={e => setText(e.target.value)} onBlur={done}
+      onKeyDown={e => { e.stopPropagation(); if (e.key==='Enter') (e.target as HTMLInputElement).blur(); else if (e.key==='Escape') { setText(value); e.preventDefault(); } }}/></label>;
 }

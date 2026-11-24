@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('deckApi', {
     ipcRenderer.send('deck-snapshot-request');
     return () => ipcRenderer.removeListener('deck-message', handler);
   },
-  chooseFile: (operation, extension) => ipcRenderer.invoke('deck-file-dialog', operation, extension),
+  chooseFile: (operation, extension, name) => ipcRenderer.invoke('deck-file-dialog', operation, extension, name),
   windowAction: op => ipcRenderer.send('deck-window', op),
   available: true,
 });

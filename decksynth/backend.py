@@ -396,12 +396,14 @@ def worker(commands,updates):
                     elif cmd=='play':
                         if engine.playing:engine.stop()
                         else:engine.playing=True
+                    elif cmd=='play_from':engine.play_from(args)
                     elif cmd=='stop':engine.stop(); audio and audio.clear()
                     elif cmd=='panic':engine.panic(); audio and audio.clear()
                     elif cmd=='record':engine.record_button()
                     elif cmd=='record_options':engine.set_record_options(*args)
                     elif cmd=='audio_latency':latency.set_mode(args[0] if isinstance(args,(list,tuple)) and args else args,time.monotonic())
                     elif cmd=='undo':engine.undo_any()
+                    elif cmd=='redo':engine.redo()
                     elif cmd=='quantize':engine.quantize(engine.selected)
                     elif cmd=='clear':engine.snapshot(); engine.stop(); engine.project.tracks[engine.selected]['notes']=[]
                     elif cmd=='device':engine.panic(); midi.close(); midi.path=args; midi.next_scan=0
@@ -530,6 +532,15 @@ def worker(commands,updates):
                     elif cmd=='export_wav':
                         if 'export' in renders:raise ValueError('A WAV export is already running')
                         renders['export']=RenderJob('export_wav',engine.project.data(),engine.rate,str(args))
+                    elif cmd=='export_loop':
+                        # [path, track or None (whole mix), 'pass'|'tail'|'loop', headroom]
+                        if 'export' in renders:raise ValueError('A WAV export is already running')
+                        path,tr,kind,headroom=args
+                        if tr is not None and not 0<=int(tr)<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
+                        if kind not in ('pass','tail','loop'):raise ValueError('Choose one pass, with tail or seamless loop')
+                        engine.finish_record()
+                        renders['export']=RenderJob('export_loop',engine.project.data(),engine.rate,str(path),track=None if tr is None else int(tr),
+                                                    meta=dict(opts=dict(kind=kind,headroom=bool(headroom))))
                     elif cmd=='freeze':
                         tr=int(args)
                         if not 0<=tr<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
@@ -552,6 +563,13 @@ def worker(commands,updates):
                         if job:job.cancel();send(dict(message='Freeze cancelled'))  # dropped once the process has ended
                         elif engine.project.tracks[tr].get('freeze') or engine.project.tracks[tr].get('freeze_loop'):engine.set_freeze(tr,None);send(dict(message='Track %d plays live again'%(tr+1)))
                     elif cmd=='export':engine.project.export_midi(args); send(dict(message='Exported '+args))
+                    elif cmd=='midi_channels':
+                        from .midi_import import midi_channels
+                        send(dict(midi_file=dict(path=str(args),channels=midi_channels(args))))
+                    elif cmd=='import_midi':
+                        path,chans=(args[0],args[1]) if isinstance(args,list) else (args,None)
+                        count,bars,dropped=engine.import_midi(path,chans)
+                        send(dict(message='Imported %d notes into %s (%d bars)%s'%(count,engine.project.tracks[engine.selected]['name'],bars,', %d past bar 32 left out'%dropped if dropped else '')))
                     elif cmd=='save_preset':
                         from pathlib import Path
                         import json
@@ -575,7 +593,9 @@ def worker(commands,updates):
                 if not job.poll():continue
                 renders.pop(key)
                 if key=='export':
-                    send(dict(message='Stereo WAV exported') if job.result else dict(error='WAV export failed: '+job.error))
+                    if job.kind=='export_loop' and job.result:
+                        r=job.result;send(dict(message='Loop exported: %s beats, %s'%(('%g'%r['beats']),r['path'].rsplit('/',1)[-1])))
+                    else:send(dict(message='Stereo WAV exported') if job.result else dict(error='WAV export failed: '+job.error))
                 elif job.error=='cancelled':pass
                 elif job.result is None:send(dict(error='Freeze failed: '+job.error))
                 else:
@@ -641,7 +661,7 @@ def worker(commands,updates):
                 for key,job in renders.items():
                     if key!='export':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
                 status=dict(freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
-                          pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
+                          pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
                           drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',

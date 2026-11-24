@@ -1,16 +1,21 @@
 /* The synth's Sound page (Sir, 16 Nov): partials, big graph and tool rack on top; eight module cards in four columns. */
 .harness-shell .synth-sound{flex:1;min-height:0;height:100%;display:flex;flex-direction:column;gap:8px;user-select:none}
-.harness-shell .ss-top{flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:620px minmax(0,1fr) 206px;gap:8px}
+.harness-shell .ss-top{position:relative;flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:620px minmax(0,1fr) 206px;gap:8px}
 .harness-shell .ss-graph-label{display:flex;align-items:baseline;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--c-sound);
   position:absolute;left:10px;top:7px;z-index:1;pointer-events:none}
 .harness-shell .ss-graph-label span{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:#8b929a}
 
 /* Partials: 16 bars to draw, the heard level as a white line, the starting shapes under them */
 .harness-shell .ss-partials{position:relative;display:flex;flex-direction:column;gap:6px;padding:28px 10px 8px;border:1px solid var(--line-soft);border-radius:10px;background:var(--inset);min-height:0}
+.harness-shell .ss-guide-toggle{position:absolute;z-index:2;right:5px;top:4px;width:44px;height:44px;min-width:44px;min-height:44px;display:grid;place-items:center;padding:0;border:1px solid color-mix(in srgb,var(--c-guide) 48%,var(--line-soft));border-radius:8px;background:color-mix(in srgb,var(--c-guide) 8%,var(--inset));color:var(--c-guide)}
+.harness-shell .ss-guide-toggle[aria-pressed=true]{background:color-mix(in srgb,var(--c-guide) 22%,var(--inset));border-color:var(--c-guide);box-shadow:0 0 10px color-mix(in srgb,var(--c-guide) 28%,transparent)}
+.harness-shell .ss-guide-toggle:focus-visible{outline:2px solid var(--c-guide);outline-offset:2px}
 .harness-shell .ss-bars{flex:1;min-height:60px;display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;touch-action:none;cursor:crosshair;padding-bottom:14px}
 .harness-shell .ss-bar{position:relative;border-radius:4px;background:#ffffff08}
 .harness-shell .ss-bar-fill{position:absolute;left:0;right:0;bottom:0;height:calc(var(--v) * 100%);border-radius:4px;
   background:linear-gradient(180deg,color-mix(in srgb,var(--accent-track) 80%,#fff 0%),color-mix(in srgb,var(--accent-track) 40%,#000));opacity:.62}
+.harness-shell .ss-bar-guide{position:absolute;left:1px;right:1px;bottom:calc(var(--guide) * 100% - 1px);height:2px;border-radius:2px;
+  z-index:2;background:var(--c-guide);opacity:1;box-shadow:0 0 0 1px color-mix(in srgb,var(--c-guide) 38%,transparent);pointer-events:none}
 .harness-shell .ss-bar.current .ss-bar-fill{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--accent-track) 40%,transparent)}
 .harness-shell .ss-bar-heard{position:absolute;left:-1px;right:-1px;bottom:calc(var(--heard) * 100% - 1px);height:2.5px;border-radius:2px;background:var(--ui-white);opacity:.9;transition:bottom .08s linear}
 .harness-shell .ss-bar span{position:absolute;left:0;right:0;bottom:-15px;text-align:center;font-size:9.5px;color:var(--ui-text-faint);font-weight:700}
@@ -43,9 +48,35 @@
 .harness-shell .ss-led{width:8px;height:8px;border-radius:50%;background:#555b62}
 .harness-shell .ss-led.on{background:var(--t-oct);box-shadow:0 0 6px #61e3bf99}
 
+/* Guidance is opt-in and bounded by the existing top workspace, so opening it cannot move Sound modules or add a scroll area. */
+.harness-shell .ss-guide-panel{position:absolute;z-index:4;inset:0 0 0 628px;display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;padding:7px 10px;border:1px solid color-mix(in srgb,var(--c-guide) 64%,var(--ui-line-soft));border-radius:10px;background:color-mix(in srgb,var(--c-guide) 9%,var(--ui-bg));box-shadow:0 14px 26px var(--shadow);overflow:hidden}
+.harness-shell .ss-guide-panel[hidden]{display:none}
+.harness-shell .ss-guide-left{display:grid;grid-template-rows:24px minmax(0,1fr);gap:5px;min-width:0;padding-right:14px;border-right:1px solid color-mix(in srgb,var(--c-guide) 48%,var(--ui-line-soft))}
+.harness-shell .ss-guide-head{display:flex;align-items:center;min-width:0}
+.harness-shell .ss-guide-head>div{display:flex;align-items:baseline;gap:10px;min-width:0}.harness-shell .ss-guide-head b{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--c-guide)}.harness-shell .ss-guide-head small{font-size:10px;color:var(--ui-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .ss-guide-picker{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0}
+.harness-shell .ss-guide-picker select{min-width:0;width:100%;height:44px;min-height:44px;border:1px solid color-mix(in srgb,var(--c-guide) 62%,var(--ui-line));border-radius:7px;background:var(--ui-raised);color:var(--ui-text-hi);font:inherit;font-size:11px;font-weight:700;padding:0 8px}
+.harness-shell .ss-guide-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.harness-shell .ss-guide-choices button{min-height:44px;padding:0 4px;border:1px solid color-mix(in srgb,var(--c-guide) 40%,var(--ui-line));border-radius:7px;background:var(--ui-raised);color:var(--ui-text-2);font-size:10.5px;font-weight:750;line-height:1.1}.harness-shell .ss-guide-choices button.on{border-color:var(--accent);color:var(--ui-text-hi);background:var(--ui-accent-deep)}
+.harness-shell .ss-guide-picker small{font-size:10px;line-height:1.3;color:var(--ui-text-2)}
+.harness-shell .ss-guide-picker select:focus-visible,.harness-shell .ss-guide-details summary:focus-visible,.harness-shell .ss-guide-right-head button:focus-visible{outline:2px solid var(--c-guide);outline-offset:2px}
+.harness-shell .ss-guide-right{display:flex;flex-direction:column;min-width:0;min-height:0}
+.harness-shell .ss-guide-right-head{height:44px;min-height:44px;display:grid;grid-template-columns:auto minmax(0,1fr) 44px;gap:12px;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--c-guide) 36%,var(--ui-line-soft))}.harness-shell .ss-guide-right-head>b{font-size:18px;line-height:1;font-weight:800;letter-spacing:.01em;color:var(--c-guide)}
+.harness-shell .ss-guide-right-head button{width:44px;height:44px;min-width:44px;min-height:44px;display:grid;place-items:center;padding:0;border:1px solid color-mix(in srgb,var(--c-guide) 44%,var(--ui-line));border-radius:8px;background:var(--ui-raised);color:var(--c-guide)}
+.harness-shell .ss-guide-legend{display:flex;align-items:center;justify-content:flex-end;gap:6px 12px;min-width:0;flex-wrap:wrap;font-size:10px;font-weight:700;color:var(--ui-text-2)}
+.harness-shell .ss-guide-legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}.harness-shell .ss-guide-legend i{display:block;width:14px;height:3px;border-radius:3px}
+.harness-shell .ss-current-swatch{background:var(--accent-track)}.harness-shell .ss-heard-swatch{background:var(--ui-white)}.harness-shell .ss-guide-swatch{background:var(--c-guide);box-shadow:0 0 0 1px color-mix(in srgb,var(--c-guide) 45%,transparent)}
+.harness-shell .ss-guide-details{min-height:0;font-size:10px;color:var(--ui-text-2)}
+.harness-shell .ss-guide-details summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:800;color:var(--c-guide)}
+.harness-shell .ss-guide-explanation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:1px 0 3px}.harness-shell .ss-guide-explanation p{margin:0;line-height:1.25}.harness-shell .ss-guide-explanation p b{display:block;color:var(--ui-text-hi);font-size:9px;letter-spacing:.07em;text-transform:uppercase}
+
+.harness-shell .knob-guide-range{opacity:1;stroke-dasharray:1.5 2.2;pointer-events:none}.harness-shell .knob-guide-boundary{pointer-events:none}
+.harness-shell .ss-knobs .tactile-knob.is-guide-outside .knob-value{color:var(--c-guide)}
+.harness-shell .ss-knobs .tactile-knob.is-guide-outside .knob-heading::after{content:' •';color:var(--c-guide)}
+
 /* Module cards in four columns, each as tall as its controls */
 .harness-shell .ss-cards{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:start}
 .harness-shell .ss-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.harness-shell .ss-sends-inline{padding-top:4px;border-top:1px solid var(--line-soft)}
 .harness-shell .ss-card{display:flex;flex-direction:column;gap:6px;padding:5px 10px 8px;border:1px solid color-mix(in srgb,var(--tag) 42%,var(--line-soft));border-radius:10px;background:var(--panel);min-width:0}
 .harness-shell .ss-card-head{display:flex;align-items:center;gap:8px;min-height:24px}
 .harness-shell .ss-card-head h2{margin:0;font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--tag)}

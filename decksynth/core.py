@@ -129,6 +129,13 @@ def validate_instrument(ins):
     for k,choices in VOICE_CHOICES.items():
         if k in ins:assert type(ins[k]) is int and ins[k] in choices
 
+CLIP_NAME_MAX=24
+def clean_clip_name(name):
+    """A clip name: plain text on one line, at most 24 characters; '' means the clip's letter."""
+    if name is None:return ''
+    if not isinstance(name,str):raise ValueError('A clip name is text')
+    return ' '.join(name.split())[:CLIP_NAME_MAX]
+
 class Project:
     def __init__(self):
         self.bpm=120; self.bars=4; self.metronome=False
@@ -185,6 +192,9 @@ class Project:
                 if 'fx' in t:t['fx']=validate_fx(t['fx'])
                 if 'freeze' in t:t['freeze']=validate_freeze(t['freeze'])
                 if 'sends' in t:t['sends']=send_buses.validate_track(t['sends'])
+                if 'clip_names' in t:
+                    assert isinstance(t['clip_names'],list) and len(t['clip_names'])==songs.CLIPS
+                    t['clip_names']=[clean_clip_name(x) for x in t['clip_names']]
                 if 'freeze_loop' in t:
                     t['freeze_loop']=validate_freeze(t['freeze_loop'])
                     if 'freeze' not in t or t['freeze_loop']['mode']!='loop' or t['freeze']['mode']!='song':raise ValueError('Invalid frozen track pair')
@@ -664,13 +674,14 @@ from .note_edit import NoteEditEngine
 from .pattern_catalog import PatternCatalogEngine
 from .track_engine import TrackEngine
 
-class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine,FreezeEngine,SamplerEngine,TrackEngine):
+from .midi_import import MidiImportEngine
+class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine,DrumEngine,FreezeEngine,SamplerEngine,TrackEngine):
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
         self.send_buses=send_buses.SendBuses(rate)  # the shared Reverb and Delay (sends.py)
         self.selected=0; self.playing=False; self.recording=False; self.frame=0; self._bucket_cache={}
-        self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
+        self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.redo_history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.transfer_report=None
         self.master_enabled=True  # the C master stage on the stereo mix (tests of the raw mix switch it off)
         # Count-in (Settings): beats of click before a take, and whether REC waits for the first note.
@@ -818,6 +829,9 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
     @property
     def beat(self): return self.frame/self.fpb
     def snapshot(self,pattern_address=None,after_pattern=None,seed_after=None,mode_after=None):
+        # A new committed edit starts a new branch.  Preview paths deliberately do not
+        # call snapshot(), so an abandoned gesture cannot throw away Redo.
+        self.redo_history.clear()
         data=copy.deepcopy(self.project.data())
         data['_mutation_sessions']=copy.deepcopy(self.mutation_sessions)
         if pattern_address is not None:
@@ -825,6 +839,48 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
                                        seed_after=seed_after,mode_after=mode_after)
         data['_seq']=self.next_edit_seq()
         self.history.append(data);self.history=self.history[-20:]
+    def _redo_checkpoint(self):
+        """Capture the complete undo domain before an undo changes it.
+
+        Project edits and sound gestures have separate histories, but Redo must put
+        both back exactly as they were.  Keeping this runtime-only snapshot avoids
+        changing project persistence or the MIDI/audio boundary.
+        """
+        self.redo_history.append(dict(project=copy.deepcopy(self.project),history=copy.deepcopy(self.history),
+                                      sound_history=copy.deepcopy(self.sound_history),mutation_sessions=copy.deepcopy(self.mutation_sessions),
+                                      selected=self.selected,control_revisions=copy.deepcopy(self.control_revisions)))
+        self.redo_history=self.redo_history[-20:]
+    def _redo_mark(self):
+        """A fingerprint of everything Redo would overwrite, taken right after an undo."""
+        import hashlib
+        return hashlib.sha1(json.dumps(self.project.data(),sort_keys=True,default=str).encode()).hexdigest()
+    def _guarded_undo(self,fn,*args):
+        """Run one undo and keep a redo entry only if it really changed something.
+
+        A refused undo (stale clip, changed sound) leaves no entry, and the entry remembers
+        the state just after the undo, so Redo can refuse once anything changed since then.
+        """
+        self._redo_checkpoint();start=self.redo_history[-1]
+        mark0=self._redo_mark()
+        try:result=fn(*args)
+        except Exception:
+            self.redo_history=[e for e in self.redo_history if e is not start];raise
+        mark=self._redo_mark()
+        if mark==mark0:self.redo_history=[e for e in self.redo_history if e is not start]
+        else:start['mark']=mark
+        return result
+    def redo(self):
+        if not self.redo_history:return
+        if self.redo_history[-1].get('mark')!=self._redo_mark():
+            # Something changed after the undo (a knob, tempo, a Perform setting): putting the
+            # old project back would silently throw that change away.
+            self.redo_history.clear();raise ValueError('Changed since the undo; redo cleared')
+        state=self.redo_history.pop()
+        self.stop()
+        self.project=state['project'];self.history=state['history'];self.sound_history=state['sound_history']
+        self.mutation_sessions=state['mutation_sessions'];self.selected=state['selected'];self.control_revisions=state['control_revisions']
+        self._sound_gesture=None
+        self.configure()
     def next_edit_seq(self):
         self._edit_seq=getattr(self,'_edit_seq',0)+1;return self._edit_seq
     def undo_any(self):
@@ -838,6 +894,8 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         return self.undo()
     def undo(self):
         if not self.history:return
+        return self._guarded_undo(self._undo_project)
+    def _undo_project(self):
         data=self.history[-1]
         if '_note_edit' in data:return self.undo_note_edit(data['_note_edit'])
         if '_pattern_edit' in data:
@@ -951,8 +1009,16 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
         elif action=='copy':
             if type(source) is not int or not 0<=source<songs.CLIPS:raise ValueError('Choose the loop to copy')
             self.snapshot(); put(clip,copy.deepcopy(p.clip_notes(track,source)))
+            names=t.get('clip_names') or ['']*songs.CLIPS
+            if names[source]:names=list(names);names[clip]=names[source];t['clip_names']=names
         elif action=='clear':
             self.snapshot(); put(clip,[])
+            if t.get('clip_names') and t['clip_names'][clip]:t['clip_names']=list(t['clip_names']);t['clip_names'][clip]=''
+        elif action=='rename':
+            # A clip's name, typed in place; empty goes back to its letter. One undo step.
+            name=clean_clip_name(source)
+            names=list(t.get('clip_names') or ['']*songs.CLIPS)
+            if names[clip]!=name:self.snapshot();names[clip]=name;t['clip_names']=names
         else:raise ValueError('Unknown loop action')
     def song_position(self):
         """Where the song is: timeline bar, song length and the marker it falls under (None in loop mode)."""
@@ -1020,6 +1086,12 @@ class Engine(PatternCatalogEngine,NoteEditEngine,WorkflowEngine,ControllerEngine
     def finish_record(self):
         for key in list(self.pending): self.close_note(key)
         self.recording=False
+    def play_from(self,beat):
+        """Start (or jump) the loop at `beat`, like tapping the note grid's ruler. The notes sounding are let go."""
+        if self.recording:raise ValueError('Finish the take first')
+        beat=float(beat); span=self.project.song['length']*4 if self.project.song['on'] else self.project.beats
+        if not 0<=beat<span:raise ValueError('That bar is past the end')
+        self.release_loops(); self.frame=round(beat*self.fpb); self.playing=True
     def stop(self):
         self.stop_sample_preview()
         self.stop_pattern_preview()

@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
@@ -19,9 +19,9 @@ let lastStatus = null;
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
  'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_draft','drum_clear','drum_crop','drum_export','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','song','clip','perform_set','perform_step','perform_action',
- 'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','audio_latency','undo','quantize',
+ 'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','audio_latency','undo','redo','quantize','import_midi','midi_channels','play_from',
  'clear','device','audio_device','preset','parameter','edit_note','note_edit','editor_note','catalog_action','structure_add','structure_load','structure_set','structure_merge','structure_part_length','structure_extend','track','send','send_setting','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
- 'metronome','save','load','export','export_wav','freeze','unfreeze','save_preset','load_preset']);
+ 'metronome','save','load','export','export_wav','export_loop','freeze','unfreeze','save_preset','load_preset']);
 
 // Status messages from the engine carry only what changed; keep the merged whole for a window that (re)loads.
 function isStatus(message) {
@@ -72,9 +72,20 @@ function startBackend() {
   });
 }
 
+// The UI is laid out for the Deck's 1280x800 panel. When the desktop scale is above 100 %
+// (Sir set 135 % on 24 Nov), the window gets fewer logical pixels, so zoom the page down to fit.
+function fitZoom() {
+  if (!window || window.isDestroyed()) return;
+  const area = screen.getDisplayMatching(window.getBounds()).size;
+  const zoom = Math.min(1, area.width / 1280, area.height / 800);
+  window.webContents.setZoomFactor(zoom);
+}
+
 function makeWindow() {
+  const area = screen.getPrimaryDisplay().size;
   window = new BrowserWindow({
-    width: 1280, height: 746, minWidth: 1024, minHeight: 650,
+    width: Math.min(1280, area.width), height: Math.min(746, area.height),
+    minWidth: Math.min(1024, area.width), minHeight: Math.min(650, area.height),
     backgroundColor: '#111315', show: false, autoHideMenuBar: true,
     // Sir, 16 Nov: no title bar; the app fills the screen. Quit and Minimise are in Settings, F11 toggles full screen.
     frame: !BORDERLESS,
@@ -97,6 +108,7 @@ function makeWindow() {
   });
   window.webContents.on('did-finish-load', () => {
     console.log('Decksynth: UI loaded',window.webContents.getURL());
+    fitZoom();
     window.webContents.send('deck-message', lastStatus || lastMessage);
     if (!window.isVisible()) { window.maximize(); window.show(); }
   });
@@ -109,6 +121,8 @@ function makeWindow() {
     if (BORDERLESS) window.setFullScreen(true);
     window.show();
   });
+  screen.on('display-metrics-changed', fitZoom);
+  window.on('move', fitZoom);
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     if (input.key === 'F11') { event.preventDefault(); window.setFullScreen(!window.isFullScreen()); }
@@ -162,7 +176,7 @@ else {
     try { backend.stdin.write(JSON.stringify({ cmd: command, args })+'\n'); }
     catch (error) { publish({ error: 'Command bridge unavailable' }); }
   });
-  ipcMain.handle('deck-file-dialog', async (event, operation, extension) => {
+  ipcMain.handle('deck-file-dialog', async (event, operation, extension, name) => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return null;
     if (PREVIEW) return null;
     if (operation === 'open' && extension === 'sample_folder') {
@@ -175,7 +189,8 @@ else {
     const ext = extensions[extension];
     const options = {
       title: operation === 'save' ? 'Save Decksynth '+extension : 'Open Decksynth '+extension,
-      defaultPath: path.join(os.homedir(), 'Music'),
+      // A suggested file name (save only): a plain name, never a path.
+      defaultPath: path.join(os.homedir(), 'Music', operation === 'save' && typeof name === 'string' && /^[\w .-]{1,120}$/.test(name) && !name.startsWith('.') ? name : ''),
       filters: [{ name: 'Decksynth '+extension, extensions: [ext] }],
     };
     if (operation === 'save') {

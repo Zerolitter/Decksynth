@@ -10,6 +10,8 @@ export interface RelativeDragOptions {
   /** Movement from the press before Pointer Lock is requested, so clicks and double-clicks never lock or hide the cursor. */
   lockThreshold?: number;
   onStart(): boolean;
+  /** Reports an active fine gesture before movement too, so the UI can say why it is slow. */
+  onFineChange?(fine: boolean): void;
   onMove(movement: RelativeMovement): void;
   onEnd(canceled: boolean): void;
 }
@@ -18,8 +20,12 @@ type DragOwner = RelativeDragHandle & { element: HTMLElement | SVGElement; accep
 const owners = new WeakMap<Document, DragOwner>();
 const pendingRequests = new WeakMap<Document, object>();
 const capture = { capture: true };
-/** Same distance the numeric readouts use before a press becomes a scrub. */
-export const LOCK_THRESHOLD = 4;
+/**
+ * Dragging starts after the small scrub threshold, but mouse pointer lock waits
+ * for a deliberate 12 px movement. This lets short adjustments commit through
+ * pointer capture before Chromium swaps the event stream to relative movement.
+ */
+export const LOCK_THRESHOLD = 12;
 /**
  * Chromium sometimes reports one bogus movementX/Y right after Pointer Lock engages (and when the
  * hidden cursor is re-centred, notably on Windows): hundreds of pixels in a single event. Real hand
@@ -44,8 +50,28 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
   const threshold = Math.max(0, options.threshold ?? 0), originX = event.clientX, originY = event.clientY;
   const lockThreshold = Math.max(threshold, options.lockThreshold ?? LOCK_THRESHOLD);
   let x = originX, y = originY, started = false, ended = false, locked = false, pendingLock = false, lockArmed = false, lockedPointerMoves = false, lockedEvents = 0;
+  let holdFine = false, secondTouch: number | null = null, holdTimer: ReturnType<typeof setTimeout> | undefined;
   let cursorStyle: HTMLStyleElement | null = null, lockListeners = false;
   const handle: DragOwner = { element, cancel: () => finish(true), acceptsLock: () => !ended && (pendingLock || locked) };
+
+  function fineFor(event?: MouseEvent | PointerEvent) {
+    return holdFine || secondTouch !== null || grabFine || !!event?.shiftKey || !!event?.ctrlKey;
+  }
+  function reportFine(event?: MouseEvent | PointerEvent) { options.onFineChange?.(fineFor(event)); }
+  function secondDown(second: PointerEvent) {
+    // The active drag owns an extra finger anywhere in the document.  Stopping it at capture
+    // prevents that finger from firing a pad, link tap, or touch-hold radial menu underneath.
+    if (ended || second.pointerType !== "touch" || second.pointerId === id || secondTouch !== null) return;
+    secondTouch = second.pointerId;
+    second.preventDefault(); second.stopPropagation();
+    reportFine(second);
+  }
+  function secondEnd(second: PointerEvent) {
+    if (second.pointerId !== secondTouch) return;
+    second.preventDefault(); second.stopPropagation();
+    secondTouch = null;
+    reportFine(second);
+  }
 
   function releaseCapture() {
     try { if (element.hasPointerCapture(id)) element.releasePointerCapture(id); } catch { /* The pointer may already have ended. */ }
@@ -117,7 +143,7 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     lockArmed = true; requestLock();
   }
   function publish(dx: number, dy: number, moveEvent: MouseEvent) {
-    if (!ended && started && (dx || dy)) options.onMove({ dx, dy, fine: grabFine || moveEvent.shiftKey || moveEvent.ctrlKey });
+    if (!ended && started && (dx || dy)) options.onMove({ dx, dy, fine: fineFor(moveEvent) });
   }
   /**
    * Granting Pointer Lock moves the hidden cursor to the window centre, and Chromium can report that
@@ -144,6 +170,10 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     const distance = options.thresholdAxis === "x" ? Math.abs(event.clientX - originX)
       : options.thresholdAxis === "y" ? Math.abs(event.clientY - originY) : Math.hypot(event.clientX - originX, event.clientY - originY);
     if (!started && distance < threshold) return;
+    // The 400 ms gesture is a stationary hold before movement, not a timer that
+    // unexpectedly slows a drag already in progress. A second finger can still
+    // enter fine mode at any point during the drag.
+    if (holdTimer !== undefined) { clearTimeout(holdTimer); holdTimer = undefined; }
     if (!begin(event)) return;
     const dx = event.clientX - x, dy = event.clientY - y;
     x = event.clientX; y = event.clientY;
@@ -170,7 +200,12 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     finish(false);
   }
   function pointerCancel(event: PointerEvent) { if (event.pointerId === id) finish(true); }
-  function lostCapture(event: Event) { if ((event as PointerEvent).pointerId === id && !locked && document.pointerLockElement !== element) finish(true); }
+  function lostCapture(event: Event) {
+    // Chromium can release capture as it accepts a pointer-lock request, before
+    // pointerlockchange makes the handoff observable. The document listeners
+    // still own this drag until that request settles.
+    if ((event as PointerEvent).pointerId === id && !locked && !pendingLock && document.pointerLockElement !== element) finish(true);
+  }
   function keyDown(event: KeyboardEvent) { if (event.key === "Escape") { if (started) { event.preventDefault(); event.stopPropagation(); } finish(true); } }
   function blur() { finish(true); }
   function visibility() { if (document.hidden) finish(true); }
@@ -181,6 +216,9 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     document.removeEventListener("pointermove", move, capture);
     document.removeEventListener("pointerup", up, capture);
     document.removeEventListener("pointercancel", pointerCancel, capture);
+    document.removeEventListener("pointerdown", secondDown, capture);
+    document.removeEventListener("pointerup", secondEnd, capture);
+    document.removeEventListener("pointercancel", secondEnd, capture);
     document.removeEventListener("mousemove", mouseMove, capture);
     document.removeEventListener("mouseup", mouseUp, capture);
     document.removeEventListener("keydown", keyDown, capture);
@@ -192,6 +230,8 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     // Keep only lock-result observers while a request is pending so a late grant is released.
     if (!pendingLock) removeLockListeners();
     else setTimeout(() => { if (pendingRequests.get(document) === requestToken) pendingRequests.delete(document); }, STALE_REQUEST_MS);
+    if (holdTimer !== undefined) clearTimeout(holdTimer);
+    options.onFineChange?.(false);
     if (started) options.onEnd(canceled);
   }
 
@@ -199,6 +239,9 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
   document.addEventListener("pointermove", move, capture);
   document.addEventListener("pointerup", up, capture);
   document.addEventListener("pointercancel", pointerCancel, capture);
+  document.addEventListener("pointerdown", secondDown, capture);
+  document.addEventListener("pointerup", secondEnd, capture);
+  document.addEventListener("pointercancel", secondEnd, capture);
   document.addEventListener("mousemove", mouseMove, capture);
   document.addEventListener("mouseup", mouseUp, capture);
   document.addEventListener("keydown", keyDown, capture);
@@ -206,6 +249,9 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
   inputWindow.addEventListener("blur", blur);
   element.addEventListener("lostpointercapture", lostCapture);
   try { element.setPointerCapture(id); } catch { /* Document listeners keep unsupported capture usable. */ }
+  // Rule 6: stationary primary contact for 400 ms makes the following relative movement fine.
+  holdTimer = setTimeout(() => { if (!ended) { holdFine = true; reportFine(); } }, 400);
+  reportFine(event);
   if (threshold === 0 && !begin(event)) return null;
   return handle;
 }

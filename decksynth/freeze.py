@@ -30,7 +30,7 @@ TAIL_SECONDS = 4.0
 MAX_SECONDS = 3600
 _KEYS = {'file', 'mode', 'fingerprint', 'frames', 'pass_frames', 'rate', 'bpm', 'peaks'}
 # Track keys that don't change the sound before the fader: they stay live on a frozen track.
-_LIVE_KEYS = {'freeze', 'freeze_loop', 'volume', 'mute', 'name', 'preset', 'midi_cc'}
+_LIVE_KEYS = {'freeze', 'freeze_loop', 'volume', 'mute', 'name', 'preset', 'midi_cc', 'clip_names'}
 
 
 def freeze_directory():

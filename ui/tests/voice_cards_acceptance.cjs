@@ -13,9 +13,8 @@ const ROOT=path.resolve(__dirname,'..');
   const p=await app.firstWindow({timeout:15000});
   p.setDefaultTimeout(8000);
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  // The window maximizes once it is ready to show; size it after that, and check it took.
-  for(let i=0;;i++){await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,722);});
-    await p.waitForTimeout(150);if(await p.evaluate(()=>innerWidth===1280&&innerHeight===722))break;if(i>30)throw Error('window did not take 1280x722');}
+  await p.setViewportSize({width:1280,height:720});
+  await p.waitForFunction(()=>innerWidth===1280&&innerHeight===720,{timeout:5000});
   await p.getByRole('tab',{name:/^Sound$/}).click();
   const checked=(group,name)=>p.getByRole('radiogroup',{name:group}).getByRole('radio',{name,exact:true}).getAttribute('aria-checked');
   const val=id=>p.locator(`[data-param="${id}"] .knob-value`).innerText();
@@ -23,7 +22,7 @@ const ROOT=path.resolve(__dirname,'..');
   // Cards remain reachable within the rack; the page never scrolls sideways.
   for(const id of ['sound-filter','sound-unison','sound-character']){
     const b=await p.locator('[data-panel="'+id+'"]').boundingBox();
-    assert.ok(b&&b.y+b.height<=722&&b.x+b.width<=1280,id+' is on screen: '+JSON.stringify(b));
+    assert.ok(b&&b.y+b.height<=720&&b.x+b.width<=1280,id+' is on screen: '+JSON.stringify(b));
   }
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no sideways scroll');
 

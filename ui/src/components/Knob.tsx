@@ -29,10 +29,12 @@ type Props = {
   format?: (n:number)=>string;
   /** What a double-click (or double-tap) resets to. Without it the factory / preset default is used. */
   defaultValue?: number;
+  /** A visual-only interval suggested by the active Sound guide. */
+  recommendedRange?: readonly [number,number];
 };
 
 export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',accent:accentProp,
-  precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format,defaultValue}:Props) {
+  precision=2,onChange,description='',compact=false,modValue=null,modColor='#f2c46d',format,defaultValue,recommendedRange}:Props) {
   const tint=useContext(KnobTint),accent=accentProp??tint??'var(--accent)';
   const area=useContextArea(),midi=useMidiLearn(),cc=midi?.cc(id)??null,link=useModLink();
   // Sampler and Drum Rack knobs show who moves them here; Sound and FX knobs already sit in cells that do.
@@ -54,6 +56,7 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
   const [local,setLocal]=useState(value);
   const [engaged,setEngaged]=useState(false);
   const [showBubble,setShowBubble]=useState(false);
+  const [fineMode,setFineMode]=useState(false);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(String(value));
   const input=useRef<HTMLInputElement>(null);
@@ -160,6 +163,7 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
     drag.current=startRelativeDrag(e.currentTarget,e.nativeEvent,{
       threshold:3,pointerLock:e.pointerType==='mouse',
       onStart:()=>{dragging.current=true;beginGesture();return true;},
+      onFineChange:setFineMode,
       onMove:({dy,fine})=>{
         const n=knobQuantize(knobDragValue(latest.current,dy,{min,max},fine),min,max,step);
         latest.current=n;setLocal(n);batch.push(n);reveal();
@@ -168,7 +172,7 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
         dragging.current=false;
         if(canceled){batch.discard();setLocal(value);latest.current=value;onChangeRef.current(value);}
         else batch.flush();
-        endGesture(canceled);hideLater();
+        endGesture(canceled);setFineMode(false);hideLater();
       },
     });
   };
@@ -191,6 +195,11 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
     setEditing(false);
   };
   const unit=knobToUnit(local,min,max);
+  const guideStart=recommendedRange?knobToUnit(recommendedRange[0],min,max):0;
+  const guideEnd=recommendedRange?knobToUnit(recommendedRange[1],min,max):0;
+  const guideMatch=!recommendedRange||local>=recommendedRange[0]&&local<=recommendedRange[1];
+  const guideText=recommendedRange?'Guide '+show(recommendedRange[0])+'–'+show(recommendedRange[1])+' · '+(guideMatch?'within range':'outside range'):'';
+  const guidePoint=(guideUnit:number)=>{const guideAngle=(-225+guideUnit*270)*Math.PI/180;return [28+30*Math.cos(guideAngle),28+30*Math.sin(guideAngle)];};
   const angle=(-225+unit*270)*Math.PI/180;
   const ux=Math.cos(angle),uy=Math.sin(angle);
   const ticks=Array.from({length:11},(_,i)=>{
@@ -203,14 +212,14 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
       opacity={i/10<=unit+1e-6?.96:.65}/>;
   });
   return <div className={'parameter-knob tactile-knob'+(compact?' compact':'')+
-    (engaged?' is-engaged':'')+(link?.armed&&/^(smp|drum)-/.test(id)&&linkTargetFor(id)?.track===link.track?' link-ready':'')}
+    (engaged?' is-engaged':'')+(fineMode?' is-fine-mode':'')+(recommendedRange?(guideMatch?' is-guide-match':' is-guide-outside'):'')+(link?.armed&&/^(smp|drum)-/.test(id)&&linkTargetFor(id)?.track===link.track?' link-ready':'')}
     style={link?.armed?{['--link-src' as string]:(link.armed.kind==='macro'?MACRO_COLORS:MOD_COLORS)[link.armed.index]}:undefined}
-    data-param={id} data-resettable={resetTarget()!==undefined?'1':'0'} {...context} title={description||name}
+    data-param={id} data-resettable={resetTarget()!==undefined?'1':'0'} data-guide-status={recommendedRange?(guideMatch?'within':'outside'):undefined} {...context} title={[description,guideText].filter(Boolean).join(' · ')||name}
     onContextMenu={e=>{if((e.target as Element).closest('input,textarea,select,[contenteditable=true]'))return;if(midi?.canLearn(id)){e.preventDefault();drag.current?.cancel();midi.open(id,e.clientX,e.clientY);}}}>
     <div className="knob-heading">{name}</div>{dots.length?<span className="knob-link-dots" data-linked={dots.length} title={'Moved by '+dots.length+(dots.length>1?' sources':' source')}>{dots.map((c,k)=><i key={k} style={{background:c}}/>)}</span>:null}{cc!==null?<span className="knob-midi-cc" data-midi-cc={cc}>CC{cc}</span>:null}
     <div role="slider" tabIndex={0} aria-orientation="vertical"
       data-testid={'knob-'+id} className="knob-target" aria-label={name}
-      aria-valuemin={min} aria-valuemax={max} aria-valuenow={local} aria-valuetext={show(local)}
+      aria-valuemin={min} aria-valuemax={max} aria-valuenow={local} aria-valuetext={show(local)+(guideText?' · '+guideText:'')}
       onPointerDownCapture={e=>{if(e.button!==0||!link?.armed)return;
         // Sir, 16 Nov: knobs still turn while linking. A tap links or unlinks; a drag turns the knob.
         const x0=e.clientX,y0=e.clientY,t0=performance.now();let moved=false;
@@ -221,7 +230,7 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
         window.addEventListener('pointermove',mv,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);}}
       onPointerDown={onPointerDown} onPointerUp={()=>{clearLearnHold();hideLater();}}
       onPointerMove={e=>{const h=learnHold.current;if(h&&(dragging.current||Math.hypot(e.clientX-h.x,e.clientY-h.y)>3))clearLearnHold();}}
-      onPointerCancel={()=>{clearLearnHold();hideLater();}} onKeyUp={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','PageUp','PageDown','Home','End'].includes(e.key))endGesture();}} onBlur={()=>endGesture()} onKeyDown={e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){if(midi?.canLearn(id)){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();midi.open(id,r.x+r.width/2,r.y+r.height/2);}}else onKeyDown(e);}}
+      onPointerCancel={()=>{clearLearnHold();setFineMode(false);hideLater();}} onKeyUp={e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','PageUp','PageDown','Home','End'].includes(e.key))endGesture();}} onBlur={()=>endGesture()} onKeyDown={e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){if(midi?.canLearn(id)){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();midi.open(id,r.x+r.width/2,r.y+r.height/2);}}else onKeyDown(e);}}
       onDoubleClick={()=>{drag.current?.cancel();setEditing(true);}}>
       <svg className="knob-svg" viewBox="0 0 56 56" aria-hidden="true">
         <defs>
@@ -248,7 +257,8 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
         })}
         <circle cx="28" cy="28" r="14.2" fill={'url(#'+gradientId+'-cap)'}
           stroke="#697982" strokeWidth=".8"/>
-        <path d={knobArc(0,unit)} fill="none" stroke={accent} strokeWidth="2.1"
+        {recommendedRange?(()=>{const [x0,y0]=guidePoint(guideStart),[x1,y1]=guidePoint(guideEnd);return <g className="knob-guide"><path className="knob-guide-range" d={knobArc(guideStart,guideEnd)} fill="none" stroke="var(--c-guide)" strokeWidth="2.8" strokeLinecap="round"/><circle className="knob-guide-boundary" cx={x0} cy={y0} r="1.7" fill="var(--c-guide)"/><circle className="knob-guide-boundary" cx={x1} cy={y1} r="1.7" fill="var(--c-guide)"/></g>;})():null}
+        <path className="knob-value-arc" d={knobArc(0,unit)} fill="none" stroke={accent} strokeWidth="2.1"
           strokeLinecap="round" opacity={engaged?1:.68}/>
         <line x1={28+3*ux} y1={28+3*uy} x2={28+15.8*ux} y2={28+15.8*uy}
           stroke="#f8f9f7" strokeWidth="3" strokeLinecap="round"/>
@@ -264,9 +274,9 @@ export function Knob({contextArea,id,name,value,min,max,step=.001,suffix='',acce
           </g>;
         })():null}
       </svg>
-      {showBubble&&!editing&&<span className="knob-live-value" role="status">
-        {name}<b>{show(local)}</b></span>}
+      {showBubble&&!editing&&<span className="knob-live-value" role="status">{name}<b>{show(local)}</b></span>}
     </div>
+    {fineMode&&<span className="knob-fine-indicator" role="status">FINE</span>}
     {editing?
       <input ref={input} className="knob-entry" aria-label={name+' numeric value'}
         type="text" inputMode="decimal" value={draft} autoFocus

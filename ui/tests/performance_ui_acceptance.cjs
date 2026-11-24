@@ -19,6 +19,20 @@ const data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-perform-'));
   await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),null,{timeout:20000});
   for(let i=0;i<30;i++){await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,h);},H);
    await p.waitForTimeout(150);if(await p.evaluate(h=>innerWidth===1280&&innerHeight===h,H))break;}
+  await p.evaluate(()=>{window.__performanceLatest={};window.deckApi.onMessage(m=>{window.__performanceLatest={...window.__performanceLatest,...m};});});
+  const waitForChord=async(key,value)=>{
+   try{await p.waitForFunction(([field,expected])=>window.__performanceLatest?.state?.performance?.chord?.[field]===expected,[key,value],{timeout:3000});}
+   catch(error){const actual=await p.evaluate(field=>window.__performanceLatest?.state?.performance?.chord?.[field]??'missing',key);throw new Error('Timed out waiting for canonical chord '+key+'='+value+'; last canonical value was '+actual,{cause:error});}
+  };
+  const waitForChordExt=ext=>waitForChord('ext',ext);
+  const held=()=>p.evaluate(()=>window.__performanceLatest?.held_notes??[]);
+  const holdPad=async(testId,expected)=>{
+   const pad=p.getByTestId(testId),rect=await pad.boundingBox();assert.ok(rect,'pad '+testId+' is visible');
+   await p.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await p.mouse.down();
+   try{await p.waitForFunction(notes=>JSON.stringify(window.__performanceLatest?.held_notes??[])===JSON.stringify(notes),expected,{timeout:3000});}
+   catch(error){throw new Error('Timed out waiting for '+testId+' to play '+expected.join(' ')+ '; heard '+(await held()).join(' '),{cause:error});}
+   await p.mouse.up();
+  };
   const tab=n=>p.getByRole('tab',{name:new RegExp('^'+n+'$','i')}).first().click();
   await tab('Perform');
   await p.locator('.pf .compact-roll').waitFor({state:'visible'});
@@ -70,11 +84,32 @@ const data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-perform-'));
   await p.waitForFunction(()=>document.querySelector('[data-testid=arp-timing]')?.dataset.length==='8');
   assert.equal(await p.getByRole('spinbutton',{name:'Arp steps'}).getAttribute('aria-valuenow'),'8');
 
-  // Chord pads play and name their chords.
+  // Chord type is acknowledged by the engine before selector, pads, readout and MIDI are checked.
   await p.getByRole('tab',{name:/^Chord/}).click();
-  await p.getByRole('group',{name:'Chord type'}).getByRole('button',{name:'9th'}).click();
-  assert.match(await p.getByTestId('cb-pad-ii').innerText(),/Dm9/);
-  await p.getByRole('group',{name:'Chord type'}).getByRole('button',{name:'Triad'}).click();
+  const types=p.getByRole('group',{name:'Chord type'}),ii=p.getByTestId('cb-pad-ii'),v=p.getByTestId('cb-pad-V');
+  await types.getByRole('button',{name:'9th'}).click();await waitForChordExt('9');
+  assert.equal(await types.getByRole('button',{name:'9th'}).getAttribute('aria-pressed'),'true','canonical ninth selects the ninth control');
+  assert.match(await ii.innerText(),/Dm9/,'canonical ninth labels ii as Dm9');
+  assert.match(await ii.innerText(),/D F A C E/,'canonical ninth draws all five ii notes');
+  await holdPad('cb-pad-ii',[50,53,57,60,64]);
+  assert.match(await p.getByTestId('cb-display').innerText(),/Dm9/,'selected ii readout agrees with the canonical ninth');
+  assert.match(await p.getByTestId('cb-display').innerText(),/D F A C E/,'selected ii readout agrees with the played ninth voicing');
+  const inversion=p.getByRole('spinbutton',{name:'Inversion'});await inversion.focus();await inversion.press('ArrowUp');await waitForChord('inversion',1);
+  await holdPad('cb-pad-ii',[53,57,60,62,64]);
+  await p.getByRole('group',{name:'Bass note'}).getByRole('button',{name:'Bass −1 octave'}).click();await waitForChord('bass',1);
+  await holdPad('cb-pad-ii',[38,53,57,60,62,64]);
+  await p.getByRole('group',{name:'Bass note'}).getByRole('button',{name:'Bass off'}).click();await waitForChord('bass',0);
+  await inversion.focus();await inversion.press('ArrowDown');await waitForChord('inversion',0);
+  await types.getByRole('button',{name:'7th'}).click();await waitForChordExt('7');
+  assert.match(await ii.innerText(),/Dm7/,'repeated extension changes settle on the latest canonical type');
+  await types.getByRole('button',{name:'9th'}).click();await waitForChordExt('9');
+  await holdPad('cb-pad-V',[55,59,62,65,69]);
+  assert.match(await v.innerText(),/G9/,'changing the selected chord preserves the canonical ninth: '+await v.innerText());
+  assert.match(await p.getByTestId('cb-display').innerText(),/G9/,'selected V readout preserves the canonical ninth');
+  await types.getByRole('button',{name:'Triad'}).click();await waitForChordExt('triad');
+  assert.equal(await types.getByRole('button',{name:'Triad'}).getAttribute('aria-pressed'),'true','canonical triad restores the triad control');
+  assert.match(await ii.innerText(),/Dm\nD F A/,'returning from Dm9 restores Dm and its three notes');
+  await holdPad('cb-pad-ii',[50,53,57]);
   await p.getByRole('tab',{name:/^Seq/}).click();
   assert.ok(await p.getByRole('button',{name:/^Mutate$/}).isVisible(),'Mutate sits on the pattern tool rail');
   assert.deepEqual(await box('.pf-keys'),keys0,'keyboard stays in place across modes');

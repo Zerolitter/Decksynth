@@ -42,3 +42,11 @@ UI-RULES.md
 ui/docs/
 ui/reference/
 ui/references/
+
+# Agent notes and tooling stay private (moved to ~/Projects/Decksynth-private/agent-notes)
+docs/superpowers/
+.github/agents/
+.github/hooks/
+.github/skills/
+*codex*
+*Codex*

@@ -81,7 +81,13 @@ let app;
   console.log('PASS: recorded real engine MIDI note appears in the SONG clip');
   await page.screenshot({path:path.join(ROOT,'docs','next-real-midi-diagnostic.png')});
 
-  await page.evaluate(()=>{window.deckApi.send('record');window.deckApi.send('select',1);});
+  // A new session has one track; create the second track through the same
+  // bridge command used by the track bar before testing separate recording.
+  await page.evaluate(()=>window.deckApi.send('record'));
+  await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>!v.recording),{timeout:8000});
+  await page.evaluate(()=>window.deckApi.send('add_track'));
+  await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>v.tracks?.length===2),{timeout:8000});
+  await page.evaluate(()=>window.deckApi.send('select',1));
   await page.waitForTimeout(500); // the track chip changes with the engine's selected track
   await page.evaluate(()=>window.deckApi.send('record'));
   await page.waitForFunction(()=>window.__deckDiagnosticEvents.some(v=>v.recording && v.tracks?.[0]>=1),{timeout:8000});

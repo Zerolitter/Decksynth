@@ -14,8 +14,8 @@ import {deckStore,useDeck,useLive,sameExceptLive} from './deck-store';
 import {useFrame,useClockValue} from './frame-clock';
 import {
   AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
-  FolderOpen, Pause, Play, Redo2,
-  RotateCcw, Save, Settings as SettingsIcon, Snowflake, Square,
+  FileAudio, FileUp, FolderOpen, Magnet, Pause, Play,
+  RotateCcw, RotateCw, Save, Settings as SettingsIcon, Snowflake, Square,
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
@@ -31,6 +31,8 @@ import { LinkPage } from './components/LinkPage';
 import { SynthSound } from './components/SynthSound';
 import { SendKnobs, SendsOpen, SendsSheet } from './components/Sends';
 import type { Source } from './components/ModParts';
+import { ExportLoopSheet } from './components/ExportLoopSheet';
+import { MidiImportSheet, type MidiFile } from './components/MidiImportSheet';
 import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
@@ -108,6 +110,8 @@ function App() {
   const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
   const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
   const [fileMenu,setFileMenu]=useState(false);
+  const [loopSheet,setLoopSheet]=useState(false);
+  const [midiPick,setMidiPick]=useState<MidiFile|null>(null);
   const [freezeOpen,setFreezeOpen]=useState(false);
   const freezeRef=useRef<HTMLDivElement>(null);
   // The Freeze sheet closes with Done, Esc, its own button, or a tap anywhere else.
@@ -205,6 +209,12 @@ function App() {
     return api.onMessage((obj:BridgeMessage)=>{
       if(obj.error){window.dispatchEvent(new CustomEvent('decksynth-command-rejected'));setToast(obj.error);setBridgeStatus('ERROR');return;}
       if(obj.message){setToast(obj.message);return;}
+      if(obj.midi_file){
+        // One channel: nothing to choose. Several: the picker asks.
+        const f=obj.midi_file;
+        if(f.channels.length===1)api.send('import_midi',[f.path,[f.channels[0].channel]]);else setMidiPick(f);
+        return;
+      }
       if(obj.bridge==='ready'){setBridgeStatus('CONNECTED');return;}
       // The engine sends only what changed: the store merges it into what the screen has.
       deckStore.merge(obj);
@@ -222,7 +232,7 @@ function App() {
   useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('audio_latency',[settings.latency]);},[settings.latency,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('record_options',[settings.countIn?4:0,!!settings.recWait]);},[settings.countIn,settings.recWait,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const command=useCallback((cmd:string,args:unknown=null)=>{
-    if(cmd==='undo')window.dispatchEvent(new Event('decksynth-undo'));
+    if(cmd==='undo'||cmd==='redo')window.dispatchEvent(new Event('decksynth-undo'));
     if(api && !isPreview){api.send(cmd,args);return;}
     // Explicit demo-only interactions: never touch the original synth or disk.
     setSnapshot(prev=>{
@@ -433,6 +443,9 @@ function App() {
       if(['INPUT','TEXTAREA','SELECT'].includes(target?.tagName)||target?.isContentEditable)return;
       const k=event.key;
       if(k===' '&&target?.closest('button,[role="button"],[role="slider"],[role="tab"]'))return;
+      if((event.ctrlKey||event.metaKey)&&k.toLowerCase()==='z'){
+        event.preventDefault();command(event.shiftKey?'redo':'undo');return;
+      }
       const controls:{[key:string]:string}={F5:'play',F6:'stop',F7:'record',F10:'undo'};
       if(controls[k]){event.preventDefault();command(controls[k]);return;}
       if(k==='F8'||k==='F9'){event.preventDefault();const n=project?.tracks.length??4;command('select',(selected+(k==='F8'?n-1:1))%n);}
@@ -477,9 +490,10 @@ function App() {
       <button type="button" className={'metronome-button'+(project?.metronome?' active':'')} aria-pressed={!!project?.metronome}
         title="Metronome click" onClick={()=>command('metronome',!project?.metronome)}>
         <span className="button-led"/><span>CLICK</span></button>
-      <button className="transport-utility" title="Undo" aria-label="Undo" onClick={()=>command('undo')}><RotateCcw size={18}/></button>
+      <button className="transport-utility" title="Undo · Ctrl+Z" aria-label="Undo" onClick={()=>command('undo')}><RotateCcw size={18}/></button>
+      <button className="transport-utility" title="Redo · Ctrl+Shift+Z" aria-label="Redo" disabled={!snapshot?.can_redo} onClick={()=>command('redo')}><RotateCw size={18}/></button>
       {page==='SONG'&&!!track?.notes.length?<button className="transport-utility" title="Quantize selected track" aria-label="Quantize"
-        onClick={()=>command('quantize')}><Redo2 size={18}/></button>:null}
+        onClick={()=>command('quantize')}><Magnet size={18}/></button>:null}
       <PageTabs page={page} onPage={setPage}/>
       <LinkBox armed={armed} name={armed&&track?(armed.kind==='macro'?normalizeChain(track.fx).macros[armed.index]?.name||'Macro '+(armed.index+1):'Mod pad '+(armed.index+1)):''}
         onClear={()=>setArmed(null)} onOpen={()=>{setPage('LINK');setToast('Tap a macro or mod pad name to arm it, then tap knobs on any page.');}}/>
@@ -501,7 +515,9 @@ function App() {
           <button role="menuitem" type="button" onClick={()=>showFileDialog('open','project','load')}><FolderOpen size={16}/> Open project</button>
           <button role="menuitem" type="button" onClick={()=>showFileDialog('save','project','save')}><Disc3 size={16}/> Save project</button>
           <button role="menuitem" type="button" onClick={()=>showFileDialog('save','midi','export')}><FileDown size={16}/> Export MIDI</button>
+          <button role="menuitem" type="button" title="The file's notes replace the open clip of the selected track; you choose the channels" onClick={()=>showFileDialog('open','midi','midi_channels')}><FileUp size={16}/> Import MIDI to clip</button>
           <button role="menuitem" type="button" onClick={()=>showFileDialog('save','wav','export_wav')}><FileDown size={16}/> Export stereo WAV</button>
+          <button role="menuitem" type="button" title="The open loop of one track or the whole mix, as a seamless loop, with its tail or one pass" onClick={()=>setLoopSheet(true)}><FileAudio size={16}/> Export loop as WAV</button>
           <span className="file-menu-meta">{project?totalNotes(project)+' notes · '+(instruments[selected]??''):''}</span>
         </div>:null}
       </div>
@@ -546,7 +562,7 @@ function App() {
           :<Timeline project={project} selected={selected} playing={snapshot?.playing??false}
             recording={snapshot?.recording??false} header={bar}
             loops={project.tracks.map((_,t)=>{const k=clipsOf(project).open[t];
-              return {label:CLIP_NAMES[k],sub:'clip',aria:'Clips of track '+(t+1)+': clip '+CLIP_NAMES[k]+' is open',title:'Open, copy or clear this track\'s clips'};})}
+              return {label:CLIP_NAMES[k],sub:project.tracks[t].clip_names?.[k]||'clip',aria:'Clips of track '+(t+1)+': clip '+CLIP_NAMES[k]+' is open',title:'Open, copy or clear this track\'s clips'};})}
             onLoops={t=>setClipSheet(t)}
             freeze={snapshot?.freeze} onFreeze={t=>command('freeze',t)} onUnfreeze={t=>command('unfreeze',t)}
             onSelect={index=>command('select',index)}
@@ -608,7 +624,7 @@ function App() {
           clipEdit={performClip} onClipEdit={setPerformClip} clipClock={clipClock}
           playing={snapshot?.playing??false} held={snapshot?.held_notes??[]} arpView={arpView} recStep={snapshot?.rec_step??0} chordStep={snapshot?.chord_step??0} chordNow={snapshot?.chord_now??-1}
           selectedTrack={selected} device={track.device??'synth'} recording={snapshot?.recording??false}
-          onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')}
+          onNoteEdit={(t,b,a)=>command('note_edit',[t,b,a])} onEditorNote={(t,id,n,v)=>command('editor_note',[t,id,n,v])} onUndo={()=>command('undo')} onRedo={()=>command('redo')} editSound={settings.editSound}
           onSet={(section,key,value)=>command('perform_set',[section,key,value])}
           onStep={(index,notes,replace)=>command('perform_step',[index,notes,replace])}
           onAction={(action,value,expected)=>command('perform_action',expected?[action,value??null,expected]:[action,value??null])}
@@ -623,6 +639,15 @@ function App() {
       return <PlayOnKeysSheet padName={padLabel(p.name,kit.name)} family={drumKind(p.name,p.source?.path)} sourceTrack={keysSheet.track} tracks={project.tracks}
         onClose={()=>setKeysSheet(null)}
         onMake={(target,root)=>{command('sampler_make',[keysSheet.track,kit.id,keysSheet.pad,target,root,drumKind(p.name,p.source?.path)]);setKeysSheet(null);}}/>;})():null}
+    {midiPick?<MidiImportSheet file={midiPick} trackName={'track '+(selected+1)+(track?.preset?' · '+track.preset:'')} drums={track?.device==='drum_rack'}
+      onClose={()=>setMidiPick(null)} onImport={channels=>{command('import_midi',[midiPick.path,channels]);setMidiPick(null);}}/>:null}
+    {loopSheet&&project?<ExportLoopSheet selected={selected} trackName={(track?.name&&!/^Track \d+$/.test(track.name)?track.name:track?.preset)||'Track '+(selected+1)} bars={project.bars} bpm={project.bpm}
+      exporting={snapshot?.exporting} onClose={()=>setLoopSheet(false)}
+      onExport={async(choice,name)=>{
+        if(isPreview||!api){setToast('Preview mode — nothing is exported');return;}
+        const filepath=await api.chooseFile('save','wav',name);
+        if(filepath)command('export_loop',[filepath,choice.track,choice.kind,choice.headroom]);
+      }}/>:null}
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}

@@ -509,6 +509,14 @@
 .harness-shell .pf-ctl-chord .cb-card.cb-card{padding:6px 3px}
 .harness-shell .pf-ctl-chord .cb-card-title{padding-left:5px}
 .harness-shell .pf-ctl-chord .pf-seg[aria-label="Strum order"]{gap:1px!important}
+@media (max-height:780px){
+  /* Put the one Strum dial beside its fixed-width value box, as other compact module cells do.
+     This preserves its 44 px dial and value hit areas while keeping the Loop row inside the frame. */
+  .harness-shell .pf-ctl-chord .cb-strum .pf-knobs .tactile-knob{position:relative;display:grid;grid-template-columns:44px 76px;grid-template-rows:44px;gap:0 5px;align-items:stretch;justify-content:start;width:125px;height:44px;margin:0 auto}
+  .harness-shell .pf-ctl-chord .cb-strum .pf-knobs .knob-heading{grid-column:2;grid-row:1;align-self:start;z-index:1;padding:3px 0 0 7px;text-align:left;font-size:10.5px;line-height:12px;white-space:nowrap;pointer-events:none;margin:0}
+  .harness-shell .pf-ctl-chord .cb-strum .pf-knobs .knob-target{grid-column:1;grid-row:1;width:44px;height:44px;min-width:44px;min-height:44px}
+  .harness-shell .pf-ctl-chord .cb-strum .pf-knobs .knob-value,.harness-shell .pf-ctl-chord .cb-strum .pf-knobs .knob-entry{grid-column:2;grid-row:1;width:76px;height:44px;min-height:44px;padding:13px 4px 0 7px;justify-content:flex-start;font-size:12.5px;margin:0}
+}
 
 /* ===== Colour marks state, never structure (Sir, 17 Nov; reference: Chisper / Waveform web synth) =====
    Structure is neutral: grey frame, grey 1 px card borders, flat grey header strips with grey titles.
@@ -551,3 +559,6 @@
 /* cards must not clip the slot menu */
 .harness-shell .cb-card.cb-card{overflow:visible}
 .harness-shell .cb-card-title,.harness-shell .pf-ctl-chord .cb-card-title{border-radius:7px 7px 0 0}
+
+/* Sir, 20 Nov: the note overview (map + Follow) sits where the page buttons were. */
+.harness-shell .pf-overview-slot{flex:none;width:224px;display:flex}.harness-shell .pf-overview-slot .piano-overview{flex:1;min-width:0}.harness-shell .pf-overview-slot .piano-follow{min-width:52px;padding:0 6px}

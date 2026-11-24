@@ -50,6 +50,11 @@ def run_job(job):
         from .render_export import export_project_wav
         export_project_wav(project, job['rate'], job['path'], progress=progress)
         return dict(path=job['path'])
+    if job['kind'] == 'export_loop':
+        from .loop_export import export_loop_wav
+        opts = job.get('opts') or {}
+        return export_loop_wav(project, job['rate'], job['path'], track=job.get('track'),
+                               kind=opts.get('kind', 'loop'), headroom=bool(opts.get('headroom')), progress=progress)
     raise ValueError('Unknown render job')
 
 
@@ -74,7 +79,7 @@ class RenderJob:
         fd, self.job_file = tempfile.mkstemp(prefix='decksynth-job-', suffix='.json')
         with os.fdopen(fd, 'w') as f:
             json.dump(dict(kind=kind, project=project_data, rate=rate, path=[str(x) for x in path] if isinstance(path, list) else str(path),
-                           track=track, modes=self.meta.get('modes')), f, allow_nan=False)
+                           track=track, modes=self.meta.get('modes'), opts=self.meta.get('opts')), f, allow_nan=False)
         env = dict(os.environ); env['PYTHONPATH'] = str(ROOT)+os.pathsep+env.get('PYTHONPATH', '')
         self.proc = subprocess.Popen([sys.executable, '-u', '-m', 'decksynth.render_jobs', self.job_file],
                                      stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

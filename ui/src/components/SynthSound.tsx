@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AudioWaveform, Power, SlidersHorizontal, Waves } from 'lucide-react';
+import { AudioWaveform, Power, SlidersHorizontal, Sparkles, Waves, X } from 'lucide-react';
 import { createFrameBatch } from '../chordz-primitives/frame-batch';
 import { evaluatedPartials } from '../spectral';
 import { SHAPES, harmonicShape, type Shape } from '../spectral-seeds';
+import { SOUND_GUIDES, type SoundGuideId } from '../sound-guides';
 import { TRACK_COLORS, clamp, type Track } from '../types';
 import { SOUND_TARGETS, normalizeChain, type FxChain } from '../fx';
 import { Knob, KnobTint } from './Knob';
@@ -28,6 +29,7 @@ const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5'
 const SHAPE_NAME:Record<string,string>={SAW:'Saw',SQUARE:'Square',TRIANGLE:'Triangle',PULSE:'Pulse',GAUSSIAN:'Gauss',SPREAD:'Spread',RANDOM:'Random'};
 const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 const VIEW_KEY='decksynth.synth-view';
+const GUIDE_KEY='decksynth.sound-guide';
 
 /** A row of buttons for a value with a few fixed choices (UI rule 11). */
 function Seg({name,options,value,onPick,wide}:{name:string;options:{label:ReactNode;value:number;aria?:string}[];value:number;onPick:(v:number)=>void;wide?:boolean}){
@@ -50,6 +52,12 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
   const chain=normalizeChain(track.fx);
   const [view,setViewState]=useState<View>(()=>{try{return (localStorage.getItem(VIEW_KEY) as View)||'wave';}catch{return 'wave';}});
   const setView=(v:View)=>{setViewState(v);try{localStorage.setItem(VIEW_KEY,v);}catch{/* optional */}};
+  const [guideId,setGuideIdState]=useState<SoundGuideId>(()=>{try{const saved=localStorage.getItem(GUIDE_KEY) as SoundGuideId|null;if(saved&&SOUND_GUIDES.some(guide=>guide.id===saved))return saved;return 'warm-round';}catch{return 'warm-round';}});
+  const [guideOpen,setGuideOpen]=useState(false);
+  const [guideActive,setGuideActive]=useState(false);
+  const [guidedParams,setGuidedParams]=useState<Set<string>>(()=>new Set());
+  const guide=SOUND_GUIDES.find(candidate=>candidate.id===guideId)??SOUND_GUIDES[0];
+  const setGuide=(id:SoundGuideId)=>{setGuideIdState(id);setGuideActive(true);setGuidedParams(new Set());try{localStorage.setItem(GUIDE_KEY,id);}catch{/* optional */}};
   const set=(key:keyof Params,value:number)=>onParam(key,null,value);
   const vp=(k:VoiceKey)=>voiceParam(p,k);
   const spectral=(key:'curve'|'balance'|'focus'|'focus_center')=>p[key]??SPECTRAL_NEUTRAL[key];
@@ -82,8 +90,8 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
       const k=src.targets.filter(t=>t.module==='sound'&&SOUND_TARGETS[t.param]?.card===card).length;if(k){n+=k;colors.push(c);}});
     return {n,colors};};
   const K=(param:keyof Params|string,name:string,value:number,min:number,max:number,extra:Partial<Parameters<typeof Knob>[0]>&{onChange:(v:number)=>void})=>
-    {const {id,...rest}=extra;return cell(param as string,m=><Knob id={selected+'-'+(id??String(param).replace(/_/g,'-'))} name={name} value={value} min={min} max={max} step={.005}
-      compact {...rest} {...m}/>);};
+    {const {id,description,recommendedRange,onChange,...rest}=extra,paramKey=String(param),guideRange=guideActive&&!guidedParams.has(paramKey)?(guide.ranges[paramKey]??recommendedRange):undefined,guideAdvice=guideRange?guide.advice[paramKey]:undefined;return cell(paramKey,m=><Knob id={selected+'-'+(id??paramKey.replace(/_/g,'-'))} name={name} value={value} min={min} max={max} step={.005}
+      compact description={[description,guideAdvice].filter(Boolean).join(' ')} recommendedRange={guideRange} onChange={v=>{if(guideRange)setGuidedParams(previous=>new Set(previous).add(paramKey));onChange(v);}} {...rest} {...m}/>);};
 
   /* ---- partials ---- */
   const shapeUsed=useMemo(()=>SHAPES.find(name=>(name!=='RANDOM'||p.random_seed!==undefined)&&harmonicShape(name,p.random_seed??0).every((v,i)=>Math.abs(v-p.harmonics[i])<1e-7))??'CUSTOM',[p.harmonics,p.random_seed]);
@@ -114,13 +122,14 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
     <div className="ss-top">
       <div className="ss-partials" aria-label="Partials">
         <div className="ss-graph-label">Partials <span>drag to draw · white is what you hear</span></div>
+        <button type="button" className="ss-guide-toggle" aria-label="Sound guidance" aria-pressed={guideOpen} title={guideOpen?'Close sound guidance':'Open sound guidance'} onClick={()=>{setGuideActive(true);setGuideOpen(open=>!open);}}><Sparkles size={17}/></button>
         <div ref={spectrum} className="ss-bars" role="group" aria-label="Touch or drag to adjust the 16 harmonic partial levels"
           onPointerDown={e=>{if(e.button!==0)return;e.preventDefault();(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);dragging.current=true;editPartial(e);}}
           onPointerMove={e=>{if(dragging.current&&e.buttons)editPartial(e);}}
           onPointerUp={()=>{dragging.current=false;batch.flush();}} onPointerCancel={()=>{dragging.current=false;batch.flush();}}>
           {p.harmonics.map((v,i)=><div key={i} className={'ss-bar'+(activePartial===i?' current':'')} role="slider" aria-label={'Harmonic '+(i+1)}
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v*100)} style={{['--v' as string]:v,['--heard' as string]:clamp(heard[i]??0,0,1)}}>
-            <i className="ss-bar-fill"/><i className="ss-bar-heard"/><span>{i+1}</span></div>)}
+            {guideOpen?<i className="ss-bar-guide" style={{['--guide' as string]:guide.contour[i]}}/>:null}<i className="ss-bar-fill"/><i className="ss-bar-heard"/><span>{i+1}</span></div>)}
         </div>
         <div className="ss-shapes" role="radiogroup" aria-label="Starting shape">{SHAPES.map(name=>
           <button key={name} type="button" role="radio" aria-checked={shapeUsed===name} title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
@@ -151,6 +160,21 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
         </div>
         {preset?<div className="ss-preset">{preset}</div>:null}
       </div>
+      <section className="ss-guide-panel" aria-label="Sound guidance" hidden={!guideOpen}>
+        <div className="ss-guide-left"><header className="ss-guide-head"><div><b>Sound guidance</b></div></header><div className="ss-guide-picker">
+          <div className="ss-guide-choices" role="radiogroup" aria-label="Sound design guide">
+            {SOUND_GUIDES.map(candidate=><button key={candidate.id} type="button" role="radio" aria-checked={guide.id===candidate.id}
+              className={guide.id===candidate.id?'on':''} onClick={()=>setGuide(candidate.id)}>{candidate.name}</button>)}
+          </div>
+          <small>{guide.character} Start with {SHAPE_NAME[guide.shape]}.</small>
+        </div></div>
+        <div className="ss-guide-right"><header className="ss-guide-right-head"><b>Why</b><div className="ss-guide-legend" aria-label="Sound and guide visual legend"><span><i className="ss-current-swatch"/>Saved partial</span><span><i className="ss-heard-swatch"/>Heard now</span><span><i className="ss-guide-swatch"/>Guide reference</span></div><button type="button" aria-label="Close sound guidance" title="Close sound guidance" onClick={()=>setGuideOpen(false)}><X size={17}/></button></header>
+          <details className="ss-guide-details">
+            <summary>Why this guide works</summary>
+            <div className="ss-guide-explanation"><p><b>Tone</b>{guide.tone}</p><p><b>Movement</b>{guide.movement}</p><p><b>Music</b>{guide.musical}</p></div>
+          </details>
+        </div>
+      </section>
     </div>
 
     <div className="ss-cards">
@@ -186,7 +210,6 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
             {K('drift','Drift',vp('drift'),0,1,{suffix:'%',description:'Each note gets its own start and a few cents of its own tuning, like an analog synth.',onChange:v=>set('drift',v)})}
             {K('vel_curve','Dynamics',vp('vel_curve'),0,1,{suffix:'%',description:'How much softer a soft note is. 0: the old straight line; up: more like a real piano.',onChange:v=>set('vel_curve',v)})}
           </div></>,{reset:()=>{set('modulation',.08);set('glide',0);set('play_mode',0);set('drift',0);set('vel_curve',0);}})}
-        {sends?card('sound-sends','Sends',TAGS.sends,sends,{action:sendsAction}):null}
       </div>
       <div className="ss-col">
         {card('sound-filter','Filter',TAGS.filter,<>
@@ -218,10 +241,13 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           </div>
           <Seg name="Sub octave" value={vp('sub_oct')} onPick={v=>set('sub_oct',v)} options={[{label:'Sub −1 oct',value:1,aria:'One octave down'},{label:'Sub −2 oct',value:2,aria:'Two octaves down'}]}/>
         </>,{reset:()=>{set('character',0);(['formant','vowel','inharm','sub','sub_oct'] as VoiceKey[]).forEach(k=>set(k,VOICE_DEFAULTS[k]));}})}
-        {card('rack-output','Output',TAGS.output,<div className="ss-knobs">
-          {cell('volume',m=><Knob id={selected+'-volume'} name="Volume" value={track.volume} min={0} max={1} step={.005} defaultValue={.7} suffix="%" compact onChange={v=>onTrack('volume',v)} {...m}/>)}
-          {K('pan','Pan',vp('pan'),-1,1,{step:.01,onChange:v=>set('pan',v)})}
-        </div>,{power:{on:!track.mute,label:'track output',toggle:()=>onTrack('mute',!track.mute)}})}
+        {card('rack-output','Output & Sends',TAGS.output,<>
+          <div className="ss-knobs">
+            {cell('volume',m=><Knob id={selected+'-volume'} name="Volume" value={track.volume} min={0} max={1} step={.005} defaultValue={.7} suffix="%" compact onChange={v=>onTrack('volume',v)} {...m}/>)}
+            {K('pan','Pan',vp('pan'),-1,1,{step:.01,onChange:v=>set('pan',v)})}
+          </div>
+          {sends?<div className="ss-sends-inline" role="group" aria-label="Track sends">{sends}</div>:null}
+        </>,{power:{on:!track.mute,label:'track output',toggle:()=>onTrack('mute',!track.mute)},action:sendsAction})}
       </div>
     </div>
     {ring.bubble}

@@ -30,14 +30,15 @@ export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,
   if(y<r.top+24||y>=r.top+el.clientHeight)return null;
   return pitches[Math.floor((el.scrollTop+y-r.top-24)/rowHeight)]??null;
  };
- const locate=(x:number,y:number)=>{
+ const locate=(x:number,y:number,free=false)=>{
   const el=ref.current,pitch=pitchAt(y);
   if(!el||pitch===null)return null;
   const r=el.getBoundingClientRect();
   if(x<r.left+44||x>=r.left+el.clientWidth)return null;
   const column=(el.scrollLeft+x-r.left-44)/timePx;
   if(column<0||column>=span/snap)return null;
-  return {time:bound(Math.floor(column)*snap,0,span-snap),pitch};
+  const time=free?Math.round(bound(column*snap,0,span-snap)*96)/96:Math.floor(column)*snap;
+  return {time,pitch};
  };
  const fit=(selected:Note[]=notes)=>{const el=ref.current;if(!el||latest.current.busy()||pan.current)return;const next=fitNotesView(selected,span,snap,el.clientWidth,el.clientHeight);if(selected.length){const high=Math.max(...selected.map(n=>n.note)),low=Math.min(...selected.map(n=>n.note)),top=Math.max(0,pitches.findIndex(n=>n<=high)-2),bottom=Math.max(top+4,pitches.findIndex(n=>n<=low)+2);next.rowHeight=bound((el.clientHeight-24)/(bottom-top+1),12,88);next.top=top*next.rowHeight;}requested.current={left:next.left,top:next.top};setTimePx(next.timePx);setRowHeight(next.rowHeight);requestAnimationFrame(()=>{if(requested.current){el.scrollLeft=next.left;el.scrollTop=next.top;requested.current=null;measure();}});};
  const time=(direction:number)=>ref.current?.scrollBy({left:direction*(view.width-44)*.8,behavior:'smooth'});
@@ -45,5 +46,13 @@ export function usePianoViewport(ref:RefObject<HTMLDivElement|null>,span:number,
  const firstCol=Math.max(0,Math.floor((view.left-44)/timePx)-1),lastCol=Math.min(Math.ceil(span/snap),Math.ceil((view.left+view.width-44)/timePx)+1),firstRow=Math.max(0,Math.floor((view.top-24)/rowHeight)-1),lastRow=Math.min(pitches.length,Math.ceil((view.top+view.height-24)/rowHeight)+1);
  const timeTo=(time:number)=>{if(ref.current){ref.current.scrollLeft=time/snap*timePx;measure();}};
  const pitchTo=(pitch:number)=>{if(ref.current){ref.current.scrollTop=Math.max(0,pitches.findIndex(n=>n<=pitch))*rowHeight;measure();}};
- return {...view,timeTo,pitchTo,timePx,rowHeight,panning,firstCol,lastCol,firstRow,lastRow,begin,move,end,cancel,locate,pitchAt,fit,time,pitch,active:()=>!!pan.current};
+ const overviewTo=(ratio:number)=>{const el=ref.current;if(!el)return;el.scrollLeft=Math.max(0,Math.min(el.scrollWidth-el.clientWidth,ratio*Math.max(0,el.scrollWidth-el.clientWidth)));measure();};
+ const overviewZoom=(edge:'left'|'right',ratio:number)=>{const el=ref.current;if(!el)return;const before=latest.current.timePx,value=bound(before*(edge==='left'?1-ratio*.75:1+ratio*.75),12,192);requested.current={left:edge==='left'?zoomAt(el.scrollLeft,0,before,value,44):zoomAt(el.scrollLeft,el.clientWidth,before,value,44),top:el.scrollTop};setTimePx(value);};
+ const pinchTo=(start:{left:number;top:number;timePx:number;anchor:number},scale:number,dx:number,dy:number)=>{
+  const el=ref.current;if(!el)return;const value=bound(start.timePx*scale,12,192);
+  const next={left:Math.max(0,zoomAt(start.left,start.anchor,start.timePx,value,44)-dx),top:Math.max(0,start.top-dy)};
+  if(value===latest.current.timePx){el.scrollLeft=next.left;el.scrollTop=next.top;measure();}else{requested.current=next;setTimePx(value);}
+ };
+ const followTime=(at:number)=>{const el=ref.current;if(!el)return;const x=44+at/snap*timePx,left=el.scrollLeft,right=left+el.clientWidth;if(x<left+44||x>right-36){el.scrollLeft=Math.max(0,x-el.clientWidth*.42);measure();}};
+ return {...view,timeTo,pitchTo,timePx,rowHeight,panning,firstCol,lastCol,firstRow,lastRow,begin,move,end,cancel,locate,pitchAt,fit,time,pitch,overviewTo,overviewZoom,followTime,pinchTo,active:()=>!!pan.current};
 }

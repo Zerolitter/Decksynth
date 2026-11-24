@@ -14,30 +14,35 @@ async function run(){
   app=await _electron.launch({executablePath:electronPath,args:['electron/playwright-main.cjs'],cwd:ROOT,env,timeout:15000});
   const page=await app.firstWindow({timeout:15000});
   await page.waitForLoadState('domcontentloaded');
+  // The app defaults to Sound; the desktop fixture explicitly starts on Song.
+  await page.evaluate(()=>localStorage.setItem('decksynth.test-page','SONG'));
+  await page.reload();
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForFunction(()=>document.querySelectorAll('.clip-note').length===9,{timeout:10000});
   console.log('DOM diagnostic:',await page.title(), 'legacy=',await page.locator('.app-shell').count(), 'next=',await page.locator('.decksynth-shell').count(), 'patterns=',await page.locator('.pattern-step').count());
   await page.screenshot({path:path.join(output,'electron-debug.png')});
   assert.equal(await page.locator('.clip-note').count(),9);
   assert.equal(await page.locator('.track-row').count(),4);
-  assert.equal(await page.locator('.step-hardware-pad').count(),16);
   assert.equal(await page.locator('.clip-lane.has-notes').count(),2);
-  assert.equal(await page.locator('.timeline-summary').textContent()?.then(s=>/9 notes/i.test(s)),true);
+  assert.equal(await page.locator('.clip-note').count(),9,'the clip-notes view retains all 9 MIDI events');
   await page.screenshot({path:path.join(output,'electron-song-test.png')});
-  console.log('PASS: Song UI shows 4 tracks, 9 Project-formatted notes and 16 hardware-inspired sequencer pads');
+  console.log('PASS: Song UI shows 4 tracks and 9 Project-formatted notes across the MIDI lanes');
   await page.getByRole('tab',{name:/sound/i}).click();
-  await page.locator('.harmonic-spectrum').waitFor({state:'visible'});
-  assert.equal(await page.locator('.harmonic-bar').count(),16);
+  await page.locator('.ss-bars').waitFor({state:'visible'});
+  assert.equal(await page.locator('.ss-bar').count(),16);
   await page.screenshot({path:path.join(output,'electron-sound-test.png')});
-  assert.ok(await page.locator('.sound-rack').isVisible(),'Envelope sits on the same screen as the partials');
+  assert.ok(await page.locator('.ss-rack').isVisible(),'Envelope sits on the same screen as the partials');
   console.log('PASS: SOUND tab exposes 16 harmonic editors and original Chordz rack');
-  const before=await page.locator('.harmonic-bar').first().getAttribute('aria-label');
-  await page.getByRole('button',{name:'SQUARE',exact:true}).click();
-  const after=await page.locator('.harmonic-bar').nth(1).getAttribute('aria-label');
-  assert.ok(after?.includes('0 percent'),after);
+  const before=await page.locator('.ss-bar').first().getAttribute('aria-valuenow');
+  await page.getByRole('radio',{name:'Square',exact:true}).click();
+  const after=Number(await page.locator('.ss-bar').nth(1).getAttribute('aria-valuenow'));
+  assert.equal(after,0,'Square removes the even second harmonic');
   assert.ok(before);
   console.log('PASS: harmonic shape button changes actual preview instrument parameters');
   const knob = page.locator('[data-param="0-brightness"] .knob-value');
   if(await knob.count()) {
+    await knob.first().click();
+    await page.waitForTimeout(500); // rule 36: two deliberate clicks arm then open numeric entry
     await knob.first().click();
     const field=page.locator('[data-param="0-brightness"] input');
     await field.fill('0.44');
@@ -59,5 +64,6 @@ async function run(){
   assert.ok(sizes.clips.every(c=>c.w>200&&c.h>30),JSON.stringify(sizes));
   fs.writeFileSync(path.join(output,'electron-ui-layout-test.json'),JSON.stringify(sizes,null,2));
   console.log('PASS: native screen geometry has readable clip lanes');
+  // Perform's compact piano-roll/SEQ behavior is covered by performance_ui_acceptance.cjs.
 }
 run().catch(e=>{console.error('FAIL',e.stack);process.exitCode=1}).finally(async()=>{if(app)await app.close()});

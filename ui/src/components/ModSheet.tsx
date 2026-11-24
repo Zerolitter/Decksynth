@@ -108,10 +108,11 @@ export function PadGraphEditor({mod,color,phase:phase0,live:live0,phaseNow,liveN
 export function BipolarDepth({value,color,label,onChange}:{value:number;color:string;label:string;onChange:(v:number)=>void}){
   const [preview,setPreview]=useState<number|null>(null);
   const [typing,setTyping]=useState<string|null>(null);
+  const [fineMode,setFineMode]=useState(false);
   const g=useRef<{v0:number;x0:number;w:number;fine:boolean;held:ReturnType<typeof setTimeout>|null;long:ReturnType<typeof setTimeout>|null;
-    moved:boolean;lastX:number;lastT:number}|null>(null);
+    id:number;second:number|null;moved:boolean;lastX:number;lastT:number;v:number;releaseSecond:()=>void}|null>(null);
   const tap=useRef(0);
-  useEffect(()=>()=>{const s=g.current;if(s?.held)clearTimeout(s.held);if(s?.long)clearTimeout(s.long);g.current=null;},[]);
+  useEffect(()=>()=>{const s=g.current;if(s?.held)clearTimeout(s.held);if(s?.long)clearTimeout(s.long);s?.releaseSecond();g.current=null;},[]);
   const v=preview??value;
   const stopTimers=()=>{const s=g.current;if(s?.held)clearTimeout(s.held);if(s?.long)clearTimeout(s.long);};
   if(typing!==null)return <div className="bipolar typing" style={{['--src' as string]:color}}>
@@ -130,19 +131,27 @@ export function BipolarDepth({value,color,label,onChange}:{value:number;color:st
       if(now-tap.current<300){tap.current=0;onChange(0);return;}tap.current=now;
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       const r=(e.currentTarget as Element).getBoundingClientRect();
-      const s={v0:value,x0:e.clientX,w:r.width,fine:false,moved:false,lastX:e.clientX,lastT:now,
-        held:setTimeout(()=>{if(g.current)g.current.fine=true;},400) as ReturnType<typeof setTimeout>|null,
-        long:setTimeout(()=>{if(g.current&&!g.current.moved){g.current=null;setPreview(null);setTyping(String(Math.round(value*100)));}},650) as ReturnType<typeof setTimeout>|null};
-      g.current=s;setPreview(value);}}
-    onPointerMove={e=>{const s=g.current;if(!s)return;
+      const s={v0:value,x0:e.clientX,w:r.width,fine:e.shiftKey||e.ctrlKey,id:e.pointerId,second:null as number|null,moved:false,lastX:e.clientX,lastT:now,v:value,releaseSecond:()=>{},
+        held:setTimeout(()=>{if(g.current===s){s.fine=true;setFineMode(true);}},400) as ReturnType<typeof setTimeout>|null,
+        long:setTimeout(()=>{if(g.current===s&&!s.moved){s.releaseSecond();g.current=null;setFineMode(false);setPreview(null);setTyping(String(Math.round(value*100)));}},650) as ReturnType<typeof setTimeout>|null};
+      const secondDown=(other:PointerEvent)=>{if(g.current!==s||other.pointerType!=='touch'||other.pointerId===s.id||s.second!==null)return;
+        // A depth drag owns a second finger anywhere, preventing pads, links and radial holds underneath.
+        s.second=other.pointerId;if(s.long){clearTimeout(s.long);s.long=null;}other.preventDefault();other.stopPropagation();setFineMode(true);};
+      const secondEnd=(other:PointerEvent)=>{if(other.pointerId!==s.second)return;
+        other.preventDefault();other.stopPropagation();s.second=null;setFineMode(s.fine);};
+      s.releaseSecond=()=>{document.removeEventListener('pointerdown',secondDown,true);document.removeEventListener('pointerup',secondEnd,true);document.removeEventListener('pointercancel',secondEnd,true);};
+      document.addEventListener('pointerdown',secondDown,true);document.addEventListener('pointerup',secondEnd,true);document.addEventListener('pointercancel',secondEnd,true);
+      g.current=s;setFineMode(s.fine);setPreview(value);}}
+    onPointerMove={e=>{const s=g.current;if(!s||e.pointerId!==s.id)return;
       if(Math.abs(e.clientX-s.x0)>3){s.moved=true;if(s.held){clearTimeout(s.held);s.held=null;}if(s.long){clearTimeout(s.long);s.long=null;}}
       const now=performance.now(),fast=Math.abs(e.clientX-s.lastX)/Math.max(1,now-s.lastT)>1;s.lastX=e.clientX;s.lastT=now;
-      setPreview(depthAt(s.v0,e.clientX-s.x0,{length:s.w,fine:s.fine,fast}));}}
-    onPointerUp={()=>{stopTimers();g.current=null;if(preview!==null&&preview!==value)onChange(preview);setPreview(null);}}
-    onPointerCancel={()=>{stopTimers();g.current=null;setPreview(null);}}>
+      const fine=s.fine||s.second!==null||e.shiftKey||e.ctrlKey;setFineMode(fine);
+      s.v=depthAt(s.v0,e.clientX-s.x0,{length:s.w,fine,fast});setPreview(s.v);}}
+    onPointerUp={e=>{const s=g.current;if(!s||e.pointerId!==s.id)return;stopTimers();s.releaseSecond();g.current=null;setFineMode(false);if(s.v!==value)onChange(s.v);setPreview(null);}}
+    onPointerCancel={e=>{const s=g.current;if(!s||e.pointerId!==s.id)return;stopTimers();s.releaseSecond();g.current=null;setFineMode(false);setPreview(null);}}>
     <i className="bipolar-zero"/>
     <i className={'bipolar-fill'+(v<0?' neg':'')} style={v>=0?{left:'50%',width:v*50+'%'}:{right:'50%',width:-v*50+'%'}}/>
-    {preview!==null?<b className="bipolar-bubble">{(v>0?'+':'')+Math.round(v*100)}%{g.current?.fine?' fine':''}</b>
+    {preview!==null?<b className="bipolar-bubble">{(v>0?'+':'')+Math.round(v*100)}%{fineMode?' fine':''}</b>
       :<b className="bipolar-value">{(v>0?'+':'')+Math.round(v*100)}%</b>}
   </div>;
 }

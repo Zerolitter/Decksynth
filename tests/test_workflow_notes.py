@@ -13,6 +13,31 @@ class WorkflowNotes(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'notes.decksynth';e.project.save(p);self.assertEqual(Project.load(p).tracks,e.project.tracks)
   e.undo();self.assertEqual(e.project.tracks[0]['notes'],[])
+ def test_note_edit_undo_redo_restores_the_single_atomic_gesture(self):
+  e=Engine();notes=[event(0.,60),event(.25,64)]
+  e.note_edit(target(e),[],notes);e.undo_any()
+  self.assertEqual(e.project.tracks[0]['notes'],[])
+  self.assertTrue(e.redo_history)
+  e.redo()
+  self.assertEqual(e.project.tracks[0]['notes'],notes)
+  self.assertEqual(len(e.history),1)
+ def test_a_new_edit_discards_redo(self):
+  e=Engine();e.note_edit(target(e),[],[event()]);e.undo_any();self.assertTrue(e.redo_history)
+  e.note_edit(target(e),[],[event(1.,67)]);self.assertFalse(e.redo_history)
+ def test_redo_refuses_after_a_change_that_has_no_undo_step(self):
+  e=Engine();e.note_edit(target(e),[],[event()]);e.undo_any()
+  e.project.tracks[0]['volume']=.123
+  with self.assertRaises(ValueError):e.redo()
+  self.assertEqual(e.project.tracks[0]['volume'],.123);self.assertFalse(e.redo_history)
+ def test_a_refused_undo_leaves_no_redo_entry(self):
+  e=Engine();e.note_edit(target(e),[],[event()]);e.project.tracks[0]['notes']=[event(1.,67)]
+  with self.assertRaises(ValueError):e.undo_any()
+  self.assertFalse(e.redo_history)
+ def test_two_undos_redo_in_order(self):
+  e=Engine();a=[event()];b=[event(),event(1.,67)]
+  e.note_edit(target(e),[],a);e.note_edit(target(e),a,b);e.undo_any();e.undo_any()
+  self.assertEqual(e.project.tracks[0]['notes'],[])
+  e.redo();self.assertEqual(e.project.tracks[0]['notes'],a);e.redo();self.assertEqual(e.project.tracks[0]['notes'],b)
  def test_undo_preserves_unrelated_notes_added_after_the_edit(self):
   e=Engine();e.note_edit(target(e),[],[event()]);later=event(1.,67);e.project.tracks[1]['notes'].append(later);e.undo();self.assertEqual(e.project.tracks[1]['notes'],[later]);self.assertEqual(e.project.tracks[0]['notes'],[])
  def test_stale_owner_clip_bars_or_note_fingerprint_is_rejected(self):

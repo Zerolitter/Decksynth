@@ -65,6 +65,10 @@ try:
     assert len(captured['state']['tracks'][0]['notes'])>=1,captured
     print('PASS: MIDI note recording reflected into canonical four-track project state',flush=True)
     send('record')
+    # New sessions intentionally begin with one track; establish the four-track
+    # timeline fixture used below through the public bridge command.
+    send('add_track'); send('add_track'); send('add_track')
+    receive(lambda obj:len(obj.get('state',{}).get('tracks',[]))==4)
     send('clip',[0,'copy',1,0])
     send('clip',[0,'open',1,None])
     song={'on':True,'loop':True,'length':8,'markers':[{'bar':0,'name':'Intro'},{'bar':4,'name':'Drop'}],

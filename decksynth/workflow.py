@@ -55,6 +55,7 @@ class WorkflowEngine:
  def patch_history(self,track):return self.sound_history[track][self.project.tracks[track].get('sound_ab',{}).get('active','A')]
  def replace_project(self,project):
   self.stop();self.project=project;self.init_workflow();self.configure();self.history=[];self.mutation_sessions.clear()
+  self.redo_history.clear()
  def owned(self,track):
   if type(track) is not int or track!=self.selected:raise ValueError('Track changed; sound edit cancelled')
  def ab_action(self,track,action):
@@ -108,6 +109,9 @@ class WorkflowEngine:
   if action!='end':raise ValueError('Invalid gesture action')
   after=self.control_scope(track,module,param);self._sound_gesture=None
   if self.scope_value(after)!=self.scope_value(g['before']):
+   # Sound gestures own their history rather than calling snapshot(), but they
+   # still start a new undo branch just like every project edit.
+   self.redo_history.clear()
    history=self.patch_history(track);history.append(dict(module=module,param=param,before=g['before'],after=after,seq=self.next_edit_seq()));del history[:-40]
  def cancel_sound_gesture(self):
   g=self._sound_gesture
@@ -126,7 +130,9 @@ class WorkflowEngine:
   if not history:return
   entry=history[-1];now=self.control_scope(track,entry['module'],entry['param'])
   if self.scope_value(now)!=self.scope_value(entry['after']):raise ValueError('Sound changed since this edit; undo cancelled')
-  self.restore_scope(track,entry['before']);history.pop()
+  self._guarded_undo(self._sound_undo_step,track,entry)
+ def _sound_undo_step(self,track,entry):
+  self.restore_scope(track,entry['before']);self.patch_history(track).pop()
  def set_automation(self,track,lanes):
   self.owned(track);clean=validate_automation(lanes);self.project.tracks[track]['automation']=clean
  def record_control(self,track,module,param,value):

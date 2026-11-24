@@ -13,9 +13,8 @@ const ROOT=path.resolve(__dirname,'..');
   const p=await app.firstWindow({timeout:15000});
   p.setDefaultTimeout(8000);
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  // The window maximizes once it is ready to show; size it after that, and check it took.
-  for(let i=0;;i++){await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,722);});
-    await p.waitForTimeout(150);if(await p.evaluate(()=>innerWidth===1280&&innerHeight===722))break;if(i>30)throw Error('window did not take 1280x722');}
+  await p.setViewportSize({width:1280,height:720});
+  await p.waitForFunction(()=>innerWidth===1280&&innerHeight===720,{timeout:5000});
   await p.getByRole('tab',{name:/^FX$/}).click();
   const covered=async()=>{const bad=[];for(const n of await p.locator('.fx-picker-sheet button,.mod-sheet button').all()){
     if(!await n.isVisible())continue;await n.scrollIntoViewIfNeeded();
@@ -30,7 +29,7 @@ const ROOT=path.resolve(__dirname,'..');
   const sheet=p.getByRole('dialog',{name:'Add effect'});
   await sheet.waitFor();
   const sb=await sheet.boundingBox();
-  assert.ok(sb.y>=0&&sb.y+sb.height<=722,'picker stays inside the Deck viewport');
+  assert.ok(sb.y>=0&&sb.y+sb.height<=720,'picker stays inside the Deck viewport');
   assert.deepEqual(await covered(),[],'nothing in the sheet is covered');
   await p.keyboard.press('Escape');
   assert.equal(await p.locator('.fx-picker-sheet').count(),0,'Esc closes the sheet');

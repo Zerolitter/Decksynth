@@ -232,3 +232,9 @@
 /* Numeric rotary fine-tuners and tempo steppers also need comfortable touch areas. */
 .decksynth-shell .tactile-knob .knob-target{min-width:48px;min-height:48px}
 .decksynth-shell .tempo-adjust button{width:44px;min-width:44px;height:44px}
+
+/* Rule 6: show when a held or second-finger gesture is using one-fifth knob travel. */
+.decksynth-shell .parameter-knob .knob-fine-indicator{position:absolute;z-index:22;top:-2px;right:-5px;padding:2px 4px;border:1px solid var(--c-guide);border-radius:4px;background:var(--ui-well);color:var(--c-guide);font:800 8px/1.2 ui-monospace,monospace;letter-spacing:.05em;pointer-events:none}
+
+/* Keep the rightmost MIDI/settings hit target fully inside the 1280 px shell. */
+.decksynth-shell .app-header .icon-button.has-midi{position:relative;left:-2px}

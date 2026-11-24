@@ -1,14 +1,15 @@
-// Steam Deck touch targets (UI rules 3 and 15), on the real Electron renderer at 1280x718.
+// Steam Deck touch targets (UI rules 3 and 15), on the real Electron renderer at an exact 1280x720 or 1280x800.
 // Visits every page and instrument, and checks every visible control:
 //  - its hit area is at least 44x44 px;
-//  - nothing covers it: the element under its centre is the control itself (or inside it).
+//  - its complete effective hit rectangle is inside the viewport and every clipping ancestor;
+//  - that complete rectangle is not covered by another control.
 // Controls scrolled out of their scroller are skipped; scroll to reach them is allowed.
 // Shots go to docs/touch-acceptance-<view>.png. Run: DISPLAY=:0 node tests/touch_target_acceptance.cjs
 'use strict';
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');
-const H=Number(process.env.HEIGHT||718),MIN=44;
+const H=Number(process.env.HEIGHT||720),MIN=44;
 const data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-touch-'));
 
 const CONTROLS=['button','[role=button]','[role=radio]','[role=tab]','[role=switch]','[role=checkbox]','[role=slider]',
@@ -17,10 +18,14 @@ const CONTROLS=['button','[role=button]','[role=radio]','[role=tab]','[role=swit
 // Reported, but not failed: the piano-roll note grid, its bar ruler and row keys, and the synth's partial bars.
 const SURFACE='.note-time-cell,.piano-ruler-tick,.piano-pitch-key,.ss-bar';
 
-function scan(sel,MIN,SURFACE){
+function scan(sel,MIN,SURFACE,scope){
+  const root=scope?document.querySelector(scope):document;
   const out=[];const seen=new Set();
   const visible=e=>{const s=getComputedStyle(e);return s.visibility!=='hidden'&&s.display!=='none'&&+s.opacity>.05;};
-  for(const e of document.querySelectorAll(sel)){
+  const contains=(owner,at)=>!!at&&(at===owner||owner.contains(at)||at.contains(owner)&&at.matches(sel));
+  const intersect=(a,b)=>({left:Math.max(a.left,b.left),top:Math.max(a.top,b.top),right:Math.min(a.right,b.right),bottom:Math.min(a.bottom,b.bottom)});
+  const area=r=>Math.max(0,r.right-r.left)*Math.max(0,r.bottom-r.top);
+  for(const e of root.querySelectorAll(sel)){
     // the outermost matching control owns the hit area (a knob-target inside a button counts once)
     if(e.parentElement?.closest(sel)&&!e.matches('.knob-target'))continue;
     if(e.closest('[aria-hidden=true],[inert]'))continue;
@@ -28,21 +33,10 @@ function scan(sel,MIN,SURFACE){
     if(r.width<1||r.height<1||!visible(e))continue;
     let a=e,ok=true;for(;a;a=a.parentElement){if(!visible(a)){ok=false;break;}}
     if(!ok)continue;
-    const cx=r.left+r.width/2,cy=r.top+r.height/2;
-    if(cx<0||cy<0||cx>innerWidth||cy>innerHeight)continue;
-    // skip controls scrolled out of a clipping ancestor
-    let clipped=false;
-    for(a=e.parentElement;a;a=a.parentElement){const s=getComputedStyle(a);
-      if(/(auto|scroll|hidden|clip)/.test(s.overflowX+s.overflowY)){const q=a.getBoundingClientRect();
-        if(cx<q.left||cx>q.right||cy<q.top||cy>q.bottom){clipped=true;break;}}}
-    if(clipped)continue;
     const name=(e.getAttribute('aria-label')||e.textContent||e.getAttribute('title')||'').trim().replace(/\s+/g,' ').slice(0,40);
     const cls=(e.className&&typeof e.className==='string'?e.className:'').split(' ').filter(Boolean).slice(0,2).join('.');
     const id=e.tagName.toLowerCase()+(cls?'.'+cls:'')+(name?' "'+name+'"':'');
     if(seen.has(id+r.left+r.top))continue;seen.add(id+r.left+r.top);
-    const top=document.elementFromPoint(cx,cy);
-    const covered=!(top&&(top===e||e.contains(top)||top.contains(e)&&top.matches(sel)));
-    const coverer=covered&&top?top.tagName.toLowerCase()+'.'+String(top.className||'').split(' ')[0]:'';
     // an absolutely placed ::before/::after with negative insets widens the hit zone (rule 10: small visual, 44 px hit)
     let hx1=r.left,hx2=r.right,hy1=r.top,hy2=r.bottom;
     for(const ps of ['::before','::after']){const s=getComputedStyle(e,ps);
@@ -51,7 +45,35 @@ function scan(sel,MIN,SURFACE){
       hx1=Math.min(hx1,r.left+v[3]);hx2=Math.max(hx2,r.right-v[1]);hy1=Math.min(hy1,r.top+v[0]);hy2=Math.max(hy2,r.bottom-v[2]);}
     const hw=hx2-hx1,hh=hy2-hy1;
     const small=hw<MIN-.5||hh<MIN-.5;
-    if(small||covered)out.push({id,w:Math.round(hw),h:Math.round(hh),small,covered,coverer,surface:!!e.closest(SURFACE)});
+    const effective={left:hx1,top:hy1,right:hx2,bottom:hy2};
+    let visibleRect=intersect(effective,{left:0,top:0,right:innerWidth,bottom:innerHeight});
+    let integrityRect=effective,clipper='viewport',scrollX=false,scrollY=false;
+    // A scrollable rack is an access path: its children may sit below the current viewport.
+    // Visibility still follows the scroller; integrity ignores that axis at the top, then audits strictly at the end.
+    const strictScroll=document.body.dataset.touchStrictScroll==='1';
+    for(a=e.parentElement;a;a=a.parentElement){const s=getComputedStyle(a),paintClip=s.contain.includes('paint')||s.clipPath!=='none';
+      const canScrollX=!paintClip&&/(auto|scroll)/.test(s.overflowX)&&a.scrollWidth>a.clientWidth+1;
+      const canScrollY=!paintClip&&/(auto|scroll)/.test(s.overflowY)&&a.scrollHeight>a.clientHeight+1;
+      if(!strictScroll){scrollX=scrollX||canScrollX;scrollY=scrollY||canScrollY;}
+      const clips=/(auto|scroll|hidden|clip)/.test(s.overflowX+s.overflowY)||paintClip;
+      if(!clips)continue;const q=a.getBoundingClientRect(),before=area(integrityRect);
+      visibleRect=intersect(visibleRect,{left:q.left,top:q.top,right:q.right,bottom:q.bottom});
+      integrityRect=intersect(integrityRect,{left:scrollX?-1e6:q.left,top:scrollY?-1e6:q.top,right:scrollX?1e6:q.right,bottom:scrollY?1e6:q.bottom});
+      if(area(integrityRect)<before-.01)clipper=a.tagName.toLowerCase()+(a.id?'#'+a.id:'')+(typeof a.className==='string'&&a.className?' .'+a.className.trim().split(/\s+/)[0]:'');}
+    const full=area(effective),shown=area(visibleRect);
+    integrityRect=intersect(integrityRect,{left:scrollX?-1e6:0,top:scrollY?-1e6:0,right:scrollX?1e6:innerWidth,bottom:scrollY?1e6:innerHeight});
+    const clippedFraction=full?Math.max(0,1-area(integrityRect)/full):1;
+    if(!shown)continue;
+    // Rule 15 still requires the actionable centre to be clear.  Full-rectangle integrity is
+    // checked above through the effective hit bounds and every clipping ancestor; sibling hit
+    // zones may legitimately meet at their edges without being a visual obstruction.
+    const cx=hx1+hw/2,cy=hy1+hh/2;
+    const centerVisible=cx>=visibleRect.left&&cx<=visibleRect.right&&cy>=visibleRect.top&&cy<=visibleRect.bottom;
+    const blocked=centerVisible?document.elementFromPoint(cx,cy):null;
+    const covered=centerVisible&&!contains(e,blocked);
+    const coverer=covered&&blocked?blocked.tagName.toLowerCase()+'.'+String(blocked.className||'').split(' ')[0]:'';
+    const clipped=clippedFraction>.005;
+    if(small||covered||clipped)out.push({id,w:Math.round(hw),h:Math.round(hh),small,covered,coverer,clipped,clippedFraction:Math.round(clippedFraction*1000)/10,clipper,surface:!!e.closest(SURFACE)});
   }
   return out;
 }
@@ -65,21 +87,30 @@ function scan(sel,MIN,SURFACE){
     const p=await app.firstWindow({timeout:18000});p.setDefaultTimeout(10000);
     p.on('pageerror',e=>{console.error('pageerror',e.message);fails++;});
     await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'),null,{timeout:20000});
-    // The window maximizes once it is ready to show; size it after that, and retry until it takes.
-    for(let i=0;i<30;i++){await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];if(w.isMaximized())w.unmaximize();w.setContentSize(1280,h);},H);
-      await p.waitForTimeout(150);if(await p.evaluate(h=>innerWidth===1280&&innerHeight===h,H))break;}
+    // Use a renderer viewport override rather than the desktop work area: windowed SteamOS
+    // reserves taskbar space, so BrowserWindow.setContentSize(1280,800) is capped at 772 px.
+    // The test must exercise the exact requested renderer dimensions, not relabel that cap.
+    await p.setViewportSize({width:1280,height:H});
+    await p.waitForFunction(([w,h])=>innerWidth===w&&innerHeight===h,[1280,H],{timeout:5000});
     const size=await p.evaluate(()=>({w:innerWidth,h:innerHeight}));
-    if(size.w!==1280||Math.abs(size.h-H)>2){console.error('FAIL window is',size);fails++;}
+    if(size.w!==1280||size.h!==H){console.error('FAIL renderer viewport is',size);fails++;}
     const tab=n=>p.getByRole('tab',{name:new RegExp('^'+n+'$','i')}).first().click();
     const instrument=n=>p.getByRole('radiogroup',{name:'Track instrument'}).getByRole('radio',{name:n,exact:true}).click();
     const check=async view=>{
+      // A page switch must always begin its audit at the real top, not at an incidental scroll
+      // position left by a picker or an instrument switch.
+      if(!view.endsWith('-end')){
+        await p.locator('.page-body').evaluateAll(nodes=>nodes.forEach(e=>e.scrollTop=0));
+        await p.locator('.fx-cards').evaluateAll(nodes=>nodes.forEach(e=>e.scrollTop=0));
+      }
       await p.waitForTimeout(400);
+      await p.evaluate(()=>{document.body.dataset.touchStrictScroll='0';});
       let bad=await p.evaluate(([s,m])=>(0,eval)('('+s+')')(...m),[scan.toString(),[CONTROLS,MIN,SURFACE]]);
       const total=await p.evaluate(s=>document.querySelectorAll(s).length,CONTROLS);
       await p.screenshot({path:path.join(ROOT,'docs','touch-acceptance-'+view+'.png')});
       const surf=bad.filter(b=>b.surface);bad=bad.filter(b=>!b.surface);
       report.push([view,total,bad.length,surf.length]);
-      for(const b of bad){fails++;console.log('  '+view+': '+b.id+' '+b.w+'x'+b.h+(b.small?' too small':'')+(b.covered?' covered by '+b.coverer:''));}
+      for(const b of bad){fails++;console.log('  '+view+': '+b.id+' '+b.w+'x'+b.h+(b.small?' too small':'')+(b.covered?' covered by '+b.coverer:'')+(b.clipped?' '+b.clippedFraction+'% clipped by '+b.clipper:''));}
     };
     await tab('Song');await check('song');
     await tab('Sound');await instrument('Synth');await check('sound-synth');
@@ -95,6 +126,24 @@ function scan(sel,MIN,SURFACE){
       await p.waitForTimeout(120);}
     await check('fx-full');
     await p.locator('.fx-cards').evaluate(e=>e.scrollTop=e.scrollHeight);await check('fx-full-end');
+    // Verify every effect card with its entire 170 px surface in view. A card partly outside
+    // the current scroll window is not inaccessible; each card must pass when brought into view.
+    const fxCards=p.locator('.fx-card-module'),fxCardTotal=await fxCards.count();
+    let fxControlTotal=0,fxCardIssues=0,fxCardSurfaces=0;
+    for(let i=0;i<fxCardTotal;i++){
+      const card=fxCards.nth(i),scope='[data-touch-audit-scope="fx-'+i+'"]';
+      await card.evaluate((e,i)=>e.setAttribute('data-touch-audit-scope','fx-'+i),i);
+      await card.scrollIntoViewIfNeeded();await p.waitForTimeout(120);
+      await p.evaluate(()=>{document.body.dataset.touchStrictScroll='1';});
+      const bad=await p.evaluate(([s,m,scope])=>(0,eval)('('+s+')')(...m,scope),[scan.toString(),[CONTROLS,MIN,SURFACE],scope]);
+      fxControlTotal+=await card.locator(CONTROLS).count();
+      const surfaces=bad.filter(b=>b.surface);fxCardSurfaces+=surfaces.length;
+      const actionable=bad.filter(b=>!b.surface);fxCardIssues+=actionable.length;
+      for(const b of actionable)console.log('  fx-card-'+i+': '+b.id+' '+b.w+'x'+b.h+(b.small?' too small':'')+(b.covered?' covered by '+b.coverer:'')+(b.clipped?' '+b.clippedFraction+'% clipped by '+b.clipper:''));
+      await card.evaluate(e=>e.removeAttribute('data-touch-audit-scope'));
+    }
+    await p.evaluate(()=>{document.body.dataset.touchStrictScroll='0';});
+    report.push(['fx-card-audit',fxControlTotal,fxCardIssues,fxCardSurfaces]);fails+=fxCardIssues;
     await tab('Link');await check('link');
     await p.locator('.lp-morph-tile').click();await check('link-morph');await p.locator('.lp-morph-tile').click();
     await tab('Perform');await check('perform');

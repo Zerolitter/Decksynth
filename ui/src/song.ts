@@ -25,6 +25,8 @@ export function clipNotes(p:Project, track:number, clip:number):Note[] {
   const c = clipsOf(p);
   return clip===c.open[track] ? p.tracks[track].notes : c.slots[track]?.[clip] ?? [];
 }
+/** A clip's name as typed, or its letter. */
+export const clipLabel = (p:Project, track:number, clip:number) => p.tracks[track]?.clip_names?.[clip] || CLIP_NAMES[clip];
 export const emptyClip = (p:Project, track:number) => Array.from({length:CLIPS}, (_, k) => k).find(k => !clipNotes(p, track, k).length);
 
 const mod = (a:number, n:number) => ((a % n) + n) % n;

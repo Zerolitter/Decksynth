@@ -190,3 +190,10 @@
 
 /* Song length, block length and its first clip bar are value boxes (rule 36) */
 .harness-shell .song-vbox{min-width:96px;padding-right:20px}
+
+/* Clip names (typed in the clips sheet) */
+.harness-shell .loop-slot .ls-name{font-style:normal;font-weight:650;font-size:11px;color:var(--ui-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;display:inline-block;vertical-align:bottom}
+.harness-shell .clip-name{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ui-text-2);font-weight:700}
+.harness-shell .clip-name input{width:180px;min-height:44px;padding:0 10px;border-radius:9px;border:1px solid var(--ui-line);background:var(--inset);color:var(--ui-text);font:inherit;font-weight:600;user-select:text}
+.harness-shell .clip-name input:focus{outline:none;border-color:var(--ui-line-strong)}
+.harness-shell .lane-loop small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

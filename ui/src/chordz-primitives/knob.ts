@@ -25,7 +25,7 @@ export function knobQuantize(value: number, min: number, max: number, step: numb
 export function knobDragValue(value: number, deltaY: number, bounds: { min: number; max: number; log?: boolean }, fine = false): number {
   if (!Number.isFinite(deltaY)) return value;
   const { min, max, log = false } = bounds;
-  return knobFromUnit(knobToUnit(value, min, max, log) - deltaY * .005 * (fine ? .1 : 1), min, max, log);
+  return knobFromUnit(knobToUnit(value, min, max, log) - deltaY * .005 * (fine ? .2 : 1), min, max, log);
 }
 export function knobKeyValue(key: string, value: number, bounds: { min: number; max: number; step: number }, fine = false): number | null {
   const { min, max, step } = bounds;
