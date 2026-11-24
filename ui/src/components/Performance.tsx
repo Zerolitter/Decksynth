@@ -727,14 +727,11 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
             <button type="button" className="pf-btn danger wide" onClick={()=>{if(confirm('Clear this pattern?'))action('clear');}}>Clear pattern</button>
           </div>
         </div>:sheet==='midi'?<div className="pf-sheet-grid">
-          <label className="pf-pick"><span>Octave shift</span><select value={scale.octave} onChange={e=>set('scale','octave',Number(e.target.value))}>
-            {[-3,-2,-1,0,1,2,3].map(o=><option key={o} value={o}>{o>0?'+'+o:o}</option>)}</select></label>
-          <label className="pf-pick"><span>Velocity</span><select value={scale.velocity_curve} onChange={e=>set('scale','velocity_curve',e.target.value)}>
-            {['Linear','Logarithmic','Exponential','Fixed 100'].map(o=><option key={o}>{o}</option>)}</select></label>
-          <label className="pf-pick"><span>Input channel</span><select value={scale.input_channel} onChange={e=>set('scale','input_channel',Number(e.target.value))}>
-            {Array.from({length:17},(_,i)=><option key={i} value={i}>{i?'Channel '+i:'All'}</option>)}</select></label>
-          <label className="pf-pick"><span>Clock</span><select value={sync.source} onChange={e=>set('sync','source',e.target.value)}>
-            {['Internal','USB MIDI','Auto'].map(o=><option key={o}>{o}</option>)}</select></label>
+          {/* Rule 11: 2–8 choices are buttons, more are a grid of buttons; never a native list. */}
+          <PickRow label="Octave shift" wide value={scale.octave} options={[-3,-2,-1,0,1,2,3].map(o=>[o,o>0?'+'+o:String(o)] as const)} onPick={v=>set('scale','octave',v)}/>
+          <PickRow label="Velocity" value={scale.velocity_curve} options={['Linear','Logarithmic','Exponential','Fixed 100'].map(o=>[o,o==='Logarithmic'?'Log':o==='Exponential'?'Exp':o] as const)} onPick={v=>set('scale','velocity_curve',v)}/>
+          <PickRow label="Input channel" wide value={scale.input_channel} options={Array.from({length:17},(_,i)=>[i,i?String(i):'All'] as const)} onPick={v=>set('scale','input_channel',v)}/>
+          <PickRow label="Clock" value={sync.source} options={['Internal','USB MIDI','Auto'].map(o=>[o,o] as const)} onPick={v=>set('sync','source',v)}/>
           <button type="button" className={'pf-btn'+(sync.receive_transport?' on':'')} onClick={()=>set('sync','receive_transport',!sync.receive_transport)}>
             MIDI start/stop {sync.receive_transport?'on':'off'}</button>
           <button type="button" className="pf-btn" onClick={tapTempo}>Tap tempo{tapTimes.length?' ('+tapTimes.length+')':''}</button>
@@ -752,6 +749,15 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
       chord={(mode==='chord'||chord.enabled)&&outline?.length?outline:null}
       scale={scale.name==='Chromatic'?null:new Set((SCALES[scale.name]??[]).map(d=>(d+scale.root)%12))}/>}
   </section></ContextAreaScope>;
+}
+
+/** A row of choices as buttons (rule 11). `wide` spans the sheet and wraps into a grid. */
+function PickRow<T extends string|number>({label,value,options,onPick,wide=false}:{label:string;value:T;options:readonly (readonly [T,string])[];onPick:(v:T)=>void;wide?:boolean}){
+  return <div className={'pf-pick-row'+(wide?' wide':'')} role="radiogroup" aria-label={label}>
+    <span>{label}</span>
+    <div className="pf-pick-choices">{options.map(([v,text])=><button key={String(v)} type="button" role="radio" aria-checked={v===value}
+      className={'pf-btn'+(v===value?' on':'')} onClick={()=>onPick(v)}>{text}</button>)}</div>
+  </div>;
 }
 
 /* ---------- touch keyboard and expression strips ---------- */

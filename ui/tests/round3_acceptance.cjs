@@ -59,7 +59,8 @@ let app;
  await p.waitForFunction(()=>{const f=window.__latest.state.performance;return f.patterns[f.seq.bank+':'+f.seq.slot]?.length===128;},null,{timeout:4000}).catch(()=>{});
  const perf=(await latest()).state.performance;console.log(msg,Object.keys(perf.patterns),perf.seq.bank,perf.seq.slot);const pat=perf.patterns[perf.seq.bank+':'+perf.seq.slot];
  assert.equal(pat.length,128,'8 bars at 1/16');
- assert.equal(pat.steps.flat().length,take.length,'every note in the pattern');
+ // The take's last arp note can reach the state after Finish take: count the clip as converted.
+ assert.equal(pat.steps.flat().length,(await latest()).state.tracks[0].notes.length,'every note in the pattern');
  await p.screenshot({path:path.join(OUT,'song-to-pattern-'+H+'.png')});
 
  // --- SEQ steps list ---
@@ -71,8 +72,8 @@ let app;
  await p.screenshot({path:path.join(OUT,'steps-list-'+H+'.png')});
  await p.getByRole('option',{name:'256'}).click();
  await p.waitForFunction(()=>window.__latest.state.performance.seq.length===256);
- const pages=await p.getByRole('group',{name:'Pattern page'}).getByRole('button').allTextContents();
- assert.deepEqual(pages,['1–64','65–128','129–192','193–256']);
+ // Sir, 20 Nov: the overview map replaced the page buttons; a 256-step pattern is browsed with it.
+ assert.equal(await p.locator('.pf-overview-slot .piano-overview').count(),1,'overview map in the toolbar');
  await list.click();await p.getByRole('option',{name:'128'}).click();
  await p.waitForFunction(()=>window.__latest.state.performance.seq.length===128);
 

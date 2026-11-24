@@ -562,3 +562,11 @@
 
 /* Sir, 20 Nov: the note overview (map + Follow) sits where the page buttons were. */
 .harness-shell .pf-overview-slot{flex:none;width:224px;display:flex}.harness-shell .pf-overview-slot .piano-overview{flex:1;min-width:0}.harness-shell .pf-overview-slot .piano-follow{min-width:52px;padding:0 6px}
+
+/* MIDI sheet choices as buttons (rule 11) */
+.harness-shell .pf-pick-row{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--pf-soft);text-transform:uppercase;letter-spacing:.4px}
+.harness-shell .pf-pick-row.wide{grid-column:1/-1}
+.harness-shell .pf-pick-choices{display:flex;flex-wrap:wrap;gap:4px}
+.harness-shell .pf-pick-choices .pf-btn{min-height:44px;min-width:44px;flex:1;text-transform:none;letter-spacing:0}
+.harness-shell .pf-pick-row.wide .pf-pick-choices{display:grid;grid-template-columns:repeat(9,minmax(44px,1fr))}
+.harness-shell .pf-pick-row.wide[aria-label="Octave shift"] .pf-pick-choices{grid-template-columns:repeat(7,minmax(44px,1fr))}
