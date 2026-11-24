@@ -37,7 +37,7 @@ function FilterIcon({ shape }: { shape: FilterShape }) {
     <path className="axis" d="M2 16 H28" /><path className="curve" d={FILTER_PATH[shape]} /></svg>;
 }
 /** Tool colours, as on the SEQ panel's rail: a coloured icon and a short label. */
-const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', grain: '#f0c94b', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
+const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', grain: 'var(--c-grain)', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
 const tool = (k: keyof typeof TOOL_COLOR) => ({ ['--tool' as string]: TOOL_COLOR[k] });
 const hz = (f: number) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz';
 const MODES: [SamplerMode, string, string][] = [
@@ -137,7 +137,7 @@ const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
   ['Random Chops', 'rhythm', 'A random slice each sixteenth, swung', { g_size: .07, g_density: 40, g_window: 'perc', g_rhythm: 'random', g_div: '1/16', g_swing: .3 }],
   ['Ping Flow', 'rhythm', 'Through the slices and back, flowing', { g_size: .12, g_density: 30, g_rhythm: 'pingpong', g_div: '1/8' }],
 ];
-const PRESET_COLOR: Record<string, string> = { pad: '#f0c94b', drone: '#61e3bf', texture: '#a7b4ff', glitch: '#ff8f5c', rhythm: '#e47cf5' };
+const PRESET_COLOR: Record<string, string> = { pad: 'var(--c-grain)', drone: '#61e3bf', texture: '#a7b4ff', glitch: '#ff8f5c', rhythm: '#e47cf5' };
 /** Rhythm steps the read point through the Chop slices. */
 const stepping = (s: SamplerSpec) => (s.g_rhythm ?? 'off') !== 'off' && (s.slices?.length ?? 0) > 0;
 /** Roam or Motion moves the read point inside the bracket Position .. Position + Range. */

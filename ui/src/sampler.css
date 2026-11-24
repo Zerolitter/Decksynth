@@ -488,10 +488,10 @@
 .smp-grain-head :is(.smp-windows,.smp-scales){flex:none}
 :is(.sampler-page) .smp-grain-head .smp-seg button{padding:0 4px;min-width:44px}
 .sampler-page .smp-knobs.two.smp-knobs-grain{grid-template-columns:repeat(4,126px);justify-content:space-between}
-.smp-wave .smp-spray{fill:color-mix(in srgb,#f0c94b 16%,transparent)}
-.smp-wave .smp-edge.grain{stroke:#f0c94b;stroke-width:2}
-.smp-wave .smp-grain-tick{stroke:#fff2c2;stroke-width:2;opacity:.9}
-:is(.sampler-page,.drum-smp) .smp-handle.h-grain b{background:#f0c94b}
+.smp-wave .smp-spray{fill:color-mix(in srgb,var(--c-grain) 16%,transparent)}
+.smp-wave .smp-edge.grain{stroke:var(--c-grain);stroke-width:2}
+.smp-wave .smp-grain-tick{stroke:var(--c-grain-tick);stroke-width:2;opacity:.9}
+:is(.sampler-page,.drum-smp) .smp-handle.h-grain b{background:var(--c-grain)}
 /* With the Grain tab in the rack: five tabs in the top row, so the frame and the display give a little room. */
 .sampler-page .smp-tools.smp-rack.has-grain{padding:7px 10px}
 .sampler-page .smp-tools.has-grain .smp-rack-display{flex-basis:80px}
@@ -499,14 +499,14 @@
 /* G3 (24 Nov): the Grain card's pages in its title bar; Roam's bracket and end tag on the waveform. */
 .smp-grain-pages{align-self:flex-start}
 :is(.sampler-page) .smp-grain-pages button{min-width:76px;min-height:44px;font-weight:800;position:relative}
-.smp-grain-dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:#f0c94b}
+.smp-grain-dot{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--c-grain)}
 .smp-grain{display:flex;flex-direction:column;gap:8px}
 :is(.sampler-page) .smp-roams button{min-width:84px;display:flex;align-items:center;justify-content:center;gap:6px}
 :is(.sampler-page) .smp-syncs button{min-width:44px;padding:0 6px}
 .smp-seg-unit{align-self:center;padding:0 8px;font-size:11px;color:#aab0b6}
-.smp-wave .smp-roam{fill:color-mix(in srgb,#ff9f43 12%,transparent)}
-.smp-wave .smp-edge.roam{stroke:#ff9f43;stroke-width:2;stroke-dasharray:4 3}
-:is(.sampler-page,.drum-smp) .smp-handle.h-roam b{background:#ff9f43;color:#1b1e22}
+.smp-wave .smp-roam{fill:color-mix(in srgb,var(--c-roam) 12%,transparent)}
+.smp-wave .smp-edge.roam{stroke:var(--c-roam);stroke-width:2;stroke-dasharray:4 3}
+:is(.sampler-page,.drum-smp) .smp-handle.h-roam b{background:var(--c-roam);color:#1b1e22}
 :is(.sampler-page,.drum-smp) .smp-handle.h-grain{bottom:50%}
 :is(.sampler-page,.drum-smp) .smp-handle.h-roam{top:50%}
 .smp-handle.h-roam b{top:auto;bottom:4px;left:auto;right:23px}
@@ -519,13 +519,13 @@
 .smp-rhythm-row{justify-content:space-between;align-items:center}
 .sampler-page .smp-knobs.two.smp-knobs-rhythm{grid-template-columns:repeat(2,126px)}
 :is(.sampler-page) .smp-tapmode button{min-width:80px;display:flex;align-items:center;justify-content:center;gap:5px}
-.smp-rhythm-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:8px 2px;color:#c9d0d4;font-size:13px}
+.smp-rhythm-empty{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:8px 2px;color:var(--ui-text-1);font-size:13px}
 .smp-rhythm-empty p{margin:0}
-.smp-wave .smp-step{fill:color-mix(in srgb,#f0c94b 7%,transparent);stroke:#f0c94b55;stroke-width:1;vector-effect:non-scaling-stroke}
-.smp-wave .smp-step.flip{fill:color-mix(in srgb,#b38cff 16%,transparent);stroke:#b38cff88}
+.smp-wave .smp-step{fill:color-mix(in srgb,var(--c-grain) 7%,transparent);stroke:color-mix(in srgb,var(--c-grain) 33%,transparent);stroke-width:1;vector-effect:non-scaling-stroke}
+.smp-wave .smp-step.flip{fill:color-mix(in srgb,var(--c-flip) 16%,transparent);stroke:color-mix(in srgb,var(--c-flip) 53%,transparent)}
 .smp-wave .smp-step.off{fill:#0b0d0fb0;stroke:none}
-.smp-wave .smp-step.now{fill:color-mix(in srgb,#f0c94b 24%,transparent);stroke:#f0c94b}
-.smp-wave .smp-step.flip.now{fill:color-mix(in srgb,#b38cff 32%,transparent);stroke:#b38cff}
+.smp-wave .smp-step.now{fill:color-mix(in srgb,var(--c-grain) 24%,transparent);stroke:var(--c-grain)}
+.smp-wave .smp-step.flip.now{fill:color-mix(in srgb,var(--c-flip) 32%,transparent);stroke:var(--c-flip)}
 
 /* G5: grain presets, a grid of buttons (UI-RULES 11) coloured by kind. */
 :is(.sampler-page) .smp-grain-pages button{min-width:70px}
@@ -539,12 +539,12 @@
 :is(.sampler-page) .smp-harms button{min-width:56px;padding:0 8px}
 :is(.sampler-page) .smp-kmodes button{min-width:92px}
 .smp-harm-row{align-items:center;gap:12px}
-.smp-harm-lands{margin:0;font-size:12.5px;color:#c9d0d4}
+.smp-harm-lands{margin:0;font-size:12.5px;color:var(--ui-text-1)}
 .smp-harm-lands b{color:var(--ui-text-hi);font-variant-numeric:tabular-nums;white-space:pre}
-:is(.sampler-page) .smp-harm-link{min-height:44px;background:none;border:0;color:#f0c94b;font-weight:750;text-decoration:underline;padding:0 4px;cursor:pointer}
+:is(.sampler-page) .smp-harm-link{min-height:44px;background:none;border:0;color:var(--c-grain);font-weight:750;text-decoration:underline;padding:0 4px;cursor:pointer}
 .smp-notes{display:grid;grid-template-columns:repeat(6,minmax(44px,1fr))}
 :is(.sampler-page) .smp-notes button{min-width:0;min-height:44px;padding:0}
-:is(.sampler-page) .smp-notes button[aria-pressed=true]{background:color-mix(in srgb,#f0c94b 30%,var(--ui-surface));color:#fff;border-color:#f0c94b}
-:is(.sampler-page) .smp-harm-tag{min-height:44px;padding:0 12px;border-radius:8px;border:1px dashed #f0c94b88;background:var(--ui-surface);color:#f0c94b;font-weight:750;font-size:12.5px}
+:is(.sampler-page) .smp-notes button[aria-pressed=true]{background:color-mix(in srgb,var(--c-grain) 30%,var(--ui-surface));color:var(--ui-text-hi);border-color:var(--c-grain)}
+:is(.sampler-page) .smp-harm-tag{min-height:44px;padding:0 12px;border-radius:8px;border:1px dashed color-mix(in srgb,var(--c-grain) 53%,transparent);background:var(--ui-surface);color:var(--c-grain);font-weight:750;font-size:12.5px}
 :is(.sampler-page) .smp-grain .smp-harms button,:is(.sampler-page) .smp-grain .smp-kmodes button{white-space:nowrap;padding:0 10px}
 :is(.sampler-page) .smp-grain .smp-kmodes button{min-width:96px}

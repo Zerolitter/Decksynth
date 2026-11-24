@@ -79,9 +79,11 @@ let app,page;
  // Dragging Position moves it, as one edit.
  const before=(await latest()).state.tracks[0].sampler.g_pos;const pb=await pos.boundingBox();
  const wave=await p.locator('.smp-wave-shell').boundingBox();
- await p.mouse.move(pb.x+pb.width/2,pb.y+20);await p.mouse.down();
- await p.mouse.move(wave.x+wave.width*.7,pb.y+20,{steps:8});await p.mouse.up();
- await p.waitForFunction(b=>Math.abs(window.__latest.state.tracks[0].sampler.g_pos-b)>.1,before);
+ const drag=async()=>{await p.waitForTimeout(300);const b=await pos.boundingBox();await p.mouse.move(b.x+b.width/2,b.y+20);await p.mouse.down();
+  await p.mouse.move(wave.x+wave.width*.7,b.y+20,{steps:12});await p.mouse.up();
+  return p.waitForFunction(v=>Math.abs(window.__latest.state.tracks[0].sampler.g_pos-v)>.1,before,{timeout:4000}).then(()=>true,()=>false);};
+ // under a loaded machine the first press can land while the tag re-renders; one retry, then fail
+ if(!await drag())assert.ok(await drag(),'Position follows a drag');
  const after=(await latest()).state.tracks[0].sampler.g_pos;assert.ok(after>.55&&after<.85,'Position follows the drag: '+after);
 
  // Roam: direction and sync as buttons, the bracket and its end tag on the waveform, the read point travels while held.

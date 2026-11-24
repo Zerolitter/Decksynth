@@ -31,6 +31,7 @@
   --ui-play:#6ad8b4; --ui-rec:#d0646e; --ui-rec-soft:#f3a3a3; --ui-warn:#e7c46a;
 
   /* Section colours (rule 25): pages, Perform modes, tools. */
+  --c-grain:#f0c94b; --c-grain-tick:#fff2c2; --c-roam:#ff9f43; --c-flip:#b38cff;   /* Sampler Grain mode */
   --c-song:#6de4bb; --c-sound:#ddbd82; --c-guide:#74b9f2; --c-fx:#b99af5; --c-perform:#5cc8f5;
   --c-seq:#5cc8f5; --c-arp:#6eedb8; --c-chord:#f07cc0;
   --t-mutate:#e47cf5; --t-reset:#9fb4c8; --t-double:#6fa8ff; --t-more:#c3cfd6; --t-nudge:#4fd1e8;
