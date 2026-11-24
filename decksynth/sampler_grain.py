@@ -1,0 +1,198 @@
+"""Grain mode of the Sampler (24 Nov): every held key plays a cloud of short overlapping grains.
+
+The C kernel is sampler_grain_mix in native/sampler_voice.c; mix_grains_python below is the same
+arithmetic in the same order (used when the native library is missing, and to check the kernel).
+
+Spec keys (all optional; older projects get the defaults):
+  g_pos       0..1 read point inside the voice's region (the trimmed sample, or its slice)
+  g_size      seconds per grain, 0.01..1
+  g_density   new grains a second, 1..80
+  g_spray     0..1 random spread of grain starts around the read point (1 = the whole region)
+  g_scan      -2..2: the read point travels through the region at this speed (1 = playing speed)
+  g_spread    0..12 semitones of random transposition per grain
+  g_scale     which steps Spread may land on
+  g_reverse   0..1 chance that a grain plays backwards
+  g_jitter    0..1 uneven gaps between grains (the average rate stays Density)
+  g_size_rnd  0..1 each grain's own length, 1/4 to 2x Size at 1
+  g_amp_rnd   0..1 each grain's own level
+  g_window    the fade of each grain
+"""
+import ctypes as C
+import math
+
+GRAIN_POOL = 256
+WINDOW = 1024
+WINDOWS = ('hann', 'tri', 'welch', 'perc', 'rect')
+SCALES = ('chromatic', 'major', 'minor', 'penta', 'octaves', 'fifths')
+SCALE_STEPS = dict(chromatic=tuple(range(12)), major=(0, 2, 4, 5, 7, 9, 11), minor=(0, 2, 3, 5, 7, 8, 10),
+                   penta=(0, 3, 5, 7, 10), octaves=(0,), fifths=(0, 7))
+DEFAULTS = dict(g_pos=.3, g_size=.12, g_density=14., g_spray=.08, g_scan=0., g_spread=0., g_scale='chromatic',
+                g_reverse=0., g_jitter=0., g_size_rnd=0., g_amp_rnd=0., g_window='hann')
+RANGES = dict(g_pos=(0., 1.), g_size=(.01, 1.), g_density=(1., 80.), g_spray=(0., 1.), g_scan=(-2., 2.),
+              g_spread=(0., 12.), g_reverse=(0., 1.), g_jitter=(0., 1.), g_size_rnd=(0., 1.), g_amp_rnd=(0., 1.))
+CHOICES = dict(g_scale=SCALES, g_window=WINDOWS)
+KEYS = tuple(DEFAULTS)
+
+
+class Grain(C.Structure):
+    _fields_ = [('pos', C.c_double), ('step', C.c_double), ('amp', C.c_double), ('wpos', C.c_double), ('winc', C.c_double),
+                ('left', C.c_int64), ('delay', C.c_int64),
+                ('active', C.c_int32), ('voice', C.c_int32), ('pad0', C.c_int32), ('pad1', C.c_int32)]
+
+
+class Cloud(C.Structure):
+    _fields_ = [('next', C.c_double), ('offset', C.c_double), ('rng', C.c_uint32), ('pad', C.c_uint32)]
+
+
+class GrainParams(C.Structure):
+    _fields_ = [('window', C.c_void_p), ('position', C.c_double), ('size', C.c_double), ('interval', C.c_double),
+                ('spray', C.c_double), ('scan', C.c_double), ('jitter', C.c_double), ('size_rnd', C.c_double),
+                ('amp_rnd', C.c_double), ('reverse', C.c_double), ('level', C.c_double), ('ratio', C.c_double * 25),
+                ('spread', C.c_int32), ('grains', C.c_int32)]
+
+
+def _window(kind):
+    """WINDOW + 1 points of one grain fade (the shapes of Sir's Grain Field, Chordz mockup)."""
+    out = (C.c_double * (WINDOW + 1))()
+    for i in range(WINDOW + 1):
+        x = i / WINDOW
+        if kind == 'tri': y = 1 - abs(2*x - 1)
+        elif kind == 'welch': y = 1 - (2*x - 1)**2
+        elif kind == 'perc': y = x/.04 if x < .04 else math.exp(-(x - .04)*5)*(1 - x)**.5
+        elif kind == 'rect': y = x/.02 if x < .02 else (1 - x)/.02 if x > .98 else 1.
+        else: y = math.sin(math.pi*x)**2
+        out[i] = y
+    return out
+
+
+TABLES = {kind: _window(kind) for kind in WINDOWS}
+
+
+def snap(semitones, scale):
+    """The nearest allowed step for a spread of `semitones` (ties go down, toward the played note)."""
+    steps = SCALE_STEPS[scale]
+    octave, rest = divmod(semitones, 12)
+    best = min(list(steps) + [12], key=lambda d: (abs(rest - d), d))
+    return octave*12 + best
+
+
+def fill(g, spec, value, rate, voices):
+    """Grain parameters for this block. `value(key)` is the knob plus its macro / mod pad offset."""
+    size = value('g_size'); density = value('g_density')
+    g.window = C.addressof(TABLES[spec.get('g_window', 'hann')])
+    g.position = value('g_pos'); g.size = size*rate; g.interval = rate/density
+    g.spray = value('g_spray'); g.scan = value('g_scan'); g.jitter = value('g_jitter')
+    g.size_rnd = value('g_size_rnd'); g.amp_rnd = value('g_amp_rnd'); g.reverse = value('g_reverse')
+    g.level = 1./math.sqrt(max(1., density*size))   # overlapping grains add up: keep the cloud near one voice's level
+    spread = int(round(value('g_spread'))); scale = spec.get('g_scale', 'chromatic')
+    if spread != g.spread or getattr(fill, '_scale', None) != (id(g), scale):
+        for k in range(-12, 13): g.ratio[k + 12] = 2.**(snap(k, scale)/12.)
+        fill._scale = (id(g), scale)
+    g.spread = spread; g.grains = GRAIN_POOL
+
+
+def reset_cloud(cloud, seed):
+    cloud.next = 0.; cloud.offset = 0.
+    cloud.rng = (seed*2654435761 + 12345) & 0xffffffff or 1
+
+
+def _rnd(c):
+    x = c.rng
+    x ^= (x << 13) & 0xffffffff; x ^= x >> 17; x ^= (x << 5) & 0xffffffff
+    c.rng = x
+    return (x >> 8)*(1./16777216.)
+
+
+def _spawn(v, c, g, grains, slot, at):
+    u1 = _rnd(c); u2 = _rnd(c); u3 = _rnd(c); u4 = _rnd(c); u5 = _rnd(c); u6 = _rnd(c)
+    zone = float(v.end - v.start)
+    o = g.position*zone + c.offset
+    while o >= zone: o -= zone
+    while o < 0.: o += zone
+    centre = float(v.start) + o + g.spray*(2.*u1 - 1.)*.5*zone
+    length = g.size*(1. + g.size_rnd*(1.75*u2 - .75))
+    if length < 16.: length = 16.
+    frames = int(length)
+    k = 0
+    if g.spread > 0:
+        k = int(u3*float(2*g.spread + 1)) - g.spread
+        if k > g.spread: k = g.spread
+    step = v.step*v.pmul*g.ratio[k + 12]
+    if u4 < g.reverse: step = -step
+    gap = g.interval*(1. + g.jitter*(2.*u6 - 1.))
+    if gap < 1.: gap = 1.
+    for gr in grains[:g.grains]:
+        if gr.active: continue
+        gr.pos = centre - .5*float(frames)*step; gr.step = step
+        gr.amp = g.level*(1. - g.amp_rnd*u5)
+        gr.wpos = 0.; gr.winc = float(WINDOW)/float(frames)
+        gr.left = frames; gr.delay = at; gr.voice = slot; gr.active = 1
+        break
+    return gap
+
+
+def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
+    """sampler_grain_mix, line for line."""
+    from .sampler import _interp
+    window = TABLES_BY_ADDRESS[g.window]
+    for slot, v in enumerate(voices):
+        if not v.active: continue
+        c = clouds[slot]
+        zone = float(v.end - v.start)
+        if zone < 2.: v.active = 0; continue
+        t = c.next
+        while t < float(frames): t += _spawn(v, c, g, grains, slot, int(t))
+        c.next = t - float(frames)
+        offset = c.offset + g.scan*float(frames)
+        while offset >= zone: offset -= zone
+        while offset < 0.: offset += zone
+        c.offset = offset
+        buf = [0.]*frames
+        for gr in grains[:g.grains]:
+            if not gr.active or gr.voice != slot: continue
+            pos, wpos, left = gr.pos, gr.wpos, gr.left
+            f = gr.delay
+            while f < frames and left > 0:
+                w = int(wpos); frac = wpos - w
+                shape = window[w] + (window[w + 1] - window[w])*frac
+                buf[f] += _interp(data, p, v, pos)*shape*gr.amp
+                pos += gr.step; wpos += gr.winc; left -= 1; f += 1
+            gr.pos, gr.wpos, gr.left, gr.delay = pos, wpos, left, 0
+            if left <= 0: gr.active = 0
+        for f in range(frames):
+            value = buf[f]
+            if p.filter > 0:
+                v3 = value - v.ic2
+                v1 = v.a1*v.ic1 + v.a2*v3
+                v2 = v.ic2 + v.a2*v.ic1 + v.a3*v3
+                v.ic1 = 2.*v1 - v.ic1
+                v.ic2 = 2.*v2 - v.ic2
+                value = v2 if p.filter == 1 else v1 if p.filter == 2 else value - v.k*v1 - v2
+            if v.stage == 0:
+                v.env += p.attack
+                if v.env >= 1.: v.env = 1.; v.stage = 1
+            elif v.stage == 1:
+                v.env -= p.decay
+                if v.env <= p.sustain: v.env = p.sustain; v.stage = 2
+            elif v.stage == 3:
+                v.env -= v.rel
+                if v.env <= 0.: v.env = 0.; v.active = 0
+            value *= v.env*v.gain
+            if v.fade_left >= 0:
+                value *= float(v.fade_left)/float(v.fade_len)
+                v.fade_left -= 1
+                if v.fade_left < 0: v.active = 0
+            out[f] += value
+            if v.glide != 0.:
+                v.step += v.glide
+                if (v.glide > 0. and v.step >= v.target) or (v.glide < 0. and v.step <= v.target):
+                    v.step = v.target; v.glide = 0.
+            v.age += 1
+            if not v.active: break
+        v.pos = float(v.start) + c.offset
+        if not v.active:
+            for gr in grains[:g.grains]:
+                if gr.voice == slot: gr.active = 0
+
+
+TABLES_BY_ADDRESS = {C.addressof(t): t for t in TABLES.values()}

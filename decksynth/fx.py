@@ -96,9 +96,11 @@ def default_morph():
 # Sampler 'cutoff' is in octaves around the knob; Drum Rack params are '<pad>:<key>' and apply on the next hit.
 # Later (17 Nov): every other Sampler knob (glide, velocity, the amp ADSR, the filter and pitch envelope times) and, on the Drum Rack,
 # velocity plus the baked Shape / Tone / Comp knobs (the pad's shaped copy is re-rendered off the audio path, a few times a second at most).
+from .sampler_grain import RANGES as _GRAIN_RANGES
 SAMPLER_TARGETS = dict(gain=(0., 2.), tune=(-24., 24.), fine=(-100., 100.), cutoff=(0., 10.), resonance=(0., 1.),
                        f_env=(-1., 1.), p_env=(-24., 24.), glide=(0., 2.), velocity=(0., 2.), attack=(0., 3.), decay=(0., 3.),
-                       sustain=(0., 1.), release=(0., 3.), f_attack=(0., 3.), f_decay=(0., 3.), f_velocity=(0., 1.), p_decay=(0., 3.))
+                       sustain=(0., 1.), release=(0., 3.), f_attack=(0., 3.), f_decay=(0., 3.), f_velocity=(0., 1.), p_decay=(0., 3.),
+                       **_GRAIN_RANGES)
 from .drum_shape import RANGES as _SHAPE_RANGES
 DRUM_BAKED = ('attack', 'hold', 'decay', 'fade_in', 'fade_out', 'eq_low', 'eq_mid', 'eq_freq', 'eq_high', 'low_cut', 'high_cut',
               'drive', 'comp_threshold', 'comp_ratio', 'comp_attack', 'comp_release', 'comp_makeup')

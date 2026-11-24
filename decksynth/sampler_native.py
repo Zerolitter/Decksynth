@@ -15,7 +15,7 @@ import tempfile
 import threading
 
 SOURCE = Path(__file__).with_name('native') / 'sampler_voice.c'
-_lock = threading.Lock(); _attempted = False; _kernel = None; _library = None; _error = None
+_lock = threading.Lock(); _attempted = False; _kernel = None; _grain = None; _library = None; _error = None
 
 
 def library_path():
@@ -45,7 +45,7 @@ def build_library(output=None, force=False):
 
 def kernel():
     """The C mixer, or None (then the Python voices play). Prepared once, before rendering."""
-    global _attempted, _kernel, _library, _error
+    global _attempted, _kernel, _grain, _library, _error
     with _lock:
         if not _attempted and not os.environ.get('DECKSYNTH_NO_NATIVE_SAMPLER'):
             _attempted = True
@@ -56,6 +56,15 @@ def kernel():
                 if library.sampler_voice_size() != C.sizeof(Voice) or library.sampler_params_size() != C.sizeof(Params):
                     raise RuntimeError('Native Sampler state ABI mismatch')
                 _library = library; _kernel = library.sampler_mix; _kernel.restype = None
+                try:  # Grain mode: same library; a kernel built before it plays grains in Python
+                    from .sampler_grain import Grain, Cloud, GrainParams
+                    for name in ('sampler_grain_size', 'sampler_cloud_size', 'sampler_grain_params_size'):
+                        getattr(library, name).restype = C.c_size_t
+                    if (library.sampler_grain_size(), library.sampler_cloud_size(), library.sampler_grain_params_size()) == \
+                            (C.sizeof(Grain), C.sizeof(Cloud), C.sizeof(GrainParams)):
+                        _grain = library.sampler_grain_mix; _grain.restype = None
+                    else: _error = 'Native grain state ABI mismatch'
+                except AttributeError: pass
             except (OSError, RuntimeError, ValueError, AttributeError, subprocess.SubprocessError) as error:
                 _error = str(error)
         return _kernel
@@ -63,3 +72,9 @@ def kernel():
 
 def error():
     return _error if _error else ('Native Sampler disabled' if os.environ.get('DECKSYNTH_NO_NATIVE_SAMPLER') else None)
+
+
+def grain_kernel():
+    """The C grain mixer (Grain mode), or None (then grains play in Python)."""
+    kernel()
+    return _grain
