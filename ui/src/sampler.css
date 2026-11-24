@@ -479,3 +479,19 @@
 .export-loop-sheet .xl-progress{position:relative;flex:1;height:44px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--raised)}
 .export-loop-sheet .xl-progress i{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--accent) 35%,var(--panel));transition:width .2s}
 .export-loop-sheet .xl-progress b{position:relative;display:grid;place-items:center;height:100%}
+
+/* Grain mode (24 Nov): the Grain card takes the place of Pitch and Filter while the Grain tab is open. */
+.sampler-page .smp-cards.has-grain>.smp-play{flex:0 0 330px}
+.sampler-page .smp-cards.has-grain>.smp-grain{flex:1 1 0;min-width:0}
+.smp-grain-head{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:stretch}
+.smp-grain-head h2{flex:0 0 100%}
+.smp-grain-head :is(.smp-windows,.smp-scales){flex:none}
+:is(.sampler-page) .smp-grain-head .smp-seg button{padding:0 4px;min-width:44px}
+.sampler-page .smp-knobs.two.smp-knobs-grain{grid-template-columns:repeat(4,126px);justify-content:space-between}
+.smp-wave .smp-spray{fill:color-mix(in srgb,#f0c94b 16%,transparent)}
+.smp-wave .smp-edge.grain{stroke:#f0c94b;stroke-width:2}
+.smp-wave .smp-grain-tick{stroke:#fff2c2;stroke-width:2;opacity:.9}
+:is(.sampler-page,.drum-smp) .smp-handle.h-grain b{background:#f0c94b}
+/* With the Grain tab in the rack: five tabs in the top row, so the frame and the display give a little room. */
+.sampler-page .smp-tools.smp-rack.has-grain{padding:7px 10px}
+.sampler-page .smp-tools.has-grain .smp-rack-display{flex-basis:80px}

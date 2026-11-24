@@ -56,17 +56,23 @@ export type SendBus='reverb'|'delay';
 /** The shared Reverb and Delay every track can feed: their settings and Return level. */
 export type Sends={reverb:{params:{predelay:number;decay:number;locut:number;hicut:number;width:number};level:number};
   delay:{params:{time:number;feedback:number;width:number};level:number}};
-export type SamplerMode='oneshot'|'hold'|'loop';
+export type SamplerMode='oneshot'|'hold'|'loop'|'grain';
 export type SamplerSpec={version:1;id:string;name:string;family:string;source:DrumPad['source'];shape?:Partial<DrumShape>;
   root:number;tune:number;fine:number;mode:SamplerMode;start:number;end:number;loop_start:number;loop_end:number;
   attack:number;decay:number;sustain:number;release:number;poly:boolean;glide:number;gain:number;velocity:number;
   /** Chop: [start, end] or [start, end, root] pairs, 0..1 of the sample, in order (sampler expansion stage 3). */ slices?:number[][];
   /** Stage 4: how keys play the slices, and the extra tuning. */
   keymap?:'whole'|'slices'|'pitched';reverse?:boolean;normalize?:boolean;filter?:'off'|'lp'|'bp'|'hp';cutoff?:number;resonance?:number;
-  f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number};
+  f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number;
+  /** Grain mode (24 Nov, decksynth/sampler_grain.py). */
+  g_pos?:number;g_size?:number;g_density?:number;g_spray?:number;g_scan?:number;g_spread?:number;g_scale?:GrainScale;
+  g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow};
+export type GrainScale='chromatic'|'major'|'minor'|'penta'|'octaves'|'fifths';
+export type GrainWindow='hann'|'tri'|'welch'|'perc'|'rect';
 export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING';peaks:number[][];seconds:number;playing:number[];event:number;voices:number;error?:string|null;accelerated?:boolean;native_warning?:string|null;
   /** The waveform's zoom (0..1) the peaks cover, the slice being auditioned, and background jobs. */
-  view?:[number,number];audition?:{index:number;at:number}|null;busy?:string[]};
+  view?:[number,number];audition?:{index:number;at:number}|null;busy?:string[];
+  /** Grain mode: where the sounding grains read now (0..1 of the sample). */ grains?:number[]};
 export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
 export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};
 export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing';active?:boolean;progress?:number;holds?:FreezeHold[]};
