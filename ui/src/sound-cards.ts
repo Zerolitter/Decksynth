@@ -3,7 +3,8 @@ import type { Instrument } from './types';
 /** Same neutral values as decksynth/core.py VOICE_DEFAULTS: a missing key plays like before. */
 export const VOICE_DEFAULTS = {vcf_type:0, vcf_cutoff:.65, vcf_reso:.2, vcf_env:.3, uni_voices:1, uni_detune:.3,
   formant:0, vowel:0, inharm:0, sub:0, sub_oct:1,pan:0,play_mode:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5,
-  env_curve:0, air:0, drift:0, vel_curve:0};
+  env_curve:0, air:0, drift:0, vel_curve:0,
+  damp:0, noise:0, noise_decay:.03, noise_tone:.6, pitch_env:0, pitch_decay:.06};
 export type VoiceKey = keyof typeof VOICE_DEFAULTS;
 export const voiceParam = (p:Instrument, k:VoiceKey):number => (p[k] as number|undefined) ?? VOICE_DEFAULTS[k];
 
@@ -26,4 +27,6 @@ type FilterEnvelopeSource=Pick<Instrument,'attack'|'decay'|'sustain'|'release'|'
 export const filterEnvelope=(p:FilterEnvelopeSource)=>({attack:p.fenv_a??p.attack,decay:p.fenv_d??p.decay,
   sustain:p.fenv_s??p.sustain,release:p.fenv_r??p.release});
 export const filterMorph=(p:Pick<Instrument,'vcf_type'|'vcf_morph'>)=>p.vcf_morph??Math.max(0,(p.vcf_type??1)-1)/2;
+/** Strike card noise tone 0-1 as the centre the engine uses at middle C (300 Hz-12 kHz). */
+export const fmtNoiseTone=(v:number)=>{const hz=300*Math.pow(40,v);return hz>=1000?(hz/1000).toFixed(1)+' kHz':Math.round(hz)+' Hz';};
 export const fmtMorph=(v:number)=>v===0?'LP':v===.5?'BP':v===1?'HP':v<.5?'LP→BP':'BP→HP';

@@ -63,6 +63,8 @@ SOUND_PARAMS = {
     'fenv_a': (.001, 3), 'fenv_d': (.001, 3), 'fenv_s': (0, 1), 'fenv_r': (.01, 3),
     # Full sound (17 Nov): Curve, Air, Drift, Dynamics
     'env_curve': (0, 1), 'air': (0, 1), 'drift': (0, 1), 'vel_curve': (0, 1),
+    # Strike card (24 Nov): damping, attack noise, pitch envelope
+    'damp': (0, 1), 'noise': (0, 1), 'noise_decay': (.002, 1), 'noise_tone': (0, 1), 'pitch_env': (-24, 24), 'pitch_decay': (.005, 1),
 }
 # The first ten are the original shapes; the 32 after them were added 15 Nov (Sir: shapes for sound
 # modulation), shown in the editor as pages of 2 x 5: Curves, Envelopes, Gates & rhythm, Random.

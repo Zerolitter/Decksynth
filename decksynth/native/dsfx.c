@@ -989,6 +989,52 @@ int dsfx_voice3(double *out, int n, const double *tab, const double *prev, doubl
     return voice_ext(out,n,tab,prev,st,v,f);
 }
 
+/* Strike stage (24 Nov): what a real instrument does in its first moments, after the voice is rendered.
+ *   damping: a gentle low-pass (12 dB/oct) that starts wide open and closes towards a few partials above the
+ *            note over tau samples, so the upper partials die faster than the fundamental (strings, keys, bells);
+ *   noise:   a band-passed noise burst at the start of the note (pick, hammer, breath), its own decay.
+ * src is the voice alone (its own scratch buffer); the result is added into out.
+ * st[0] age, st[1] noise generator, st[2..3] damping filter, st[4..5] noise filter, st[6..8] damping coefficients. */
+typedef struct {
+    double f0, rate;
+    double tau, lo, hi;              /* damping: tau in samples (0 off), lo and hi in octaves above f0 */
+    double noise, ndecay, nfc, gain; /* noise level (0 off), decay in samples, centre in Hz, voice gain */
+} DsStrike;
+void dsfx_strike(double *out, const double *src, int n, double *st, const DsStrike *e) { ds_ftz();
+    double age = st[0]; unsigned int rng = (unsigned int)st[1]; if (!rng) rng = 0x9e3779b9u;
+    double l1 = st[2], l2 = st[3], b1 = st[4], b2 = st[5], a1 = st[6], a2 = st[7], a3 = st[8];
+    double nyq = .45 * e->rate;
+    double ng = 0, na1 = 0, na2 = 0, na3 = 0, nk = 1.2, nd = 0;
+    if (e->noise > 0 && e->ndecay > 0) {
+        double fc = e->nfc < 20 ? 20 : e->nfc > nyq ? nyq : e->nfc, g = tan(PI * fc / e->rate);
+        na1 = 1 / (1 + g * (g + nk)); na2 = g * na1; na3 = g * na2;
+        nd = exp(-1 / e->ndecay); ng = e->noise * e->gain * exp(-age / e->ndecay);
+        if (age > e->ndecay * 12) ng = 0;
+    }
+    for (int i = 0; i < n; i++) {
+        double s = src[i];
+        if (e->tau > 0) {
+            if ((i & 15) == 0 || age == 0) {
+                double fc = e->f0 * pow(2, e->lo + (e->hi - e->lo) * exp(-age / e->tau));
+                fc = fc < 20 ? 20 : fc > nyq ? nyq : fc;
+                double g = tan(PI * fc / e->rate);
+                a1 = 1 / (1 + g * (g + 1.4142)); a2 = g * a1; a3 = g * a2;
+            }
+            double v3 = s - l2, v1 = a1 * l1 + a2 * v3, v2 = l2 + a2 * l1 + a3 * v3;
+            l1 = 2 * v1 - l1; l2 = 2 * v2 - l2; s = v2;
+        }
+        if (ng > 1e-7) {
+            rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+            double w = (double)rng / 2147483648.0 - 1;
+            double v3 = w - b2, v1 = na1 * b1 + na2 * v3, v2 = b2 + na2 * b1 + na3 * v3;
+            b1 = 2 * v1 - b1; b2 = 2 * v2 - b2;
+            s += ng * nk * v1; ng *= nd;
+        }
+        out[i] += s; age += 1;
+    }
+    st[0] = age; st[1] = (double)rng; st[2] = l1; st[3] = l2; st[4] = b1; st[5] = b2; st[6] = a1; st[7] = a2; st[8] = a3;
+}
+
 /* ---------------------------------------------------------------- master stage
  * The last step before the sound card, on the stereo mix (replaces the Python limiter loop):
  *   1. trim:   makeup gain (the centre pan law halves every track, so the mix sat 6 dB low)

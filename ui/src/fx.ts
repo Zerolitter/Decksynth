@@ -260,6 +260,9 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
   character:{label:'Character',card:'sound-character',min:-1,max:1},
   air:{label:'Air',card:'sound-tone',min:0,max:1},env_curve:{label:'Envelope shape',card:'rack-envelope',min:0,max:1},
   drift:{label:'Drift',card:'motion-synth',min:0,max:1},vel_curve:{label:'Dynamics',card:'motion-synth',min:0,max:1},
+  damp:{label:'Damping',card:'sound-strike',min:0,max:1},noise:{label:'Noise',card:'sound-strike',min:0,max:1},
+  noise_decay:{label:'Noise time',card:'sound-strike',min:.002,max:1},noise_tone:{label:'Noise tone',card:'sound-strike',min:0,max:1},
+  pitch_env:{label:'Pitch drop',card:'sound-strike',min:-24,max:24},pitch_decay:{label:'Drop time',card:'sound-strike',min:.005,max:1},
 };
 export const SOUND_COLOR='#ddbd82';
 /** Name, knob label and colour of a link target, for lists and badges. */

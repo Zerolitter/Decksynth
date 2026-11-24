@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AudioWaveform, Power, SlidersHorizontal, Sparkles, Waves, X } from 'lucide-react';
+import { AudioWaveform, Power, SlidersHorizontal, Sparkles, Waves, X, Zap } from 'lucide-react';
 import { createFrameBatch } from '../chordz-primitives/frame-batch';
 import { evaluatedPartials } from '../spectral';
 import { SHAPES, harmonicShape, type Shape } from '../spectral-seeds';
@@ -11,7 +11,7 @@ import { EnvEditor } from './EnvEditor';
 import { useSize } from './ModSheet';
 import { useRingDepth } from './RingDepth';
 import { useContextTarget } from './ContextWheel';
-import { FILTER_ENV_KEYS, FILTER_NAMES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, filterEnvelope, filterMorph, fmtCents, fmtHz, fmtMorph, fmtOct, voiceParam, type VoiceKey } from '../sound-cards';
+import { FILTER_ENV_KEYS, FILTER_NAMES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, filterEnvelope, filterMorph, fmtCents, fmtHz, fmtMorph, fmtNoiseTone, fmtOct, voiceParam, type VoiceKey } from '../sound-cards';
 import { MACRO_COLORS, MOD_COLORS, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 type Params=Track['instrument'];
@@ -24,8 +24,8 @@ type Props={
   /** the preset name and Save, shown inside the tool rack (Sir, 16 Nov) */ preset?:ReactNode;
   /** the track's Reverb and Delay sends (Sends.tsx), and the button for the shared settings in that card's title bar */ sends?:ReactNode; sendsAction?:ReactNode;
 };
-type View='wave'|'amp'|'filter';
-const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0'};
+type View='wave'|'amp'|'filter'|'strike';
+const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0',strike:'#f2d36d'};
 const SHAPE_NAME:Record<string,string>={SAW:'Saw',SQUARE:'Square',TRIANGLE:'Triangle',PULSE:'Pulse',GAUSSIAN:'Gauss',SPREAD:'Spread',RANDOM:'Random'};
 const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 const VIEW_KEY='decksynth.synth-view';
@@ -135,24 +135,33 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           <button key={name} type="button" role="radio" aria-checked={shapeUsed===name} title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
             onClick={()=>{batch.flush();onShape(name);}}>{SHAPE_NAME[name]??name}</button>)}</div>
       </div>
-      <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':'Filter envelope'}>
-        <div className="ss-graph-label" style={{color:view==='wave'?accent:view==='amp'?TAGS.envelope:TAGS.filter}}>
-          {view==='wave'?'Wave':view==='amp'?'Amp envelope':'Filter envelope'}
-          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':'drag the points · hold still for fine'}</span></div>
+      <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':'Filter envelope'}>
+        <div className="ss-graph-label" style={{color:view==='wave'?accent:view==='amp'?TAGS.envelope:view==='strike'?TAGS.strike:TAGS.filter}}>
+          {view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':'Filter envelope'}
+          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':view==='strike'?'the first second of a note':'drag the points · hold still for fine'}</span></div>
         <div ref={gref} className="ss-graph-plot">
           {view==='wave'?<svg width={w} height={h} aria-hidden="true">
             <line x1={0} x2={w} y1={wave.mid} y2={wave.mid} className="ss-zero"/>
             <path d={wave.line+` L${w} ${wave.mid} L0 ${wave.mid} Z`} fill={accent} opacity={.13}/>
             <path d={wave.line} fill="none" stroke={accent} strokeWidth={2} strokeLinejoin="round"/></svg>
+          :view==='strike'?<div className="ss-strike"><StrikeGraph p={p} colors={TAGS}/><div className="ss-knobs">
+
+          {K('damp','Damping',vp('damp'),0,1,{suffix:'%',description:'The upper partials die away faster than the note itself, as on a string, a piano or a bell.',onChange:v=>set('damp',v)})}
+          {K('noise','Noise',vp('noise'),0,1,{suffix:'%',description:'A short noise burst at the start of each note: a pick, a hammer or a breath.',onChange:v=>set('noise',v)})}
+          {K('noise_decay','Noise time',vp('noise_decay'),.002,1,{step:.001,suffix:'s',onChange:v=>set('noise_decay',v)})}
+          {K('noise_tone','Noise tone',vp('noise_tone'),0,1,{format:fmtNoiseTone,onChange:v=>set('noise_tone',v)})}
+          {K('pitch_env','Pitch drop',vp('pitch_env'),-24,24,{step:.1,suffix:'st',description:'Each note starts this many semitones above its pitch (below, if negative) and slides to it.',onChange:v=>set('pitch_env',v)})}
+          {K('pitch_decay','Drop time',vp('pitch_decay'),.005,1,{step:.001,suffix:'s',onChange:v=>set('pitch_decay',v)})}
+          </div></div>
           :view==='amp'?<EnvEditor env={p} color={TAGS.envelope} live={live?.sound} onChange={(k,v)=>set(k,v)}/>
           :<EnvEditor env={fenv} color={TAGS.filter} live={fenvLive} onChange={(k,v)=>set(FILTER_ENV_KEYS[k],v)}/>}
         </div>
       </div>
       <div className="smp-rack ss-rack" role="toolbar" aria-label="Sound tools">
         <div className="ss-tools" role="radiogroup" aria-label="Big graph">
-          {([['wave','Wave',<AudioWaveform key="w" size={18}/>,accent],['amp','Amp env',<SlidersHorizontal key="a" size={18}/>,TAGS.envelope],
-            ['filter','Filter env',<Waves key="f" size={18}/>,TAGS.filter]] as [View,string,ReactNode,string][]).map(([v,label,icon,c])=>
-            <button key={v} type="button" role="radio" aria-checked={view===v} className="smp-tool" style={{['--tool' as string]:c}} onClick={()=>setView(v)}>{icon}<span>{label}</span></button>)}
+          {([['wave','Wave','Wave',<AudioWaveform key="w" size={18}/>,accent],['amp','Amp env','Amp',<SlidersHorizontal key="a" size={18}/>,TAGS.envelope],
+            ['filter','Filter env','Filter',<Waves key="f" size={18}/>,TAGS.filter],['strike','Strike','Strike',<Zap key="s" size={18}/>,TAGS.strike]] as [View,string,string,ReactNode,string][]).map(([v,label,short,icon,c])=>
+            <button key={v} type="button" role="radio" aria-checked={view===v} aria-label={label} className="smp-tool" style={{['--tool' as string]:c}} onClick={()=>setView(v)}>{icon}<span>{short}</span></button>)}
         </div>
         <div className="ss-display" aria-live="polite">
           <span className={'ss-led'+(voices?' on':'')}/><b>{voices?voices+(voices===1?' voice':' voices'):'idle'}</b>
@@ -252,6 +261,28 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
     </div>
     {ring.bubble}
   </section>;
+}
+
+/** Strike view (24 Nov): the first second of a note as the engine plays it at middle C, on a square-root time axis
+ *  so the first milliseconds get room. Pitch: semitones above the note. Noise: the burst's level. Top: where the
+ *  damping low-pass sits, in octaves above the note (7 = wide open), as in decksynth/strike.py. */
+function StrikeGraph({p,colors}:{p:Params;colors:Record<string,string>}){
+  const [ref,{w,h}]=useSize<HTMLDivElement>();
+  const v=(k:VoiceKey)=>voiceParam(p,k);
+  const pe=v('pitch_env'),pd=Math.max(.005,v('pitch_decay')),nz=v('noise'),nd=Math.max(.002,v('noise_decay')),damp=v('damp');
+  const tau=(.04+3*(1-damp)**2),lo=1.6-damp*.6;
+  const lanes:[string,string,(t:number)=>number,boolean][]=[
+    ['Pitch',colors.movement,t=>.5+pe*Math.exp(-t/pd)/48,true],
+    ['Noise',colors.character,t=>nz*Math.exp(-t/nd),false],
+    ['Top',colors.tone,t=>damp>0?(lo+(7-lo)*Math.exp(-t/tau))/7:1,false]];
+  const lh=Math.max(1,(h-14)/3),X=(t:number)=>Math.sqrt(t)*Math.max(1,w-4)+2,N=72;
+  return <div ref={ref} className="ss-strike-graph" aria-hidden="true">{w>0&&h>0?<svg width={w} height={h}>
+    {lanes.map(([name,c,f,mid],i)=>{const top=i*lh+2,bot=top+lh-4;
+      const pts=Array.from({length:N+1},(_,j)=>{const t=(j/N)**2;return (j?'L':'M')+X(t).toFixed(1)+' '+(bot-clamp(f(t),0,1)*(bot-top)).toFixed(1);}).join(' ');
+      return <g key={name}>{mid?<line x1={0} x2={w} y1={(top+bot)/2} y2={(top+bot)/2} className="ss-zero"/>:<line x1={0} x2={w} y1={bot} y2={bot} className="ss-zero"/>}
+        <path d={pts} fill="none" stroke={c} strokeWidth={2} strokeLinejoin="round"/><text x={4} y={top+10} fill={c} className="ss-strike-lane">{name}</text></g>;})}
+    {[[.01,'10 ms'],[.1,'0.1 s'],[1,'1 s']].map(([t,l])=><text key={l as string} x={Math.min(w-22,X(t as number))} y={h-2} className="ss-strike-tick">{l}</text>)}
+  </svg>:null}</div>;
 }
 
 /** A module card: title in its section colour, the linked-mods badge, an optional On/Off switch; Reset is in the radial menu. */

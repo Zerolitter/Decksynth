@@ -411,9 +411,19 @@ def worker(commands,updates):
                     elif cmd=='device':engine.panic(); midi.close(); midi.path=args; midi.next_scan=0
                     elif cmd=='audio_device':
                         # Open the replacement first; preserve the existing working stream on failure.
-                        replacement=Audio(args)
+                        try:replacement=Audio(args)
+                        except RuntimeError as error:
+                            # Some SDL drivers (the dummy driver, single-device backends) allow one open
+                            # device only: close the current stream, then open the new one, and fall back
+                            # to the old output if that fails.
+                            if not audio or 'already open' not in str(error):raise
+                            previous=audio.output; audio.close(); audio=None; started=False
+                            try:replacement=Audio(args)
+                            except Exception:
+                                audio=Audio(previous); raise
                         if replacement.rate!=engine.rate:
                             replacement.close()
+                            if not audio:audio=Audio(previous)
                             raise RuntimeError('Unsupported audio sample rate: '+str(replacement.rate))
                         if audio:audio.close()
                         audio=replacement; started=False; underruns=0

@@ -31,6 +31,7 @@ from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_vo
 from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
 from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
+from . import strike
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes, clip_to_pattern, MAX_STEPS,
@@ -70,6 +71,8 @@ TONE_DEFAULTS=dict(env_curve=0.,air=0.,drift=0.,vel_curve=0.,gain=1.)
 # gain: the preset's own level (factory presets are level-matched with tools/measure_sound.py).
 VOICE_RANGES.update(env_curve=(0,1),air=(0,1),drift=(0,1),vel_curve=(0,1),gain=(.25,8))
 EXPRESSION_DEFAULTS.update(TONE_DEFAULTS)
+# Strike card (24 Nov): damping, attack noise and a pitch envelope (strike.py). 0 = the old sound.
+EXPRESSION_DEFAULTS.update(strike.STRIKE_DEFAULTS); VOICE_RANGES.update(strike.STRIKE_RANGES)
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
     if key in FILTER_ENV:return p[FILTER_ENV[key]]
@@ -421,7 +424,23 @@ class Synth(ExpressionVoice):
     @staticmethod
     def voice_mode(p):
         sub=p.get('sub',0.)>0
-        return (int(p.get('uni_voices',1)),int(p.get('vcf_type',0)),p.get('inharm',0.)>0,int(p.get('sub_oct',1)) if sub else 0,filter_extended(p))
+        return (int(p.get('uni_voices',1)),int(p.get('vcf_type',0)),p.get('inharm',0.)>0,int(p.get('sub_oct',1)) if sub else 0,filter_extended(p),strike.strikes(p))
+    def _scratch(self,frames):
+        buf=getattr(self,'scratch',None)
+        if buf is None or len(buf)<frames:buf=self.scratch=(ctypes.c_double*max(frames,1024))()
+        ctypes.memset(buf,0,8*frames); return buf
+    def _strike(self,out,src,frames,v,p,gain):
+        """Damping and attack noise on one voice (strike.py): src is the voice alone, added into out."""
+        if 'sk' not in v:
+            self.strike_seed=(getattr(self,'strike_seed',0)*1103515245+12345)&0x7fffffff
+            v['sk']=strike.initial_state(v['age']); v['sk'][1]=float(self.strike_seed|1)
+        e=strike.settings(p,v['note'],gain,self.rate,getattr(self,'sargs',None)); self.sargs=e
+        k=strike.kernel()
+        if k is not None and isinstance(out,ctypes.Array) and isinstance(src,ctypes.Array):
+            st=getattr(self,'sst',None)
+            if st is None:st=self.sst=(ctypes.c_double*strike.STATE)()
+            st[0:strike.STATE]=v['sk']; k(out,src,frames,st,ctypes.byref(e)); v['sk']=list(st)
+        else:strike.strike_py(out,src,frames,v['sk'],e)
     def render(self,frames):
         if not getattr(self,'_in_glide',False) and any(v.get('glide_samples',0)>v.get('glide_age',0) for v in self.voices.values()):return self.render_glide(frames)
         # Switching a card's buttons (voices, filter type, sub octave, stretched partials) mid-note would jump,
@@ -467,24 +486,31 @@ class Synth(ExpressionVoice):
                 if not isinstance(table,ctypes.Array) or (prev is not None and not isinstance(prev,ctypes.Array)):
                     fast=None; break
             if fast is not None:
+                pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
                 for key,v in list(self.voices.items()):
                     rel=v['release']; prev=v.get('prev')
                     st[0]=v['phase']; st[1]=v['age']; st[2]=rel[0] if rel else 0; st[3]=rel[1] if rel else 0
                     st[4]=v['level']; st[5]=v.get('xf',1.)
                     step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
-                    if curve and not v.get('fast') and curved is not None:
-                        res=curved(buf,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,
-                                   a,d,p['sustain'],slow,curve)
-                    else:
-                        res=fast(buf,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,
-                                 a,d,p['sustain'],quick if v.get('fast') else slow)
+                    dst=self._scratch(frames) if hit else buf; res=0
+                    for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                        if curve and not v.get('fast') and curved is not None:
+                            res=curved(strike.at(dst,off),n,v['table'],prev,st,rel is not None,step*fac,self.amp(v,p)*.23*trem,
+                                       a,d,p['sustain'],slow,curve)
+                        else:
+                            res=fast(strike.at(dst,off),n,v['table'],prev,st,rel is not None,step*fac,self.amp(v,p)*.23*trem,
+                                     a,d,p['sustain'],quick if v.get('fast') else slow)
+                        if res&2:prev=None
+                        if res&1:break
+                    if hit:self._strike(buf,dst,frames,v,p,self.amp(v,p)*.23*trem)
                     if res&1:self.voices.pop(key,None); continue
                     v.update(phase=st[0],age=int(st[1]),release=(int(st[2]),st[3]) if rel else None,level=st[4],
-                             prev=None if res&2 else prev,xf=st[5])
+                             prev=prev,xf=st[5])
                 self.clock+=frames; return None if target is not None else list(buf)
         for key,v in list(self.voices.items()):
             phase=v['phase']; age=v['age']; rel=v['release']; table=v['table']; level=v['level']
             step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
+            step*=strike.block_factor(p,age,frames,sr); hit=strike.strikes(p); dst=[0.]*frames if hit else out
             gain=self.amp(v,p)*.23*trem
             release=quick if v.get('fast') else slow
             k=0. if v.get('fast') else curve
@@ -508,8 +534,9 @@ class Synth(ExpressionVoice):
                 if prev is not None:
                     smp=smp*xf+(prev[j]+(prev[j2]-prev[j])*frac)*(1-xf); xf+=1/256
                     if xf>=1:prev=None; xf=1.
-                out[i]+=smp*level*gain
+                dst[i]+=smp*level*gain
                 phase=(phase+step)%2048; age+=1
+            if hit:self._strike(out,dst,frames,v,p,gain)
             v.update(phase=phase,age=age,release=rel,level=level,prev=prev,xf=xf)
         self.clock+=frames; return out
 
@@ -529,7 +556,7 @@ class Synth(ExpressionVoice):
         if fast is not None and not all(isinstance(v['table'],ctypes.Array) and (v.get('prev') is None or isinstance(v['prev'],ctypes.Array))
                                         for v in self.voices.values()):fast=None
         out=(target if target is not None else (ctypes.c_double*frames)()) if fast is not None else [0.]*frames
-        va=self.vargs; st=self.st
+        va=self.vargs; st=self.st; pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
         cfg=dict(a=a,d=d,sus=p['sustain'],uni=uni,detune=p.get('uni_detune',.3)*.5,ftype=ft,reso=p.get('vcf_reso',.2),
                  envamt=p.get('vcf_env',.3)*6,rate=float(sr),npart=16,stretch=.008*inh*inh,sub=sub,suboct=int(p.get('sub_oct',1)))
         fc=dict(a=max(1,p.get('fenv_a',p['attack'])*sr),d=max(1,p.get('fenv_d',p['decay'])*sr),
@@ -553,18 +580,27 @@ class Synth(ExpressionVoice):
                     initial=fc['morph'] if v['age']==0 else sound_default(getattr(self,'last_p',p) or p,'vcf_morph')
                     v['fstate']=[level,level,initial,math.log2(cfg['cutoff']),cfg['reso']]
                 st[80:85]=v['fstate']
+            dst=(self._scratch(frames) if fast is not None else [0.]*frames) if hit else out
             if fast is not None:
                 for k,val in cfg.items():
                     if k!='weights':setattr(va,k,val)
                 va.weights=ctypes.cast(cfg['weights'],ctypes.POINTER(ctypes.c_double)) if cfg['weights'] is not None else None
                 if extended:
                     for k,val in fc.items():setattr(self.fargs,k,val)
-                    res=fast(out,frames,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs))
-                else:res=fast(out,frames,v['table'],prev,st,ctypes.byref(va))
-            else:res=voice2_py(out,frames,v['table'],prev,st,cfg,fc)
+                res=0
+                for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                    va.step=cfg['step']*fac
+                    res=fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs)) if extended else fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va))
+                    if res&2:prev=None
+                    if res&1:break
+            else:
+                if pitched:cfg['step']*=strike.block_factor(p,v['age'],frames,sr)
+                res=voice2_py(dst,frames,v['table'],prev,st,cfg,fc)
+                if res&2:prev=None
+            if hit:self._strike(out,dst,frames,v,p,cfg['gain'])
             if res&1:self.voices.pop(key,None); continue
             v.update(phase=st[0],age=int(st[1]),release=(int(st[2]),st[3]) if rel else None,level=st[4],
-                     prev=None if res&2 else prev,xf=st[5],x=st[6:80])
+                     prev=prev,xf=st[5],x=st[6:80])
             if extended:v['fstate']=list(st[80:85])
             else:v.pop('fstate',None)
         self.clock+=frames; return None if out is target else list(out)
@@ -1106,7 +1142,14 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         for keys in self.drum_gate_keys:keys.clear()
         self.drum_keys.clear(); self.freeze_ring.clear()
         self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear()
+    def close_generated(self,prefix):
+        """End the REC notes the arp/sequencer was playing when it is cut short (keys let go, arp or step
+        changed): their note-off never comes, so they would stay open and be closed far too long."""
+        mark="('%s'"%prefix
+        for k in list(self.pending):
+            if k[0]=='gen' and str(k[1]).startswith(mark):self.close_note(k)
     def release_performance(self,prefix):
+        self.close_generated(prefix)
         for synth in self.synths:synth.cancel_sources((prefix,))
         for sampler in self.samplers:sampler.cancel_sources((prefix,))
 
@@ -1142,14 +1185,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             addr=slot_key(state['seq']['bank'],state['seq']['slot'])
             chosen=state['patterns'].get(addr) or empty_pattern(16,'1/16')
             reconcile_pattern_timing(state,chosen)
-    def close_generated(self,prefix):
-        """End the REC notes the arp/sequencer was playing when it is cut short (keys let go, arp or step
-        changed): their note-off never comes, so they would stay open and be closed far too long."""
-        mark="('%s'"%prefix
-        for k in list(self.pending):
-            if k[0]=='gen' and str(k[1]).startswith(mark):self.close_note(k)
         if section=='seq' and key in ('length','division','gate','swing'):
-        self.close_generated(prefix)
             key_at=slot_key(state['seq']['bank'],state['seq']['slot'])
             pattern=copy.deepcopy(current_pattern(state))
             if key=='length':pattern=change_pattern_length(pattern,int(value))
