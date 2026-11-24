@@ -11,7 +11,7 @@ import { ValueBox, parseNote } from './ValueBox';
 import { type Env } from './EnvEditor';
 import { FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
-import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv } from '../types';
+import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv, type GrainHarm } from '../types';
 import '../sampler.css';
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -59,6 +59,22 @@ const SCALES: [GrainScale, string, string][] = [
   ['minor', 'Min', 'Spread lands on a minor scale from the played note'], ['penta', 'Pent', 'Spread lands on a minor pentatonic scale'],
   ['octaves', 'Oct', 'Spread jumps only in octaves'], ['fifths', '5th', 'Spread lands on fifths and octaves'],
 ];
+/** Harmony (24 Nov): which notes the sample holds. Spread then only uses shifts that keep all of them in the key
+    (major or minor on the sample's root); the same rule as sampler_grain.harmony. */
+const HARMS: [GrainHarm, string, string][] = [
+  ['off', 'Off', 'Harmony off: Spread follows the scale on the Grain page'],
+  ['root', 'Root', 'The sample is one note, its root'], ['fifth', 'Fifth', 'The sample holds its root and the fifth'],
+  ['triad', 'Triad', 'The sample is a chord: root, third and fifth'], ['scale', 'Scale', 'The sample uses the whole scale (only octaves fit then)'],
+  ['own', 'Own notes', 'Pick the notes the sample holds yourself'],
+];
+const KEY_STEPS = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+function harmonySteps(spec: SamplerSpec): number[] | null {
+  const held = spec.g_harm ?? 'off'; if (held === 'off') return null;
+  const minor = spec.g_kmode === 'minor', key = KEY_STEPS[minor ? 'minor' : 'major'];
+  const notes = held === 'root' ? [0] : held === 'fifth' ? [0, 7] : held === 'triad' ? (minor ? [0, 3, 7] : [0, 4, 7]) : held === 'scale' ? key : (spec.g_notes?.length ? spec.g_notes : [0]);
+  return Array.from({ length: 12 }, (_, s) => s).filter(s => s === 0 || notes.every(n => key.includes((n + s) % 12)));
+}
+const pitchName = (n: number) => noteName(n).replace(/-?\d+$/, '');
 const ROAMS: [GrainRoam, string, typeof ArrowRight, string][] = [
   ['off', 'Off', Ban, 'Roam off: grains stay around Position (Jump and Wander can still move it)'],
   ['forward', 'Forward', ArrowRight, 'Roam forward through the bracket, then start again'],
@@ -636,12 +652,13 @@ function SamplerKeys({ spec, onMidi }: { spec: SamplerSpec; onMidi: (s: number, 
 /** Amp card: the envelope you drag, with the same four values as knobs. A drag is one undo step. */
 /** Grain mode's controls (24 Nov). The card's title is its page switch (UI-RULES 18): Grain shapes each grain,
     Roam moves the read point through the bracket on the waveform, Motion adds jumps, holds and backwards stretches. */
-type GrainPage = 'grain' | 'roam' | 'motion' | 'rhythm' | 'presets';
+type GrainPage = 'grain' | 'roam' | 'motion' | 'rhythm' | 'harmony' | 'presets';
 const GRAIN_PAGES: [GrainPage, string, string][] = [
   ['grain', 'Grain', 'Each grain: its shape, length, density, spread and scale'],
   ['roam', 'Roam', 'The read point travels through the bracket on the waveform'],
   ['motion', 'Motion', 'Jumps, holds, backwards stretches and a breathing pulse'],
   ['rhythm', 'Rhythm', 'Steps through the Chop slices in time'],
+  ['harmony', 'Harmony', 'Spread keeps the notes of the sample in key'],
   ['presets', 'Presets', 'Ready-made grain sounds for the loaded sample'],
 ];
 function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit;
@@ -659,6 +676,7 @@ function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { s
       {GRAIN_PAGES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={page === k} title={title} onClick={() => setPage(k)}>
         {label}{k === 'roam' && roam !== 'off' ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
         {k === 'rhythm' && stepping(spec) ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
+        {k === 'harmony' && (spec.g_harm ?? 'off') !== 'off' ? <i className="smp-grain-dot" aria-hidden="true" /> : null}
         {k === 'motion' && ((spec.g_jump ?? 0) + (spec.g_hold ?? 0) + (spec.g_rev ?? 0) + (spec.g_pulse ?? 0)) > 0 ? <i className="smp-grain-dot" aria-hidden="true" /> : null}</button>)}
     </div>
     {page === 'grain' ? <>
@@ -666,8 +684,9 @@ function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { s
         <div className="smp-seg smp-filter-shapes smp-windows" role="radiogroup" aria-label="Grain shape">
           {WINDOWS.map(([w, label, path, title]) => <button key={w} type="button" role="radio" aria-label={label} aria-checked={win === w} title={title}
             onClick={() => onEdit('g_window', w)}><WindowIcon path={path} /><span>{label}</span></button>)}</div>
-        <div className="smp-seg smp-scales" role="radiogroup" aria-label="Spread scale">
-          {SCALES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={scale === k} title={title} onClick={() => onEdit('g_scale', k)}>{label}</button>)}</div>
+        {harmonySteps(spec) ? <button type="button" className="smp-harm-tag" title="Harmony picks the steps Spread lands on. Tap to open it." onClick={() => setPage('harmony')}>Steps: Harmony</button>
+          : <div className="smp-seg smp-scales" role="radiogroup" aria-label="Spread scale">
+          {SCALES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={scale === k} title={title} onClick={() => onEdit('g_scale', k)}>{label}</button>)}</div>}
       </div>
       <div className="smp-knobs two smp-knobs-grain">
         {knob('g_pos', 'Position', 0, 1, .3, .001, pct, 'Where in the sample the grains come from (also the tag on the waveform)')}
@@ -700,7 +719,8 @@ function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { s
     </> : page === 'presets' ? <div className="smp-grain-presets" role="group" aria-label="Grain presets">
       {GRAIN_PRESETS.map(([name, kind, title, patch]) => <button key={name} type="button" className="smp-preset" style={{ ['--tool' as string]: PRESET_COLOR[kind] }}
         title={title + (kind === 'rhythm' && !(spec.slices?.length) ? ' (chop the sample to hear the steps)' : '')} onClick={() => onEdit('patch', { ...GRAIN_BASE, attack: 0, release: .25, ...patch })}>{name}</button>)}
-    </div> : page === 'rhythm' ? <RhythmPage spec={spec} onEdit={onEdit} onChop={onChop} tapFlip={tapFlip} onTapFlip={onTapFlip} knob={knob} />
+    </div> : page === 'harmony' ? <HarmonyPage spec={spec} onEdit={onEdit} onSpread={() => setPage('grain')} />
+    : page === 'rhythm' ? <RhythmPage spec={spec} onEdit={onEdit} onChop={onChop} tapFlip={tapFlip} onTapFlip={onTapFlip} knob={knob} />
     : <div className="smp-knobs two smp-knobs-grain">
       {knob('g_jump', 'Jump', 0, 1, 0, .01, off, 'Random jumps to another place in the bracket')}
       {knob('g_hold', 'Hold', 0, 1, 0, .01, off, 'Freezes the travel for a moment now and then')}
@@ -709,6 +729,34 @@ function GrainCard({ spec, id, onEdit, onLive, onChop, tapFlip, onTapFlip }: { s
       {knob('g_pulse', 'Pulse', 0, 1, 0, .01, off, 'The travel speed swells up and down like breathing')}
     </div>}
   </section>;
+}
+
+/** Harmony: what the sample holds, major or minor on its root, and the shifts Spread may use (true values, rule 2). */
+function HarmonyPage({ spec, onEdit, onSpread }: { spec: SamplerSpec; onEdit: Edit; onSpread(): void }) {
+  const held = spec.g_harm ?? 'off', kmode = spec.g_kmode ?? 'major', notes = spec.g_notes ?? [0, 4, 7], root = spec.root ?? 60;
+  const steps = harmonySteps(spec), spread = Math.round(spec.g_spread ?? 0);
+  const toggle = (n: number) => { const next = notes.includes(n) ? notes.filter(x => x !== n) : [...notes, n].sort((a, b) => a - b); if (next.length) onEdit('g_notes', next); };
+  const lands = steps ? [...new Set(Array.from({ length: 2 * spread + 1 }, (_, i) => i - spread).map(k => {
+    const o = Math.floor(k / 12) * 12, r = k - o; let best = 12;
+    for (const d of [...steps, 12]) if (Math.abs(r - d) < Math.abs(r - best) || (Math.abs(r - d) === Math.abs(r - best) && d < best)) best = d;
+    return o + best; }))].sort((a, b) => a - b) : [];
+  return <>
+    <div className="smp-grain-head">
+      <div className="smp-seg smp-harms" role="radiogroup" aria-label="The sample holds">
+        {HARMS.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-label={label} aria-checked={held === k} title={title} onClick={() => onEdit('g_harm', k)}>{k === 'own' ? 'Own' : label}</button>)}</div>
+    </div>
+    <div className="smp-grain-head smp-harm-row">
+      <div className="smp-seg smp-kmodes" role="radiogroup" aria-label="Key">
+        {(['major', 'minor'] as const).map(k => <button key={k} type="button" role="radio" aria-checked={kmode === k}
+          title={'The sample is in ' + pitchName(root) + ' ' + k + ' (its root is set in the Play card)'} onClick={() => onEdit('g_kmode', k)}>{pitchName(root)} {k}</button>)}</div>
+      {steps ? <p className="smp-harm-lands" aria-label="Spread lands on">{spread ? <>Spread lands on <b>{lands.map(k => (k > 0 ? '+' : '') + k).join('  ')}</b> st</>
+        : <>Spread is off. <button type="button" className="smp-harm-link" onClick={onSpread}>Turn it up on the Grain page</button></>}</p> : null}
+    </div>
+    {held === 'own' ? <div className="smp-seg smp-notes" role="group" aria-label="Notes the sample holds">
+      {Array.from({ length: 12 }, (_, n) => <button key={n} type="button" aria-pressed={notes.includes(n)} aria-label={'Note ' + pitchName(root + n)}
+        title={notes.includes(n) && notes.length === 1 ? 'At least one note stays' : 'The sample holds ' + pitchName(root + n)} onClick={() => toggle(n)}>{pitchName(root + n)}</button>)}
+    </div> : null}
+  </>;
 }
 
 /** Rhythm (G4): the read point steps through the Chop slices. Which slices are on, and which play backwards,

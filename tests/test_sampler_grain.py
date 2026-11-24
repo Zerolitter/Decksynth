@@ -87,6 +87,35 @@ class GrainTest(unittest.TestCase):
             self.assertIn(grain.snap(k, 'minor') % 12, grain.SCALE_STEPS['minor'])
         self.assertEqual(grain.snap(5, 'octaves'), 0); self.assertEqual(grain.snap(7, 'octaves'), 12)
 
+    def test_harmony_keeps_the_sample_notes_in_key(self):
+        h = lambda **k: grain.harmony(dict(k))
+        self.assertIsNone(h(g_harm='off'))
+        self.assertEqual(h(g_harm='root'), grain.SCALE_STEPS['major'])
+        self.assertEqual(h(g_harm='triad'), (0, 5, 7))                  # I, IV and V: the only major triads in a major key
+        self.assertEqual(h(g_harm='triad', g_kmode='minor'), (0, 5, 7))
+        self.assertEqual(h(g_harm='fifth', g_kmode='minor'), (0, 3, 5, 7, 8, 10))
+        self.assertEqual(h(g_harm='scale'), (0,))                       # a whole scale only fits on itself: octaves
+        self.assertEqual(h(g_harm='own', g_notes=[0, 2]), (0, 2, 5, 7, 9))
+        self.assertEqual(h(g_harm='own', g_notes=list(range(12))), (0,))   # every note: nothing else fits, stay put
+        for spec in (dict(g_harm='triad'), dict(g_harm='own', g_notes=[0, 4, 9], g_kmode='minor')):
+            allowed = grain.harmony(spec)
+            for k in range(-12, 13): self.assertIn(grain.snap(k, allowed) % 12, allowed)
+
+    def test_harmony_replaces_the_scale_in_the_cloud(self):
+        g = grain.GrainParams(); spec = dict(grain.DEFAULTS, g_spread=12., g_scale='chromatic', g_harm='triad')
+        grain.fill(g, spec, lambda k: spec[k], R, None)
+        semis = {round(12*math.log2(g.ratio[k])) % 12 for k in range(25)}
+        self.assertEqual(semis, {0, 5, 7})
+        spec['g_harm'] = 'off'; grain.fill(g, spec, lambda k: spec[k], R, None)
+        self.assertEqual({round(12*math.log2(g.ratio[k])) % 12 for k in range(25)}, set(range(12)))
+
+    def test_harmony_values_are_checked(self):
+        clean = validate_sampler(new_sampler())
+        self.assertEqual((clean['g_harm'], clean['g_kmode'], clean['g_notes']), ('off', 'major', [0, 4, 7]))
+        self.assertEqual(validate_sampler(dict(clean, g_notes=[7, 0, 7]))['g_notes'], [0, 7])
+        for key, bad in (('g_harm', 'jazz'), ('g_kmode', 'dorian'), ('g_notes', []), ('g_notes', [12]), ('g_notes', [1.5])):
+            with self.assertRaises(ValueError, msg=key): validate_sampler(dict(clean, **{key: bad}))
+
     def test_grain_knobs_can_be_linked_and_previewed(self):
         from decksynth.fx import SAMPLER_TARGETS
         from decksynth.sampler_engine import LIVE

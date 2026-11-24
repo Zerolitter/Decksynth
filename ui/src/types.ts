@@ -69,11 +69,13 @@ export type SamplerSpec={version:1;id:string;name:string;family:string;source:Dr
   g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow;
   g_roam?:GrainRoam;g_range?:number;g_speed?:number;g_sync?:GrainSync;g_wander?:number;g_smooth?:number;
   g_jump?:number;g_hold?:number;g_rev?:number;g_chaos?:number;g_pulse?:number;
-  g_rhythm?:GrainRhythm;g_div?:GrainDiv;g_swing?:number;g_prob?:number;g_var?:'A'|'B'|'C'|'D';g_off?:number[][];g_flip?:number[][]};
+  g_rhythm?:GrainRhythm;g_div?:GrainDiv;g_swing?:number;g_prob?:number;g_var?:'A'|'B'|'C'|'D';g_off?:number[][];g_flip?:number[][];
+  g_harm?:GrainHarm;g_kmode?:'major'|'minor';g_notes?:number[]};
 export type GrainRhythm='off'|'skip'|'hold'|'gate'|'flow'|'random'|'pingpong';
 export type GrainDiv='1/4'|'1/8'|'1/16'|'1/32'|'1/8t'|'1/16t';
 export type GrainRoam='off'|'forward'|'reverse'|'bounce';
 export type GrainSync='free'|'1/4'|'1/2'|'1'|'2'|'4'|'8'|'16';
+export type GrainHarm='off'|'root'|'fifth'|'triad'|'scale'|'own';
 export type GrainScale='chromatic'|'major'|'minor'|'penta'|'octaves'|'fifths';
 export type GrainWindow='hann'|'tri'|'welch'|'perc'|'rect';
 export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING';peaks:number[][];seconds:number;playing:number[];event:number;voices:number;error?:string|null;accelerated?:boolean;native_warning?:string|null;

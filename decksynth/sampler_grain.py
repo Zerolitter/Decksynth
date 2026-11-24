@@ -32,6 +32,11 @@ Rhythm (G4): with Chop slices, the read point steps from slice to slice in time 
   g_off       four lists (A-D) of slices that are off      g_flip  four lists of slices whose grains play backwards
 Motion (G3, on top of Roam; with Roam off the point only jumps and drifts): g_jump, g_hold, g_rev (random jumps, short freezes, backwards stretches),
   g_chaos (uneven timing: calm spells and bursts), g_pulse (the speed swells like breathing)
+Harmony (24 Nov): you say which notes the sample holds, and Spread then only uses shifts that keep all of them
+inside the sample's key (major or minor on its root). No pitch detection, just this rule. It replaces g_scale while on.
+  g_harm      off / root / fifth / triad / scale / own (own = the notes in g_notes)
+  g_kmode     major / minor
+  g_notes     semitones above the root that the sample holds (0..11), for 'own'
 """
 import ctypes as C
 import math
@@ -39,6 +44,8 @@ import math
 GRAIN_POOL = 256
 WINDOW = 1024
 WINDOWS = ('hann', 'tri', 'welch', 'perc', 'rect')
+HARMS = ('off', 'root', 'fifth', 'triad', 'scale', 'own')
+KMODES = ('major', 'minor')
 SCALES = ('chromatic', 'major', 'minor', 'penta', 'octaves', 'fifths')
 ROAMS = ('off', 'forward', 'reverse', 'bounce')
 SYNCS = ('free', '1/4', '1/2', '1', '2', '4', '8', '16')
@@ -53,13 +60,14 @@ DEFAULTS = dict(g_pos=.3, g_size=.12, g_density=14., g_spray=.08, g_scan=0., g_s
                 g_reverse=0., g_jitter=0., g_size_rnd=0., g_amp_rnd=0., g_window='hann',
                 g_roam='off', g_range=.4, g_speed=.25, g_sync='free', g_wander=0., g_smooth=.5,
                 g_jump=0., g_hold=0., g_rev=0., g_chaos=0., g_pulse=0.,
-                g_rhythm='off', g_div='1/8', g_swing=0., g_prob=1., g_var='A', g_off=((), (), (), ()), g_flip=((), (), (), ()))
+                g_rhythm='off', g_div='1/8', g_swing=0., g_prob=1., g_var='A', g_off=((), (), (), ()), g_flip=((), (), (), ()),
+                g_harm='off', g_kmode='major', g_notes=(0, 4, 7))
 RANGES = dict(g_pos=(0., 1.), g_size=(.01, 1.), g_density=(1., 80.), g_spray=(0., 1.), g_scan=(-2., 2.),
               g_spread=(0., 12.), g_reverse=(0., 1.), g_jitter=(0., 1.), g_size_rnd=(0., 1.), g_amp_rnd=(0., 1.),
               g_range=(.02, 1.), g_speed=(.02, 4.), g_wander=(0., 1.), g_smooth=(0., 1.),
               g_jump=(0., 1.), g_hold=(0., 1.), g_rev=(0., 1.), g_chaos=(0., 1.), g_pulse=(0., 1.),
               g_swing=(0., .75), g_prob=(0., 1.))
-CHOICES = dict(g_scale=SCALES, g_window=WINDOWS, g_roam=ROAMS, g_sync=SYNCS, g_rhythm=RHYTHMS, g_div=DIVS, g_var=VARIATIONS)
+CHOICES = dict(g_scale=SCALES, g_window=WINDOWS, g_roam=ROAMS, g_sync=SYNCS, g_rhythm=RHYTHMS, g_div=DIVS, g_var=VARIATIONS, g_harm=HARMS, g_kmode=KMODES)
 KEYS = tuple(DEFAULTS)
 
 
@@ -97,9 +105,29 @@ def _window(kind):
 TABLES = {kind: _window(kind) for kind in WINDOWS}
 
 
+def harmony(spec):
+    """The shifts (0..11 above, octaves added later) that keep every note the sample holds inside its key.
+    None while Harmony is off. Always holds 0, so unshifted grains stay where the key put them."""
+    held = spec.get('g_harm', 'off')
+    if held == 'off': return None
+    minor = spec.get('g_kmode', 'major') == 'minor'
+    key = set(SCALE_STEPS['minor' if minor else 'major'])
+    notes = dict(root=(0,), fifth=(0, 7), triad=(0, 3, 7) if minor else (0, 4, 7), scale=tuple(key)).get(held)
+    if notes is None: notes = tuple(spec.get('g_notes') or (0,))
+    return tuple(s for s in range(12) if s == 0 or all((n + s) % 12 in key for n in notes))   # 0: the sample as it is
+
+
+def valid_notes(value):
+    """The notes a sample holds for Harmony 'own': semitones above its root, sorted, at least one."""
+    if not isinstance(value, (list, tuple)) or not 1 <= len(value) <= 12 or any(type(n) is not int or not 0 <= n < 12 for n in value):
+        raise ValueError('Invalid Harmony notes')
+    return sorted(set(value))
+
+
 def snap(semitones, scale):
-    """The nearest allowed step for a spread of `semitones` (ties go down, toward the played note)."""
-    steps = SCALE_STEPS[scale]
+    """The nearest allowed step for a spread of `semitones` (ties go down, toward the played note).
+    `scale` is a name from SCALES or a tuple of steps (Harmony)."""
+    steps = SCALE_STEPS[scale] if isinstance(scale, str) else scale
     octave, rest = divmod(semitones, 12)
     best = min(list(steps) + [12], key=lambda d: (abs(rest - d), d))
     return octave*12 + best
@@ -113,7 +141,7 @@ def fill(g, spec, value, rate, voices):
     g.spray = value('g_spray'); g.scan = value('g_scan'); g.jitter = value('g_jitter')
     g.size_rnd = value('g_size_rnd'); g.amp_rnd = value('g_amp_rnd'); g.reverse = value('g_reverse')
     g.level = 1./math.sqrt(max(1., density*size))   # overlapping grains add up: keep the cloud near one voice's level
-    spread = int(round(value('g_spread'))); scale = spec.get('g_scale', 'chromatic')
+    spread = int(round(value('g_spread'))); scale = harmony(spec) or spec.get('g_scale', 'chromatic')
     if spread != g.spread or getattr(fill, '_scale', None) != (id(g), scale):
         for k in range(-12, 13): g.ratio[k + 12] = 2.**(snap(k, scale)/12.)
         fill._scale = (id(g), scale)

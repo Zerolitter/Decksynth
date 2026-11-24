@@ -76,6 +76,7 @@ def validate_sampler(value):
     for key in ('reverse', 'normalize'):
         if type(out[key]) is not bool: raise ValueError(key.title() + ' must be on or off')
     for key in grain.MASKS: out[key] = grain.valid_masks(out[key])
+    out['g_notes'] = grain.valid_notes(out['g_notes'])
     for key, options in grain.CHOICES.items():
         if out[key] not in options: raise ValueError('Invalid Sampler ' + key.replace('g_', 'grain ').replace('_', ' '))
     for key, (low, high) in OPTIONAL_RANGES.items():

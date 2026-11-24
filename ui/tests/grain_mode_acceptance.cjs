@@ -149,6 +149,30 @@ let app,page;
  await card.getByRole('button',{name:'Generate all',exact:true}).click();
  await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_off)==='[[],[],[],[]]'&&JSON.stringify(window.__latest.state.tracks[0].sampler.g_flip)==='[[],[],[],[]]');
 
+ // Harmony: what the sample holds; Spread then lands only on shifts that keep it in key, shown as text; the Grain page's scale gives way.
+ await pages.getByRole('radio',{name:'Harmony',exact:true}).click();
+ for(const name of ['Off','Root','Fifth','Triad','Scale','Own notes'])await inside(card.getByRole('radiogroup',{name:'The sample holds'}).getByRole('radio',{name,exact:true}),'harmony '+name);
+ await card.getByRole('radio',{name:'Triad',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_harm==='triad');
+ const NN=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'],rootN=(await latest()).state.tracks[0].sampler.root,kn=k=>NN[(rootN+k)%12];
+ for(const name of [kn(0)+' major',kn(0)+' minor'])await inside(card.getByRole('radio',{name,exact:true}),'key '+name);
+ await p.getByText(/Spread lands on/).waitFor();
+ assert.equal((await card.locator('.smp-harm-lands b').textContent()).replace(/\s+/g,' '),'-7 -5 0 +5 +7','a major chord sample: I, IV and V within ±7');
+ await card.getByRole('radio',{name:'Own notes',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_harm==='own');
+ const noteRow=card.getByRole('group',{name:'Notes the sample holds'});await noteRow.waitFor();
+ const notes=await noteRow.getByRole('button').all();assert.equal(notes.length,12,'twelve notes');
+ for(const [i,b] of notes.entries())await inside(b,'note '+(i+1));
+ await card.getByRole('button',{name:'Note '+kn(4),exact:true}).click();
+ await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_notes)==='[0,7]');
+ await p.screenshot({path:path.join(OUT,'grain-harmony-'+H+'.png')});
+ await pages.getByRole('radio',{name:'Grain',exact:true}).click();
+ assert.equal(await card.getByRole('radio',{name:'Maj',exact:true}).count(),0,'Harmony picks the steps, the scale buttons make way');
+ await inside(card.getByRole('button',{name:'Steps: Harmony'}),'Steps: Harmony tag');
+ await card.getByRole('button',{name:'Steps: Harmony'}).click();
+ await card.getByRole('radio',{name:'Off',exact:true}).click();
+ await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_harm==='off');
+
  // Presets: twenty, one tap sets the whole grain sound (one undo step) and keeps Position and the slices.
  await pages.getByRole('radio',{name:'Presets',exact:true}).click();
  const pr=await card.locator('.smp-preset').all();assert.equal(pr.length,20,'twenty presets');for(const [i,b] of pr.entries())await inside(b,'preset '+(i+1));
