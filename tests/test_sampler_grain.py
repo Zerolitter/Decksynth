@@ -277,5 +277,26 @@ class GrainTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=key): validate_sampler(dict(clean, **{key: bad}))
 
 
+    def test_rhythm_sits_on_the_song_grid_while_it_plays(self):
+        self.stepped()
+        self.e.play_from(1.)                      # one beat in: the third eighth (slice 3) is already playing
+        s, _ = self.play(1, 60, 256)
+        self.assertEqual(s.state()['steps'], [2])
+        self.render(int(R*.25))                   # an eighth later
+        self.assertEqual(s.state()['steps'], [3])
+        self.e.stop(); s.panic()
+        s, _ = self.play(1, 60, 256)              # stopped: it counts from the key again
+        self.assertEqual(s.state()['steps'], [0])
+
+    def test_bar_synced_roam_sits_on_the_bar_while_the_song_plays(self):
+        self.grain(g_roam='forward', g_sync='1', g_range=1., g_pos=0., g_spray=0.)
+        self.e.play_from(2.)                      # half a bar in
+        s, _ = self.play(1, 60, 256)
+        v = s.voices[0]
+        self.assertAlmostEqual((s.head(0) - v.start)/float(v.end - v.start), .5, delta=.01)
+        self.render(R//2)                         # a quarter note later: a quarter of a bar more
+        self.assertAlmostEqual((s.head(0) - v.start)/float(v.end - v.start), .75, delta=.01)
+
+
 if __name__ == '__main__':
     unittest.main()

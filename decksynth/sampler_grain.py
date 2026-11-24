@@ -253,11 +253,13 @@ class Stepper:
         import random
         self.rng = random.Random(seed); self.k = -1; self.index = 0; self.gated = False; self.flow = 0.; self.order = 0
 
-    def step(self, spec, value, rate, bpm, age, frames, total):
-        """Returns (absolute read frame, flags) for the coming block."""
+    def step(self, spec, value, rate, bpm, age, frames, total, beat=None):
+        """Returns (absolute read frame, flags) for the coming block. `beat`: the song position while it plays (the steps then
+        sit on the song's grid); otherwise steps count from the key going down."""
         slices = spec['slices']; n = len(slices); var = VARIATIONS.index(spec.get('g_var', 'A'))
         off = set(spec['g_off'][var]); flip = set(spec['g_flip'][var]); on = [i for i in range(n) if i not in off]
         length = max(16., DIV_BEATS[spec.get('g_div', '1/8')]*60./max(1., bpm)*rate)
+        if beat is not None: age = beat*60./max(1., bpm)*rate
         late = (2./3.)*value('g_swing')*length; pair = int(age // (2.*length)); inside = age - pair*2.*length
         k = 2*pair + (1 if inside >= length + late else 0)
         mode = spec['g_rhythm']
@@ -293,19 +295,20 @@ def roaming(spec):
 class Roamer:
     """Roam and Motion for one cloud, at block rate. The same code drives the C kernel and the Python mirror:
     it only writes the cloud's offset (where Position has moved to) before each block."""
-    __slots__ = ('rng', 'u', 'dir', 'drift', 'hold', 'rev', 'wait', 'phase', 'period')
+    __slots__ = ('rng', 'u', 'dir', 'drift', 'hold', 'rev', 'wait', 'phase', 'period', 'shift')
 
     def __init__(self, seed, mode):
         import random
         self.rng = random.Random(seed)
         self.u = .999999 if mode == 'reverse' else 0.   # 0..1 through the bracket
         self.dir = -1. if mode == 'reverse' else 1.
-        self.drift = 0.; self.hold = 0; self.rev = 0
+        self.drift = 0.; self.hold = 0; self.rev = 0; self.shift = 0.   # shift: where Jump moved a transport-locked pass
         self.wait = -1.                                   # frames to the next Motion event (-1: not drawn yet)
         self.phase = self.rng.random(); self.period = 1.3 + 7.7*self.rng.random()   # Pulse: one swell every 1.3..9 s
 
-    def step(self, spec, value, rate, bpm, frames, zone):
-        """Advance by `frames`; returns the offset from Position in frames."""
+    def step(self, spec, value, rate, bpm, frames, zone, beat=None):
+        """Advance by `frames`; returns the offset from Position in frames. `beat`: the song position while it plays,
+        then a bar-synced Roam sits on the bar grid (Jump shifts it; Hold and Rev wait for free speed)."""
         r = self.rng; mode = spec.get('g_roam', 'off'); span = value('g_range')
         sync = spec.get('g_sync', 'free')
         if mode == 'off': speed = 0.                                             # Motion and Wander only
@@ -325,7 +328,7 @@ class Roamer:
             self.wait -= frames
             if self.wait <= 0.:
                 pick = r.random()*busy
-                if pick < jump: self.u = r.random()
+                if pick < jump: self.u = r.random(); self.shift = r.random()
                 elif pick < jump + hold: self.hold = int((.06 + .5*r.random())*rate*(.4 + hold))
                 else: self.rev = int((.15 + .8*r.random())*rate*(.4 + rev))
                 gap = (1. - chaos) + chaos*-math.log(max(1e-6, 1. - r.random()))   # chaos: exponential gaps, bursts and calm
@@ -337,6 +340,18 @@ class Roamer:
             a = 1. - .985*value('g_smooth')
             self.drift += a*((2.*r.random() - 1.) - self.drift)
         else: self.drift = 0.
+        sync_bars = None if sync == 'free' or mode == 'off' else ({'1/4': .25, '1/2': .5}.get(sync) or float(sync))
+        if beat is not None and sync_bars is not None:
+            self.hold = 0; self.rev = 0
+            turns = beat/(sync_bars*4.)
+            if mode == 'bounce':
+                p = (turns + self.shift) % 2.; u = p if p <= 1. else 2. - p
+            else:
+                u = (turns + self.shift) % 1.
+                if mode == 'reverse': u = 1. - u
+            u = min(.999999, max(0., u + wander*self.drift*.1))
+            self.u = u
+            return u*span*zone
         if self.hold > 0: self.hold -= frames; return self.u*span*zone
         direction = self.dir*(-1. if self.rev > 0 else 1.)
         if self.rev > 0: self.rev -= frames

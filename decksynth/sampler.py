@@ -157,7 +157,8 @@ class Sampler:
         # Grain mode: one cloud per voice slot, a shared pool of grains
         self.clouds = (grain.Cloud * SLOTS)(); self.grains = (grain.Grain * grain.GRAIN_POOL)(); self.gparams = grain.GrainParams()
         self.steppers = [None]*SLOTS
-        self.roamers = [None]*SLOTS; self.bpm = 120.   # Roam / Motion per slot; the engine keeps bpm up to date
+        self.roamers = [None]*SLOTS; self.bpm = 120.
+        self.clock = None; self._beat = None   # the song's beat at the next render while it plays (core sets it)   # Roam / Motion per slot; the engine keeps bpm up to date
         self._grain_kernel = sampler_native.grain_kernel()
         if self._grain_kernel is not None:
             self._grain_kernel.argtypes = [C.POINTER(Voice), C.POINTER(grain.Cloud), C.c_int, C.POINTER(Params),
@@ -367,11 +368,15 @@ class Sampler:
         while at < frames:
             count = min(256, frames-at)
             self._modulate()
-            if self.grain_mode: self._roam(count)
+            if self.grain_mode: self._beat = self._clock_at(at); self._roam(count)
             C.memset(self.scratch, 0, 8*count)
             self._mix_native(count)
             c.dsfx_buf_add(cbus.addr(buf, offset+at), C.addressof(self.scratch), count, g)
             at += count
+
+    def _clock_at(self, frames):
+        """The song's beat `frames` into this render, or None while the song is stopped."""
+        return None if self.clock is None else self.clock + frames*max(1., self.bpm)/(60.*self.rate)
 
     def _roam(self, frames):
         """Roam and Motion: move each held cloud's read point for the coming block."""
@@ -385,7 +390,7 @@ class Sampler:
             zone = float(v.end - v.start); r = self.roamers[i]
             if zone < 2.: continue
             if r is None: r = self.roamers[i] = grain.Roamer(i, s['g_roam'])
-            self.clouds[i].offset = r.step(s, self._e, self.rate, self.bpm, frames, zone)
+            self.clouds[i].offset = r.step(s, self._e, self.rate, self.bpm, frames, zone, self._beat)
 
     def _step(self, frames):
         """Rhythm: each held cloud reads from the slice its step chose."""
@@ -396,7 +401,7 @@ class Sampler:
             if zone < 2.: continue
             st = self.steppers[i]
             if st is None: st = self.steppers[i] = grain.Stepper(i)
-            at, flags = st.step(s, self._e, self.rate, self.bpm, float(v.age), frames, total)
+            at, flags = st.step(s, self._e, self.rate, self.bpm, float(v.age), frames, total, self._beat)
             at = min(float(v.end) - 1., max(float(v.start), at))
             self.clouds[i].offset = at - float(v.start) - self._e('g_pos')*zone; self.clouds[i].flags = flags
 
@@ -419,7 +424,7 @@ class Sampler:
         while offset < frames:
             count = min(256, frames-offset)
             self._modulate()
-            if self.grain_mode: self._roam(count)
+            if self.grain_mode: self._beat = self._clock_at(offset); self._roam(count)
             if self._kernel is not None and (self._grain_kernel is not None or not self.grain_mode):
                 scratch = self.scratch
                 C.memset(scratch, 0, 8*count)
