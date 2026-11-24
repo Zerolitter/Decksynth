@@ -391,36 +391,36 @@ FINISH = {
 # a C3-C4-E4-G4 chord at velocity 100 sits at -23 dBFS before it (tools/measure_sound.py --calibrate,
 # with small nudges per category). Sounds that open up over several bars (swells, risers) are set by ear.
 LEVELS = {
-    'Atmospheric Pad': 1.73, 'Glass Pad': 1.47, 'Warm Analog Pad': 3.22, 'Choir Haze': 1.52,
+    'Atmospheric Pad': 1.82, 'Glass Pad': 1.47, 'Warm Analog Pad': 3.46, 'Choir Haze': 1.61,
     'Slow Sweep Pad': 2.5, 'Shimmer Pad': 1.34, 'Dark Matter': 1.21, 'Sunrise Pad': 2.0,
-    'Phase Pad': 3.17, 'Frozen Pad': 2.09, 'Velvet Pad': 1.33, 'Warm Blanket': 1.08,
-    'Super Pad': 2.11, 'Dream Pad': 1.67, 'Night Drive Pad': 1.46, 'Warm Keys': 2.33,
-    'Electric Piano': 2.62, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 2.17,
-    'Wurly Drive': 0.81, 'Toy Piano': 3.03, 'Chorus Keys': 2.84, 'Tine Keys': 2.06,
-    'Lofi Keys': 3.22, 'Concert Keys': 2.54, 'Stage EP': 2.33, 'Soft Upright': 2.07,
-    'Perc Organ': 1.38, 'Pop Keys': 2.52, 'Bass': 1.64, 'Sub Bass': 0.87,
-    'Saw Bass': 3.57, 'Square Bass': 1.34, 'Wobble Bass': 1.02, 'Acid Bass': 0.92,
-    'Pluck Bass': 2.85, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
-    'Reese Bass': 1.13, 'Deep Sub 808': 1.22, 'Ladder Bass': 3.67, 'Rubber Bass': 1.24,
-    'Finger Bass': 1.75, 'Saw Lead': 4.14, 'Square Lead': 3.46, 'Soft Flute': 1.83,
+    'Phase Pad': 3.17, 'Frozen Pad': 2.09, 'Velvet Pad': 1.4, 'Warm Blanket': 1.24,
+    'Super Pad': 2.21, 'Dream Pad': 1.84, 'Night Drive Pad': 1.46, 'Warm Keys': 2.64,
+    'Electric Piano': 3.19, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 2.73,
+    'Wurly Drive': 0.81, 'Toy Piano': 3.48, 'Chorus Keys': 2.63, 'Tine Keys': 2.76,
+    'Lofi Keys': 3.22, 'Concert Keys': 2.51, 'Stage EP': 3.2, 'Soft Upright': 2.42,
+    'Perc Organ': 1.38, 'Pop Keys': 2.67, 'Bass': 2.13, 'Sub Bass': 0.87,
+    'Saw Bass': 2.92, 'Square Bass': 1.52, 'Wobble Bass': 1.02, 'Acid Bass': 0.99,
+    'Pluck Bass': 2.87, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
+    'Reese Bass': 1.17, 'Deep Sub 808': 1.22, 'Ladder Bass': 3.67, 'Rubber Bass': 1.24,
+    'Finger Bass': 2.29, 'Saw Lead': 4.07, 'Square Lead': 3.55, 'Soft Flute': 1.83,
     'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.36, 'Crushed Lead': 3.48,
-    'Delay Lead': 3.49, 'Phase Lead': 5.08, 'Hollow Lead': 4.32, 'Supersaw Lead': 3.7,
-    'Glide Sine Lead': 2.39, 'Brass Lead': 4.61, 'Pluck Lead': 3.18, 'Vowel Lead': 2.84,
-    'Pluck': 5.76, 'Harp Pluck': 3.09, 'Kalimba': 2.77, 'Pizz': 5.7,
-    'Echo Pluck': 6.56, 'Glass Pluck': 3.83, 'Muted Pluck': 3.49, 'Koto': 3.52,
-    'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.75, 'Mallet Pluck': 2.65,
-    'Filter Pluck': 6.47, 'Synth Harp': 2.93, 'Sparkle Pluck': 4.53, 'Bell': 2.75,
-    'Tubular Bell': 3.16, 'Music Box': 2.5, 'Vibes': 2.11, 'Marimba': 2.42,
-    'Glocken': 2.74, 'Crystal Bell': 3.06, 'Gamelan': 3.44, 'Celesta': 2.47,
+    'Delay Lead': 3.02, 'Phase Lead': 5.05, 'Hollow Lead': 4.32, 'Supersaw Lead': 3.43,
+    'Glide Sine Lead': 2.39, 'Brass Lead': 4.61, 'Pluck Lead': 3.18, 'Vowel Lead': 2.73,
+    'Pluck': 4.81, 'Harp Pluck': 3.26, 'Kalimba': 3.68, 'Pizz': 5.96,
+    'Echo Pluck': 5.49, 'Glass Pluck': 5.03, 'Muted Pluck': 3.49, 'Koto': 3.32,
+    'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.99, 'Mallet Pluck': 4.23,
+    'Filter Pluck': 6.47, 'Synth Harp': 3.83, 'Sparkle Pluck': 5.31, 'Bell': 2.33,
+    'Tubular Bell': 2.38, 'Music Box': 2.08, 'Vibes': 2.11, 'Marimba': 2.42,
+    'Glocken': 2.12, 'Crystal Bell': 2.95, 'Gamelan': 2.96, 'Celesta': 2.09,
     'Frozen Bell': 2.09, 'Wind Chimes': 2.56, 'Church Bell': 3.15, 'Glass Harmonica': 1.88,
-    'Soft Vibraphone': 2.05, 'Digital Bell': 3.13, 'String Ensemble': 2.48, 'Slow Strings': 2.42,
-    'Cello': 2.39, 'Violin Lead': 2.63, 'Choir Aah': 1.3, 'Choir Ooh': 1.36,
-    'Vox Pad': 2.53, 'Brass Section': 4.31, 'Soft Brass': 2.81, 'Orchestral Swell': 2.0,
-    'Chamber Strings': 2.31, 'Synth Strings': 3.08, 'Cello Section': 2.3, 'Angel Choir': 0.94,
-    'Tremolo Strings': 2.46, 'Arp Pluck': 6.72, 'Gated Pad': 1.94, 'Stutter Arp': 3.58,
-    'Trance Gate': 3.07, 'Bubble Seq': 4.07, 'Crushed Arp': 7.43, 'Ping Pong Arp': 4.14,
-    'Ring Seq': 2.18, 'Glide Seq': 4.2, 'Filter Seq': 3.56, 'Sparkle Arp': 3.61,
-    'Pulse Arp': 5.71, 'Acid Arp': 1.78, 'Soft Bell Arp': 2.49, 'Wide Saw Arp': 6.78,
+    'Soft Vibraphone': 2.05, 'Digital Bell': 3.13, 'String Ensemble': 2.58, 'Slow Strings': 2.57,
+    'Cello': 2.62, 'Violin Lead': 3.03, 'Choir Aah': 1.3, 'Choir Ooh': 1.36,
+    'Vox Pad': 2.53, 'Brass Section': 4.65, 'Soft Brass': 3.06, 'Orchestral Swell': 2.0,
+    'Chamber Strings': 2.46, 'Synth Strings': 3.25, 'Cello Section': 2.45, 'Angel Choir': 0.94,
+    'Tremolo Strings': 2.6, 'Arp Pluck': 5.63, 'Gated Pad': 1.94, 'Stutter Arp': 3.58,
+    'Trance Gate': 3.07, 'Bubble Seq': 4.07, 'Crushed Arp': 7.43, 'Ping Pong Arp': 4.86,
+    'Ring Seq': 2.18, 'Glide Seq': 4.2, 'Filter Seq': 3.56, 'Sparkle Arp': 4.47,
+    'Pulse Arp': 5.71, 'Acid Arp': 1.78, 'Soft Bell Arp': 3.89, 'Wide Saw Arp': 6.07,
     'Evolving Texture': 2.5, 'Drone': 2.27, 'Wind': 3.25, 'Haze': 2.11,
     'Metallic Drone': 2.17, 'Dark Drone': 1.13, 'Tape Wobble': 2.35, 'Underwater': 2.37,
     'Ring Cloud': 1.08, 'Time Smear': 2.84, 'Glass Drone': 1.98, 'Ocean Air': 6.53,
@@ -432,6 +432,67 @@ LEVELS = {
 }
 # The finish goes before the time effects: dynamics and tone first, then width, then delay and reverb.
 FINISH_ORDER = ['compressor', 'eq', 'chorus']
+
+# ---------------------------------------------------------------- preset pass (24 Nov)
+# Measured on 24 Nov: most presets were one static spectrum under the same chorus + reverb wash, so they
+# sounded alike. Real instruments get brighter at the strike and darker as they ring. The Filter card with its
+# own envelope does that already, but only 8 presets used it. A preset without a Filter card of its own now
+# gets its category's one; its partials are opened up a little (BRIGHT_FLOOR) so the filter does the shaping.
+# Organs, flutes, whistles, subs, gated and filter-swept presets keep their plain voice (REVOICE_PLAIN).
+def _env(cut, env, reso, a, d, s, r, vel=0.):
+    out = dict(vcf_type=1, vcf_morph=0., vcf_cutoff=cut, vcf_env=env, vcf_reso=reso, fenv_a=a, fenv_d=d, fenv_s=s, fenv_r=r)
+    if vel: out['velocity_cutoff'] = vel   # play harder, the filter opens further
+    return out
+REVOICE_ENV = {
+    'Keys': _env(.48, .55, .12, .002, .8, .25, .4, .35),        # hammer bright, then mellow
+    'Plucks': _env(.45, .6, .18, .001, .3, .05, .25, .4),       # snap, then the body only
+    'Bass': _env(.45, .55, .22, .002, .35, .35, .15, .3),       # a pluck on the front of every note
+    'Leads': _env(.63, .3, .15, .005, .6, .55, .3, .2),        # a little bite on each note
+    'Arps & sequences': _env(.42, .55, .3, .001, .22, .1, .15, .3),
+    'Strings & choirs': _env(.62, .25, .1, .25, .8, .75, .6),  # the bow opens the tone
+    'Pads': _env(.63, .2, .1, .9, 1.5, .8, 1.5),           # slowly opens
+}
+BRIGHT_FLOOR = {'Keys': .85, 'Plucks': .9, 'Bass': .8, 'Leads': .85, 'Arps & sequences': .9, 'Strings & choirs': .8, 'Pads': .75}
+# A filter can only take away: most presets had little above partial 3, so a sweep had nothing to sweep.
+# Each partial is lifted to at least lift/k (a saw at that level) before the filter shapes it over time.
+LIFT = {'Keys': .45, 'Plucks': .6, 'Bass': .5, 'Leads': .35, 'Arps & sequences': .6, 'Strings & choirs': .35, 'Pads': .25}
+REVOICE_PLAIN = {
+    'Drawbar Organ', 'Perc Organ', 'Soft Clav', 'Lofi Keys', 'Wurly Drive',
+    'Sub Bass', 'Deep Sub 808', 'Dub Bass', 'Wobble Bass', 'Grit Bass', 'Round Bass',
+    'Soft Flute', 'Whistle', 'Glide Sine Lead', 'Screamer', 'Crushed Lead', 'Sync Lead', 'Hollow Lead',
+    'Bit Pluck', 'Space Pluck', 'Muted Pluck',
+    'Gated Pad', 'Trance Gate', 'Bubble Seq', 'Ring Seq', 'Filter Seq', 'Glide Seq', 'Crushed Arp', 'Stutter Arp',
+    'Choir Aah', 'Choir Ooh', 'Vox Pad', 'Angel Choir', 'Orchestral Swell',
+    'Glass Pad', 'Shimmer Pad', 'Frozen Pad', 'Slow Sweep Pad', 'Sunrise Pad', 'Dark Matter', 'Phase Pad',
+}
+# Preset by preset: bells ring with stretched (inharmonic) partials, basses get a sub, two leads a little unison.
+REVOICE = {
+    'Bell': dict(inharm=.25), 'Tubular Bell': dict(inharm=.35), 'Gamelan': dict(inharm=.4), 'Glocken': dict(inharm=.12),
+    'Crystal Bell': dict(inharm=.18), 'Celesta': dict(inharm=.08), 'Music Box': dict(inharm=.1),
+    'Harp Pluck': dict(inharm=.03), 'Koto': dict(inharm=.05), 'Kalimba': dict(inharm=.2),
+    'Bass': dict(sub=.2), 'Saw Bass': dict(sub=.25), 'Square Bass': dict(sub=.2), 'Pluck Bass': dict(sub=.15),
+    'Saw Lead': dict(uni_voices=3, uni_detune=.18), 'Phase Lead': dict(uni_voices=2, uni_detune=.15),
+}
+# Less shared wash: dry categories keep a light chorus for width (the synth track is mono until an effect
+# makes it stereo) and less reverb, so each preset's own effects are what you hear.
+for _cat, _ch in (('Keys', _chorus(1., .22, .25, .15)), ('Leads', _chorus(.9, .2, .25, .15)), ('Plucks', _chorus(1., .24, .25, .18)),
+                  ('Bells', _chorus(1., .22, .2, .15)), ('Arps & sequences', _chorus(1., .22, .25, .15))):
+    FINISH[_cat]['chorus'] = _ch
+REVERB_SCALE = {'Keys': .7, 'Plucks': .7, 'Leads': .7, 'Arps & sequences': .6, 'Bass': .5}
+
+def revoice(p, category):
+    """The 24 Nov pass on one finished preset (instrument and chain changed in place)."""
+    ins = p['instrument']; name = p['name']
+    env = REVOICE_ENV.get(category)
+    if env and name not in REVOICE_PLAIN and not ins.get('vcf_type'):
+        ins.update(env); ins['filter'] = max(ins['filter'], BRIGHT_FLOOR[category])
+        lift = LIFT[category]
+        ins['harmonics'] = _norm([max(h, lift / (k + 1)) for k, h in enumerate(ins['harmonics'])])
+    ins.update(REVOICE.get(name, {}))
+    scale = REVERB_SCALE.get(category)
+    if scale:
+        for m in p['fx']['modules']:
+            if m['id'] == 'reverb' and m['on']: m['params']['mix'] = round(m['params'].get('mix', 0) * scale, 3)
 
 def finish(preset, category):
     p = copy.deepcopy(preset)
@@ -455,6 +516,7 @@ def finish(preset, category):
     finish_m = [mods[x] for x in FINISH_ORDER if mods[x]['on']]
     rest = [m for m in on if m not in first and m not in finish_m]
     chain['modules'] = first + finish_m + rest + [m for m in chain['modules'] if not m['on']]
+    revoice(p, category)
     p['fx'] = validate_chain(chain)
     return p
 

@@ -115,7 +115,11 @@ def chord_scene(name):
         return math.sqrt(sum((x - m) ** 2 for x in xs) / len(xs))
     t_mean = sum(tones) / max(1, len(tones))
     motion = spread(levels) / 6 + (spread(tones) / t_mean if t_mean else 0)
-    return dict(peak=db(peak), rms=db(rms(mid)), width=rms(side) / max(1e-9, rms(mid)), bright=bright(mid), motion=motion)
+    # tone fall: how much brighter the strike (first 150 ms) is than the held note a second later
+    whole = [(a + b) * .5 for a, b in zip(hold_l, hold_r)]
+    late = bright(whole[R:R * 3 // 2])
+    fall = bright(whole[:R * 3 // 20]) / late if late else 1.
+    return dict(peak=db(peak), rms=db(rms(mid)), width=rms(side) / max(1e-9, rms(mid)), bright=bright(mid), motion=motion, fall=fall)
 
 
 def velocity_scene(name):
@@ -152,8 +156,8 @@ def main():
             continue
         m = dict(name=p['name'], category=p['category'], **chord_scene(p['name']), **velocity_scene(p['name']))
         rows.append(m)
-        print('%-22s %-18s peak %6.1f  rms %6.1f  width %4.2f  bright %5.0f  vel %5.1f dB x%4.2f  motion %4.2f' % (
-            m['name'][:22], m['category'][:18], m['peak'], m['rms'], m['width'], m['bright'], m['vel_db'], m['vel_tone'], m['motion']),
+        print('%-22s %-18s peak %6.1f  rms %6.1f  width %4.2f  bright %5.0f  vel %5.1f dB x%4.2f  motion %4.2f  fall x%4.2f' % (
+            m['name'][:22], m['category'][:18], m['peak'], m['rms'], m['width'], m['bright'], m['vel_db'], m['vel_tone'], m['motion'], m['fall']),
             flush=True)
     if rows:
         n = len(rows)
@@ -161,7 +165,7 @@ def main():
         print('%-41s peak %6.1f  rms %6.1f  width %4.2f  bright %5.0f  vel %5.1f dB x%4.2f  motion %4.2f' % (
             'AVERAGE (%d presets)' % n, avg['peak'], avg['rms'], avg['width'], avg['bright'], avg['vel_db'], avg['vel_tone'], avg['motion']))
     if args.csv:
-        keys = ['name', 'category', 'peak', 'rms', 'width', 'bright', 'vel_db', 'vel_tone', 'motion']
+        keys = ['name', 'category', 'peak', 'rms', 'width', 'bright', 'vel_db', 'vel_tone', 'motion', 'fall']
         with open(args.csv, 'w') as f:
             f.write(','.join(keys) + '\n')
             for r in rows:
