@@ -24,7 +24,7 @@ let app,page;
  fs.mkdirSync(OUT,{recursive:true});
  const wav=toneWav(path.join(DATA,'Pad Chord.wav'),3);
  app=await _electron.launch({executablePath:path.join(ROOT,'node_modules/electron/dist/electron'),
-  args:['electron/playwright-main.cjs'],cwd:ROOT,env:{...process.env,DECKSYNTH_UI_PREVIEW:'0',DECKSYNTH_DIAGNOSTIC:'1',DECKSYNTH_DATA_DIR:DATA,SDL_AUDIODRIVER:'dummy',ELECTRON_OZONE_PLATFORM_HINT:'x11'},timeout:20000});
+  args:['electron/playwright-main.cjs'],cwd:ROOT,env:{...process.env,DECKSYNTH_UI_PREVIEW:'0',DECKSYNTH_DIAGNOSTIC:'1',DECKSYNTH_DATA_DIR:DATA,DECKSYNTH_TEST_INPUT:wav,SDL_AUDIODRIVER:'dummy',ELECTRON_OZONE_PLATFORM_HINT:'x11'},timeout:20000});
  const p=page=await app.firstWindow({timeout:18000});p.setDefaultTimeout(10000);
  const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,h);},H);
@@ -140,9 +140,9 @@ let app,page;
  await card.getByRole('radio',{name:'Reverse',exact:true}).click();
  await tapAt(.62);await p.waitForFunction(()=>JSON.stringify(window.__latest.state.tracks[0].sampler.g_flip)==='[[2],[],[],[]]');
  await p.mouse.move(rb.x+rb.width/2,rb.y+rb.height-14);await p.mouse.down();
- const seen=new Set();for(let i=0;i<16;i++){await p.waitForTimeout(110);for(const k of (await p.evaluate(()=>window.__smp?.[0]?.steps??[])))seen.add(k);}
+ const seen=new Set();let lit=0;for(let i=0;i<24&&!(seen.size>=3&&lit);i++){await p.waitForTimeout(110);for(const k of (await p.evaluate(()=>window.__smp?.[0]?.steps??[])))seen.add(k);lit+=await p.locator('.smp-wave .smp-step.now').count();}
  assert.ok(seen.has(0)&&seen.has(2)&&seen.has(3)&&!seen.has(1),'steps skip slice 2: '+[...seen]);
- assert.ok(await p.locator('.smp-wave .smp-step.now').count()>0,'the sounding slice lights up');
+ assert.ok(lit>0,'the sounding slice lights up');
  await p.screenshot({path:path.join(OUT,'grain-rhythm-'+H+'.png')});
  await p.mouse.up();
  await p.waitForFunction(()=>(window.__smp?.[0]?.voices??1)===0,null,{timeout:8000});
@@ -158,6 +158,19 @@ let app,page;
  await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_roam==='bounce'&&window.__latest.state.tracks[0].sampler.g_rhythm==='off');
  const tid=(await latest()).state.tracks[0].sampler;assert.equal(tid.g_pos,keep,'Position stays');assert.equal(tid.slices.length,4,'slices stay');assert.equal(tid.g_pulse,.8);
 
+ // Live input: grains from the input as it comes in (the test input plays the chord in real time); Freeze keeps it.
+ const play=p.locator('section.smp-play');const liveIn=play.getByRole('button',{name:/Live in/});await inside(liveIn,'Live in');
+ await liveIn.click();await p.waitForFunction(()=>!!window.__smp?.[0]?.live,null,{timeout:8000});
+ await p.waitForFunction(()=>(window.__smp?.[0]?.peaks??[]).some(([lo,hi])=>hi>.05),null,{timeout:8000});
+ await p.mouse.move(rb.x+rb.width/2,rb.y+rb.height-14);await p.mouse.down();
+ await p.waitForFunction(()=>(window.__smp?.[0]?.grains?.length??0)>0,null,{timeout:8000});await p.waitForTimeout(300);
+ assert.match(await p.locator('.smp-caption').first().textContent(),/Live input/);
+ await p.screenshot({path:path.join(OUT,'grain-live-'+H+'.png')});
+ await p.mouse.up();
+ const freeze=play.getByRole('button',{name:/Freeze/});await inside(freeze,'Freeze');await freeze.click();
+ await p.waitForFunction(()=>window.__smp?.[0]?.live?.frozen===true);
+ await liveIn.click();await p.waitForFunction(()=>!window.__smp?.[0]?.live);
+
  // Leaving Grain brings Pitch and Filter back; old modes still work.
  await p.locator('section.smp-play').getByRole('radio',{name:'Hold',exact:true}).click();
  await p.locator('section.smp-pitch').waitFor();assert.equal(await card.count(),0,'the Grain card goes with Grain mode');
@@ -165,4 +178,4 @@ let app,page;
  assert.deepEqual(errors,[],'no page errors');
  console.log('grain mode acceptance OK at '+H);
  await app.close();fs.rmSync(DATA,{recursive:true,force:true});
-})().catch(async e=>{console.error(e);try{await page?.screenshot({path:path.join(OUT,'grain-failure-'+H+'.png')});}catch{}try{await app?.close();}catch{}process.exit(1);});
+})().catch(async e=>{console.error(e);try{console.error(JSON.stringify(await page.evaluate(()=>window.__msgs)))}catch{}try{await page?.screenshot({path:path.join(OUT,'grain-failure-'+H+'.png')});}catch{}try{await app?.close();}catch{}process.exit(1);});

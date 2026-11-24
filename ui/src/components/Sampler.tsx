@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -155,6 +155,8 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
   onSelect(index: number, at: number): void; onEdit: Edit; onLive?: Edit; onView(a: number, b: number): void;
   onChop(mode: string, options?: Record<string, unknown>): void; onAudition(index: number): void; onLibrary?(slice: number): void;
 }) {
+  // Live input: the window is the last 8 s of the input; Position counts back from now, and Roam / Rhythm rest.
+  if (runtime?.live && mode === 'grain') spec = { ...spec, start: 0, end: 1, g_roam: 'off', g_jump: 0, g_wander: 0, g_rhythm: 'off' };
   const slices = spec.slices ?? [];
   const trim0 = (): Record<TrimKey, number> => ({ start: spec.start, end: spec.end, loop_start: spec.loop_start, loop_end: spec.loop_end });
   const [trimDraft, setTrimDraft] = useState<Partial<Record<TrimKey, number>> | null>(null);
@@ -436,7 +438,8 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
           ? handle({ kind: 'slice', i: selected, edge: 1 }, 'Slice ' + (selected + 1) + ' end', sel[1], 'h-slice_end on', null) : null}
       </> : null}
     </div>
-    <span className="smp-caption">{secs ? (mode === 'grain' && steps ? 'Rhythm over ' + slices.length + ' slices, pattern ' + VARS[vi] + ' · tap a slice to ' + (tapFlip ? 'reverse it' : 'turn it on or off') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding'
+    <span className="smp-caption">{secs ? (mode === 'grain' && runtime?.live ? 'Live input, the last ' + Math.round(secs) + ' s' + (runtime.live.frozen ? ' (frozen)' : '') + ' · grains from ' + (((1 - gpos) * secs) < .05 ? 'just now' : ((1 - gpos) * secs).toFixed(1) + ' s ago') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding'
+      : mode === 'grain' && steps ? 'Rhythm over ' + slices.length + ' slices, pattern ' + VARS[vi] + ' · tap a slice to ' + (tapFlip ? 'reverse it' : 'turn it on or off') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding'
       : mode === 'grain' ? 'Grains from ' + ms(posAt) + ' ms' + (roams ? ' to ' + ms(roamEndAt) + ' ms' + ((spec.g_roam ?? 'off') === 'off' ? ' (Motion)' : ' (Roam)') : '') + ' · ' + (runtime?.grains?.length ?? 0) + ' sounding' + ((spec.keymap ?? 'whole') !== 'whole' ? ' · each key reads its own slice' : '') : '') + (mode === 'trim' ? 'Plays ' + ms(t.start) + '–' + ms(t.end) + ' ms' + (looping ? ' · loops ' + ms(t.loop_start) + '–' + ms(t.loop_end) + ' ms' : '') + ' of ' + ms(1) + ' ms' : '')
       + (vb - va < .999 ? (mode !== 'chop' ? ' · ' : '') + 'View ' + fmtS(va * secs) + '–' + fmtS(vb * secs) + ' of ' + fmtS(secs) : '') : ''}</span>
   </div>;
@@ -901,6 +904,12 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             <CommittedKnob id={id + '-velocity'} defaultValue={1} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
               description="How much softer soft notes are: 0 is fixed level, 1 is linear" onDraft={n => onLive('velocity', n)} onCommit={n => onEdit('velocity', n)} />
             <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
+            {spec.mode === 'grain' ? <>
+              <button type="button" className="smp-toggle smp-live-in" aria-pressed={!!runtime?.live} title="Live input: grains from the input as it comes in (the last 8 seconds) instead of the sample"
+                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime?.live ? 'off' : 'on'])}><Mic size={15} />Live in</button>
+              {runtime?.live ? <button type="button" className="smp-toggle" aria-pressed={runtime.live.frozen} title="Freeze: stop listening and keep the last 8 seconds"
+                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime.live!.frozen ? 'thaw' : 'freeze'])}><Snowflake size={15} />Freeze</button> : null}
+            </> : null}
           </div>
         </section>
         {big === 'grain' ? <GrainCard key={'g' + spec.id} spec={spec} id={id} onEdit={onEdit} onLive={onLive} onChop={() => toMode('chop')} tapFlip={tapFlip} onTapFlip={setTapFlip} /> : <>

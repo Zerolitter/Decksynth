@@ -377,9 +377,23 @@ def worker(commands,updates):
                         elif action=='close':
                             if engine.recorder is not None and engine.recorder.state=='recording':engine.sampler_record('stop')
                             else:engine.sampler_record('cancel')
-                            if capture:capture.close()
-                            capture=None; engine.record_input=None
+                            if engine.live_track is None:   # Live input keeps listening
+                                if capture:capture.close()
+                                capture=None; engine.record_input=None
                         else:engine.sampler_record(action,*rest)
+                    elif cmd=='sampler_live_input':
+                        track,sid,action=args[0],args[1],args[2]
+                        if action=='on':
+                            engine.record_inputs=(['Test input'] if os.environ.get('DECKSYNTH_TEST_INPUT') else [])+(capture_inputs(audio) if audio else [])
+                            name=engine.record_input or default_input(engine.record_inputs)
+                            if name not in engine.record_inputs:raise ValueError('No input found: plug in the piano or a USB audio interface')
+                            if capture is None or capture.name!=name:
+                                if capture:capture.close(); capture=None
+                                capture=TestInput(engine,os.environ['DECKSYNTH_TEST_INPUT']) if name=='Test input' else Capture(audio,name,engine.rate)
+                            engine.record_input=name; engine.record_error=None
+                        engine.sampler_live(track,sid,action)
+                        if action=='off' and capture and (engine.recorder is None or engine.recorder.state=='idle'):
+                            capture.close(); capture=None; engine.record_input=None
                     elif cmd=='sampler_slice_roots':engine.detect_slice_roots(*args)
                     elif cmd=='drum_library_root':library.set_root(args)
                     elif cmd=='drum_library_refresh':library.refresh()

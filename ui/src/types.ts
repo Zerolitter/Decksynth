@@ -80,7 +80,8 @@ export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING'
   /** The waveform's zoom (0..1) the peaks cover, the slice being auditioned, and background jobs. */
   view?:[number,number];audition?:{index:number;at:number}|null;busy?:string[];
   /** Grain mode: where the sounding grains read now (0..1 of the sample). */ grains?:number[];
-  /** Grain Rhythm: the slice each held key reads now. */ steps?:number[]};
+  /** Grain Rhythm: the slice each held key reads now. */ steps?:number[];
+  /** Grain mode's live input, while it is on: the waveform is then the last 8 s of the input. */ live?:{frozen:boolean;level:number}};
 export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
 export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};
 export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing';active?:boolean;progress?:number;holds?:FreezeHold[]};

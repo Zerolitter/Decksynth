@@ -28,6 +28,7 @@ class SamplerEngine:
         self.record_normalize = True   # bring each take to -1 dBFS when it is saved
         self.record_inputs = []        # capture devices the backend found; record_input is the open one
         self.record_input = None; self.record_error = None
+        self.live_track = None          # the Sampler track whose grains come from the open input
 
     def configure_samplers(self):
         for tr, t in enumerate(self.project.tracks):
@@ -86,6 +87,7 @@ class SamplerEngine:
         if clean == spec: return
         self.snapshot(); self.project.tracks[track]['sampler'] = clean
         if clean['mode'] != spec['mode'] or clean['poly'] != spec['poly']: self.samplers[track].panic()
+        if clean['mode'] != 'grain' and self.live_track == track: self.samplers[track].live_off(); self.live_track = None
         self.samplers[track].configure(clean)
 
     def preview_sampler(self, track, sampler_id, changes):
@@ -347,11 +349,29 @@ class SamplerEngine:
         """One block of mono input. Ends the take by itself when it reaches its length."""
         if self.recorder is None: self.recorder = Recorder(self.rate)
         if self.record_gain: block = amplify(block, gain(self.record_gain))
+        if self.live_track is not None: self.samplers[self.live_track].live_feed(block)
         if self.recorder.feed(block): self._keep_take()
+
+    def sampler_live(self, track, sampler_id, action):
+        """Grain mode's live input: 'on', 'off', 'freeze' (stop listening, keep the last 8 s) or 'thaw'."""
+        spec = self.sampler_target(track, sampler_id); tr = track_index(track)
+        if action == 'on':
+            if spec['mode'] != 'grain': raise ValueError('Live input plays in Grain mode')
+            if self.live_track is not None and self.live_track != tr: self.samplers[self.live_track].live_off()
+            self.samplers[tr].live_on(); self.live_track = tr
+        elif action == 'off':
+            self.samplers[tr].live_off()
+            if self.live_track == tr: self.live_track = None
+        elif action in ('freeze', 'thaw'):
+            live = self.samplers[tr].live
+            if live is None: raise ValueError('Live input is off')
+            live.frozen = action == 'freeze'
+        else: raise ValueError('Unknown live input action')
 
     def record_lost(self, reason):
         """The input went away (unplugged): keep what was recorded, and say so."""
         self.record_error = reason
+        if self.live_track is not None: self.samplers[self.live_track].live_off(); self.live_track = None
         if self.recorder is not None and self.recorder.state == 'recording': self._keep_take(lost=True)
         elif self.recorder is not None: self.recorder.cancel()
 

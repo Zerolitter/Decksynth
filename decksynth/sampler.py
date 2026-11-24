@@ -158,6 +158,7 @@ class Sampler:
         self.clouds = (grain.Cloud * SLOTS)(); self.grains = (grain.Grain * grain.GRAIN_POOL)(); self.gparams = grain.GrainParams()
         self.steppers = [None]*SLOTS
         self.roamers = [None]*SLOTS; self.bpm = 120.
+        self.live = None   # Grain mode's live input (sampler_grain.LiveBuffer), while it is on
         self.clock = None; self._beat = None   # the song's beat at the next render while it plays (core sets it)   # Roam / Motion per slot; the engine keeps bpm up to date
         self._grain_kernel = sampler_native.grain_kernel()
         if self._grain_kernel is not None:
@@ -231,6 +232,7 @@ class Sampler:
 
     def _params(self):
         p = self.params; s = self.spec; sample = self.sample
+        if s is not None and self.live is not None: return self._live_params()
         if s is None or sample is None or sample.frames < 4:
             p.data = None; p.frames = 0; return
         n = sample.frames
@@ -249,6 +251,34 @@ class Sampler:
         p.sustain = s['sustain']
         self._sample_ref = sample  # keeps the PCM alive while the kernel reads it
 
+    def _live_params(self):
+        p = self.params; s = self.spec; live = self.live; n = len(live.data)
+        p.data = live.data.buffer_info()[0]; p.frames = n
+        p.start, p.end, p.loop_start, p.loop_end, p.xfade = 0, n, 0, n, 0
+        p.edge = max(1, round(self.rate*.001)); p.mode = MODES.index(s['mode']); p.filter = FILTERS.index(s['filter'])
+        self.norm = 1.
+        p.attack = 1./max(1., s['attack']*self.rate) if s['attack'] > 0 else 1./max(1., .001*self.rate)
+        p.decay = (1.-s['sustain'])/max(1., s['decay']*self.rate) if s['decay'] > 0 else 1.
+        p.sustain = s['sustain']
+        self._sample_ref = live
+
+    def live_on(self):
+        """Grains from the input as it comes in (the last 8 s), instead of the sample."""
+        if self.live is None:
+            self.panic(); self.live = grain.LiveBuffer(self.rate); self._params()
+
+    def live_off(self):
+        if self.live is not None:
+            self.panic(); self.live = None; self._params()
+
+    def live_feed(self, block):
+        live = self.live
+        if live is None: return
+        moved = live.feed(block)
+        if moved:
+            for gr in self.grains:
+                if gr.active: gr.pos -= moved
+
     # -- notes ----------------------------------------------------------------------------------
     def step_for(self, note):
         s = self.spec; ratio = sample_rate_ratio(self.sample, self.rate)
@@ -257,7 +287,7 @@ class Sampler:
     def region(self, note):
         """(start, end, loop_start, loop_end, xfade, semitones from the root) for a key, or None when no slice is on it."""
         s = self.spec; p = self.params; n = p.frames
-        slices = s['slices'] if s['keymap'] != 'whole' else []
+        slices = s['slices'] if s['keymap'] != 'whole' and self.live is None else []
         if not slices: return p.start, p.end, p.loop_start, p.loop_end, p.xfade, note - s['root']
         if s['keymap'] == 'slices':
             index = note - s['root']
@@ -278,7 +308,7 @@ class Sampler:
         zone = self.region(note)
         if zone is None: return False
         start, end, loop_start, loop_end, xfade, shift = zone
-        step = sample_rate_ratio(self.sample, self.rate)*2**((shift+s['tune']+s['fine']/100.)/12.)
+        step = (1. if self.live is not None else sample_rate_ratio(self.sample, self.rate))*2**((shift+s['tune']+s['fine']/100.)/12.)
         gain = s['gain']*self.norm*(velocity/127.)**self._e('velocity')
         if not s['poly'] and s['keymap'] != 'whole':
             for i, v in enumerate(self.voices):
@@ -374,6 +404,16 @@ class Sampler:
             c.dsfx_buf_add(cbus.addr(buf, offset+at), C.addressof(self.scratch), count, g)
             at += count
 
+    def _live_place(self):
+        """Live: Position 0 is 8 s ago, 1 is just now (kept a grain's length behind the input, so grains never run into it)."""
+        a, n = self.live.window(); zone_pos = self._e('g_pos')
+        margin = min(n*.5, self._e('g_size')*self.rate*2. + 256.)
+        target = a + zone_pos*(n - margin)
+        for i, v in enumerate(self.voices):
+            if not v.active: continue
+            self.clouds[i].flags = 0
+            self.clouds[i].offset = target - float(v.start) - zone_pos*float(v.end - v.start)
+
     def _clock_at(self, frames):
         """The song's beat `frames` into this render, or None while the song is stopped."""
         return None if self.clock is None else self.clock + frames*max(1., self.bpm)/(60.*self.rate)
@@ -381,6 +421,7 @@ class Sampler:
     def _roam(self, frames):
         """Roam and Motion: move each held cloud's read point for the coming block."""
         s = self.spec
+        if self.live is not None: return self._live_place()
         if grain.stepping(s): return self._step(frames)
         for i, v in enumerate(self.voices):
             if v.active: self.clouds[i].flags = 0
@@ -463,7 +504,7 @@ class Sampler:
         m = self.mod
         if s['mode'] == 'grain':
             grain.fill(self.gparams, s, self._e, self.rate, self.voices)
-            if grain.roaming(s) or grain.stepping(s): self.gparams.scan = 0.   # Roam / Motion / Rhythm move the read point
+            if grain.roaming(s) or grain.stepping(s) or self.live is not None: self.gparams.scan = 0.   # Roam / Motion / Rhythm move the read point
         moved = 'attack' in m or 'decay' in m or 'sustain' in m
         if moved or self._amp_live: self._amp(); self._amp_live = moved
         rate = self.rate; p_env = s['p_env'] + m.get('p_env', 0.); filtered = s['filter'] != 'off'
@@ -505,6 +546,15 @@ class Sampler:
         else:
             playing = [round(v.pos/n, 4) for v in self.voices if v.active][:POLY]; grains = []; steps = []
         view = self.view if self.view is not None and self.sample is not None and self.view[0] == self.sample.sha256 else None
+        if self.live is not None and s is not None:
+            lo, span = self.live.window()
+            at = lambda f: round(min(1., max(0., (f - lo)/span)), 4)
+            playing = [at(self.head(i)) for i, v in enumerate(self.voices) if v.active][:POLY] if self.grain_mode else []
+            grains = [at(gr.pos) for gr in self.grains if gr.active][:64]
+            return dict(status='PLAYING' if self.active_count else 'LIVE', peaks=self.live.peaks(), view=[0., 1.], seconds=span/self.rate,
+                        playing=playing, grains=grains, steps=[], event=self.events, voices=self.active_count, error=self.error,
+                        accelerated=self._kernel is not None, live=dict(frozen=self.live.frozen, level=round(self.live.level, 3)),
+                        native_warning=None if self._kernel is not None else sampler_native.error())
         return dict(status=status, peaks=list(view[3] if view else self.sample.peaks) if self.sample is not None else [],
                     view=[round(view[1], 7), round(view[2], 7)] if view else [0., 1.],
                     seconds=(self.sample.frames/self.rate) if self.sample is not None else 0.,

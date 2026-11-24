@@ -363,3 +363,43 @@ class Roamer:
         else: u %= 1.
         self.u = u
         return u*span*zone
+
+
+class LiveBuffer:
+    """Live input for Grain mode: the last SECONDS of the input, kept in one straight run of memory so grains never
+    read across a seam. The buffer is twice that long; when the write point reaches the end, the newest half moves
+    to the front (`feed` returns how far, and the Sampler moves its sounding grains back by the same amount)."""
+    SECONDS = 8.
+
+    def __init__(self, rate, seconds=SECONDS):
+        from array import array
+        self.span = int(seconds*rate); self.rate = rate
+        self.data = array('f', bytes(4*2*self.span)); self.write = self.span; self.frozen = False
+        self.level = 0.; self._peaks = None
+
+    def feed(self, block):
+        if self.frozen or not len(block): return 0
+        from array import array
+        block = block if isinstance(block, array) and block.typecode == 'f' else array('f', block)
+        if len(block) > self.span: block = block[-self.span:]
+        peak = max(max(block), -min(block)); self.level = max(peak, self.level*.5**(len(block)/(self.rate*.25)))
+        moved = 0
+        if self.write + len(block) > len(self.data):
+            moved = self.write - self.span
+            self.data[0:self.span] = self.data[moved:self.write]; self.write = self.span
+        self.data[self.write:self.write + len(block)] = block; self.write += len(block); self._peaks = None
+        return moved
+
+    def window(self):
+        """(first frame, frames) of the last SECONDS."""
+        return self.write - self.span, self.span
+
+    def peaks(self, bars=256):
+        """[low, high] per bar across the window, for the waveform (oldest left, newest right)."""
+        if self._peaks is None:
+            a, n = self.window(); d = self.data; out = []
+            for i in range(bars):
+                part = d[a + i*n//bars:a + (i + 1)*n//bars]
+                out.append([round(min(part), 4), round(max(part), 4)] if len(part) else [0., 0.])
+            self._peaks = out
+        return self._peaks

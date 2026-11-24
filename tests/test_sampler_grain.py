@@ -298,5 +298,58 @@ class GrainTest(unittest.TestCase):
         self.assertAlmostEqual((s.head(0) - v.start)/float(v.end - v.start), .75, delta=.01)
 
 
+    def sine(self, seconds, hz=440., level=.5):
+        from array import array
+        n = int(R*seconds)
+        return array('f', (level*math.sin(2*math.pi*hz*i/R) for i in range(n)))
+
+    def feed(self, block, size=1024):
+        for i in range(0, len(block), size): self.e.record_feed(block[i:i + size])
+
+    def test_live_input_needs_grain_mode_and_plays_what_comes_in(self):
+        made = self.make()
+        with self.assertRaises(ValueError): self.e.sampler_live(1, made['id'], 'on')
+        self.e.edit_sampler(1, made['id'], 'patch', dict(mode='grain', g_pos=.9, g_size=.08, g_density=30., g_spray=0.))
+        self.e.sampler_live(1, made['id'], 'on')
+        s = self.e.samplers[1]
+        self.assertEqual(s.state()['status'], 'LIVE'); self.assertEqual(len(s.state()['peaks']), 256)
+        self.feed(self.sine(1.5, 440.))
+        s, out = self.play(1, 60, R//2)
+        tail = out[-R//4:]
+        self.assertGreater(max(map(abs, tail)), .05)
+        self.assertAlmostEqual(crossings(tail)/(len(tail)/R), 440., delta=25)     # the input's pitch at the root key
+        st = s.state(); self.assertTrue(st['grains'] and all(.7 < g <= 1. for g in st['grains']), st['grains'])
+
+    def test_live_buffer_moves_on_without_clicks_or_lost_grains(self):
+        made = self.grain(g_pos=.95, g_size=.05, g_density=40., g_spray=0.)
+        self.e.sampler_live(1, made['id'], 'on'); s = self.e.samplers[1]
+        self.feed(self.sine(2., 330.))
+        s, _ = self.play(1, 60, 256)
+        out = []
+        for _ in range(int(20*R/2048)):                 # 20 s of input: the buffer moves its newest half to the front
+            self.feed(self.sine(2048/R, 330.)); out += self.render(2048)
+        self.assertTrue(all(math.isfinite(x) for x in out))
+        self.assertGreater(min(max(map(abs, out[i:i + R//10])) for i in range(R, len(out) - R//10, R//10)), .05, 'never drops out')
+        self.assertTrue(all(0. <= g <= 1. for g in s.state()['grains']))
+
+    def test_live_freeze_keeps_the_last_seconds(self):
+        made = self.grain(g_pos=.5, g_size=.08, g_density=30., g_spray=0.)
+        self.e.sampler_live(1, made['id'], 'on')
+        self.feed(self.sine(9., 440.))
+        self.e.sampler_live(1, made['id'], 'freeze')
+        self.feed(self.sine(9., 440., level=0.))        # silence comes in, but it is not kept
+        _, out = self.play(1, 60, R//2)
+        self.assertGreater(max(map(abs, out[-R//4:])), .05)
+        self.e.sampler_live(1, made['id'], 'thaw')
+        self.assertFalse(self.e.samplers[1].live.frozen)
+
+    def test_leaving_grain_mode_turns_live_off(self):
+        made = self.grain()
+        self.e.sampler_live(1, made['id'], 'on')
+        self.e.edit_sampler(1, made['id'], 'mode', 'hold')
+        self.assertIsNone(self.e.samplers[1].live); self.assertIsNone(self.e.live_track)
+        self.assertNotEqual(self.e.samplers[1].state()['status'], 'LIVE')
+
+
 if __name__ == '__main__':
     unittest.main()
