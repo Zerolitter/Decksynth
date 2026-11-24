@@ -73,5 +73,17 @@ class ArpRecordTests(unittest.TestCase):
         self.assertEqual(len(e.project.tracks[0]['notes']), 4)
 
 
+    def test_arp_notes_cut_by_key_release_are_not_left_long(self):
+        # Letting go before the take ends cuts the arp; the open note must close there, not at the clip end.
+        e = Engine(1000); e.perform_set('arp', 'enabled', True); e.perform_set('arp', 'division', '1/8')
+        e.record(0)
+        for n in (60, 64, 67): e.midi(0x90, n, 100)
+        e.render(e.record_end - 700)
+        for n in (60, 64, 67): e.midi(0x80, n, 0)
+        e.render(1000)
+        self.assertFalse(e.recording)
+        self.assertTrue(all(n['duration'] < .5 for n in e.project.tracks[0]['notes']), 'ghost long note')
+
+
 if __name__ == '__main__':
     unittest.main()

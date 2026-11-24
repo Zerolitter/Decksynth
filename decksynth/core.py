@@ -1142,7 +1142,14 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             addr=slot_key(state['seq']['bank'],state['seq']['slot'])
             chosen=state['patterns'].get(addr) or empty_pattern(16,'1/16')
             reconcile_pattern_timing(state,chosen)
+    def close_generated(self,prefix):
+        """End the REC notes the arp/sequencer was playing when it is cut short (keys let go, arp or step
+        changed): their note-off never comes, so they would stay open and be closed far too long."""
+        mark="('%s'"%prefix
+        for k in list(self.pending):
+            if k[0]=='gen' and str(k[1]).startswith(mark):self.close_note(k)
         if section=='seq' and key in ('length','division','gate','swing'):
+        self.close_generated(prefix)
             key_at=slot_key(state['seq']['bank'],state['seq']['slot'])
             pattern=copy.deepcopy(current_pattern(state))
             if key=='length':pattern=change_pattern_length(pattern,int(value))
