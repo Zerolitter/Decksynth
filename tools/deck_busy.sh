@@ -1,11 +1,11 @@
 #!/bin/sh
-# Is Sir's own Decksynth open? Screen tests, Electron windows and heavy builds must not run beside it:
+# Is the maintainer's own Decksynth open? Screen tests, Electron windows and heavy builds must not run beside it:
 # background load can blank his window and lose the session (25 Nov).
 #
 #   tools/deck_busy.sh              guard: exit 0 if the Deck is free; if his Decksynth is open, say so and exit 75
 #   tools/deck_busy.sh --wait 120   guard that waits up to 120 s for the app to close before giving up
 #   tools/deck_busy.sh --list       print the process ids of his running Decksynth (exit 0 if any, 1 if none)
-#   DECKSYNTH_ALLOW_BUSY=1 ...      override: the guard passes (Sir's own decision)
+#   DECKSYNTH_ALLOW_BUSY=1 ...      override: the guard passes (the maintainer's own decision)
 #
 # "His Decksynth" = a process started by launch.sh, which marks its environment with DECKSYNTH_USER_APP=1
 # (Electron, its renderers and the engine worker inherit it). Test runs start their own Electron directly

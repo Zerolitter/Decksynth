@@ -119,7 +119,7 @@ const GRAIN_BASE: Partial<SamplerSpec> = { g_size: .12, g_density: 14, g_spray: 
   g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1, sustain: 1, filter: 'off', f_env: 0 };
 /** Reworked 25 Nov: each one sounds right on a held chord as it is. A grain lasts Size, a new one starts every 1/Density s, so
     Size × Density is how many overlap: 2 to 6 for pads (smooth), more only for textures. Spray, Timing and the variations stay low
-    (Chord Cloud and Chord Pulse are Sir's own tuned settings). */
+    (Chord Cloud and Chord Pulse are tuned settings). */
 const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
   ['Chord Cloud', 'pad', 'A slow pad that drifts through the sample, a bar per pass: swells in, long tail', { g_size: .5, g_density: 4.6, g_spray: 0, g_spread: 1, g_scale: 'octaves', g_jitter: .25, g_window: 'welch', g_roam: 'forward', g_range: .5, g_speed: .02, g_sync: '1', g_wander: .3, g_smooth: .9, attack: 1.5, sustain: .21, release: 3 }],
   ['Warm Pad', 'pad', 'Round, steady grains: a soft pad with a slow swell', { g_size: .35, g_density: 10, g_spray: .04, g_jitter: .15, g_window: 'welch', attack: .6, release: 1.5 }],

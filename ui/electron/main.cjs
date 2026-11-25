@@ -18,7 +18,7 @@ let lastMessage = { bridge: 'starting' };
 let lastStatus = null;
 
 
-// Event log (Sir, 25 Nov, blank window): ui-events.log in the app's data folder (ui/.runtime/live), one line per
+// Event log (25 Nov, blank window): ui-events.log in the app's data folder (ui/.runtime/live), one line per
 // event with a timestamp and a memory note, capped at 200 KB (the older half moves to ui-events.log.1).
 function memoryNote() {
   const mb = n => Math.round(n / 1048576);

@@ -1,11 +1,11 @@
 #!/bin/sh
-# Rescue save: write Sir's running session to disk now, from outside the app (for when the window is blank or
+# Rescue save: write the maintainer's running session to disk now, from outside the app (for when the window is blank or
 # frozen). Sends SIGUSR1 to the engine worker; the worker only sets a flag, and its own loop writes
 # "Saved now <date>.decksynth" into ~/Music/Decksynth/Autosave (or $DECKSYNTH_DATA_DIR/autosave). Safe while it
 # plays; nothing is written into the engine's command pipe.
 #
 #   tools/rescue-save.sh          save, then show the file that was written (a window when started from the desktop)
-#   tools/rescue-save.sh --pid N  signal this bridge or worker process instead of looking for Sir's running app
+#   tools/rescue-save.sh --pid N  signal this bridge or worker process instead of looking for the maintainer's running app
 set -u
 PID=
 [ "${1:-}" = "--pid" ] && PID=${2:-}

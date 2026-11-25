@@ -8,7 +8,7 @@
 set -eu
 cd -- "$(dirname -- "$0")"
 
-# Not beside Sir's own Decksynth: the build and the tests can blank his window (DECKSYNTH_ALLOW_BUSY=1 overrides).
+# Not beside the maintainer's own Decksynth: the build and the tests can blank his window (DECKSYNTH_ALLOW_BUSY=1 overrides).
 sh tools/deck_busy.sh
 
 echo "== Python: compile, tests (sound goldens and save/load round trip included), render check"
