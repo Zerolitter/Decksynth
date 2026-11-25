@@ -92,6 +92,55 @@ class FreezeTest(unittest.TestCase):
         render(e, R)
         self.assertEqual(len(e.synths[0].voices), 0); self.assertEqual(calls, [])
 
+    def vocoded(self):
+        """Track 1 is vocoded by track 2's sound (the maintainer's song, 25 Nov)."""
+        from decksynth.fx import default_chain
+        p = loop_project(); chain = default_chain()
+        for m in chain['modules']:
+            if m['id'] == 'vocoder': m['on'] = True; m['params'].update(source=1., mix=1.)
+        p.tracks[0]['fx'] = chain
+        return p
+
+    def test_a_vocoder_freeze_holds_what_the_vocoder_heard(self):
+        # The freeze render mutes the other tracks; the Vocoder's source track still plays its notes for it.
+        p = self.vocoded(); p.tracks[1]['mute'] = True; frames = R*2
+        e = engine(p); e.playing = True; live = render(e, frames)
+        self.assertGreater(max(map(abs, live)), 1e-3, 'a muted source still drives the Vocoder')
+        meta = self.freeze(p, 0)
+        e = self.frozen_engine(p, 0, meta); e.playing = True; out = render(e, frames)
+        self.assertEqual(e.freeze_status()[0]['state'], 'frozen')
+        self.assertLess(max(abs(a-b) for a, b in zip(live, out)), 1e-6)
+
+    def test_the_source_track_is_part_of_the_fingerprint(self):
+        p = self.vocoded(); before = fingerprint(p, 0)
+        p.tracks[1]['notes'][0]['note'] = 50
+        self.assertNotEqual(fingerprint(p, 0), before, 'new notes on the source make the freeze out of date')
+        from decksynth.fx import default_chain
+        q = copy.deepcopy(p); q.tracks[1]['fx'] = default_chain(); q.tracks[1]['fx']['modules'][0]['on'] = True
+        self.assertEqual(fingerprint(q, 0), fingerprint(p, 0), "the source's own FX are not heard by the Vocoder")
+
+    def test_fingerprint_without_a_source_is_unchanged(self):
+        # Freezes made before 25 Nov stay valid: no Ducking or Vocoder, the same hash as before.
+        import hashlib
+        p = loop_project(); t = p.tracks[0]
+        sound = {k: v for k, v in t.items() if k not in ('freeze', 'freeze_loop', 'volume', 'mute', 'name', 'preset', 'midi_cc', 'clip_names')}
+        sound['instrument'] = {k: v for k, v in sound['instrument'].items() if k != 'pan'}
+        raw = json.dumps(dict(v=1, mode='loop', bpm=p.bpm, bars=p.bars, track=sound), sort_keys=True, separators=(',', ':'), allow_nan=False, default=str)
+        self.assertEqual(fingerprint(p, 0, 'loop'), hashlib.sha256(raw.encode()).hexdigest())
+
+    def test_a_frozen_track_that_a_live_vocoder_hears_plays_live(self):
+        p = self.vocoded(); frames = R*2
+        e = engine(p); e.playing = True; live = render(e, frames)
+        meta = self.freeze(p, 1)
+        e = self.frozen_engine(p, 1, meta)
+        status = e.freeze_status()[1]
+        self.assertEqual((status['state'], status['by']), ('listened', 0))
+        e.playing = True; out = render(e, frames)
+        self.assertLess(max(abs(a-b) for a, b in zip(live, out)), 1e-6)
+        # Freeze the listener too: both play their files.
+        meta0 = self.freeze(p, 0, 't0.wav'); e.project.tracks[0]['freeze'] = meta0; e.freeze_refresh()
+        self.assertEqual([s['state'] for s in e.freeze_status()[:2]], ['frozen', 'frozen'])
+
     def test_live_keys_on_a_frozen_track_still_sound(self):
         p = loop_project(); meta = self.freeze(p, 0)
         e = self.frozen_engine(p, 0, meta); e.project.tracks[1]['mute'] = True

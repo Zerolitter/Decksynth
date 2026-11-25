@@ -92,7 +92,8 @@ export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING'
   /** Grain mode's live input, while it is on: the waveform is then the last 8 s of the input. */ live?:{frozen:boolean;level:number}};
 export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
 export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};
-export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing';active?:boolean;progress?:number;holds?:FreezeHold[]};
+/** 'listened': frozen, but a live track's Ducking or Vocoder (track `by`, 0-based) hears its own sound, so it plays live. */
+export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing'|'listened';active?:boolean;progress?:number;holds?:FreezeHold[];by?:number};
 export type StepNote = { note: number; velocity: number; tie: number };
 export type StepPattern = {
   length: number; division: string; gate: number; swing: number;
