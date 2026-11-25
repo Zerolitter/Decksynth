@@ -1,5 +1,6 @@
 // Screenshots for the Link "+" slot, the FX presets sheet and the Drum Rack / Sampler link rings (17 Nov batch).
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');

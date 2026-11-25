@@ -1,6 +1,7 @@
 // Preview UI test for sections E and F: the envelope editor, on-knob depth while linking, the macro link sheet,
 // exact depth entry, and no stretched graphs.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

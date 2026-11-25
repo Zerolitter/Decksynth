@@ -1,6 +1,7 @@
 // Sir's quality round (16 Nov): even value boxes, Sampler envelope over the whole sound, Comp On/Off,
 // the kit browser like the presets, the empty Sampler page and a compact Record sheet. Screenshots for review.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

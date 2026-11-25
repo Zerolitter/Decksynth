@@ -1,5 +1,6 @@
 // Fine-mode gesture acceptance: stationary 400 ms hold and a second touch before/during drag.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');

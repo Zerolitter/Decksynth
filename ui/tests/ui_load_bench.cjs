@@ -3,6 +3,7 @@
 // and DOM changes per second.
 // usage: node tests/ui_load_bench.cjs [project] [seconds-per-page]   (needs the display; see PLAN.md)
 'use strict';
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');

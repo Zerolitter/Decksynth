@@ -1,6 +1,7 @@
 // Freeze track to audio (15 Nov). Real worker, dummy audio: freeze a Song track, the frozen look,
 // out of date after a note edit, Refreeze / Unfreeze, undo, and the Clip notes view button.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

@@ -1,6 +1,7 @@
 // Preview UI test for the Filter, Unison and Character cards on the Sound page (16 Nov layout): buttons for the fixed choices,
 // knobs that show units, the filter's On/Off switch, Reset in the radial menu, a mod pad link from the Link box, and nothing off screen at 722 px.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

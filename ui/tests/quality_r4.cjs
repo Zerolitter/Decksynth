@@ -2,6 +2,7 @@
 // Chop as a rack strip, Whole : Env as one swap box, filter curves with a power switch, toasts above the keys,
 // green Play / orange Record with no logo, and the Drum Rack fades as drag points. Screenshots for review.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

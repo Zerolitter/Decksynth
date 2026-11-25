@@ -2,6 +2,7 @@
 // Stage 1: one Undo, the Sound header in one row, Automation as a slim strip that leaves the knobs free.
 // Stage 2: the Freeze sheet in the top bar, on every page; a freeze holds the whole Song and the Loop.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');

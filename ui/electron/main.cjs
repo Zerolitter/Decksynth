@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron'
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
-const { readFileSync, mkdirSync, appendFileSync } = require('node:fs');
+const { readFileSync, mkdirSync, appendFileSync, statSync, renameSync } = require('node:fs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const UI_ROOT = path.resolve(__dirname, '..');
@@ -16,6 +16,35 @@ let window = null;
 let backend = null;
 let lastMessage = { bridge: 'starting' };
 let lastStatus = null;
+
+
+// Event log (Sir, 25 Nov, blank window): ui-events.log in the app's data folder (ui/.runtime/live), one line per
+// event with a timestamp and a memory note, capped at 200 KB (the older half moves to ui-events.log.1).
+function memoryNote() {
+  const mb = n => Math.round(n / 1048576);
+  let note = 'free ' + mb(os.freemem()) + '/' + mb(os.totalmem()) + ' MB';
+  try { note += ', main rss ' + mb(process.memoryUsage().rss) + ' MB'; } catch {}
+  try { note += ', app ' + app.getAppMetrics().map(m => m.type + ' ' + mb((m.memory.workingSetSize || 0) * 1024) + ' MB').join(', '); } catch {}
+  return note;
+}
+function logEvent(text) {
+  try {
+    const file = path.join(app.getPath('userData'), 'ui-events.log');
+    try { if (statSync(file).size > 200 * 1024) renameSync(file, file + '.1'); } catch {}
+    appendFileSync(file, new Date().toISOString() + ' ' + text + ' [' + memoryNote() + ']\n');
+  } catch {}
+  console.error('Decksynth:', text);
+}
+process.on('uncaughtException', error => logEvent('uncaught exception: ' + (error && error.stack || error)));
+process.on('unhandledRejection', reason => logEvent('unhandled rejection: ' + (reason && reason.stack || reason)));
+// Reload a dead page at most 3 times in 2 minutes; after that leave it and say so (a loop would only hide the cause).
+const reloads = [];
+function reloadAllowed() {
+  const now = Date.now();
+  while (reloads.length && now - reloads[0] > 120000) reloads.shift();
+  if (reloads.length >= 3) return false;
+  reloads.push(now); return true;
+}
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
  'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_draft','drum_clear','drum_crop','drum_export','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','sampler_live_input','sampler_hold','to_grain','session','song','clip','perform_set','perform_step','perform_action',
@@ -68,7 +97,7 @@ function startBackend() {
   backend.on('error', error => publish({ error: 'Audio bridge could not launch: '+error.message }));
   backend.on('exit', code => {
     backend = null;
-    if (!app.isQuitting && code !== 0) publish({ error: 'Audio bridge exited ('+code+')' });
+    if (!app.isQuitting && code !== 0) { logEvent('audio bridge exited (' + code + ')'); publish({ error: 'Audio bridge exited ('+code+')' }); }
   });
 }
 
@@ -105,22 +134,28 @@ function makeWindow() {
   });
   // A blank window (Sir, 25 Nov): the page died or hung while the engine kept playing. Log it, and load the
   // page again; the engine keeps running and the reloaded page gets its whole state (lastStatus). F5 does the same.
-  const logUi = text => { try { appendFileSync(path.join(app.getPath('userData'), 'ui-events.log'), new Date().toISOString()+' '+text+'\n'); } catch {} console.error('Decksynth:', text); };
+  const logUi = logEvent;
   let hung = null;
+  const reloadPage = why => {
+    if (!window || window.isDestroyed()) return;
+    if (!reloadAllowed()) { logUi('not reloading again (3 reloads in 2 minutes: ' + why + '); the engine is still running, F5 tries once more'); return; }
+    window.webContents.reload();
+  };
   window.webContents.on('render-process-gone', (_, details) => {
-    logUi('page gone: '+details.reason+' (exit '+details.exitCode+'); reloading');
-    setTimeout(() => { if (window && !window.isDestroyed()) window.webContents.reload(); }, 500);
+    logUi('page gone: ' + details.reason + ' (exit ' + details.exitCode + '); reloading');
+    setTimeout(() => reloadPage('page gone'), 500);
   });
   window.on('unresponsive', () => {
     logUi('page not responding');
     clearTimeout(hung);
     hung = setTimeout(() => { if (window && !window.isDestroyed()) { logUi('still not responding after 8 s; reloading'); window.webContents.forcefullyCrashRenderer(); } }, 8000);
   });
-  window.on('responsive', () => { if (hung) { clearTimeout(hung); hung = null; logUi('page responding again'); } });
+  window.on('responsive', () => { if (hung) { clearTimeout(hung); hung = null; } logUi('page responding again'); });
   window.webContents.on('console-message', (event, level, message) => { const lv = event.level ?? level, text = event.message ?? message;
     if (lv === 'error' || lv === 3) logUi('page error: '+String(text).slice(0, 400)); });
-  window.webContents.on('did-fail-load', (_, code, description) => {
-    console.error('DeckSynth UI failed to load', code, description);
+  window.webContents.on('did-fail-load', (_, code, description, url, isMainFrame) => {
+    logUi('page failed to load: ' + code + ' ' + description + (isMainFrame === false ? ' (sub frame)' : ''));
+    if (isMainFrame !== false && code !== -3) setTimeout(() => reloadPage('load failed'), 1000);
   });
   window.webContents.on('did-finish-load', () => {
     console.log('Decksynth: UI loaded',window.webContents.getURL());
@@ -176,9 +211,8 @@ else {
     console.error('Decksynth: initialization failed', error);
     app.exit(1);
   });
-  app.on('child-process-gone', (_, details) => {
-    try { appendFileSync(path.join(app.getPath('userData'), 'ui-events.log'), new Date().toISOString()+' '+details.type+' process gone: '+details.reason+'\n'); } catch {}
-  });
+  app.on('child-process-gone', (_, details) => logEvent(details.type + ' process gone: ' + details.reason + ' (exit ' + details.exitCode + ')'));
+  app.on('render-process-gone', (_, __, details) => logEvent('renderer gone (app): ' + details.reason));
   app.on('before-quit', () => { app.isQuitting = true; stopBackend(); });
   app.on('window-all-closed', () => app.quit());
   ipcMain.on('deck-window', (event, op) => {

@@ -2,6 +2,7 @@
 // Perform note-grid tools: Snap, Legato, the velocity lane (Accent tool, by touch too),
 // the overview + Follow row (only when the pattern is wider than the view), double-tap to add,
 // and the transport Redo. Uses the test worker's dummy audio driver; no live MIDI or audio.
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 const ROOT=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-piano-tools-'));

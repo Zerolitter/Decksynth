@@ -1,6 +1,7 @@
 // Round 2 (Sir's pictures, 16 Nov): Kits under the pads; the big Pad Sound panel shows Trim, Envelope or Tone
 // with points to drag (one undo step per drag); the compressor has a live meter with a threshold line.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

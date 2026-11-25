@@ -1,5 +1,6 @@
 // Preview-only pointer/knob acceptance in a disposable Electron instance.
 'use strict';
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

@@ -1,5 +1,6 @@
 // Screenshots of Sound (synth), FX and Link for the Link makeover (Sir, 16 Nov). OUT=dir PREFIX=before|after HEIGHT=718|800
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');

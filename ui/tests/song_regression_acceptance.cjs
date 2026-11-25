@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const dist=process.env.DECKSYNTH_CANDIDATE_DIST;
 assert.ok(dist,'Set DECKSYNTH_CANDIDATE_DIST to the exact isolated candidate dist');

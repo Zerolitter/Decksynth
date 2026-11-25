@@ -82,7 +82,6 @@ class SessionStoreTest(unittest.TestCase):
             os.environ.clear(); os.environ.update(old)
 
 
-if __name__ == '__main__': unittest.main()
 
 
 class WorkerAutosaveTest(unittest.TestCase):
@@ -122,11 +121,62 @@ class WorkerAutosaveTest(unittest.TestCase):
                 receive(lambda o: o.get('state', {}).get('bpm') == 111)
                 os.kill(proc.pid, signal.SIGUSR1)
                 saved = receive(lambda o: str(o.get('message', '')).startswith('Saved ') and 'Saved now' in o['message'])
-                self.assertTrue(list(folder.glob('Saved now *.decksynth')))
+                files = list(folder.glob('Saved now *.decksynth'))
+                self.assertTrue(files); self.assertEqual(Project.load(files[0]).bpm, 111)   # loadable, with the edit
+                self.assertTrue(proc.is_alive())
+                commands.put(('tempo', 122))                                    # still answering after the rescue
+                receive(lambda o: o.get('state', {}).get('bpm') == 122)
             self.run_worker(data, first)
-            self.assertEqual(Project.load(folder/'Autosave.decksynth').bpm, 111)   # written on quit
+            self.assertEqual(Project.load(folder/'Autosave.decksynth').bpm, 122)   # written on quit
             def second(commands, receive, proc):
-                state = receive(lambda o: 'state' in o and o['state'].get('bpm') == 111)
+                state = receive(lambda o: 'state' in o and o['state'].get('bpm') == 122)
                 self.assertEqual(state['session']['autosave'], 30)
             self.run_worker(data, second)
             self.assertTrue(list(folder.glob('Recovered *.decksynth')))
+
+
+class RescueScriptTest(unittest.TestCase):
+    """tools/rescue-save.sh against a real bridge + worker: a loadable recovery file appears, nothing goes
+    through the command pipe, and the engine keeps answering."""
+    def test_rescue_script_saves_and_engine_stays_responsive(self):
+        import select, subprocess, sys
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as data:
+            env = dict(os.environ, SDL_AUDIODRIVER='dummy', DECKSYNTH_DIAGNOSTIC='1', DECKSYNTH_DATA_DIR=data)
+            proc = subprocess.Popen([sys.executable, '-u', str(root/'ui'/'electron'/'bridge.py')], stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=str(root), env=env, bufsize=0)
+            buf = bytearray(); whole = {}
+            def receive(predicate, wait=20):
+                end = time.monotonic() + wait
+                while time.monotonic() < end:
+                    if not select.select([proc.stdout], [], [], .3)[0]: continue
+                    buf.extend(os.read(proc.stdout.fileno(), 65536))
+                    while b'\n' in buf:
+                        line, _, rest = buf.partition(b'\n'); buf[:] = rest
+                        obj = json.loads(line)
+                        if not any(k in obj for k in ('message', 'bridge', 'error')):
+                            for k, v in obj.items():
+                                whole[k] = {**whole.get(k, {}), **v} if isinstance(v, dict) and isinstance(whole.get(k), dict) else v
+                            obj = dict(whole)
+                        if predicate(obj): return obj
+                self.fail('Timed out')
+            def send(cmd, args=None): proc.stdin.write((json.dumps(dict(cmd=cmd, args=args)) + '\n').encode())
+            try:
+                receive(lambda o: o.get('bridge') == 'ready'); receive(lambda o: 'state' in o)
+                send('tempo', 101); receive(lambda o: o.get('state', {}).get('bpm') == 101)
+                out = subprocess.run(['sh', str(root/'tools'/'rescue-save.sh'), '--pid', str(proc.pid)], env=env,
+                                     capture_output=True, text=True, timeout=30)
+                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+                files = list((Path(data)/'autosave').glob('Saved now *.decksynth'))
+                self.assertEqual(len(files), 1); self.assertIn(files[0].name, out.stdout)
+                self.assertEqual(Project.load(files[0]).bpm, 101)
+                self.assertIsNone(proc.poll())
+                send('tempo', 133); receive(lambda o: o.get('state', {}).get('bpm') == 133)   # still responsive
+            finally:
+                try: send('quit')
+                except OSError: pass
+                try: proc.wait(10)
+                except subprocess.TimeoutExpired: proc.kill()
+
+
+if __name__ == '__main__': unittest.main()

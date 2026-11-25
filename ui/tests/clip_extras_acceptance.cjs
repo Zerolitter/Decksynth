@@ -2,6 +2,7 @@
 // Clip editor extras (24 Nov): Export loop as WAV sheet + engine export, MIDI channel picker,
 // double-tap a note in Select removes it, double-tap the ruler plays from that bar, clip names.
 // Dummy audio driver; no live MIDI or audio.
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 const ROOT=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-clip-extras-'));

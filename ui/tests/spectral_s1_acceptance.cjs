@@ -1,5 +1,6 @@
 // Only S1's changed surface/IPC paths. Native worker; hardware MIDI disabled and temporary data.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/spectral-s1');

@@ -1,5 +1,6 @@
 // Native Electron UI acceptance through Chromium DevTools, preview-only.
 // Does not touch the live MIDI/audio engine or user's project files.
+require('./deck_guard.cjs');
 const { chromium } = require('playwright');
 const path = require('node:path');
 (async()=>{

@@ -1,5 +1,6 @@
 // Real-worker restart check: generated WAVs/settings stay in a temporary directory.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {execFileSync}=require('node:child_process');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/drum-library');

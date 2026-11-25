@@ -10,3 +10,8 @@ Icon=audio-x-generic
 Terminal=false
 Categories=AudioVideo;Audio;Music;
 StartupNotify=true
+Actions=RescueSave;
+
+[Desktop Action RescueSave]
+Name=Rescue save (session to disk now)
+Exec=/home/deck/Projects/Decksynth/tools/rescue-save.sh

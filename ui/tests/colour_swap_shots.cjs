@@ -1,5 +1,6 @@
 // Screenshots for rules 40–41: orange selection, green secondary, charcoal toast.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');

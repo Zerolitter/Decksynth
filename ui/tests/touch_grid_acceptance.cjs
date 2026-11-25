@@ -2,6 +2,7 @@
 // Touch on the Perform note grid, with real CDP touch events (no mouse):
 // tap empty = add, tap a note in Draw = remove it, drag the note end inside the finger zone = longer,
 // two-finger pinch = zoom time without leaving a note behind. Also the "Hear notes while editing" switch.
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 const ROOT=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-touch-grid-'));

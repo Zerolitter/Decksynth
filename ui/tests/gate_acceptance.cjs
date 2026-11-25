@@ -1,6 +1,7 @@
 // Preview UI test for the Audio gate effect (patch 24): add it, edit its steps in its sheet, cells and cell size
 // as buttons, pattern tools, Esc / Done / blank tap close the sheet, and the steps aren't offered as link targets.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

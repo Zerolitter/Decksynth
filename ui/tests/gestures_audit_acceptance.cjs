@@ -3,6 +3,7 @@
 // value boxes, never number fields, native selects with more than 4 options or − / + stepper pairs; a value box
 // arms on click and turns with the wheel, and a knob's value box turns with a hold and drag.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const assert=require('node:assert/strict');

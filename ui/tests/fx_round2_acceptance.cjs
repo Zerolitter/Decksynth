@@ -1,6 +1,7 @@
 // Round 2 effects (16 Nov): Pitch shift, Auto-tune, Ducking and Vocoder in the FX rack.
 // Ducking and Vocoder pick another track; their own track is offered but disabled, with a hint.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

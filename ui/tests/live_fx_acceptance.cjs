@@ -2,6 +2,7 @@
 // native FX library processes audio (module level > 0) and the spectrum data arrives.
 // SDL uses the silent dummy sink; physical MIDI is never opened.
 'use strict';
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');

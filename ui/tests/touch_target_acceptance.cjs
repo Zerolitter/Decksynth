@@ -6,6 +6,7 @@
 // Controls scrolled out of their scroller are skipped; scroll to reach them is allowed.
 // Shots go to docs/touch-acceptance-<view>.png. Run: DISPLAY=:0 node tests/touch_target_acceptance.cjs
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const ROOT=path.resolve(__dirname,'..');

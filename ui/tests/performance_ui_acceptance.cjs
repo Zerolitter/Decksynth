@@ -2,6 +2,7 @@
 // the compact roll shows 9 rows for the synth and 12 scrolling rows for drums, draw / erase / longer / accent,
 // a scale folds the rows, the arp lane follows held keys, the chord pads, steps value boxes, keyboard fixed, no page scroll.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const assert=require('node:assert/strict');

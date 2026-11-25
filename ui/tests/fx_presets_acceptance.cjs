@@ -1,6 +1,7 @@
 // FX: an empty rack shows the effect picker and "Add Reverb" works; every effect has presets and a tap on one sets its knobs in the engine.
 // The Link page shows three mod pads and a "+" slot that adds the next one. SDL uses the silent dummy sink.
 'use strict';
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');

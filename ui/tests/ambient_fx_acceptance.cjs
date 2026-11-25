@@ -2,6 +2,7 @@
 // (718 or 800). All four are added from the picker on one track; every control on their cards is 44 px and uncovered;
 // Character, Interval and Freeze buttons change the engine's value; each has six presets; then a screenshot.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

@@ -1,5 +1,6 @@
 // Drum pad shaping (review 2026-11-15). Real-worker/native Electron checks. Samples live only in an OS temporary directory.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

@@ -1,5 +1,6 @@
 // Changed S2 controls and native IPC only; isolated data/dummy audio, no hardware MIDI.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/spectral-s2'),SCREENS=path.resolve(ROOT,'../decksynth/screens/spectral-s2');

@@ -1,5 +1,6 @@
 // Direct rack edits against the native worker; temporary user data and dummy audio only.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/rack-direct');
 const phase=process.env.DECKSYNTH_DIRECT_PHASE||'all',tmp=fs.mkdtempSync(path.join(os.tmpdir(),'rack-direct-'));

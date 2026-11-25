@@ -1,6 +1,7 @@
 // Preview UI test for Arp Pause / Stop (patch 24): the buttons appear in the Perform bar only while the arp is on,
 // Pause toggles to Resume, Stop arp lets go of the chord, and the bar still fits at 722 px.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

@@ -2,6 +2,7 @@
 // envelope's points on the big Filter view (heard while dragging, one edit on release), Glide Legato / Always and Pan.
 // Real worker, dummy audio. Every new control is 44 px, inside the window and not covered. HEIGHT=718 or 800.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

@@ -2,6 +2,7 @@
 // the Sampler page (window handles, Play / Pitch / Amp cards, keyboard), Loop mode, Detect, undo,
 // and the empty Sampler that offers the pads straight away.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

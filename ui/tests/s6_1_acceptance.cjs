@@ -1,6 +1,7 @@
 'use strict';
 // S6.1 is exercised against the isolated test worker with SDL's dummy driver.
 // It does not connect to the active MIDI device or audio service.
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),assert=require('node:assert/strict');
 const ROOT=path.resolve(__dirname,'..');

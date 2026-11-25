@@ -58,4 +58,6 @@ cd "$ROOT/ui"
 # Startup from desktop launcher inherits user audio/MIDI session; don't force dummy audio.
 unset SDL_AUDIODRIVER
 unset DECKSYNTH_UI_PREVIEW
+# Mark this as the real app, so test runs and builds can tell it from their own Electron (tools/deck_busy.sh).
+export DECKSYNTH_USER_APP=1
 exec "$ELECTRON" . "$@"

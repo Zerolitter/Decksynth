@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 
 exports.launch = async function launch(slice) {

@@ -2,6 +2,7 @@
 /** Native Drum Kit: folder -> listen -> swap -> pads; failed kit stays open.
  * All audio and sample data are generated inside a temporary diagnostic sandbox.
  */
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');

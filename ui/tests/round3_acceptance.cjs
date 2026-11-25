@@ -1,6 +1,7 @@
 // 15 Nov round 3. Real worker, dummy audio: Song -> Pattern of an arp take on 8 bars, 32 bars and 256 steps,
 // keys octave in Arp / Chord, count-in, FX Morph pad Hide, mod pad 16 bars and paged shapes.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

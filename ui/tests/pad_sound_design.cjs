@@ -1,6 +1,7 @@
 // Pad Sound design pass (Sir, 16 Nov): view tabs in the title bar, an empty state that does the job,
 // quiet card icons, cards on one bottom edge, a compressor meter with a scale. Screenshots for review.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

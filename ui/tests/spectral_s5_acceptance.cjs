@@ -1,4 +1,5 @@
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),os=require('node:os'),{execFileSync}=require('node:child_process');
 const ROOT=path.resolve(__dirname,'..'),OUT=path.resolve(ROOT,'../artifacts/recovery/spectral-s5'),SCREENS=path.resolve(ROOT,'../decksynth/screens/spectral-s5'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'spectral-s5-'));let app,p;const errors=[];
 const send=(cmd,args)=>p.evaluate(([c,a])=>window.deckApi.send(c,a),[cmd,args]);const wait=(fn,arg)=>p.waitForFunction(fn,arg);const state=()=>p.evaluate(()=>window.__s5.state);

@@ -1,6 +1,7 @@
 // Preview UI test for section C: one keyboard with chord outlines, chord pads that play, segmented chord settings,
 // My chords slots, and the colour/icon pass.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

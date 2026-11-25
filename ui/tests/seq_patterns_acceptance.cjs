@@ -1,5 +1,6 @@
 // Preview UI test for section B: pattern pads, rate/steps buttons, tool rail, playable note labels, key/scale sheet.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

@@ -1,4 +1,5 @@
 'use strict';
+require('./deck_guard.cjs');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process'),{_electron}=require('playwright');
 const ROOT=path.resolve(__dirname,'..');
 function desktopEnv(){const env={...process.env};for(const id of fs.readdirSync('/proc').filter(x=>/^\d+$/.test(x))){try{if(fs.readFileSync('/proc/'+id+'/comm','utf8').trim()!=='plasmashell')continue;for(const pair of fs.readFileSync('/proc/'+id+'/environ').toString().split('\0')){const i=pair.indexOf('=');if(['DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_RUNTIME_DIR','DBUS_SESSION_BUS_ADDRESS'].includes(pair.slice(0,i)))env[pair.slice(0,i)]=pair.slice(i+1);}break;}catch{}}return env;}

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 
 async function main() {

@@ -2,6 +2,7 @@
 // SDL is forced to a silent dummy device; the diagnostic worker never opens physical USB MIDI.
 // This is a real synthesis + MIDI-recording test, not a design-fixture preview.
 'use strict';
+require('./deck_guard.cjs');
 const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');

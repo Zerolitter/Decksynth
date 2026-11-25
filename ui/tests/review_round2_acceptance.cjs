@@ -1,6 +1,7 @@
 // Review 2026-11-15 round 2. Real worker, dummy audio. Samples live only in an OS temporary directory.
 // Drum Rack steps edit the SEQ pattern (same as Perform); Partials / Morph pad fold away and the sound cards wrap.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

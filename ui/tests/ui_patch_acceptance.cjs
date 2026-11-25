@@ -1,5 +1,6 @@
 // Native UI patch acceptance. Generated data/settings are isolated; no hardware MIDI/audio.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const ROOT=path.resolve(__dirname,'..'),OUT=process.env.DECKSYNTH_PATCH_OUT||path.resolve(ROOT,'../artifacts/recovery/ui-top-rack');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-ui-patch-'));

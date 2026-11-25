@@ -2,6 +2,7 @@
 // length, clip bar, duplicate, split, make a new clip, delete, drag to move), markers, song length, the clips sheet,
 // the Clip notes view, Esc / blank tap / Done ending a selection, and everything in view at 722 px.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

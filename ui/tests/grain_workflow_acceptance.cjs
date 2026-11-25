@@ -2,6 +2,7 @@
 // Sampler track in Grain mode (no WAV export by hand), the Sampler keys have a Hold that keeps notes after they are
 // let go, and Chop chops at once when it opens on a sample with no slices. Every new control is 44 px and uncovered.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

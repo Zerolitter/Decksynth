@@ -2,6 +2,7 @@
 // that pad, a take with the test input lands on the pad, and a filled pad offers "Record into pad" in the radial menu.
 // HEIGHT=718|800 sets the window; OUT=<dir> keeps screenshots.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

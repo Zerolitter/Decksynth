@@ -2,6 +2,7 @@
 // Position and the spray zone, a held key sounds grains that show on the waveform, the Grain card's choices and knobs
 // are 44 px and uncovered, dragging Position is one edit, and leaving Grain mode brings Pitch and Filter back.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

@@ -1,6 +1,7 @@
 // Preview UI test: the FX page picker and Add effect sheet, and the mod pad editor on Link
 // (shapes, drawn points that snap, Edit points / Done, merged steps, rate and feel buttons, links with bipolar depth).
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');

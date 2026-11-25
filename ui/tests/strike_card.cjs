@@ -1,5 +1,6 @@
 'use strict';
 // Strike card on the Synth Sound page: fits at 1280 x 718 and 800, every knob reachable, edits reach the engine.
+require('./deck_guard.cjs');
 const {_electron}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),os=require('node:os');
 const ROOT=path.resolve(__dirname,'..'),SCREENS=process.env.DECKSYNTH_SCREENS||path.resolve(ROOT,'../artifacts/strike'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'strike-'));
 const OZONE=process.env.WAYLAND_DISPLAY?'wayland':'x11';let app,p;const errors=[];

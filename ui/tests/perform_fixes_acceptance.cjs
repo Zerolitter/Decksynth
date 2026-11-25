@@ -1,6 +1,7 @@
 // Preview UI test for section A: nothing hides under the keyboard at Sir's 720 px window,
 // the step record cursor moves on with each key, and link mode can be left by a blank tap or Esc.
 'use strict';
+require('./deck_guard.cjs');
 const {_electron}=require('playwright');
 const path=require('node:path');
 const assert=require('node:assert/strict');
