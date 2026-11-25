@@ -26,7 +26,8 @@ def prepare_kernel():
     if not _attempted:
         _attempted=True
         try:
-            lib=C.CDLL(str(library_path()));kernel=lib.dsfx_voice3;D=C.POINTER(C.c_double)
+            lib=C.PyDLL(str(library_path()))  # audio thread: keeps Python's lock (see fx._load)
+            kernel=lib.dsfx_voice3;D=C.POINTER(C.c_double)
             kernel.argtypes=[D,C.c_int,D,D,D,C.POINTER(DsVoice),C.POINTER(DsFilter)];kernel.restype=C.c_int
             _library=lib;_kernel=kernel
         except (OSError,AttributeError) as exc:_error=str(exc)

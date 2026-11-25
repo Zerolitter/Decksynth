@@ -9,6 +9,7 @@ import ctypes as C
 import glob
 import os
 import gc
+import sys
 import queue
 import signal
 import time
@@ -152,10 +153,6 @@ class MidiDevice:
         return rejections
 
 
-def note_label(n):
-    return ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][n%12]+str(n//12-1)
-
-
 def transfer_message(r):
     """Song -> Pattern in words: how long the pattern became and what snapping changed."""
     if not r:return 'Song notes captured into pattern'
@@ -247,6 +244,8 @@ class LatencyGovernor:
             self.target = max(self.floor, self.target - self.STEP); self.last_event = now
 
 
+AUDIO_SWITCH_INTERVAL=.0005
+
 def worker(commands,updates):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
@@ -302,6 +301,10 @@ def worker(commands,updates):
         try:signal.signal(signal.SIGUSR1,lambda *_:setattr(session,'rescue',True))   # tools/save-now.sh
         except (ValueError,OSError,AttributeError):pass
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
+        # The audio loop and the background jobs (WAV load, chop, library scan) share Python's lock. A busy job
+        # thread keeps it for up to the switch interval (5 ms by default) each time the audio wants it back: 0.5 ms
+        # keeps a block inside its time even while a job runs (tools/bench/gil.py).
+        sys.setswitchinterval(AUDIO_SWITCH_INTERVAL)
         running=True
         # The worker belongs to the process that started it (the bridge). If that one dies without saying
         # quit (the app was killed), the worker is handed to another parent: stop then, so nothing keeps playing.
@@ -343,13 +346,13 @@ def worker(commands,updates):
                     elif cmd=='drum_clear':
                         if engine.clear_drum_pad(*args):send(dict(message='Pad %d cleared. Undo brings it back.'%(int(args[2])+1)))
                     elif cmd=='sampler_make':
-                        made=engine.make_sampler(*args); engine.select(made['track'])
-                        send(dict(message='Track %d plays %s on the keys'%(made['track']+1,engine.project.tracks[made['track']]['sampler']['name'])))
+                        # A pad without a root has its pitch found in the background; the message comes from the poll.
+                        note=engine.make_sampler_later(*args)
+                        if note:send(dict(message=note))
                     elif cmd=='sampler_edit':engine.edit_sampler(*args)
                     elif cmd=='sampler_live':engine.preview_sampler(*args)
                     elif cmd=='sampler_detect':
-                        found=engine.detect_sampler_root(*args)
-                        send(dict(message='No clear pitch in this sample; the root stays where it was' if found is None else 'Root set to '+note_label(found)))
+                        engine.detect_sampler_root_later(*args)  # in the background; the message comes from the poll
                     elif cmd=='drum_import':loader.request(*args)
                     elif cmd=='sampler_load_wav':engine.load_sampler_wav(*args)
                     elif cmd=='sampler_clear':engine.clear_sampler(*args)

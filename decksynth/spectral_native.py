@@ -23,7 +23,7 @@ def prepare_kernel():
     if not _attempted:
         _attempted=True
         try:
-            lib=C.CDLL(str(library_path()))
+            lib=C.PyDLL(str(library_path()))  # audio thread: keeps Python's lock (see fx._load)
             kernel=lib.spectral_bound_table
             kernel.argtypes=[C.POINTER(C.c_double),C.c_int];kernel.restype=C.c_double
             _library=lib;_kernel=kernel
