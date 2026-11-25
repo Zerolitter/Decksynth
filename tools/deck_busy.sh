@@ -20,11 +20,29 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-running_pids() {
+# An engine worker left behind when its window closed (25 Nov: it kept playing, and crackling). Its /proc environment and cwd can be
+# unreadable, so it is found by its command line (multiprocessing.spawn_main), a parent that is init / the user's systemd (an orphan) and a
+# cwd inside this checkout (or one that cannot be read).
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+orphan_workers() {
   for dir in /proc/[0-9]*; do
     pid=${dir#/proc/}
     [ "$pid" = "$$" ] && continue
-    [ -r "$dir/environ" ] || continue
+    tr '\0' ' ' < "$dir/cmdline" 2>/dev/null | grep -q 'multiprocessing.spawn import spawn_main' || continue
+    ppid=$(awk '/^PPid:/{print $2}' "$dir/status" 2>/dev/null)
+    pcomm=$(cat "/proc/$ppid/comm" 2>/dev/null)
+    { [ "$ppid" = 1 ] || [ "$pcomm" = systemd ]; } || continue      # still has its window or tool: not an orphan
+    cwd=$(readlink "$dir/cwd" 2>/dev/null)
+    case "$cwd" in ""|"$ROOT"|"$ROOT"/*) echo "$pid" ;; esac
+  done
+}
+
+running_pids() {
+  orphan_workers
+  for dir in /proc/[0-9]*; do
+    pid=${dir#/proc/}
+    [ "$pid" = "$$" ] && continue
+    [ -r "$dir/environ" ] 2>/dev/null || continue
     comm=$(cat "$dir/comm" 2>/dev/null)
     case "$comm" in
       electron*|python*|bridge*|exe) ;;

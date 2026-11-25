@@ -11,6 +11,7 @@ import os
 import gc
 import sys
 import queue
+import threading
 import signal
 import time
 from .drum_loader import DrumLoader
@@ -246,10 +247,20 @@ class LatencyGovernor:
 
 AUDIO_SWITCH_INTERVAL=.0005
 
+def parent_watchdog(parent,grace=5.,poll=.5,exit=os._exit):
+    """Start a daemon thread that ends this process `grace` seconds after its parent has gone. Returns the thread."""
+    def watch():
+        while os.getppid()==parent:time.sleep(poll)
+        time.sleep(grace);exit(0)
+    thread=threading.Thread(target=watch,name='parent-watchdog',daemon=True);thread.start();return thread
 def worker(commands,updates):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
     parent=getattr(multiprocessing.parent_process(),'pid',None) or os.getppid()
+    # If the bridge dies and this worker is handed to another parent, the main loop below stops it. A stuck shutdown would leave the
+    # audio stream playing on its own (25 Nov: a worker kept crackling for 20 minutes after the window closed), so a watchdog thread
+    # ends the process for good a few seconds after the parent has gone.
+    parent_watchdog(parent)
     # Offline renders (WAV export, freeze) run in their own low-priority process (render_jobs.py),
     # so they never hold Python's lock while the audio is being made.
     renders={}  # 'export' or ('freeze', track) -> RenderJob
