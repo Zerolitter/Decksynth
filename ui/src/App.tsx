@@ -33,7 +33,8 @@ import { SendKnobs, SendsOpen, SendsSheet } from './components/Sends';
 import type { Source } from './components/ModParts';
 import { ExportLoopSheet } from './components/ExportLoopSheet';
 import { MidiImportSheet, type MidiFile } from './components/MidiImportSheet';
-import { Settings, readSettings, writeSettings, type AppSettings, type Cleanup } from './components/Settings';
+import { actionFor, setOverrides } from './hotkeys';
+import { Settings, readSettings, writeSettings, latencyArgs, type AppSettings, type Cleanup } from './components/Settings';
 import { defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import {Help} from './components/Help';
@@ -105,6 +106,7 @@ function App() {
   const [armed,setArmed]=useState<Source|null>(null);
   const [settings,setSettingsState]=useState<AppSettings>(readSettings);
   const setSettings=(s:AppSettings)=>{setSettingsState(s);writeSettings(s);};
+  useEffect(()=>setOverrides(settings.keys),[settings.keys]);
   // An armed macro or mod pad stays armed across pages, so knobs anywhere can be tapped to link (Sir, 16 Nov).
   const setPage=(next:Page)=>setPageState(next);
   const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
@@ -229,9 +231,9 @@ function App() {
   },[toast]);
 
   // Count-in settings live in the UI; the engine gets them whenever it (re)connects or they change.
-  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('audio_latency',[settings.latency]);},[settings.latency,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('audio_latency',latencyArgs(settings));},[settings.latency,settings.latencyMs,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('preset_options',[!!settings.presetNoise]);},[settings.presetNoise,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('record_options',[settings.countIn?4:0,!!settings.recWait]);},[settings.countIn,settings.recWait,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(api&&!isPreview&&bridgeStatus==='CONNECTED')api.send('record_options',[settings.countIn,!!settings.recWait]);},[settings.countIn,settings.recWait,bridgeStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const command=useCallback((cmd:string,args:unknown=null)=>{
     if(cmd==='undo'||cmd==='redo')window.dispatchEvent(new Event('decksynth-undo'));
     if(api && !isPreview){api.send(cmd,args);return;}
@@ -448,13 +450,15 @@ function App() {
       if(['INPUT','TEXTAREA','SELECT'].includes(target?.tagName)||target?.isContentEditable)return;
       const k=event.key;
       if(k===' '&&target?.closest('button,[role="button"],[role="slider"],[role="tab"]'))return;
-      if((event.ctrlKey||event.metaKey)&&k.toLowerCase()==='z'){
-        event.preventDefault();command(event.shiftKey?'redo':'undo');return;
-      }
-      const controls:{[key:string]:string}={F5:'play',F6:'stop',F7:'record',F10:'undo'};
-      if(controls[k]){event.preventDefault();command(controls[k]);return;}
-      if(k==='F8'||k==='F9'){event.preventDefault();const n=project?.tracks.length??4;command('select',(selected+(k==='F8'?n-1:1))%n);}
-      else if(k===' '){event.preventDefault();command('play');}
+      const id=actionFor(event,'transport');
+      if(!id)return;
+      event.preventDefault();
+      if(id==='transport.undo')command('undo');
+      else if(id==='transport.redo')command('redo');
+      else if(id==='transport.play')command('play');
+      else if(id==='transport.stop')command('stop');
+      else if(id==='transport.record')command('record');
+      else{const n=project?.tracks.length??4;command('select',(selected+(id==='transport.prev'?n-1:1))%n);}
     };
     window.addEventListener('keydown',handler);
     return()=>window.removeEventListener('keydown',handler);

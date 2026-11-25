@@ -1036,8 +1036,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.playing=True; self.recording=True; self.record_start=self.frame
         self.record_end=self.frame+round(self.project.beats*self.fpb)
     def set_record_options(self,count_in,wait):
-        """Settings: count_in 0 or 4 beats of click before a take; wait=True arms REC until the first note."""
-        if count_in not in (0,4) or type(wait) is not bool:raise ValueError('Count-in is off or 4 beats; wait is on or off')
+        """Settings: count_in 0 or 1 to 16 beats of click before a take; wait=True arms REC until the first note."""
+        if type(count_in) is not int or not 0<=count_in<=16 or type(wait) is not bool:raise ValueError('Count-in is off or 1 to 16 beats; wait is on or off')
         self.count_in_beats=count_in; self.rec_wait=wait
     def record_button(self):
         """REC: finish a take; cancel an armed or counting REC; or start one. From a stopped transport,

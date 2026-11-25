@@ -12,7 +12,7 @@ const nativeOrder=()=>p.evaluate(()=>window.__direct.state.tracks[0].fx.modules.
 async function open(id){const c=p.locator('[data-panel="'+id+'"]');if(await c.evaluate(n=>n.classList.contains('folded')))await c.getByRole('button',{name:/^Unfold /}).click();await c.locator(':scope > .ds-panel-body').waitFor();return c;}
 async function shot(name){await p.mouse.move(2,2);await p.screenshot({path:path.join(OUT,name+'-1280x718.png')});}
 async function add(name){const count=(await state()).tracks[0].fx?.modules.filter(m=>m.on).length||0;await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect'}).getByRole('button',{name:'Add '+name,exact:true}).click();await p.waitForFunction(n=>window.__direct.state.tracks[0].fx?.modules.filter(m=>m.on).length===n,count+1);}
-async function noAutoFold(){await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).check();await p.getByRole('dialog',{name:'Settings'}).getByRole('button',{name:/CLOSE/}).click();}
+async function noAutoFold(){await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();await p.getByRole('switch',{name:/Cards fold by themselves/}).uncheck();await p.getByRole('dialog',{name:'Settings'}).getByRole('button',{name:/CLOSE/}).click();}
 async function dragCard(id,target,{cancel,owner}={}){
  await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].focus());await p.waitForFunction(()=>document.hasFocus());
  const c=await open(id),t=p.locator('[data-panel="'+target+'"]');await c.scrollIntoViewIfNeeded();

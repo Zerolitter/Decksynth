@@ -15,7 +15,12 @@ import os
 from pathlib import Path
 import time
 
-INTERVALS = (0, 30, 60, 120, 300, 600)       # seconds; 0 is off
+INTERVALS = (0, 30, 60, 120, 300, 600)       # the usual presets in Settings (seconds; 0 is off)
+MIN_SECONDS, MAX_SECONDS = 10, 3600          # Custom: any whole number of seconds from 10 s to 60 min
+
+
+def valid_interval(v):
+    return v == 0 or (type(v) is int and MIN_SECONDS <= v <= MAX_SECONDS)
 LAUNCH = ('last', 'new')
 DEFAULTS = dict(autosave=60, on_launch='last')
 KEEP = 10
@@ -33,7 +38,7 @@ def folder():
 def valid(settings):
     out = dict(DEFAULTS)
     if isinstance(settings, dict):
-        if settings.get('autosave') in INTERVALS: out['autosave'] = settings['autosave']
+        if valid_interval(settings.get('autosave')): out['autosave'] = settings['autosave']
         if settings.get('on_launch') in LAUNCH: out['on_launch'] = settings['on_launch']
     return out
 

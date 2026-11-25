@@ -100,7 +100,7 @@ with wave.open(sys.argv[1],'wb') as w:
   assert.ok(await p.locator('.drum-wave-empty').isVisible(),'the cleared pad shows its drop zone again');
   // Settings has the window controls now that there is no title bar.
   await p.getByRole('button',{name:'Settings'}).click();
-  const win=p.getByRole('group',{name:'Window'});await win.waitFor();
+  const win=p.getByRole('navigation',{name:'Settings sections'});await win.waitFor();
   for(const n of ['Full screen','Minimise','Quit'])assert.ok((await win.getByRole('button',{name:n}).boundingBox()).height>=44,n);
   await shot('settings-window');
   await p.keyboard.press('Escape');

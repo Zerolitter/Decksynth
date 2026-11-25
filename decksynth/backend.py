@@ -232,8 +232,15 @@ class LatencyGovernor:
     def __init__(self, mode='auto', now=0.):
         self.set_mode(mode, now)
 
-    def set_mode(self, mode, now=0.):
-        self.mode = mode if mode in self.MODES else 'auto'
+    def set_mode(self, mode, now=0., ms=None, rate=48000):
+        """mode 'low' | 'auto' | 'safe', or 'custom' with a fixed buffer of `ms` milliseconds (3 to 50, Settings › Audio › Latency › Custom):
+        a custom buffer neither grows nor shrinks, so the number you chose is the number you get."""
+        if mode == 'custom' and isinstance(ms, (int, float)) and not isinstance(ms, bool) and 3 <= ms <= 50:
+            self.mode = 'custom'; self.ms = float(ms)
+            frames = max(64, round(self.ms * rate / 1000))
+            self.floor = self.cap = frames; self.patience = 1e9
+            self.target = frames; self.last_event = now; return
+        self.mode = mode if mode in self.MODES else 'auto'; self.ms = None
         self.floor, self.cap, self.patience = self.MODES[self.mode]
         self.target = self.floor; self.last_event = now
 
@@ -455,7 +462,9 @@ def worker(commands,updates):
                     elif cmd=='record':engine.record_button()
                     elif cmd=='record_options':engine.set_record_options(*args)
                     elif cmd=='preset_options':engine.set_preset_options(*args)
-                    elif cmd=='audio_latency':latency.set_mode(args[0] if isinstance(args,(list,tuple)) and args else args,time.monotonic())
+                    elif cmd=='audio_latency':
+                        a=list(args) if isinstance(args,(list,tuple)) else [args]
+                        latency.set_mode(a[0] if a else 'auto',time.monotonic(),a[1] if len(a)>1 else None,audio.rate if audio else 48000)
                     elif cmd=='undo':engine.undo_any()
                     elif cmd=='redo':engine.redo()
                     elif cmd=='quantize':engine.quantize(engine.selected)
@@ -767,7 +776,7 @@ def worker(commands,updates):
                           drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
-                          dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(latency.target/(audio.rate if audio else 48000)*1000,1),latency_mode=latency.mode,
+                          dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(latency.target/(audio.rate if audio else 48000)*1000,1),latency_mode=latency.mode,latency_ms=latency.ms,
                           meter=meter, held_notes=engine.perform_held.held(),rec_step=engine.rec_step,chord_step=engine.chord_step,chord_now=engine.chord_now,
                           arp_view=dict(arp_view(engine.project.performance,engine.perform_held.held(),engine.beat,engine.arp_anchor_beat),
                                         **(dict(step=-1,phase=-1) if engine.arp_paused else {}),paused=engine.arp_paused)

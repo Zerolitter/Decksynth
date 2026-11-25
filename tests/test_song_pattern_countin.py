@@ -114,6 +114,14 @@ class CountIn(unittest.TestCase):
             if e.click_age<age:heard.append(e.absolute_frame)
         return heard
 
+    def test_count_in_takes_1_to_16_beats(self):
+        e=Engine(8000)
+        for beats in (1,3,16):
+            e.set_record_options(beats,False);self.assertEqual(e.count_in_beats,beats)
+        for bad in (-1,17,2.5,True,'4'):
+            with self.assertRaises(ValueError):e.set_record_options(bad,False)
+        e.set_record_options(3,False);e.record_button();self.assertEqual(e.count_state()['of'],3)
+
     def test_rec_counts_four_clicks_then_records_from_bar_1(self):
         e=Engine(8000);e.set_record_options(4,False);e.record_button()
         self.assertFalse(e.recording);self.assertEqual(e.count_state()['state'],'count')
@@ -174,7 +182,7 @@ class CountIn(unittest.TestCase):
 
     def test_bad_options_rejected(self):
         e=Engine(8000)
-        for a in ((3,False),(4,1)):
+        for a in ((17,False),(4,1)):
             with self.assertRaises(ValueError):e.set_record_options(*a)
 
 

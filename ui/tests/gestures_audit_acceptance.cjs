@@ -80,14 +80,14 @@ const data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-gestures-'));
   assert.equal(Number(await dial.getAttribute('aria-valuenow')),50,'double-tap resets Swing to 50 %');
 
   // Settings › Knob pop-up value off hides the pop-up; the value box still shows the value (Sir, 16 Nov).
-  await p.getByRole('button',{name:'Settings',exact:true}).click();
+  await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();
   await p.getByRole('switch',{name:'Knob pop-up value'}).uncheck();
   await p.getByRole('dialog',{name:'Settings'}).getByRole('button',{name:/CLOSE/}).click();
   await p.mouse.move(db.x+db.width/2,db.y+db.height/2);await p.mouse.down();await p.mouse.move(db.x+db.width/2,db.y+db.height/2-30,{steps:5});
   assert.equal(await p.locator('.knob-live-value').evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width>0).length),0,'no pop-up while turning');
   await p.mouse.up();
   assert.ok(await box.isVisible(),'the value box stays');
-  await p.getByRole('button',{name:'Settings',exact:true}).click();
+  await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();
   await p.getByRole('switch',{name:'Knob pop-up value'}).check();
   await p.getByRole('dialog',{name:'Settings'}).getByRole('button',{name:/CLOSE/}).click();
   console.log('knobs',knobs,'value boxes',boxes);

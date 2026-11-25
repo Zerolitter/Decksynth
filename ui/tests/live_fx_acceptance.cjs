@@ -106,11 +106,11 @@ let app;
   await page.getByRole('button',{name:'Turn off Filter'}).waitFor({timeout:3000});
   await page.getByRole('button',{name:'Unfold Filter',exact:true}).click();
   // Clean up from Settings: clear every link, then empty the rack.
-  await page.getByRole('button',{name:'Settings'}).click();
+  await page.getByRole('button',{name:'Settings'}).click();await page.getByRole('tab',{name:'Clean up',exact:true}).click();
   await page.getByRole('button',{name:/Clear all mod links/}).click();
   await page.waitForTimeout(250);
   assert.equal((await engineFx()).mods[0].targets.length,0,'links cleared');
-  await page.getByRole('button',{name:'Settings'}).click();
+  await page.getByRole('button',{name:'Settings'}).click();await page.getByRole('tab',{name:'Clean up',exact:true}).click();
   await page.getByRole('button',{name:/Remove all effects/}).click();
   await page.waitForTimeout(250);
   assert.equal((await engineFx()).modules.filter(m=>m.on).length,0,'rack emptied');
@@ -188,7 +188,7 @@ let app;
   assert.ok(pats.keys.every(k=>k.startsWith('3:')),'bank 3 keys: '+pats.keys);
   console.log('PASS: Pattern library loads 16 factory patterns into a bank');
   // Start over empties the session; Undo brings the old one back.
-  await page.getByRole('button',{name:'Settings'}).click();
+  await page.getByRole('button',{name:'Settings'}).click();await page.getByRole('tab',{name:'Clean up',exact:true}).click();
   await page.getByRole('button',{name:/Start over/}).click();
   await page.getByRole('button',{name:'Start over',exact:true}).click();
   const fresh=await page.evaluate(()=>new Promise(r=>{const rm=window.deckApi.onMessage(m=>{if(m.state){rm();r(m.state.tracks[0].preset);}});}));

@@ -1,6 +1,7 @@
 import {useEffect,useId,useRef,useState} from 'react';
 import {dragDelta,clipboardNotes,copyDragNotes,pasteNotes,stepBeats,editNotes,expectedWithEvents,paintNotes,sameNotes,noteIndexAt,type NoteAction,type NoteBounds,type NoteTarget} from '../note-ops';
 import type {Note,StepPattern} from '../types';
+import {actionFor,matches} from '../hotkeys';
 export type NoteTool='select'|'draw'|'erase'|'length'|'accent';
 type Props={target:NoteTarget;expected:Note[]|StepPattern;events:Note[];bounds:NoteBounds;playing:boolean;recording:boolean;commit:(target:NoteTarget,expected:Note[]|StepPattern,events:Note[])=>void;audition:(track:number,id:string,note:number,velocity:number)=>void;undo:()=>void;redo?:()=>void;sound?:boolean};
 let clipboard:import('../note-ops').NoteClipboard|null=null;
@@ -187,23 +188,38 @@ export function useNoteEditing(props:Props){
  }
  function key(e:React.KeyboardEvent<HTMLElement>){
   if((e.target as HTMLElement).closest('input,textarea,select,[contenteditable=true],[data-shortcut-reference]'))return;
-  const k=e.key.toLowerCase(),ctrl=e.ctrlKey||e.metaKey;let a:NoteAction|null=null;if(gesture.current&&k==='f10'){e.preventDefault();e.stopPropagation();return;}
+  const k=e.key.toLowerCase();let a:NoteAction|null=null;if(gesture.current&&k==='f10'){e.preventDefault();e.stopPropagation();return;}
   if(k==='escape'){const active=!!gesture.current;cancel();if(active){e.preventDefault();e.stopPropagation();}else setSelection([]);return;}
-  const recognized=ctrl?['a','c','v','x','d','z','l','arrowup','arrowdown'].includes(k):['1','2','3','q','delete','backspace','arrowleft','arrowright','arrowup','arrowdown'].includes(k);
-  if(!recognized||e.altKey)return;if(gesture.current){e.preventDefault();e.stopPropagation();return;}
+  // The keys come from the shared key map (hotkeys.ts): the note editor's own keys, and the transport undo / redo.
+  const id=actionFor(e,'notes')??(matches(e,'transport.redo')?'transport.redo':matches(e,'transport.undo')&&k!=='f10'?'transport.undo':null);
+  if(!id||e.altKey)return;if(gesture.current){e.preventDefault();e.stopPropagation();return;}
   e.preventDefault();e.stopPropagation();
-  if(ctrl&&k==='z'){if(e.shiftKey){latest.current.redo?.();return;}undo();return;}
+  if(id==='transport.undo'){undo();return;}
+  if(id==='transport.redo'){latest.current.redo?.();return;}
   if(latest.current.recording)return;
-  if(ctrl&&k==='a'){if(e.shiftKey)selectRow();else selectAll();return;}
-  if(ctrl&&k==='c'){copy();return;}
-  if(ctrl&&k==='v'){paste();return;}
-  if(ctrl&&k==='x'){copy();action({kind:'delete'});return;}
-  if(ctrl&&k==='d')a={kind:'duplicate'};
-  else if(ctrl&&k==='l')a={kind:'legato'};
-  else if(!ctrl&&['1','2','3'].includes(k)){setTool(k==='1'?'select':k==='2'?'draw':'erase');return;}
-  else if(k==='delete'||k==='backspace')a={kind:'delete'};
-  else if(k==='q')a={kind:'quantize'};
-  else if(k.startsWith('arrow'))a=ctrl?{kind:'move',time:0,pitch:k==='arrowup'?12:-12}:e.shiftKey?{kind:'length',delta:(k==='arrowleft'||k==='arrowdown'?-1:1)*latest.current.bounds.snap}:{kind:'move',time:k==='arrowleft'?-latest.current.bounds.snap:k==='arrowright'?latest.current.bounds.snap:0,pitch:k==='arrowup'?1:k==='arrowdown'?-1:0};
+  const snap=latest.current.bounds.snap;
+  switch(id){
+   case 'notes.selectAll':selectAll();return;
+   case 'notes.selectRow':selectRow();return;
+   case 'notes.copy':copy();return;
+   case 'notes.paste':paste();return;
+   case 'notes.cut':copy();action({kind:'delete'});return;
+   case 'notes.duplicate':a={kind:'duplicate'};break;
+   case 'notes.legato':a={kind:'legato'};break;
+   case 'notes.toolSelect':setTool('select');return;
+   case 'notes.toolDraw':setTool('draw');return;
+   case 'notes.toolErase':setTool('erase');return;
+   case 'notes.delete':a={kind:'delete'};break;
+   case 'notes.quantize':a={kind:'quantize'};break;
+   case 'notes.left':a={kind:'move',time:-snap,pitch:0};break;
+   case 'notes.right':a={kind:'move',time:snap,pitch:0};break;
+   case 'notes.up':a={kind:'move',time:0,pitch:1};break;
+   case 'notes.down':a={kind:'move',time:0,pitch:-1};break;
+   case 'notes.octUp':a={kind:'move',time:0,pitch:12};break;
+   case 'notes.octDown':a={kind:'move',time:0,pitch:-12};break;
+   case 'notes.shorter':a={kind:'length',delta:-snap};break;
+   case 'notes.longer':a={kind:'length',delta:snap};break;
+  }
   if(a)action(a);
  }
  function velocityBegin(e:React.PointerEvent<HTMLElement>,hit:number){

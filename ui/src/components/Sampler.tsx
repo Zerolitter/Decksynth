@@ -2,6 +2,7 @@
    The window is the sample. Trim: drag Start, End and, in Loop mode, the loop's two ends. Chop: cut it into
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
+import { matches } from '../hotkeys';
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ChefHat, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
@@ -391,21 +392,22 @@ export function SampleWindow({ spec, runtime, mode, selected, marker, onSelect, 
   const key = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;   // a focused handle nudges
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key, sel = slices[selected];
-    if (k === 'f') view(0, 1);
-    else if (k === 'z') zoomTo();
-    else if (k === '+' || k === '=') zoomAt(marker ?? (va + vb) / 2, .5);
-    else if (k === '-' || k === '_') zoomAt(marker ?? (va + vb) / 2, 2);
+    // The letter and symbol keys come from the shared key map (hotkeys.ts); the arrows stay fixed.
+    if (matches(e, 'sample.fit')) view(0, 1);
+    else if (matches(e, 'sample.zoomSlice')) zoomTo();
+    else if (matches(e, 'sample.zoomIn')) zoomAt(marker ?? (va + vb) / 2, .5);
+    else if (matches(e, 'sample.zoomOut')) zoomAt(marker ?? (va + vb) / 2, 2);
     else if (mode === 'chop' && (k === 'ArrowLeft' || k === 'ArrowRight') && slices.length) {
       const i = Math.max(0, Math.min(slices.length - 1, selected < 0 ? 0 : selected + (k === 'ArrowLeft' ? -1 : 1)));
       onSelect(i, slices[i][0]);
       if (!visible(slices[i][0]) || !visible(slices[i][1])) { const w = span; view(slices[i][0] - w * .1, slices[i][0] + w * .9); }
     }
-    else if (mode === 'chop' && k === 's' && sel && marker !== null && marker > sel[0] + MIN_SLICE && marker < sel[1] - MIN_SLICE) onChop('split', { index: selected, at: marker });
-    else if (mode === 'chop' && k === 'j' && sel && selected < slices.length - 1) onChop('join', { index: selected });
-    else if (mode === 'chop' && (k === 'Delete' || k === 'Backspace') && sel && slices.length > 1) {
+    else if (mode === 'chop' && matches(e, 'sample.split') && sel && marker !== null && marker > sel[0] + MIN_SLICE && marker < sel[1] - MIN_SLICE) onChop('split', { index: selected, at: marker });
+    else if (mode === 'chop' && matches(e, 'sample.join') && sel && selected < slices.length - 1) onChop('join', { index: selected });
+    else if (mode === 'chop' && matches(e, 'sample.remove') && sel && slices.length > 1) {
       if (selected > 0) { onChop('join', { index: selected - 1 }); onSelect(selected - 1, slices[selected - 1][0]); } else onChop('join', { index: 0 });
     }
-    else if (mode === 'chop' && (k === ' ' || k === 'Enter') && sel) onAudition(selected);
+    else if (mode === 'chop' && matches(e, 'sample.audition') && sel) onAudition(selected);
     else return;
     e.preventDefault(); e.stopPropagation();
   };

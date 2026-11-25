@@ -46,7 +46,7 @@ const ROOT=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(
   assert.equal(await stored(),storedBefore,'pinching added or removed no note');
   console.log('PASS: two-finger pinch zooms time and edits nothing');
 
-  await p.getByRole('button',{name:'Settings'}).click();
+  await p.getByRole('button',{name:'Settings'}).click();await p.getByRole('tab',{name:'Sound and editing',exact:true}).click();
   const sw=p.getByRole('switch',{name:'Hear notes while editing'});assert.equal(await sw.isChecked(),true,'on by default (rule 21)');
   await sw.click();assert.equal(await sw.isChecked(),false);await p.keyboard.press('Escape');
   console.log('PASS: Hear notes while editing switch in Settings');

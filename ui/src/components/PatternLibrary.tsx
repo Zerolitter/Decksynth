@@ -4,6 +4,7 @@ import library from '../genre-library.json';import type {DeckUpdate,PerformanceS
 import {COLLECTIONS,FX_ROLES,crossDeviceNote,patternCollection,collectionGenres,type CatalogTemplate,type FxRole,type PatternCollection} from '../pattern-collections';
 import {useClockValue} from '../frame-clock';
 import {chainPosition,flattenParts,structureBars,structureParts,MAX_PLAYS,type StructurePart} from '../structure';
+import {matches} from '../hotkeys';
 
 /* Pattern library: a sheet that drops under the top bar and hugs its cards (like the Sound presets), so the
    Seq page stays in view below it; a press down there closes it. 15 cards a page (5 x 3). The Structure strip
@@ -102,16 +103,16 @@ export function PatternLibrary({trackIndex,track,pattern,patterns,seq,playing,re
   const typing=(e.target as HTMLElement)?.matches?.('input,textarea'),ctrl=e.ctrlKey||e.metaKey,k=e.key;
   if(k==='Escape'){if(replace)setReplace(null);else if(typing&&search){setSearch('');}else close();return true;}
   if(typing)return k==='Enter'?(searchBox.current?.blur(),true):false;
-  if(ctrl&&k.toLowerCase()==='z'){undo();return true;}
-  if(ctrl&&k.toLowerCase()==='f'||k==='/'){searchBox.current?.focus();return true;}
+  if(matches(e,'transport.undo')&&k!=='F10'){undo();return true;}
+  if(matches(e,'library.search')){searchBox.current?.focus();return true;}
   if(selectedPart>=0){
    const i=selectedPart;
-   if(k==='Backspace'||k==='Delete'){removePart(i);return true;}
+   if(matches(e,'library.remove')){removePart(i);return true;}
    if(k==='ArrowLeft'||k==='ArrowRight'){const d=k==='ArrowLeft'?-1:1;if(e.altKey||ctrl)movePart(i,i+d);else setFocus({zone:'part',index:Math.max(0,Math.min(parts.length-1,i+d))});return true;}
    if(/^[1-9]$/.test(k)){setRepeats(i,Number(k));return true;}
    if(k==='+'||k==='='){setRepeats(i,parts[i].repeats+1);return true;}
    if(k==='-'){setRepeats(i,parts[i].repeats-1);return true;}
-   if(ctrl&&k.toLowerCase()==='d'){duplicatePart(i);return true;}
+   if(matches(e,'library.duplicate')){duplicatePart(i);return true;}
    if(k==='ArrowUp'){setFocus({zone:'grid'});return true;}
    if(k==='Home'){setFocus({zone:'part',index:0});return true;}
    if(k==='End'){setFocus({zone:'part',index:parts.length-1});return true;}
@@ -125,12 +126,12 @@ export function PatternLibrary({trackIndex,track,pattern,patterns,seq,playing,re
   if(k==='ArrowDown'){if(at<0)pick(0);else if(at+5>=list.length&&parts.length)setFocus({zone:'part',index:Math.max(0,now)});else pick(at+5);return true;}
   if(k==='ArrowUp'){pick(at<0?0:at-5);return true;}
   if(k==='PageDown'){if(pg+1<pages){setPage(pg+1);setSelected(null);}return true;}if(k==='PageUp'){if(pg>0){setPage(pg-1);setSelected(null);}return true;}
-  if(chosenStructure){if(k==='Enter'){loadStructure(chosenStructure);return true;}return false;}
+  if(chosenStructure){if(matches(e,'library.load')){loadStructure(chosenStructure);return true;}return false;}
   if(!item)return false;
-  if(k===' '){status?.preview?.id===item.id?dispatch('stop'):preview(item);return true;}
-  if(k==='Enter'&&e.shiftKey||k==='a'||k==='+'){addToStructure(item);return true;}
-  if(k==='Enter'){load(item);return true;}
-  if(k==='Backspace'||k==='Delete'){setSelected(null);dispatch('stop');return true;}
+  if(matches(e,'library.hear')){status?.preview?.id===item.id?dispatch('stop'):preview(item);return true;}
+  if(matches(e,'library.add')){addToStructure(item);return true;}
+  if(matches(e,'library.load')){load(item);return true;}
+  if(matches(e,'library.remove')){setSelected(null);dispatch('stop');return true;}
   return false;
  };
  useEffect(()=>{const on=(e:KeyboardEvent)=>{if(keys.current(e)){e.preventDefault();e.stopImmediatePropagation();}};

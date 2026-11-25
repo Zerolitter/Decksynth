@@ -48,7 +48,7 @@ module.exports=async({p,send,latest,inside,H,OUT,DATA,assert,app})=>{
   await p.getByRole('button',{name:'Undo',exact:true}).click();await p.waitForFunction(t=>window.__latest.state.tracks[t].sampler.tune===0,t);
   // 7. MIDI status: gone from the top bar, shown in Settings.
   assert.equal(await p.locator('.device-pill').count(),0,'no MIDI pill in the top bar');
-  await p.getByRole('button',{name:'Settings',exact:true}).click();
+  await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'MIDI',exact:true}).click();
   const status=p.getByRole('status',{name:'MIDI keyboard'});await status.waitFor();
   assert.match(await status.innerText(),/No MIDI keyboard[\s\S]*CONNECTED/);
   await p.screenshot({path:path.join(OUT,'settings-midi-'+H+'.png')});

@@ -5,6 +5,14 @@ from decksynth.backend import LatencyGovernor
 
 
 class LatencyGovernorTests(unittest.TestCase):
+    def test_custom_is_a_fixed_buffer_in_ms(self):
+        g = LatencyGovernor('auto', 0.); g.set_mode('custom', 1., 10, 48000)
+        self.assertEqual((g.mode, g.ms, g.target), ('custom', 10., 480))
+        g.underrun(2.); g.tick(1e6); self.assertEqual(g.target, 480)      # neither grows nor shrinks
+        g.set_mode('custom', 3., 3, 48000); self.assertEqual(g.target, 144)
+        g.set_mode('custom', 3., 50, 48000); self.assertEqual(g.target, 2400)
+        for bad in (2, 51, None, True): g.set_mode('custom', 4., bad); self.assertEqual((g.mode, g.ms), ('auto', None))
+
     def test_auto_starts_low_grows_and_comes_back(self):
         g = LatencyGovernor('auto', 0.)
         self.assertEqual(g.target, 768)

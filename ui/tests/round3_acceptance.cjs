@@ -97,7 +97,7 @@ let app;
  {const oct=p.getByTestId('pf-transpose-oct').getByRole('spinbutton',{name:'Oct'});await oct.focus();await oct.press('ArrowDown');await oct.press('ArrowDown');await p.waitForTimeout(450);}
 
  // --- Count-in from Settings ---
- await p.getByRole('button',{name:'Settings',exact:true}).click();
+ await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Recording',exact:true}).click();
  await p.getByRole('group',{name:'Count-in'}).getByRole('button',{name:'4 beats'}).click();
  await p.screenshot({path:path.join(OUT,'settings-countin-'+H+'.png')});
  await inside(p.getByRole('button',{name:/CLOSE/}),'Settings close');
@@ -117,7 +117,7 @@ let app;
  await rec.click();await p.waitForFunction(()=>!window.__latest.recording);
  await send('stop');
  // Wait for the first note: armed until a key.
- await p.getByRole('button',{name:'Settings',exact:true}).click();
+ await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Recording',exact:true}).click();
  await p.getByRole('group',{name:'Count-in'}).getByRole('button',{name:'Off'}).click();
  await p.getByRole('group',{name:'Start recording'}).getByRole('button',{name:'First note'}).click();
  await p.getByRole('button',{name:/CLOSE/}).click();
@@ -127,7 +127,7 @@ let app;
  await send('midi',[0x90,62,100]);await p.waitForFunction(()=>window.__latest.recording);
  await send('midi',[0x80,62,0]);await rec.click();await p.waitForFunction(()=>!window.__latest.recording);
  assert.ok((await latest()).state.tracks[0].notes.some(n=>n.note===62&&n.start<.01),'first note recorded at the start');
- await p.getByRole('button',{name:'Settings',exact:true}).click();
+ await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Recording',exact:true}).click();
  await p.getByRole('group',{name:'Start recording'}).getByRole('button',{name:'On REC'}).click();
  await p.getByRole('button',{name:/CLOSE/}).click();
 

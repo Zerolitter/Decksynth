@@ -50,7 +50,7 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   await c.getByRole('button',{name:'Unfold Filter',exact:true}).click();assert.deepEqual((await read()).tracks[0].fx,changed);
   await frame('rack-fx');
   await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();
-  await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).uncheck();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
+  await p.getByRole('tab',{name:'Display',exact:true}).click();await p.getByRole('switch',{name:/Cards fold by themselves/}).check();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
   await p.waitForFunction(()=>{const n=document.querySelector('.sound-cards');return n.scrollWidth<=n.clientWidth+1;});
   const tone=await openCard('sound-tone'),k=await tone.getByRole('slider',{name:'Brightness',exact:true}).boundingBox();
   await p.mouse.move(k.x+k.width/2,k.y+k.height/2);await p.mouse.down();await p.evaluate(()=>document.querySelector('.sound-cards').style.width='800px');await p.waitForTimeout(180);
@@ -88,7 +88,7 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   await frame('fx-direct-rack');console.log('PASS graphs removed: actual controls, native bypass, no duplicate output');
  }
  if(phase==='keyboard'||phase==='all'){
-  await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).uncheck();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
+  await send('select',0);await p.getByRole('tab',{name:'Sound',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();await p.getByRole('switch',{name:/Cards fold by themselves/}).check();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
   await p.waitForFunction(()=>{const n=document.querySelector('.sound-cards');return n.scrollWidth<=n.clientWidth+1;});
   const env=await openCard('rack-envelope'),tone=await openCard('sound-tone');await tone.locator('.ds-panel-title').click();await env.getByRole('slider',{name:'Attack',exact:true}).focus();await p.keyboard.press('Enter');const input=env.getByRole('textbox',{name:'Attack numeric value',exact:true});await input.fill('0.73');const stored=(await read()).tracks[0].instrument.attack;
   await p.evaluate(()=>document.querySelector('.sound-cards').style.width='800px');await p.waitForTimeout(200);assert.equal(await env.evaluate(n=>n.classList.contains('folded')),false,'auto-fold protects the keyboard edit owner');assert.equal(await input.inputValue(),'0.73','pending numeric text survives resize');assert.equal((await read()).tracks[0].instrument.attack,stored);await p.keyboard.press('Escape');await p.evaluate(()=>document.querySelector('.sound-cards').style.width='');console.log('PASS keyboard: focused numeric edit survives auto-fold resize');
@@ -99,7 +99,7 @@ async function assertInView(nodes){for(const n of await nodes.all()){if(!await n
   const panel=await p.locator('.pad-editor').boundingBox(),button=p.locator('.pad-editor').getByRole('button',{name:'Edit links',exact:true}),r=await button.boundingBox();assert.ok(r.height>=43.9&&r.y+r.height<=panel.y+panel.height+.1,'16-route summary reserves full 44px Edit links action: '+JSON.stringify({panel,button:r}));console.log('PASS summary: Edit links stays fully visible with 16 routes');
  }
  if(phase==='maxfx'||phase==='all'){
-  await p.getByRole('tab',{name:'FX',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('switch',{name:/Turn off sound card auto-fold/}).check();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
+  await p.getByRole('tab',{name:'FX',exact:true}).click();await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();await p.getByRole('switch',{name:/Cards fold by themselves/}).uncheck();await p.getByRole('dialog',{name:'Settings',exact:true}).getByRole('button',{name:/CLOSE/}).click();
   let count=(await read()).tracks[0].fx?.modules.filter(m=>m.on).length||0;
   while(count<17){await p.getByRole('button',{name:'Add effect',exact:true}).click();await p.getByRole('dialog',{name:'Add effect',exact:true}).getByRole('button',{name:/^Add /}).first().click();count++;await p.waitForFunction(n=>window.__patchLatest.state.tracks[0].fx?.modules.filter(m=>m.on).length===n,count);}
   const before=(await read()).tracks[0].fx,ids=await p.locator('.fx-cards [data-panel]').evaluateAll(ns=>ns.map(n=>n.dataset.panel));assert.equal(ids.length,17);

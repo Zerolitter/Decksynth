@@ -49,7 +49,7 @@ let app;
  console.log('PASS: the Strike view has a Noise switch that turns the noise burst on and off');
 
  // 2. Settings: Load presets with Strike noise, off by default
- await p.getByRole('button',{name:'Settings',exact:true}).click();
+ await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Sound and editing',exact:true}).click();
  const opt=p.getByRole('switch',{name:'Load presets with Strike noise'});
  assert.equal(await opt.isChecked(),false,'off by default');
  await opt.scrollIntoViewIfNeeded();await p.screenshot({path:path.join(OUT,'settings-preset-noise-800.png')});

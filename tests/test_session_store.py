@@ -40,9 +40,15 @@ class SessionStoreTest(unittest.TestCase):
         s = self.session(); s.set(dict(autosave=0, on_launch='new')); p = Project(); s.start()
         self.clock.t += 10_000
         self.assertIsNone(s.tick(p))
-        for bad in (dict(autosave=45), dict(on_launch='old'), dict(colour='red'), 'x'):
+        for bad in (dict(autosave=5), dict(on_launch='old'), dict(colour='red'), 'x'):
             with self.assertRaises(ValueError): s.set(bad)
         self.assertEqual(self.session().settings, dict(autosave=0, on_launch='new'))
+
+    def test_custom_autosave_takes_10_seconds_to_60_minutes(self):
+        s = self.session()
+        for ok in (10, 45, 90, 3600): s.set(dict(autosave=ok)); self.assertEqual(self.session().settings['autosave'], ok)
+        for bad in (9, 3601, -1, 1.5, True, '60', None):
+            with self.assertRaises(ValueError): s.set(dict(autosave=bad))
 
     def test_last_project_opens_again_and_the_one_before_is_kept(self):
         s = self.session(); p = Project(); p.bpm = 123; s.start(); s.stop(p)
