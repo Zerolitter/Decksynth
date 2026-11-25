@@ -143,7 +143,7 @@ class RoundTripTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'old.decksynth'; p.save(path)
             data = json.loads(path.read_text())
-            for key in ('song', 'clips', 'performance', 'sends'):
+            for key in ('song', 'clips', 'performance', 'sends', 'buses'):
                 data.pop(key, None)
             for t in data['tracks']:
                 for key in ('fx', 'freeze', 'sends', 'automation', 'sound_ab', 'midi_cc'):
@@ -151,8 +151,27 @@ class RoundTripTests(unittest.TestCase):
             path.write_text(json.dumps(data))
             loaded = Project.load(path)
         self.assertEqual(loaded.song['on'], songs.defaults(loaded.bars, len(loaded.tracks))['on'])
-        self.assertEqual(loaded.sends, Project().sends)
+        self.assertEqual(loaded.buses, Project().buses)
         self.assertFalse(loaded.performance['seq']['recording'])
+
+    def test_fx_buses_and_feeds_come_back(self):
+        """Four buses with their own chains, names, colours, Return and Mute, and Send and Through feeds."""
+        from decksynth import sends
+        p = Project()
+        chain = fxmod.default_chain()
+        for m in chain['modules']:
+            if m['id'] in ('compressor', 'eq'): m['on'] = True
+        p.buses += [sends.new_bus(2, 'Drums', fxmod.validate_chain(chain)), sends.new_bus(3)]
+        p.buses[0]['return'] = 0.; p.buses[1]['mute'] = True; p.buses[3]['return'] = 1.; p.buses[2]['colour'] = 0
+        p.tracks[0]['sends'] = {'0': {'amount': 1., 'through': False}, '2': {'amount': .5, 'through': True}}
+        p.tracks[1]['sends'] = {'3': {'amount': 0., 'through': True}}
+        loaded = self.assert_same(p)
+        self.assertEqual(loaded.buses, p.buses)
+        self.assertEqual([t.get('sends') for t in loaded.tracks], [t.get('sends') for t in p.tracks])
+
+    def test_a_new_project_saves_no_buses(self):
+        """The default buses (Reverb on A, Delay on B) are not written, so older files stay byte-for-byte the same."""
+        self.assertNotIn('buses', json.loads(save_load(Project())[1]))
 
     def test_recording_arm_is_never_resumed(self):
         p = Project(); p.performance['seq']['recording'] = True

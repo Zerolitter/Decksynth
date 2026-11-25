@@ -294,6 +294,7 @@ def _load(legacy=False):
                 lib.dsfx_key.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.POINTER(ctypes.c_double),ctypes.c_int]
                 lib.dsfx_scale.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int]
                 lib.dsfx_readout.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_double)]
+            if hasattr(lib,'dsfx_bus_mode'):lib.dsfx_bus_mode.argtypes=[ctypes.c_void_p,ctypes.c_int]
             if hasattr(lib,'dsfx_process_stereo'):
                 lib.dsfx_process_stereo.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_double),ctypes.POINTER(ctypes.c_double),ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_double),ctypes.c_double]
             loaded=lib

@@ -2,10 +2,10 @@
 
 Each track owns a left and a right buffer of BLOCK doubles, made once. Its synth voices, drum pads,
 sampler voices and FX chain read and write those buffers in place, and one C call per track adds it
-to the mix and the two send buses. Python never builds a list of samples for a block; the only copy
+to the mix and the FX buses (sends.py). Python never builds a list of samples for a block; the only copy
 left is the interleaved master output that goes to the audio queue.
 
-When the library is older (no dsfx_mix_track) or the render is mono, the engine keeps its Python mix.
+When the library is older (no dsfx_mix_track_n) or the render is mono, the engine keeps its Python mix.
 """
 import ctypes
 from array import array
@@ -25,13 +25,13 @@ def lib():
     global _ready
     if _ready is None:
         l = _load()
-        if l is None or not hasattr(l, 'dsfx_mix_track') or not hasattr(l, 'dsfx_master_i'):
+        if l is None or not hasattr(l, 'dsfx_mix_track_n') or not hasattr(l, 'dsfx_master_i'):
             _ready = False
         else:
             l.dsfx_buf_add.argtypes = [V, V, ctypes.c_int, D]
             l.dsfx_buf_avg.argtypes = [V, V, V, ctypes.c_int]
             l.dsfx_buf_scan.argtypes = [V, ctypes.c_int, V]; l.dsfx_buf_scan.restype = ctypes.c_int
-            l.dsfx_mix_track.argtypes = [V, V, ctypes.c_int, D, D, V, D, V, V, V, V, D, V, V, D]
+            l.dsfx_mix_track_n.argtypes = [V, V, ctypes.c_int, D, D, V, D, V, V, ctypes.c_int, ctypes.c_int, V, V, V]
             l.dsfx_add_return.argtypes = [V, V, V, V, V, V, ctypes.c_int, D, D]
             _ready = l
     return _ready or None

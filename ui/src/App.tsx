@@ -536,7 +536,7 @@ function App() {
     </header>
 
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} song={!!project.song?.on} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
-    {sendsOpen&&project?<SendsSheet sends={project.sends} tracks={project.tracks} onSetting={(bus,key,value)=>command('send_setting',[bus,key,value])} onClose={()=>setSendsOpen(false)}/>:null}
+    {sendsOpen&&project?<SendsSheet buses={project.buses} tracks={project.tracks} onSetting={(bus,key,value)=>command('send_setting',[bus,key,value])} onClose={()=>setSendsOpen(false)}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
       {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={selected}

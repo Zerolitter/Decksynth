@@ -118,6 +118,9 @@ typedef struct {
     double dk_env, dk_red;
     double vc_c[VOC_B][2], vc_m[VOC_B][4], vc_env[VOC_B], vc_cenv[VOC_B], vc_hp, vc_hpx;
     TapeState tp; SmearState sm; ShimmerState shm; SpaceState sp;
+    /* an FX bus (dsfx_bus_mode): every effect's Mix runs from dry (0) to all wet (1), and a fresh chain starts
+     * with its effects already in, because the bus's return must hold no dry copy of what the tracks send */
+    int bus;
 } FxTrack;
 
 /* Parameters per module in the params array; Python refuses a library whose layout differs. */
@@ -129,8 +132,9 @@ FxTrack *dsfx_create(double rate) {
     return t;
 }
 void dsfx_destroy(FxTrack *t) { free(t); }
-void dsfx_reset(FxTrack *t) { double r = t->rate; int mask = t->at_mask, root = t->at_root;
-    memset(t, 0, sizeof(FxTrack)); t->rate = r; t->at_mask = mask; t->at_root = root; }
+void dsfx_reset(FxTrack *t) { double r = t->rate; int mask = t->at_mask, root = t->at_root, bus = t->bus;
+    memset(t, 0, sizeof(FxTrack)); t->rate = r; t->at_mask = mask; t->at_root = root; t->bus = bus; }
+void dsfx_bus_mode(FxTrack *t, int on) { t->bus = on ? 1 : 0; }
 void dsfx_levels(FxTrack *t, double *out) { memcpy(out, t->level, sizeof(t->level)); }
 /* Gain reduction of the compressor in dB, for its meter. */
 double dsfx_comp_gr(FxTrack *t) { return t->cmp_gr; }
@@ -215,6 +219,7 @@ static void m_volume(double *b, int n, const double *p) {
 
 static void m_phaser(FxTrack *t, double *b, int n, const double *p) {
     double rate = 0.05 * pow(100.0, clampd(p[0], 0, 1)), depth = clampd(p[1], 0, 1), fb = clampd(p[2], -1, 1) * 0.85, mix = p[3];
+    double dk = t->bus ? 1 - mix : 1 - mix * 0.5;
     double inc = 2 * PI * rate / t->rate;
     for (int i = 0; i < n; i++) {
         double lfo = 0.5 + 0.5 * sin(t->ph_lfo); t->ph_lfo += inc; if (t->ph_lfo > 2 * PI) t->ph_lfo -= 2 * PI;
@@ -223,12 +228,13 @@ static void m_phaser(FxTrack *t, double *b, int n, const double *p) {
         double x = b[i] + fb * t->ph_fb, y = x;
         for (int s = 0; s < 4; s++) { double o = a * y + t->ph_z[s]; t->ph_z[s] = y - a * o; y = o; }
         t->ph_fb = y;
-        b[i] = b[i] * (1 - mix * 0.5) + y * mix * 0.5;
+        b[i] = b[i] * dk + y * mix * 0.5;
     }
 }
 
 static void m_flanger(FxTrack *t, double *b, int n, const double *p) {
     double rate = 0.05 * pow(80.0, clampd(p[0], 0, 1)), depth = clampd(p[1], 0, 1), fb = clampd(p[2], -1, 1) * 0.9, mix = p[3];
+    double dk = t->bus ? 1 - mix : 1;
     double inc = 2 * PI * rate / t->rate, base = 0.0008 * t->rate, sweep = 0.006 * t->rate * depth;
     for (int i = 0; i < n; i++) {
         double d = base + sweep * (0.5 + 0.5 * sin(t->flg_lfo)); t->flg_lfo += inc; if (t->flg_lfo > 2 * PI) t->flg_lfo -= 2 * PI;
@@ -236,7 +242,7 @@ static void m_flanger(FxTrack *t, double *b, int n, const double *p) {
         int j = (int)rp; double fr = rp - j; int j2 = (j + 1) % FLG_LEN;
         double del = t->flg[j] * (1 - fr) + t->flg[j2] * fr;
         t->flg[t->flg_w] = (float)clampd(b[i] + fb * del, -4, 4); t->flg_w = (t->flg_w + 1) % FLG_LEN;
-        b[i] = b[i] + del * mix * 0.7;
+        b[i] = b[i] * dk + del * mix * 0.7;
     }
 }
 
@@ -254,12 +260,12 @@ static void m_delay(FxTrack *t, double *b, int n, const double *p, double bpm) {
     static const double BEATS[6] = {0.125, 0.25, 0.5, 0.75, 1.0, 2.0};
     int idx = (int)clampd(round(p[0]), 0, 5);
     int d = (int)clampd(BEATS[idx] * t->rate * 60.0 / bpm, 1, DLY_LEN - 1);
-    double fb = clampd(p[1], 0, 0.95), mix = p[2];
+    double fb = clampd(p[1], 0, 0.95), mix = p[2], dk = t->bus ? 1 - mix : 1;
     for (int i = 0; i < n; i++) {
         int r = t->dly_w - d; if (r < 0) r += DLY_LEN;
         double del = t->dly[r];
         t->dly[t->dly_w] = (float)(b[i] + fb * del); t->dly_w = (t->dly_w + 1) % DLY_LEN;
-        b[i] = b[i] + del * mix;
+        b[i] = b[i] * dk + del * mix;
     }
 }
 
@@ -268,7 +274,7 @@ static void m_reverb(FxTrack *t, double *b, int n, const double *p) {
     double room = 0.7 + 0.28 * clampd(p[1], 0, 1);
     double hp = 0.995 - 0.15 * clampd(p[2], 0, 1);          /* lo cut on the wet signal */
     double damp = 0.05 + 0.6 * (1 - clampd(p[3], 0, 1));     /* hi cut inside the combs */
-    double mix = p[4];
+    double mix = p[4], dk = t->bus ? 1 - mix : 1 - mix * 0.5;
     for (int i = 0; i < n; i++) {
         t->pre[t->pre_w] = (float)b[i];
         int r = t->pre_w - pd; if (r < 0) r += PRE_LEN;
@@ -290,7 +296,7 @@ static void m_reverb(FxTrack *t, double *b, int n, const double *p) {
             acc = o;
         }
         double y = hp * (t->rv_hp_y + acc - t->rv_hp_x); t->rv_hp_x = acc; t->rv_hp_y = y;
-        b[i] = b[i] * (1 - mix * 0.5) + y * mix;
+        b[i] = b[i] * dk + y * mix;
     }
 }
 
@@ -322,6 +328,7 @@ static void m_chorus(FxTrack *t, double *b, int n, const double *p) {
     /* 1-3 voices of 7-25 ms modulated delay, no feedback: thickens without the flanger's jet sweep */
     double rate = 0.08 * pow(40.0, clampd(p[0], 0, 1)), depth = clampd(p[1], 0, 1), mix = p[3];
     int voices = (int)clampd(round(p[2]), 1, 3);
+    double dk = t->bus ? 1 - mix : 1 - mix * 0.5;
     double inc = 2 * PI * rate / t->rate, base = 0.007 * t->rate, sweep = 0.009 * t->rate * depth;
     for (int i = 0; i < n; i++) {
         t->cho[t->cho_w] = (float)b[i];
@@ -334,7 +341,7 @@ static void m_chorus(FxTrack *t, double *b, int n, const double *p) {
         }
         t->cho_lfo += inc; if (t->cho_lfo > 2 * PI) t->cho_lfo -= 2 * PI;
         t->cho_w = (t->cho_w + 1) % CHO_LEN;
-        b[i] = b[i] * (1 - mix * 0.5) + wet / voices * mix;
+        b[i] = b[i] * dk + wet / voices * mix;
     }
 }
 
@@ -413,7 +420,7 @@ void dsfx_tune(FxTrack *t, const double *freqs, int count) {
 static void m_resonator(FxTrack *t, double *b, int n, const double *p) {
     /* decay: ring time 0.2-8 s; tone: string damping; mix. Each string is a fractional-delay comb. */
     double t60 = 0.2 * pow(40.0, clampd(p[0], 0, 1)), tone = clampd(p[1], 0, 1), mix = p[2];
-    double damp = 0.75 * (1 - tone);
+    double damp = 0.75 * (1 - tone), dk = t->bus ? 1 - mix : 1 - mix * 0.5;
     int ns = t->res_n;
     double D[RES_STR], g[RES_STR];
     double Dt[RES_STR];
@@ -439,7 +446,7 @@ static void m_resonator(FxTrack *t, double *b, int n, const double *p) {
         }
         t->res_w = (t->res_w + 1) % RES_LEN;
         if (i == n - 1) for (int s2 = 0; s2 < ns; s2++) t->res_d[s2] = D[s2];
-        b[i] = x * (1 - mix * 0.5) + soft(wet * norm * 2) * mix;
+        b[i] = x * dk + soft(wet * norm * 2) * mix;
     }
 }
 
@@ -510,14 +517,14 @@ static void m_cloud(FxTrack *t,double *b,int n,const double *p) {
 static void m_pingpong(FxTrack *l,FxTrack *r,double *a,double *b,int n,const double *p,double bpm) {
     static const double beats[6]={.125,.25,.5,.75,1,2};
     int d=(int)clampd(beats[(int)clampd(round(p[0]),0,5)]*l->rate*60/bpm,1,DLY_LEN-1);
-    double w=clampd(p[3],0,1),fb=clampd(p[1],0,.95);
+    double w=clampd(p[3],0,1),fb=clampd(p[1],0,.95),dk=l->bus?1-p[2]:1;
     for(int i=0;i<n;i++) {
         int il=(l->dly_w-d+DLY_LEN)%DLY_LEN,ir=(r->dly_w-d+DLY_LEN)%DLY_LEN;
         double x=l->dly[il],y=r->dly[ir];
         l->dly[l->dly_w]=(float)((1+w)*a[i]+fb*((1-w)*x+w*y));
         r->dly[r->dly_w]=(float)((1-w)*b[i]+fb*((1-w)*y+w*x));
         l->dly_w=(l->dly_w+1)%DLY_LEN;r->dly_w=(r->dly_w+1)%DLY_LEN;
-        a[i]+=x*p[2];b[i]+=y*p[2];
+        a[i]=a[i]*dk+x*p[2];b[i]=b[i]*dk+y*p[2];
     }
 }
 static void m_haas(FxTrack *t,double *b,int n,double delay) {
@@ -943,7 +950,7 @@ static const int STEPPED[3] = {TAPE * NPAR + 6, SHIMMER * NPAR + 5, SPACE * NPAR
 void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on, const double *params, double bpm) { ds_ftz();
     if (bpm < 20) bpm = 120;
     if (!t->pinit) { memcpy(t->pcur, params, sizeof(t->pcur)); t->pinit = 1;
-        for (int m = 0; m < NMOD; m++) t->onamt[m] = 0; }  /* fresh state: every effect fades in */
+        for (int m = 0; m < NMOD; m++) t->onamt[m] = t->bus && on[m] ? 1 : 0; }  /* fresh state: every effect fades in (a bus: starts in) */
     double start[NMOD * NPAR]; memcpy(start, t->pcur, sizeof(start));
     double sum[NMOD] = {0}, fade = CHUNK / (t->rate * 0.010);
     int chunks = (n + CHUNK - 1) / CHUNK;
@@ -981,7 +988,7 @@ void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on,
  * Each channel owns its histories; ping-pong couples only delay feedback. */
 void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,const int *order,const int *on,const double *params,double bpm) { ds_ftz();
     if(bpm<20)bpm=120;
-    if(!l->pinit){memcpy(l->pcur,params,sizeof(l->pcur));l->pinit=1;}
+    if(!l->pinit){memcpy(l->pcur,params,sizeof(l->pcur));l->pinit=1;if(l->bus)for(int m=0;m<NMOD;m++)l->onamt[m]=r->onamt[m]=on[m]?1:0;}
     if(!r->pinit){memcpy(r->pcur,params,sizeof(r->pcur));r->pinit=1;}
     double start[NMOD*NPAR];memcpy(start,l->pcur,sizeof(start));
     double sum[NMOD]={0},fade=CHUNK/(l->rate*.010);int chunks=(n+CHUNK-1)/CHUNK;
@@ -1501,6 +1508,26 @@ void dsfx_mix_track(const double *l, const double *r, int n, double vol, double 
             if (f0) { s0l[i] += x * a0; s0r[i] += y * a0; }
             if (f1) { s1l[i] += x * a1; s1r[i] += y * a1; }
         }
+    }
+    *pan_state = cur;
+}
+/* One track into the mix and up to 8 FX buses: the same arithmetic as dsfx_mix_track, with the buses as arrays
+ * (sl/sr/amt, nb of them; a NULL left pointer or an amount of 0 skips one). to_mix 0 leaves the mix alone: the
+ * track goes Through a bus only. */
+void dsfx_mix_track_n(const double *l, const double *r, int n, double vol, double pan, double *pan_state, double step,
+                      double *ml, double *mr, int to_mix, int nb, double *const *sl, double *const *sr, const double *amt) {
+    double cur = *pan_state;
+    int any = 0, k, f[8], m = 0;
+    if (nb > 8) nb = 8;
+    for (k = 0; k < nb; k++) { f[k] = sl[k] && sr[k] && amt[k] > 0; m += f[k]; }
+    for (int i = 0; i < n && !any; i++) if (l[i] != 0 || r[i] != 0) any = 1;
+    if (!any) { *pan_state = pan; return; }
+    for (int i = 0; i < n; i++) {
+        if (cur != pan) { double d = pan - cur; d = d > step ? step : d < -step ? -step : d; cur += d; }
+        double gl = vol * (1 - cur) * .5, gr = vol * (1 + cur) * .5;
+        double x = l[i] * gl, y = r[i] * gr;
+        if (to_mix) { ml[i] += x; mr[i] += y; }
+        if (m) for (k = 0; k < nb; k++) if (f[k]) { sl[k][i] += x * amt[k]; sr[k][i] += y * amt[k]; }
     }
     *pan_state = cur;
 }
