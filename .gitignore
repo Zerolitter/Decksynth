@@ -29,7 +29,6 @@ artifacts/
 # Private build notes never go public (they live in ~/Projects/Decksynth-private)
 *.patch
 AGENTS.md
-CLAUDE.md
 NEXT_SESSION.md
 PLAN.md
 UI-RULES.md
