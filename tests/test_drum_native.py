@@ -200,3 +200,36 @@ class NativeDrumTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class NativeDecodeTests(unittest.TestCase):
+    """The sample loader's C decoder (drum_decode, drum_resample) gives exactly the Python result."""
+    @classmethod
+    def setUpClass(cls):
+        from decksynth.drum_native import native_codec, native_error
+        cls.codec = native_codec()
+        if cls.codec is None:
+            raise unittest.SkipTest('optional native compiler/library unavailable: ' + str(native_error()))
+
+    def test_decode_and_resample_match_python_bit_for_bit(self):
+        import random
+        import struct
+        from decksynth import samples
+        rnd = random.Random(7)
+        for bits in (16, 24, 32):
+            top = 1 << (bits - 1)
+            for channels in (1, 2):
+                values = [rnd.randrange(-top, top) for _ in range(2 * 997)] + [-top, top - 1, 0, -1] * channels
+                values = values[:len(values) // channels * channels]
+                if bits == 24:
+                    raw = b''.join(struct.pack('<i', v)[:3] for v in values)
+                else:
+                    raw = struct.pack('<%d%s' % (len(values), 'h' if bits == 16 else 'i'), *values)
+                pad = b'\x01\x02\x03'  # the PCM sits after a header in the real file
+                blob = pad + raw
+                for source_rate, rate in ((48000, 48000), (44100, 48000), (96000, 48000), (22050, 44100)):
+                    n = len(values) // channels
+                    frames = max(1, (n * rate + source_rate // 2) // source_rate)
+                    want = samples._resample(samples._decode(memoryview(blob)[3:], channels, bits), source_rate, rate, frames)
+                    got = samples._decode_native(self.codec, blob, 3, len(raw), channels, bits, source_rate, rate, frames)
+                    self.assertEqual(want.tobytes(), got.tobytes(), (bits, channels, source_rate, rate))
