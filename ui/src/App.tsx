@@ -259,8 +259,12 @@ function App() {
         else if(name!=='harmonics'){
           if(Object.values(FILTER_ENV_KEYS).includes(name as never))for(const [amp,field] of Object.entries(FILTER_ENV_KEYS))
             owner.instrument[field]??=owner.instrument[amp as keyof typeof FILTER_ENV_KEYS];
-          owner.instrument[name]=value;
+          (owner.instrument as Record<string,unknown>)[name]=value;
         }
+      }
+      else if(cmd==='layer_file'){
+        const [,path]=args as [number,string];const ins=owner.instrument as Record<string,unknown>;
+        if(path){ins.layer_file=path;ins.layer_on=1;}else{delete ins.layer_file;ins.layer_on=0;}
       }
       else if(cmd==='note_edit'){
         const [target,expected,events]=args as [NoteTarget,Note[]|import('./types').StepPattern,Note[]];if(target.track!==next.selected)return next;
@@ -608,6 +612,8 @@ function App() {
       :page==='SOUND'?<ContextAreaScope area="sound"><PanelScope scope={'track:'+selected}><FxLive>{live=><SynthSound key={selected} track={track} selected={selected}
           onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} onShape={name=>command('spectral_seed',[selected,name])}
           onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={live}
+          layer={snapshot?.layer} library={snapshot?.sample_library} send={command} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}
+          onLayerFile={path=>command('layer_file',[selected,path])} onLayerPartials={()=>command('layer_partials',selected)}
           preset={<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
             <button type="button" className="page-tool-icon ss-save" aria-label="Save patch" title="Save patch"
               onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>} sends={sendProps?<SendKnobs {...sendProps} inHeader/>:null} sendsAction={<SendsOpen small open={sendsOpen} onOpen={()=>setSendsOpen(o=>!o)}/>}/>}</FxLive></PanelScope></ContextAreaScope>

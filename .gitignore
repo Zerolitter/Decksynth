@@ -50,3 +50,4 @@ docs/superpowers/
 .github/skills/
 *codex*
 *Codex*
+!decksynth/assets/*.wav

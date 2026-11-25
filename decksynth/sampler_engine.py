@@ -578,6 +578,8 @@ class SamplerEngine:
         """Offline renders (export, freeze) wait for shaped pad and Sampler copies before the first block."""
         from .drum_shape import PadShaper
         PadShaper.wait()
+        from . import sample_layer
+        sample_layer.settle()   # Sample layer files decode in the background too
         for sampler in self.samplers: sampler.take_pending()
 
     def sampler_state(self):

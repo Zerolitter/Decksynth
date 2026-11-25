@@ -1,6 +1,6 @@
 /* The synth's Sound page (Sir, 16 Nov): partials, big graph and tool rack on top; eight module cards in four columns. */
 .harness-shell .synth-sound{flex:1;min-height:0;height:100%;display:flex;flex-direction:column;gap:8px;user-select:none}
-.harness-shell .ss-top{position:relative;flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:620px minmax(0,1fr) 206px;gap:8px}
+.harness-shell .ss-top{position:relative;flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:586px minmax(0,1fr) 248px;gap:8px}
 .harness-shell .ss-graph-label{display:flex;align-items:baseline;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--c-sound);
   position:absolute;left:10px;top:7px;z-index:1;pointer-events:none}
 .harness-shell .ss-graph-label span{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:#8b929a}
@@ -31,11 +31,11 @@
 .harness-shell .ss-graph .env-editor{position:absolute;inset:0;height:auto}
 
 /* Tool rack: the one place on this page with the corner screws */
-.harness-shell .ss-rack.smp-rack{position:relative;display:flex;flex-direction:column;gap:8px;padding:12px 8px;border:1px solid var(--ui-line);border-radius:10px;min-height:0;
+.harness-shell .ss-rack.smp-rack{position:relative;display:flex;flex-direction:column;gap:8px;padding:12px 6px;border:1px solid var(--ui-line);border-radius:10px;min-height:0;
   background:radial-gradient(circle at 7px 7px,#7a8089 0 1.4px,#2b2f34 1.9px,transparent 2.6px),radial-gradient(circle at calc(100% - 7px) 7px,#7a8089 0 1.4px,#2b2f34 1.9px,transparent 2.6px),
     radial-gradient(circle at 7px calc(100% - 7px),#7a8089 0 1.4px,#2b2f34 1.9px,transparent 2.6px),radial-gradient(circle at calc(100% - 7px) calc(100% - 7px),#7a8089 0 1.4px,#2b2f34 1.9px,transparent 2.6px),
     linear-gradient(180deg,#262a2f,#1b1e22);box-shadow:inset 0 1px 0 #ffffff14,inset 0 -1px 0 #00000080,0 1px 2px #0007}
-.harness-shell .ss-tools{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:4px}
+.harness-shell .ss-tools{display:grid;grid-template-columns:repeat(5,minmax(44px,1fr));gap:3px}
 /* Strike view: its lanes on the left, its six knobs beside them (graph and controls together, rule 6) */
 .harness-shell .ss-strike{position:absolute;inset:0;display:flex;gap:6px;padding:0 6px 4px 4px}
 .harness-shell .ss-strike-graph{flex:1 1 auto;min-width:0;position:relative}
@@ -149,3 +149,34 @@
 .harness-shell .ss-card{background:linear-gradient(180deg,color-mix(in srgb,var(--tag) 7%,var(--panel)),var(--panel) 70%)}
 .harness-shell .ss-card .tactile-knob .knob-heading{color:color-mix(in srgb,var(--tag) 60%,var(--ui-text-2))}
 .harness-shell .ss-card .tactile-knob .knob-value{border-left:2px solid color-mix(in srgb,var(--tag) 45%,transparent)}
+/* Sample layer view (25 Nov): the sample's outline and its two buttons on the left, six cells on the right (module look: coloured outline, power, title) */
+.harness-shell .ss-graph.view-layer{border-color:color-mix(in srgb,var(--c-layer) 60%,var(--line-soft))}
+.harness-shell .ss-layer{--accent:var(--c-layer);--tag:var(--c-layer);position:absolute;inset:0;display:flex;gap:6px;padding:0 6px 6px 6px}
+.harness-shell .ss-layer-power{position:absolute;right:4px;top:-25px;margin:0;z-index:2}
+.harness-shell .ss-layer-side{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:6px}
+.harness-shell .ss-layer-wave{position:relative;flex:1 1 auto;min-height:44px;padding:0;border-radius:8px;border:1px solid color-mix(in srgb,var(--c-layer) 40%,var(--line-soft));background:color-mix(in srgb,var(--c-layer) 6%,var(--ui-well));
+  color:var(--ui-text);overflow:hidden;display:flex;align-items:flex-end;justify-content:flex-start;text-align:left}
+.harness-shell .ss-layer-wave.empty{border-style:dashed;align-items:center;justify-content:center;color:var(--c-layer)}
+.harness-shell .ss-layer-peaks{position:absolute;inset:0;width:100%;height:100%}
+.harness-shell .ss-layer-peaks rect{fill:var(--c-layer)}
+.harness-shell .ss-layer-peaks rect.skipped{opacity:.25}
+.harness-shell .ss-layer-name{position:relative;display:flex;align-items:center;gap:6px;max-width:100%;padding:4px 7px;font-size:11.5px;background:color-mix(in srgb,var(--ui-well) 78%,transparent);border-radius:0 7px 0 0}
+.harness-shell .ss-layer-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+.harness-shell .ss-layer-name small{color:var(--soft);font-size:10px;white-space:nowrap}
+.harness-shell .ss-layer-wave.empty .ss-layer-name{background:none;font-size:12.5px;flex-direction:column;text-align:center;border-radius:0}
+.harness-shell .ss-layer-wave.empty .ss-layer-name b{white-space:normal}
+.harness-shell .ss-layer-action{flex:none;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;height:44px;padding:0 6px;border-radius:8px;
+  border:1px solid color-mix(in srgb,var(--c-layer) 40%,var(--line-soft));background:color-mix(in srgb,var(--c-layer) 9%,var(--ui-surface));color:var(--ui-text);font-size:11.5px;font-weight:800}
+.harness-shell .ss-layer-action svg{color:var(--c-layer);flex:none}
+.harness-shell .ss-layer-action:disabled{opacity:.45}
+.harness-shell .ss-layer>.ss-knobs{flex:none;align-content:start;grid-template-columns:repeat(2,126px);gap:4px 6px}
+.harness-shell .ss-layer-mode{width:126px;align-items:stretch}
+.harness-shell .ss-layer-toggle{width:126px;min-height:44px;height:44px;padding:0 6px;border-radius:7px;border:1px solid var(--line-soft);background:var(--raised);color:#c9cdd2;font-size:12px;font-weight:700}
+.harness-shell .ss-layer-toggle[aria-checked=true]{background:color-mix(in srgb,var(--c-layer) 22%,var(--raised));border-color:var(--c-layer);color:var(--ui-white)}
+.harness-shell .ss-layer-toggle:disabled{opacity:.4}
+.harness-shell .ss-layer .ss-seg button[aria-checked=true]{background:color-mix(in srgb,var(--c-layer) 22%,var(--raised));border-color:var(--c-layer)}
+.harness-shell .smp-library.pick .lib-grid{max-height:300px}
+.harness-shell .smp-library .lib-factory{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.harness-shell .smp-library .lib-factory b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--c-layer)}
+.harness-shell .smp-library .lib-factory button{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid color-mix(in srgb,var(--c-layer) 40%,var(--line-soft));background:color-mix(in srgb,var(--c-layer) 9%,var(--ui-surface));color:var(--ui-text);font-weight:800}
+.harness-shell .smp-library .lib-factory button[aria-pressed=true]{background:color-mix(in srgb,var(--c-layer) 26%,var(--ui-surface));border-color:var(--c-layer)}

@@ -516,6 +516,12 @@ def worker(commands,updates):
                         else:raise ValueError('Unknown sound parameter: '+str(key))
                         engine.synths[engine.selected].configure(t['instrument'])
                         engine.record_control(engine.selected,'sound',key,t['instrument'][key])
+                    elif cmd=='layer_file':
+                        try:engine.set_layer_file(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='layer_partials':
+                        try:send(dict(message=engine.layer_to_partials(args)))
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='song':
                         try:engine.set_song(args)
                         except ValueError as exc:send(dict(error=str(exc)))
@@ -738,7 +744,7 @@ def worker(commands,updates):
                     if key!='export' and key[0]=='freeze':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
                 status=dict(session=session.status(),to_grain={key[1]:round(job.progress,3) for key,job in renders.items() if key!='export' and key[0]=='grain'},freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
-                          playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
+                          playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),layer=engine.layer_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
                           drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,

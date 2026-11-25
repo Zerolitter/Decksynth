@@ -33,6 +33,7 @@
   /* Section colours (rule 25): pages, Perform modes, tools. */
   --c-grain:#f0c94b; --c-grain-tick:#fff2c2; --c-roam:#ff9f43; --c-flip:#b38cff;   /* Sampler Grain mode */
   --c-strike:#f2d36d;   /* Synth Strike card */
+  --c-layer:#9ad77c;    /* Synth Sample layer card (25 Nov) */
   --fx-tape:#f39a55; --fx-smear:#7fe3c4; --fx-shimmer:#e9c75c; --fx-space:#79bdf2;   /* Ambient FX cards (25 Nov) */
   --c-song:#6de4bb; --c-sound:#ddbd82; --c-guide:#74b9f2; --c-fx:#b99af5; --c-perform:#5cc8f5;
   --c-seq:#5cc8f5; --c-arp:#6eedb8; --c-chord:#f07cc0;

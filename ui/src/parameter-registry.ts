@@ -27,7 +27,8 @@ export function controlName(t:ControlTarget):string{
 export const SOUND_NEUTRAL:Record<string,number>={curve:0,balance:.5,focus:0,focus_center:4,character:0,
  vcf_cutoff:.65,vcf_reso:.2,vcf_env:.3,vcf_morph:0,uni_detune:.3,formant:0,inharm:0,sub:0,
  pan:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5,env_curve:0,air:0,drift:0,vel_curve:0,
- damp:0,noise:0,noise_decay:.03,noise_tone:.6,pitch_env:0,pitch_decay:.06};
+ damp:0,noise:0,noise_decay:.03,noise_tone:.6,pitch_env:0,pitch_decay:.06,
+ layer_level:1,layer_tune:0,layer_start:0};
 export const FILTER_ENV_FROM:Record<string,string>={fenv_a:'attack',fenv_d:'decay',fenv_s:'sustain',fenv_r:'release'};
 export function soundDefault(preset:Record<string,unknown>|undefined,param:string):number|undefined{
  const own=preset?.[param];if(typeof own==='number')return own;

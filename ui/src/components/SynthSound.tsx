@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AudioWaveform, Power, SlidersHorizontal, Sparkles, Waves, X, Zap } from 'lucide-react';
+import { AudioWaveform, Layers, Power, SlidersHorizontal, Sparkles, Waves, X, Zap } from 'lucide-react';
 import { createFrameBatch } from '../chordz-primitives/frame-batch';
 import { evaluatedPartials } from '../spectral';
 import { SHAPES, harmonicShape, type Shape } from '../spectral-seeds';
@@ -12,6 +12,8 @@ import { useSize } from './ModSheet';
 import { useRingDepth } from './RingDepth';
 import { useContextTarget } from './ContextWheel';
 import { FILTER_ENV_KEYS, FILTER_NAMES, UNISON_VOICES, VOICE_DEFAULTS, VOWELS, filterEnvelope, filterMorph, fmtCents, fmtHz, fmtMorph, fmtNoiseTone, fmtOct, voiceParam, type VoiceKey } from '../sound-cards';
+import { LayerView, type LayerInfo } from './SampleLayer';
+import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { MACRO_COLORS, MOD_COLORS, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 type Params=Track['instrument'];
@@ -23,9 +25,14 @@ type Props={
   onChain:(c:FxChain)=>void; armed:Source|null; source?:Source; live?:Live;
   /** the preset name and Save, shown inside the tool rack (Sir, 16 Nov) */ preset?:ReactNode;
   /** the track's Reverb and Delay sends (Sends.tsx), and the button for the shared settings in that card's title bar */ sends?:ReactNode; sendsAction?:ReactNode;
+  /** Sample layer (25 Nov): what the engine knows of the chosen file, the sample library for the picker, and the commands */
+  layer?:LayerInfo; library?:SampleLibraryState|null; onChooseFolder?:()=>Promise<string|null>;
+  onLayerFile?:(path:string)=>void; onLayerPartials?:()=>void; send?:(cmd:string,args:unknown)=>void;
 };
-type View='wave'|'amp'|'filter'|'strike';
-const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0',strike:'var(--c-strike)'};
+type View='wave'|'amp'|'filter'|'strike'|'layer';
+/** WAVs shipped with Decksynth (decksynth/assets, made by tools/make_808_kick.py): the Sample layer can always use these. */
+const FACTORY_SAMPLES=[{name:'808 kick',path:'factory:808-kick-attack.wav'},{name:'909 kick',path:'factory:909-kick-attack.wav'},{name:'Soft thud',path:'factory:soft-thud.wav'}];
+const TAGS={sends:'#8fb8ff',tone:'#f2c46d',envelope:'#7fd6bb',movement:'#7aa7f5',output:'#c79df5',filter:'#f29a6d',unison:'#6dc9f2',character:'#e59ee0',strike:'var(--c-strike)',layer:'var(--c-layer)'};
 const SHAPE_NAME:Record<string,string>={SAW:'Saw',SQUARE:'Square',TRIANGLE:'Triangle',PULSE:'Pulse',GAUSSIAN:'Gauss',SPREAD:'Spread',RANDOM:'Random'};
 const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 const VIEW_KEY='decksynth.synth-view';
@@ -47,13 +54,14 @@ function Curve({kind}:{kind:number}){
 /** The synth's Sound page (Sir, 16 Nov): every sound-shaping editor in its own fixed place, nothing in tabs, nothing folded,
  *  no side scroll. Top: the 16 partials (draw them), the big graph (live wave, or the amp / filter envelope with points to drag)
  *  and a tool rack that picks the graph's view. Below: eight module cards in four columns. */
-export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed,source,live,preset,sends,sendsAction}:Props){
+export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed,source,live,preset,sends,sendsAction,layer,library,onChooseFolder,onLayerFile,onLayerPartials,send}:Props){
   const p=track.instrument, accent=TRACK_COLORS[selected];
   const chain=normalizeChain(track.fx);
   const [view,setViewState]=useState<View>(()=>{try{return (localStorage.getItem(VIEW_KEY) as View)||'wave';}catch{return 'wave';}});
   const setView=(v:View)=>{setViewState(v);try{localStorage.setItem(VIEW_KEY,v);}catch{/* optional */}};
   const [guideId,setGuideIdState]=useState<SoundGuideId>(()=>{try{const saved=localStorage.getItem(GUIDE_KEY) as SoundGuideId|null;if(saved&&SOUND_GUIDES.some(guide=>guide.id===saved))return saved;return 'warm-round';}catch{return 'warm-round';}});
   const [guideOpen,setGuideOpen]=useState(false);
+  const [pickerOpen,setPickerOpen]=useState(false);
   const [guideActive,setGuideActive]=useState(false);
   const [guidedParams,setGuidedParams]=useState<Set<string>>(()=>new Set());
   const guide=SOUND_GUIDES.find(candidate=>candidate.id===guideId)??SOUND_GUIDES[0];
@@ -135,10 +143,10 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           <button key={name} type="button" role="radio" aria-checked={shapeUsed===name} title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
             onClick={()=>{batch.flush();onShape(name);}}>{SHAPE_NAME[name]??name}</button>)}</div>
       </div>
-      <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':'Filter envelope'}>
-        <div className="ss-graph-label" style={{color:view==='wave'?accent:view==='amp'?TAGS.envelope:view==='strike'?TAGS.strike:TAGS.filter}}>
-          {view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':'Filter envelope'}
-          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':view==='strike'?'the first second of a note':'drag the points · hold still for fine'}</span></div>
+      <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':view==='layer'?'Sample layer':'Filter envelope'}>
+        <div className="ss-graph-label" style={{color:view==='wave'?accent:view==='amp'?TAGS.envelope:view==='strike'?TAGS.strike:view==='layer'?TAGS.layer:TAGS.filter}}>
+          {view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':view==='layer'?'Sample layer':'Filter envelope'}
+          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':view==='strike'?'the first second of a note':view==='layer'?'a recording under the partials':'drag the points · hold still for fine'}</span></div>
         <div ref={gref} className="ss-graph-plot">
           {view==='wave'?<svg width={w} height={h} aria-hidden="true">
             <line x1={0} x2={w} y1={wave.mid} y2={wave.mid} className="ss-zero"/>
@@ -153,6 +161,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           {K('pitch_env','Pitch drop',vp('pitch_env'),-24,24,{step:.1,suffix:'st',description:'Each note starts this many semitones above its pitch (below, if negative) and slides to it.',onChange:v=>set('pitch_env',v)})}
           {K('pitch_decay','Drop time',vp('pitch_decay'),.005,1,{step:.001,suffix:'s',onChange:v=>set('pitch_decay',v)})}
           </div></div>
+          :view==='layer'?<LayerView p={p} K={K as never} set={set} layer={layer} onChoose={()=>setPickerOpen(true)} onSpectrum={()=>onLayerPartials?.()}/>
           :view==='amp'?<EnvEditor env={p} color={TAGS.envelope} live={live?.sound} onChange={(k,v)=>set(k,v)}/>
           :<EnvEditor env={fenv} color={TAGS.filter} live={fenvLive} onChange={(k,v)=>set(FILTER_ENV_KEYS[k],v)}/>}
         </div>
@@ -160,7 +169,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
       <div className="smp-rack ss-rack" role="toolbar" aria-label="Sound tools">
         <div className="ss-tools" role="radiogroup" aria-label="Big graph">
           {([['wave','Wave','Wave',<AudioWaveform key="w" size={18}/>,accent],['amp','Amp env','Amp',<SlidersHorizontal key="a" size={18}/>,TAGS.envelope],
-            ['filter','Filter env','Filter',<Waves key="f" size={18}/>,TAGS.filter],['strike','Strike','Strike',<Zap key="s" size={18}/>,TAGS.strike]] as [View,string,string,ReactNode,string][]).map(([v,label,short,icon,c])=>
+            ['filter','Filter env','Filter',<Waves key="f" size={18}/>,TAGS.filter],['strike','Strike','Strike',<Zap key="s" size={18}/>,TAGS.strike],['layer','Sample layer','Sample',<Layers key="l" size={18}/>,TAGS.layer]] as [View,string,string,ReactNode,string][]).map(([v,label,short,icon,c])=>
             <button key={v} type="button" role="radio" aria-checked={view===v} aria-label={label} className="smp-tool" style={{['--tool' as string]:c}} onClick={()=>setView(v)}>{icon}<span>{short}</span></button>)}
         </div>
         <div className="ss-display" aria-live="polite">
@@ -260,6 +269,8 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
       </div>
     </div>
     {ring.bubble}
+    {pickerOpen?<SampleLibrarySheet library={library} onChooseFolder={onChooseFolder??(()=>Promise.resolve(null))} send={send??(()=>{})} onClose={()=>{setPickerOpen(false);send?.('sample_library_stop',null);}}
+      pick={{current:p.layer_file??null,factory:FACTORY_SAMPLES,onPick:path=>{onLayerFile?.(path);setPickerOpen(false);send?.('sample_library_stop',null);}}}/>:null}
   </section>;
 }
 

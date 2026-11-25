@@ -124,10 +124,10 @@ class MasterTests(unittest.TestCase):
 
 class LibraryTests(unittest.TestCase):
     def test_fifteen_per_category_all_valid(self):
-        self.assertEqual(len(PRESET_LIBRARY), 15 * len(CATEGORIES))
+        self.assertEqual(len(PRESET_LIBRARY), 15 * len(CATEGORIES) + 6)   # + the six 808 / kick presets in Bass
         self.assertEqual(len({p['name'] for p in PRESET_LIBRARY}), len(PRESET_LIBRARY))
         for c in CATEGORIES:
-            self.assertEqual(sum(p['category'] == c for p in PRESET_LIBRARY), 15, c)
+            self.assertEqual(sum(p['category'] == c for p in PRESET_LIBRARY), 21 if c == 'Bass' else 15, c)
         for p in PRESET_LIBRARY:
             validate_instrument(p['instrument'])
             fx.validate_chain(p['fx'])

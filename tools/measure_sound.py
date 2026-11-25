@@ -77,7 +77,7 @@ def calibrate(p):
     e.apply_preset(p['name'])
     e.project.tracks[0]['instrument']['gain'] = 1.
     e.configure()
-    notes = (48, 60, 64, 67)
+    notes = (33,) if p['instrument'].get('layer_file') else (48, 60, 64, 67)   # a kick bass is one low note (A1, 55 Hz), not a chord
     for n in notes:
         e.voice_on(0, n, 100, ('measure', n))
     left, right = render(e, 1.5)
@@ -144,6 +144,8 @@ def main():
     if args.calibrate:
         print('LEVELS = {')
         for p in PRESET_LIBRARY:
+            if args.category and p['category'] != args.category: continue
+            if args.preset and p['name'] not in args.preset: continue
             gain, level = calibrate(p)
             print('    %r: %s,  # %.1f dB' % (p['name'], gain, level), flush=True)
         print('}')

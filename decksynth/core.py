@@ -31,7 +31,7 @@ from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_vo
 from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
 from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
-from . import strike
+from . import strike, sample_layer
 from .keystep import (defaults as performance_defaults, validate_state as validate_performance,
                       current_pattern, empty_pattern, slot_key, step_change, change_pattern_length,
                       mutate_pattern, song_from_pattern, pattern_from_song, chord_notes, clip_to_pattern, MAX_STEPS,
@@ -73,6 +73,8 @@ VOICE_RANGES.update(env_curve=(0,1),air=(0,1),drift=(0,1),vel_curve=(0,1),gain=(
 EXPRESSION_DEFAULTS.update(TONE_DEFAULTS)
 # Strike card (24 Nov): damping, attack noise and a pitch envelope (strike.py). 0 = the old sound.
 EXPRESSION_DEFAULTS.update(strike.STRIKE_DEFAULTS); VOICE_RANGES.update(strike.STRIKE_RANGES)
+# Sample layer (25 Nov): a recording under the partials (sample_layer.py). layer_on 0 = the old sound; the file itself is the text key layer_file.
+EXPRESSION_DEFAULTS.update(sample_layer.LAYER_DEFAULTS); VOICE_RANGES.update(sample_layer.LAYER_RANGES); VOICE_CHOICES.update(sample_layer.LAYER_CHOICES)
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
     if key in FILTER_ENV:return p[FILTER_ENV[key]]
@@ -131,6 +133,7 @@ def validate_instrument(ins):
         if k in ins:assert type(ins[k]) in (int,float) and math.isfinite(ins[k]) and lo<=ins[k]<=hi
     for k,choices in VOICE_CHOICES.items():
         if k in ins:assert type(ins[k]) is int and ins[k] in choices
+    if 'layer_file' in ins:assert sample_layer.valid_file(ins['layer_file'])
 
 CLIP_NAME_MAX=24
 def clean_clip_name(name):
@@ -296,6 +299,7 @@ class Synth(ExpressionVoice):
         if self.params.get('play_mode',0)!=p.get('play_mode',0):self.panic()
         changed=any(self.params.get(k)!=p.get(k) for k in ('harmonics',)+TABLE_KEYS)
         self.params=copy.deepcopy(p)
+        if sample_layer.active(p):sample_layer.request(p['layer_file'],self.rate)   # decode in the background, never while rendering
         if changed:
             self.tables={}; self.wave_cache={}; self.weights={}; self.weight_cache={}
             self.swap_tables()
@@ -413,7 +417,7 @@ class Synth(ExpressionVoice):
             self.gated={k:v for k,v in self.gated.items() if v}
             for v in self.voices.values():
                 if not v['held'] and v['release'] is None: v['release']=(0,v['level'])
-    def panic(self): self.voices.clear(); self.gated.clear(); self.mono_held.clear();self.mono_lead=None; self.sustain=False; self.bend=1.; self.mod_wheel=0.
+    def panic(self): self.layer=[]; self.voices.clear(); self.gated.clear(); self.mono_held.clear();self.mono_lead=None; self.sustain=False; self.bend=1.; self.mod_wheel=0.
     def heard_partials(self):
         voices=[v for v in self.voices.values() if not v.get('fast')]
         if not voices:return None
@@ -448,7 +452,9 @@ class Synth(ExpressionVoice):
         p=self.live or self.params; mode=self.voice_mode(p); last=getattr(self,'last_p',None)
         if self.voices and last is not None and self.voice_mode(last)!=mode:
             keep=self.voices; clock=self.clock
-            self.voices=copy.deepcopy(keep); old=self._render(frames,last)
+            self.voices=copy.deepcopy(keep); self._skip_layer=True
+            try:old=self._render(frames,last)
+            finally:self._skip_layer=False
             self.voices=keep; self.clock=clock
             new=self._render(frames,p)
             out=[o+(n-o)*(i+1)/frames for i,(o,n) in enumerate(zip(old,new))]
@@ -471,6 +477,15 @@ class Synth(ExpressionVoice):
         if out is not None:cbus.put(buf,offset,out)
         self.last_p=p
     def _render(self,frames,p,target=None):
+        """The voices, then the Sample layer on top (sample_layer.py). Returns a list, or None when it rendered into target."""
+        layered=sample_layer.active(p) and not getattr(self,'_skip_layer',False)
+        if layered:sample_layer.spawn(self,p)
+        out=self._render_voices(frames,p,target)
+        if layered or getattr(self,'layer',None):
+            if not getattr(self,'layer',None):return out
+            sample_layer.mix(self,target if out is None else out,frames,p)
+        return out
+    def _render_voices(self,frames,p,target=None):
         """Returns a list, or None when it rendered into target (a zeroed ctypes array)."""
         out=[0.]*frames; sr=self.rate
         a=max(1,p['attack']*sr); d=max(1,p['decay']*sr); slow=max(1,p['release']*sr); quick=min(slow,.006*sr)
@@ -780,6 +795,44 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         params={**t['instrument'],'harmonics':harmonics,'spectral_energy':1}
         if name=='RANDOM':params['random_seed']=seed
         self.snapshot();t['instrument']=params;self.synths[track].configure(params)
+    def layer_state(self):
+        """The selected synth track's Sample layer file for the Sound page (name, length, outline), or None."""
+        t=self.project.tracks[self.selected]
+        if device_kind(t)!='synth':return None
+        path=t['instrument'].get('layer_file','')
+        return sample_layer.info(path,self.rate) if path else None
+    def _layer_target(self,track):
+        from .devices import track_index
+        track_index(track)
+        if track!=self.selected:raise ValueError('Track changed; choose the sample again')
+        t=self.project.tracks[track]
+        if device_kind(t)!='synth':raise ValueError('The Sample layer is on synth tracks')
+        return t
+    def set_layer_file(self,track,path):
+        """Choose (or, with '', clear) the Sample layer's WAV on a synth track. One undo step; choosing turns the layer on."""
+        t=self._layer_target(track)
+        if not isinstance(path,str) or not sample_layer.valid_file(path):raise ValueError('Choose a WAV file')
+        if path and not path.startswith(sample_layer.FACTORY):
+            lib=getattr(self,'sample_library',None)
+            if lib is not None and not lib.contains(path):raise ValueError('That sample is not in the library')
+        ins=copy.deepcopy(t['instrument'])
+        if path:ins['layer_file']=path; ins['layer_on']=1
+        else:ins.pop('layer_file',None); ins['layer_on']=0
+        self.snapshot();t['instrument']=ins;self.synths[track].configure(ins)
+        if path:sample_layer.request(path,self.rate)
+        else:sample_layer.clear(self.synths[track])
+    def layer_to_partials(self,track):
+        """Partials (the one-off button): measure the layer sample's spectrum and write it into the 16 partials. One undo step.
+        Returns a short message."""
+        t=self._layer_target(track); path=t['instrument'].get('layer_file','')
+        if not path:raise ValueError('Choose a sample first')
+        sample=sample_layer.request(path,self.rate,wait=True)
+        if sample is None:raise ValueError('That sample could not be read')
+        h,f0=sample_layer.measure_partials(sample,self.rate,t['instrument'].get('layer_start',0.))
+        if max(h)<=0:raise ValueError('That sample has no sound to measure')
+        params={**t['instrument'],'harmonics':h,'spectral_energy':1}
+        self.snapshot();t['instrument']=params;self.synths[track].configure(params)
+        return 'Partials written from the sample (%d Hz)'%round(f0)
     def reorder_fx(self,track,order):
         """Commit one validated drag/keyboard reorder with one existing project Undo entry."""
         if type(track) is not int or not 0<=track<len(self.project.tracks):

@@ -12,6 +12,8 @@ export type Instrument = {
   /** Full sound (17 Nov): Shape of the decay, Air, Drift, Dynamics, and the preset's own level. Missing = 0 (gain 1). */
   env_curve?:number;air?:number;drift?:number;vel_curve?:number;gain?:number;
   damp?:number;noise?:number;noise_decay?:number;noise_tone?:number;pitch_env?:number;pitch_decay?:number;
+  /** Sample layer (25 Nov): layer_on 0 = off. layer_file is 'factory:NAME.wav' or an absolute path; missing = no layer. */
+  layer_on?:number;layer_mode?:number;layer_level?:number;layer_tune?:number;layer_start?:number;layer_follow?:number;layer_loop?:number;layer_file?:string;
   vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
@@ -133,6 +135,8 @@ export type DeckUpdate = {
   midi_learn?:{track:number;module:string;param:string}|null;
   drum_racks?: (DrumRuntime|null)[];
   sample_library?: import('./components/SampleLibrary').SampleLibraryState | null;
+  /** The selected synth track's Sample layer file (name, length, outline), or null. */
+  layer?: {status:'ready'|'loading'|'missing';name:string;seconds:number;peaks:number[]} | null;
   samplers?: (SamplerRuntime|null)[];
   /** Recording into a Sampler: the open input, its level, and the take. */
   sampler_record?: SamplerRecord;

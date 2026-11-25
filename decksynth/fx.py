@@ -76,6 +76,8 @@ SOUND_PARAMS = {
     'env_curve': (0, 1), 'air': (0, 1), 'drift': (0, 1), 'vel_curve': (0, 1),
     # Strike card (24 Nov): damping, attack noise, pitch envelope
     'damp': (0, 1), 'noise': (0, 1), 'noise_decay': (.002, 1), 'noise_tone': (0, 1), 'pitch_env': (-24, 24), 'pitch_decay': (.005, 1),
+    # Sample layer (25 Nov)
+    'layer_level': (0, 2), 'layer_tune': (-24, 24), 'layer_start': (0, 1),
 }
 # The first ten are the original shapes; the 32 after them were added 15 Nov (Sir: shapes for sound
 # modulation), shown in the editor as pages of 2 x 5: Curves, Envelopes, Gates & rhythm, Random.
