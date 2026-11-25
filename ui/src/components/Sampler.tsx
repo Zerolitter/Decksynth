@@ -116,30 +116,34 @@ const GENERATE: [string, string, (n: number, off: Set<number>) => number[]][] = 
     (they belong to the sample); everything else starts from the grain defaults. One tap is one undo step. */
 const GRAIN_BASE: Partial<SamplerSpec> = { g_size: .12, g_density: 14, g_spray: .08, g_scan: 0, g_spread: 0, g_scale: 'chromatic', g_reverse: 0, g_jitter: 0,
   g_size_rnd: 0, g_amp_rnd: 0, g_window: 'hann', g_roam: 'off', g_range: .4, g_speed: .25, g_sync: 'free', g_wander: 0, g_smooth: .5, g_jump: 0, g_hold: 0,
-  g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1 };
+  g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1, sustain: 1, filter: 'off', f_env: 0 };
+/** Reworked 25 Nov: each one sounds right on a held chord as it is. A grain lasts Size, a new one starts every 1/Density s, so
+    Size × Density is how many overlap: 2 to 6 for pads (smooth), more only for textures. Spray, Timing and the variations stay low
+    (Chord Cloud and Chord Pulse are Sir's own tuned settings). */
 const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
-  ['Cloud Pad', 'pad', 'Long soft grains, a slow swell', { g_size: .25, g_density: 20, g_spray: .15, attack: .4, release: 1.2 }],
-  ['Shimmer', 'pad', 'Octaves above and below, drifting forward', { g_size: .2, g_density: 30, g_spray: .1, g_spread: 12, g_scale: 'octaves', g_roam: 'forward', g_speed: .05, g_range: .3, attack: .3, release: 1.5 }],
-  ['Glass Choir', 'pad', 'Fifths and octaves, round grains', { g_size: .3, g_density: 24, g_spread: 7, g_scale: 'fifths', g_window: 'welch', attack: .5, release: 1.5 }],
-  ['Major Bloom', 'pad', 'A cloud on a major scale', { g_size: .15, g_density: 35, g_spread: 12, g_scale: 'major', g_amp_rnd: .4, attack: .2, release: 1 }],
-  ['Minor Haze', 'pad', 'A minor-scale haze with some grains backwards', { g_size: .18, g_density: 28, g_spray: .2, g_spread: 7, g_scale: 'minor', g_reverse: .3, attack: .3, release: 1.2 }],
-  ['Frozen', 'drone', 'Holds one moment of the sample', { g_size: .4, g_density: 25, g_spray: .02, g_jitter: .3, attack: .2, release: .8 }],
-  ['Slow Drift', 'drone', 'Wanders slowly through most of the sample', { g_size: .35, g_density: 18, g_roam: 'forward', g_speed: .05, g_range: .8, g_wander: .4, g_smooth: .8, attack: .5, release: 1.5 }],
-  ['Tidal', 'drone', 'Bounces back and forth, breathing', { g_size: .25, g_density: 22, g_roam: 'bounce', g_speed: .3, g_range: .6, g_pulse: .8, attack: .3, release: 1 }],
-  ['Backwards Tape', 'drone', 'Every grain backwards, rolling back', { g_size: .3, g_density: 16, g_reverse: 1, g_roam: 'reverse', g_speed: .5, g_range: .5, release: .8 }],
-  ['Deep Drone', 'drone', 'Long, dense, slow grains kept in key: a deep ambient bed', { g_size: .7, g_density: 40, g_spray: .3, g_spread: 12, g_scale: 'octaves', g_jitter: .5, g_size_rnd: .3, g_amp_rnd: .3, g_roam: 'forward', g_speed: .02, g_range: .5, g_wander: .3, g_smooth: .9, attack: 1.5, release: 3 }],
-  ['Space', 'drone', 'An octave up and mostly backwards: the sound of space', { g_size: .45, g_density: 45, g_spray: .25, g_spread: 12, g_scale: 'octaves', g_reverse: .85, g_jitter: .4, g_amp_rnd: .4, g_roam: 'reverse', g_speed: .04, g_range: .6, attack: 1, release: 2.5 }],
-  ['Wanderer', 'drone', 'Drifts and jumps around Position', { g_size: .2, g_density: 20, g_range: .6, g_wander: .8, g_smooth: .9, g_jump: .2, release: 1 }],
-  ['Dust', 'texture', 'Tiny flat grains scattered everywhere', { g_size: .02, g_density: 60, g_spray: .6, g_window: 'rect', g_amp_rnd: .8, g_jitter: 1 }],
-  ['Swarm', 'texture', 'A dense buzz of short, detuned grains', { g_size: .04, g_density: 80, g_spray: .4, g_spread: 3, g_jitter: .7 }],
-  ['Scatter', 'texture', 'Grains from anywhere, half of them backwards', { g_size: .08, g_density: 25, g_spray: 1, g_reverse: .5, g_size_rnd: .5 }],
-  ['Grain Hits', 'texture', 'Sparse percussive grains', { g_size: .05, g_density: 8, g_spray: .3, g_window: 'perc', g_jitter: .5 }],
-  ['Glitch Jumps', 'glitch', 'Plays through, jumping and freezing', { g_size: .05, g_density: 40, g_window: 'perc', g_roam: 'forward', g_speed: 1, g_range: 1, g_jump: .8, g_hold: .6, g_chaos: .8 }],
-  ['Hiccup', 'glitch', 'Stops and turns back at random', { g_size: .08, g_density: 30, g_roam: 'forward', g_speed: 1, g_range: 1, g_hold: 1, g_rev: .5, g_chaos: 1 }],
-  ['Slice Skip', 'rhythm', 'Steps through the Chop slices in eighths', { g_size: .1, g_density: 30, g_spray: .02, g_rhythm: 'skip', g_div: '1/8' }],
-  ['Gated 16ths', 'rhythm', 'Sixteenths through the slices, some steps stay', { g_size: .06, g_density: 50, g_spray: .02, g_window: 'rect', g_rhythm: 'gate', g_div: '1/16', g_prob: .8 }],
-  ['Random Chops', 'rhythm', 'A random slice each sixteenth, swung', { g_size: .07, g_density: 40, g_window: 'perc', g_rhythm: 'random', g_div: '1/16', g_swing: .3 }],
-  ['Ping Flow', 'rhythm', 'Through the slices and back, flowing', { g_size: .12, g_density: 30, g_rhythm: 'pingpong', g_div: '1/8' }],
+  ['Chord Cloud', 'pad', 'A slow pad that drifts through the sample, a bar per pass: swells in, long tail', { g_size: .5, g_density: 4.6, g_spray: 0, g_spread: 1, g_scale: 'octaves', g_jitter: .25, g_window: 'welch', g_roam: 'forward', g_range: .5, g_speed: .02, g_sync: '1', g_wander: .3, g_smooth: .9, attack: 1.5, sustain: .21, release: 3 }],
+  ['Warm Pad', 'pad', 'Round, steady grains: a soft pad with a slow swell', { g_size: .35, g_density: 10, g_spray: .04, g_jitter: .15, g_window: 'welch', attack: .6, release: 1.5 }],
+  ['Shimmer', 'pad', 'The same pad with grains an octave up and down, drifting slowly', { g_size: .4, g_density: 9, g_spray: .03, g_spread: 12, g_scale: 'octaves', g_jitter: .15, g_amp_rnd: .1, g_window: 'welch', g_roam: 'forward', g_speed: .03, g_range: .3, attack: .8, release: 2 }],
+  ['Glass Choir', 'pad', 'Fifths and octaves in round grains, like a choir', { g_size: .3, g_density: 12, g_spray: .03, g_spread: 7, g_scale: 'fifths', g_jitter: .1, g_window: 'welch', attack: .5, release: 1.5 }],
+  ['Major Bloom', 'pad', 'Grains spread over a major scale: bright and open', { g_size: .3, g_density: 14, g_spray: .04, g_spread: 5, g_scale: 'major', g_jitter: .1, g_amp_rnd: .15, g_window: 'welch', attack: .3, release: 1.2 }],
+  ['Minor Haze', 'pad', 'A minor-scale haze, a few grains backwards', { g_size: .3, g_density: 12, g_spray: .05, g_spread: 7, g_scale: 'minor', g_reverse: .15, g_jitter: .1, g_window: 'welch', attack: .4, release: 1.5 }],
+  ['Frozen', 'drone', 'Holds one moment of the sample, steady and even', { g_size: .45, g_density: 6, g_spray: .01, g_jitter: .1, g_window: 'welch', attack: .3, release: 1.2 }],
+  ['Slow Drift', 'drone', 'Wanders slowly through most of the sample', { g_size: .4, g_density: 6, g_spray: .02, g_jitter: .1, g_window: 'welch', g_roam: 'forward', g_speed: .04, g_range: .6, g_wander: .2, g_smooth: .9, attack: .8, release: 2 }],
+  ['Tidal', 'drone', 'Bounces back and forth, breathing in and out', { g_size: .3, g_density: 9, g_spray: .02, g_jitter: .1, g_window: 'welch', g_roam: 'bounce', g_speed: .15, g_range: .5, g_pulse: .6, attack: .4, release: 1.2 }],
+  ['Backwards Tape', 'drone', 'Every grain backwards, rolling back through the sample', { g_size: .3, g_density: 9, g_spray: .02, g_reverse: 1, g_jitter: .1, g_window: 'welch', g_roam: 'reverse', g_speed: .3, g_range: .4, attack: .2, release: 1 }],
+  ['Deep Drone', 'drone', 'Long, dense grains an octave apart: a deep, slow bed', { g_size: .7, g_density: 7, g_spray: .03, g_spread: 12, g_scale: 'octaves', g_jitter: .2, g_window: 'welch', g_roam: 'forward', g_speed: .02, g_range: .5, g_wander: .2, g_smooth: .9, attack: 1.5, release: 3 }],
+  ['Space', 'drone', 'Mostly backwards, an octave up and down: wide and airy', { g_size: .5, g_density: 8, g_spray: .03, g_spread: 12, g_scale: 'octaves', g_reverse: .7, g_jitter: .2, g_amp_rnd: .15, g_window: 'welch', g_roam: 'reverse', g_speed: .03, g_range: .5, attack: 1, release: 2.5 }],
+  ['Dust', 'texture', 'Tiny grains, lightly scattered', { g_size: .03, g_density: 30, g_spray: .25, g_amp_rnd: .4, g_jitter: .5 }],
+  ['Swarm', 'texture', 'A buzz of short grains on a pentatonic scale', { g_size: .06, g_density: 40, g_spray: .12, g_spread: 5, g_scale: 'penta', g_jitter: .3 }],
+  ['Scatter', 'texture', 'Grains from around Position, a few backwards', { g_size: .1, g_density: 14, g_spray: .5, g_reverse: .25, g_size_rnd: .25, g_window: 'welch' }],
+  ['Grain Hits', 'texture', 'Sparse, soft percussive grains', { g_size: .08, g_density: 6, g_spray: .1, g_window: 'perc', g_jitter: .2 }],
+  ['Glitch Jumps', 'glitch', 'Plays through, with a few jumps and stops', { g_size: .06, g_density: 24, g_window: 'perc', g_roam: 'forward', g_speed: .5, g_range: .6, g_jump: .3, g_hold: .3, g_chaos: .4 }],
+  ['Hiccup', 'glitch', 'Stops and turns back now and then', { g_size: .08, g_density: 20, g_window: 'perc', g_roam: 'forward', g_speed: .5, g_range: .6, g_hold: .5, g_rev: .3, g_chaos: .5 }],
+  ['Chord Pulse', 'rhythm', 'Dark pulsing chords: a step every quarter, some skipped, low-pass with an envelope (chop the sample to hear the steps)', { g_size: .46, g_density: 8.8, g_spray: .02, g_scale: 'minor', g_jitter: .14, g_window: 'welch', g_roam: 'forward', g_range: .065, g_speed: .25, g_rhythm: 'skip', g_div: '1/4', g_swing: .08, g_prob: .65,
+    filter: 'lp24', cutoff: 678, resonance: 0, f_env: .31, f_attack: .206, f_hold: .188, f_decay: .3, f_sustain: 0, f_release: .088 }],
+  ['Slice Skip', 'rhythm', 'Steps through the Chop slices in eighths', { g_size: .12, g_density: 14, g_spray: .01, g_window: 'welch', g_rhythm: 'skip', g_div: '1/8' }],
+  ['Gated 16ths', 'rhythm', 'Sixteenths through the slices, a few steps stay silent', { g_size: .07, g_density: 24, g_spray: .01, g_window: 'rect', g_rhythm: 'gate', g_div: '1/16', g_prob: .85 }],
+  ['Ping Flow', 'rhythm', 'Through the slices and back, flowing', { g_size: .15, g_density: 16, g_spray: .01, g_window: 'welch', g_rhythm: 'pingpong', g_div: '1/8' }],
 ];
 const PRESET_COLOR: Record<string, string> = { pad: 'var(--c-grain)', drone: '#61e3bf', texture: '#a7b4ff', glitch: '#ff8f5c', rhythm: '#e47cf5' };
 /** Rhythm steps the read point through the Chop slices. */
