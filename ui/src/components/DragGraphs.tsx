@@ -308,26 +308,30 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
   </div>;
 }
 
-/** The Sampler's filter as a response curve: drag the point sideways for Cutoff, up and down for Resonance. */
+/** The Sampler's filter as a response curve: drag the point sideways for Cutoff, up and down for Resonance.
+ *  LP 24 (25 Nov) is two low-passes in a row, the first flat (Butterworth), the resonance on the second, as the engine runs it. */
+const K24 = 1.8478, k24 = (res: number) => .7654 - .7254 * clamp(res);
 export function FilterView({ type, cutoff, resonance, onLive, onCommit }: {
-  type: 'off' | 'lp' | 'bp' | 'hp'; cutoff: number; resonance: number;
+  type: 'off' | 'lp' | 'lp24' | 'bp' | 'hp'; cutoff: number; resonance: number;
 } & LiveEdit) {
   const d = useLive(onLive, onCommit);
   const fc = d.draft.cutoff ?? cutoff, res = d.draft.resonance ?? resonance;
-  const k = 2 - 1.96 * clamp(res), W = 1000, H = 100, pts: string[] = [];
+  const steep = type === 'lp24';
+  const k = steep ? k24(res) : 2 - 1.96 * clamp(res), W = 1000, H = 100, pts: string[] = [];
   const mag = (f: number) => {
     if (type === 'off') return 0;
-    const w = f / fc, den = Math.hypot(1 - w * w, k * w), num = type === 'lp' ? 1 : type === 'hp' ? w * w : k * w;
-    return 20 * Math.log10(Math.max(1e-6, num / den));
+    const w = f / fc, den = Math.hypot(1 - w * w, k * w), num = type === 'lp' || steep ? 1 : type === 'hp' ? w * w : k * w;
+    return 20 * Math.log10(Math.max(1e-6, num / den / (steep ? Math.hypot(1 - w * w, K24 * w) : 1)));
   };
   for (let i = 0; i <= 140; i++) pts.push((i / 140 * W).toFixed(1) + ' ' + (DB_Y(mag(FREQ(i / 140))) * H).toFixed(1));
-  const peakDb = type === 'off' ? 0 : -20 * Math.log10(k);   // resonance height (band pass is drawn level, the point still shows it)
+  // resonance height at the cutoff (band pass is drawn level, the point still shows it); 24 dB: both stages at the cutoff
+  const peakDb = type === 'off' ? 0 : -20 * Math.log10(steep ? k * K24 : k);
   const handles: DragHandle[] = [{ key: 'cut', label: type === 'off' ? 'Cutoff (filter off)' : 'Cutoff · Resonance', x: FX(fc), y: DB_Y(peakDb), axis: 'xy', text: hz(fc) + ', resonance ' + Math.round(res * 100) + '%' }];
-  const move = (_: string, x: number, y: number) => d.move({
-    cutoff: Math.round(clamp(FREQ(x), 20, 20000)),
-    // up = more resonance: the point rides the peak, whose height is -20·log10(k), k = 2 - 1.96·resonance
-    resonance: Math.round(clamp((2 - 10 ** (-Y_DB(y) / 20)) / 1.96) * 100) / 100,
-  });
+  const move = (_: string, x: number, y: number) => {
+    // up = more resonance: the point rides the peak, whose height is -20·log10(k) (12 dB) or -20·log10(k·K24) (24 dB)
+    const kk = 10 ** (-Y_DB(y) / 20) / (steep ? K24 : 1);
+    d.move({ cutoff: Math.round(clamp(FREQ(x), 20, 20000)), resonance: Math.round(clamp(steep ? (.7654 - kk) / .7254 : (2 - kk) / 1.96) * 100) / 100 });
+  };
   return <div className={'drag-graph drag-tone smp-drag' + (type === 'off' ? ' is-off' : '')}>
     <DragBox label="Filter: drag the point for Cutoff and Resonance" handles={handles} onMove={move} onDone={() => d.done()}
       onReset={() => onCommit({ cutoff: 2000, resonance: .2 })}>
@@ -342,5 +346,62 @@ export function FilterView({ type, cutoff, resonance, onLive, onCommit }: {
       {type === 'off' ? <span className="drag-note">Filter is off: switch it on in the Filter card</span> : null}
     </DragBox>
     <div className="drag-ruler" aria-hidden="true">{[20, 100, 1000, 10000, 20000].map(f => <span key={f} style={{ left: FX(f) * 100 + '%' }}>{hz(f)}</span>)}</div>
+  </div>;
+}
+
+export type FilterEnv = { f_env: number; f_attack: number; f_hold: number; f_decay: number; f_sustain: number; f_release: number };
+/** The filter's own envelope over time, as the engine runs it (25 Nov): Attack straight up, Hold at the top, Decay falls
+ *  (to 1 % of the way at the Decay time) to Sustain while the key is held, Release falls from there after the key comes up.
+ *  Attack, Hold, Decay · Sustain and Release are points to drag. The height is how far it moves the cutoff (Env). */
+export function FilterEnvView({ env, onLive, onCommit }: { env: FilterEnv } & LiveEdit) {
+  const d = useLive(onLive, onCommit);
+  const e = { ...env, ...d.draft } as FilterEnv;
+  const held = Math.max(.15, (e.f_attack + e.f_hold + e.f_decay + e.f_release) * .3);
+  const natural = Math.max(.2, e.f_attack + e.f_hold + e.f_decay + held + e.f_release) * 1.1;
+  const [frozen, setFrozen] = useState<number | null>(null);
+  const T = frozen ?? natural, W = 1000, H = 100, N = 240;
+  const keyUp = e.f_attack + e.f_hold + e.f_decay + held;
+  const fall = 4.6 / Math.max(.001, e.f_decay), rfall = 4.6 / Math.max(.001, e.f_release);
+  const before = (t: number) => t < e.f_attack ? t / e.f_attack : t < e.f_attack + e.f_hold ? 1
+    : e.f_sustain + (1 - e.f_sustain) * Math.exp(-(t - e.f_attack - e.f_hold) * fall);
+  const level = (t: number) => t < keyUp ? before(t) : before(keyUp) * Math.exp(-(t - keyUp) * rfall);
+  const line: string[] = [];
+  for (let i = 0; i <= N; i++) { const t = T * i / N; line.push((i / N * W).toFixed(1) + ' ' + (LEVEL_Y(level(t)) * H).toFixed(1)); }
+  const a = e.f_attack, h = a + e.f_hold, dd = h + e.f_decay;
+  const handles: DragHandle[] = [
+    { key: 'f_attack', label: 'Attack', x: a / T, y: LEVEL_Y(1), axis: 'x', text: msText(e.f_attack) },
+    { key: 'f_hold', label: 'Hold', x: h / T, y: LEVEL_Y(1), axis: 'x', text: msText(e.f_hold) },
+    { key: 'f_decay', label: 'Decay · Sustain', x: dd / T, y: LEVEL_Y(level(dd)), axis: 'xy', text: msText(e.f_decay) + ', sustain ' + Math.round(e.f_sustain * 100) + '%' },
+    { key: 'f_release', label: 'Release', x: (keyUp + e.f_release) / T, y: LEVEL_Y(0), axis: 'x', text: msText(e.f_release) },
+  ];
+  const r3 = (v: number) => Math.round(clamp(v, 0, 3) * 1000) / 1000;
+  const move = (key: string, x: number, y: number) => {
+    if (frozen === null) setFrozen(T);
+    const t = x * T;
+    if (key === 'f_attack') d.move({ f_attack: r3(t) });
+    if (key === 'f_hold') d.move({ f_hold: r3(t - e.f_attack) });
+    if (key === 'f_decay') {
+      // the point sits where the curve is at the Decay time (1 % above Sustain), so y maps back through that
+      const sustain = clamp(((.9 - y) / .8 - .01) / .99);
+      d.move({ f_decay: r3(t - e.f_attack - e.f_hold), f_sustain: Math.round(sustain * 100) / 100 });
+    }
+    if (key === 'f_release') d.move({ f_release: r3(t - keyUp) });
+  };
+  const pct = Math.round(e.f_env * 100), ticks = [0, .25, .5, .75, 1];
+  return <div className={'drag-graph drag-envelope smp-drag smp-fenv' + (Math.abs(e.f_env) < .005 ? ' is-off' : '')}>
+    <DragBox label="Filter envelope: drag Attack, Hold, Decay and Release" handles={handles} onMove={move}
+      onDone={() => { d.done(); setFrozen(null); }}
+      onReset={key => onCommit(key === 'f_decay' ? { f_decay: .3, f_sustain: 0 } : { [key]: key === 'f_release' ? .3 : 0 })}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        {[1, .5].map(l => <line key={l} className="grid" x1={0} x2={W} y1={LEVEL_Y(l) * H} y2={LEVEL_Y(l) * H} />)}
+        <line className="grid zero" x1={0} x2={W} y1={LEVEL_Y(0) * H} y2={LEVEL_Y(0) * H} />
+        <path className="env-fill" d={'M0 ' + LEVEL_Y(0) * H + 'L' + line.join('L') + 'L' + W + ' ' + LEVEL_Y(0) * H + 'Z'} />
+        <path className="env-line" d={'M' + line.join('L')} vectorEffect="non-scaling-stroke" />
+        <line className="grid end" x1={keyUp / T * W} x2={keyUp / T * W} y1={0} y2={H} />
+      </svg>
+      <span className="drag-axis-label top">{pct === 0 ? 'Env off' : (pct > 0 ? '+' : '') + pct + '% · ' + (Math.abs(e.f_env) * 5).toFixed(1) + ' oct'}</span>
+      <span className="drag-key-up" style={{ left: keyUp / T * 100 + '%' }}>key up</span>
+    </DragBox>
+    <div className="drag-ruler" aria-hidden="true">{ticks.map(f => <span key={f} style={{ left: f * 100 + '%' }}>{msText(f * T)}</span>)}</div>
   </div>;
 }

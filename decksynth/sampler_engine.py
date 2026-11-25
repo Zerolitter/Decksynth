@@ -14,7 +14,8 @@ import time
 # Values a turning knob may preview (numbers only; never the sample, the slices or the play mode).
 LIVE = frozenset(('g_swing', 'g_prob', 'g_range', 'g_speed', 'g_wander', 'g_smooth', 'g_jump', 'g_hold', 'g_rev', 'g_chaos', 'g_pulse', 'g_pos', 'g_size', 'g_density', 'g_spray', 'g_scan', 'g_spread', 'g_reverse', 'g_jitter', 'g_size_rnd', 'g_amp_rnd',
                   'tune', 'fine', 'gain', 'velocity', 'glide', 'cutoff', 'resonance', 'f_env', 'f_attack', 'f_decay', 'f_velocity',
-                  'p_env', 'p_decay', 'attack', 'decay', 'sustain', 'release'))
+                  'p_env', 'p_decay', 'attack', 'decay', 'sustain', 'release',
+                  'f_hold', 'f_sustain', 'f_release', 'f_env_vel', 'vel_attack', 'pan'))
 
 class SamplerEngine:
     def init_samplers(self):

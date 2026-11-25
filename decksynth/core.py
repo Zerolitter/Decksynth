@@ -1699,6 +1699,11 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
     def export_wav(self,path,seconds=None):
         from .render_export import export_wav
         return export_wav(self,path,seconds)
+    def _sampler_pan(self,tr,t,fx):
+        """A Sampler track's own Pan knob (as it plays, so a turning knob is heard) plus its macro / mod pad offset."""
+        if device_kind(t)!='sampler' or tr>=len(self.samplers):return 0.
+        spec=self.samplers[tr].spec
+        return (spec.get('pan',0.) if spec else 0.)+getattr(fx,'sampler',{}).get('pan',0.)
     def _render_tracks_c(self,bufs,pos,count,frozen,live_frozen,drum_right):
         """One slice of the block (between two note events) for every track, straight into its C buffers."""
         for tr,s in enumerate(self.synths):
@@ -1762,7 +1767,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 if a>0:
                     self.send_buses.mark_fed(bus);bl,br=bus_in[bus];sends+=[addr(bl),addr(br),a]
                 else:sends+=[None,None,0.]
-            pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
+            pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)+self._sampler_pan(tr,t,fx)))
             bufs.pan[0]=pan if self._pan_state[tr] is None else self._pan_state[tr]
             c.dsfx_mix_track(addr(left),addr(right),n,vol,pan,addr(bufs.pan),step,addr(mix),addr(mix_r),*sends)
             self._pan_state[tr]=bufs.pan[0]
@@ -1968,7 +1973,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     feeds=[(bus,a) for bus,a in zip(send_buses.BUSES,send_buses.track_amounts(t)) if a>0]
                     for bus,_ in feeds:self.send_buses.mark_fed(bus)
                     if stereo:
-                        pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)))
+                        pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)+self._sampler_pan(tr,t,fx)))
                         left_audio,right_audio=audio;current=pan if self._pan_state[tr] is None else self._pan_state[tr]
                         step=2/max(1,.005*self.rate)
                         if not any(left_audio) and not any(right_audio):

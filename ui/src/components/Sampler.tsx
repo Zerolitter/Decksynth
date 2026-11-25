@@ -9,7 +9,7 @@ import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
 import { ValueBox, parseNote } from './ValueBox';
 import { type Env } from './EnvEditor';
-import { FilterView, SamplerEnvView } from './DragGraphs';
+import { FilterEnvView, FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
 import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv, type GrainHarm } from '../types';
 import '../sampler.css';
@@ -20,15 +20,17 @@ const KEYMAPS: ['whole' | 'slices' | 'pitched', string, string][] = [
   ['slices', 'Slices', 'One slice per key from the first key, each at its own pitch'],
   ['pitched', 'Pitched', "Each key plays the slice whose pitch is nearest, tuned to the key (finds each slice's pitch)"],
 ];
-type FilterShape = 'lp' | 'bp' | 'hp';
+type FilterShape = 'lp' | 'lp24' | 'bp' | 'hp';
 // Round 4 (Sir, 16 Nov): the filter types as drawings of their curves, and a power switch like the Drum Rack compressor.
 const FILTERS: [FilterShape, string, string, string][] = [
   ['lp', 'LP', 'Low-pass', 'Low pass: keeps the lows, cuts above the cutoff'],
+  ['lp24', 'LP 24', 'Low-pass 24 dB', 'Low pass 24 dB: cuts twice as steeply above the cutoff; darker, and the resonance sings (acid)'],
   ['bp', 'BP', 'Band-pass', 'Band pass: keeps a band around the cutoff'],
   ['hp', 'HP', 'High-pass', 'High pass: keeps the highs, cuts below the cutoff'],
 ];
 const FILTER_PATH: Record<FilterShape, string> = {
   lp: 'M2 6 H15 Q19 6 21 9 L28 16',
+  lp24: 'M2 6 H14 Q17 6 18 9 L21 16',
   bp: 'M2 16 L8 13 Q12 3 15 3 Q18 3 22 13 L28 16',
   hp: 'M2 16 L9 9 Q11 6 15 6 H28',
 };
@@ -831,6 +833,57 @@ function AmpCard({ spec, id, onEdit, onLive, shown: onBig, onShow }: { spec: Sam
 }
 
 const AMP_DEFAULTS: Record<keyof Env, number> = { attack: 0, decay: 0, sustain: 1, release: .25 };
+const GLIDE_MODES: ['legato' | 'always', string, string][] = [
+  ['legato', 'Legato', 'Glide only between keys held together; a new phrase starts on its own note'],
+  ['always', 'Always', 'Glide from the last note even after it was let go (a one-shot bass that slides)'],
+];
+const panText = (n: number) => Math.abs(n) < .005 ? 'C' : (n < 0 ? 'L ' : 'R ') + Math.round(Math.abs(n) * 100);
+const secs = (n: number) => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s';
+
+/** Filter (25 Nov): its tabs are its title (rule 18). Filter: the type, Cutoff, Resonance and how far the envelope and
+ *  velocity move them. Env: the filter's own envelope, Attack, Hold, Decay, Sustain and Release (points on the big view). */
+function FilterCard({ spec, id, onEdit, onLive, big, onBig, lastFilter }: { spec: SamplerSpec; id: string; onEdit: Edit; onLive: Edit; big: boolean;
+  onBig(): void; lastFilter: { current: FilterShape } }) {
+  const [page, setPage] = useState<'filter' | 'env'>('filter');
+  const filterOn = (spec.filter ?? 'off') !== 'off';
+  const shape: FilterShape = filterOn ? spec.filter as FilterShape : lastFilter.current;
+  const knob = (key: keyof SamplerSpec, name: string, min: number, max: number, def: number, step: number, format: (n: number) => string, description: string) =>
+    <CommittedKnob key={key} id={id + '-' + key} defaultValue={def} name={name} value={(spec[key] as number | undefined) ?? def} min={min} max={max} step={step}
+      description={description} format={format} onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
+  const off = (n: number) => n < .005 ? 'Off' : Math.round(n * 100) + '%';
+  return <section className={'smp-card smp-filter page-' + page + (filterOn ? '' : ' off')} aria-label="Filter">
+    <div className="smp-card-head">
+      <div className="smp-seg smp-filter-pages" role="radiogroup" aria-label="Filter page">
+        <button type="button" role="radio" aria-checked={page === 'filter'} title="Filter: the type, Cutoff and Resonance" onClick={() => setPage('filter')}>Filter</button>
+        <button type="button" role="radio" aria-checked={page === 'env'} title="The filter's own envelope: Attack, Hold, Decay, Sustain, Release" onClick={() => setPage('env')}>Env</button>
+      </div>
+      <button type="button" role="switch" className="smp-power" aria-checked={filterOn} aria-label="Filter on"
+        title={filterOn ? 'Turn the filter off (the settings are kept)' : 'Turn the filter on'}
+        onClick={() => onEdit('filter', filterOn ? 'off' : lastFilter.current)}><Power size={14} />{filterOn ? 'On' : 'Off'}</button>
+      <button type="button" className="smp-card-icon" aria-label="Edit the filter on the waveform" aria-pressed={big}
+        title={big ? 'Back to Trim' : 'Drag the cutoff, resonance and the envelope points on the big view above'} onClick={onBig}><ArrowUp size={18} /></button></div>
+    {page === 'filter' ? <>
+      <div className="smp-seg smp-filter-shapes" role="radiogroup" aria-label="Filter type">
+        {FILTERS.map(([f, short, name, title]) => <button key={f} type="button" role="radio" aria-label={name} aria-checked={shape === f} title={title}
+          onClick={() => { lastFilter.current = f; onEdit('filter', f); }}><FilterIcon shape={f} /><span>{short}</span></button>)}
+      </div>
+      <div className="smp-knobs two">
+        <CommittedKnob id={id + '-cutoff'} defaultValue={Math.log2(100)} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
+          description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onDraft={n => onLive('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
+        {knob('resonance', 'Resonance', 0, 1, .2, .01, n => Math.round(n * 100) + '%', 'A peak at the cutoff')}
+        {knob('f_env', 'Env', -1, 1, 0, .01, n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%', "How far the filter's envelope moves the cutoff (100% is five octaves); its shape is on the Env page")}
+        {knob('f_env_vel', 'Env vel', 0, 1, 0, .01, off, 'Soft notes move the cutoff less: at 100% the envelope follows velocity fully')}
+        {knob('f_velocity', 'Velocity', 0, 1, 0, .01, off, 'Soft notes are darker: up to four octaves lower')}
+      </div>
+    </> : <div className="smp-knobs two smp-fenv-knobs">
+      {knob('f_attack', 'Attack', 0, 3, 0, .001, secs, 'Time for the filter envelope to rise')}
+      {knob('f_hold', 'Hold', 0, 3, 0, .001, n => n <= 0 ? 'Off' : secs(n), 'Time it stays at the top before it falls')}
+      {knob('f_decay', 'Decay', 0, 3, .3, .001, secs, 'Time to fall to the sustain level')}
+      {knob('f_sustain', 'Sustain', 0, 1, 0, .01, n => Math.round(n * 100) + '%', 'Where it stays while the key is held')}
+      {knob('f_release', 'Release', 0, 3, .3, .001, secs, 'Time to fall back after the key comes up')}
+    </div>}
+  </section>;
+}
 
 type PadChoice = { track: number; kit: string; pad: number; name: string; family: DrumKind };
 
@@ -904,7 +957,6 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const chopShown = mode === 'chop' && big === 'wave';
   const filterOn = (spec.filter ?? 'off') !== 'off';
   if (filterOn) lastFilter.current = spec.filter as FilterShape;
-  const shape: FilterShape = filterOn ? spec.filter as FilterShape : lastFilter.current;
   const familyLabel = spec.family in DRUM_KINDS && spec.family !== 'other' ? DRUM_KINDS[spec.family as DrumKind].label : /^Recording/.test(spec.name) ? 'Recordings' : 'Samples';
   return <section className="drum-rack sampler-page" aria-label="Sampler" style={style}>
     {libraryOpen ? <SampleLibrarySheet library={library} spec={spec} track={trackIndex} selectedSlice={mode === 'chop' ? sel : -1} defaultCategory={familyLabel}
@@ -927,8 +979,10 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
       {big === 'env' ? <div className="smp-drag-shell"><SamplerEnvView env={{ attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release }}
         seconds={runtime?.seconds ?? 0} region={[spec.start, spec.end]} peaks={runtime?.peaks ?? []} view={runtime?.view ?? [0, 1]} playing={runtime?.playing ?? []} reverse={!!spec.reverse} scale={scale}
         onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
-      : big === 'filter' ? <div className="smp-drag-shell"><FilterView type={spec.filter ?? 'off'} cutoff={spec.cutoff ?? 2000} resonance={spec.resonance ?? .2}
-        onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
+      : big === 'filter' ? <div className="smp-drag-shell smp-filter-shell"><FilterView type={spec.filter ?? 'off'} cutoff={spec.cutoff ?? 2000} resonance={spec.resonance ?? .2}
+        onLive={onLive} onCommit={p => onEdit('patch', p)} />
+        <FilterEnvView env={{ f_env: spec.f_env ?? 0, f_attack: spec.f_attack ?? 0, f_hold: spec.f_hold ?? 0, f_decay: spec.f_decay ?? .3, f_sustain: spec.f_sustain ?? 0, f_release: spec.f_release ?? .3 }}
+          onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
       : <SampleWindow spec={spec} runtime={runtime} mode={big === 'grain' ? 'grain' : mode} selected={sel} marker={marker} onEdit={onEdit} onLive={onLive} onSliceTap={sliceTap} tapFlip={tapFlip}
         onView={setView} onChop={(m, o) => { chop(m, o); }} onAudition={i => send('sampler_audition', [trackIndex, spec.id, i])}
         onLibrary={i => { if (i >= 0) setSelected(i); setLibraryOpen(true); }}
@@ -950,27 +1004,32 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           <div className="smp-seg" role="radiogroup" aria-label="Play mode">
             {MODES.map(([m, label, title]) => <button key={m} type="button" role="radio" aria-checked={spec.mode === m} title={title} onClick={() => onEdit('mode', m)}>{label}</button>)}
           </div>
-          <div className="smp-line">
+          <div className="smp-line smp-play-line">
             <div className="smp-seg" role="radiogroup" aria-label="Voices">
               <button type="button" role="radio" aria-checked={spec.poly} title="Chords: up to 16 notes at once" onClick={() => onEdit('poly', true)}>Poly</button>
-              <button type="button" role="radio" aria-checked={!spec.poly} title="One note at a time; glides between held keys" onClick={() => onEdit('poly', false)}>Mono</button>
+              <button type="button" role="radio" aria-checked={!spec.poly} title="One note at a time; it can glide between notes" onClick={() => onEdit('poly', false)}>Mono</button>
             </div>
-            <button type="button" className="smp-toggle" aria-pressed={!!spec.reverse} disabled={spec.mode === 'grain'}
-              title={spec.mode === 'grain' ? 'In Grain mode, Reverse on the Grain card sets how many grains play backwards' : 'Play backwards'} onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} />Reverse</button>
+            {spec.mode === 'grain' ? <button type="button" className="smp-toggle smp-mini smp-live-in" aria-pressed={!!runtime?.live} aria-label="Live in" title="Live input: grains from the input as it comes in (the last 8 seconds) instead of the sample (in Grain mode, Reverse is on the Grain card)"
+              onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime?.live ? 'off' : 'on'])}><Mic size={15} /><span>Live in</span></button>
+              : <button type="button" className="smp-toggle smp-mini" aria-pressed={!!spec.reverse} aria-label="Reverse" title="Play backwards" onClick={() => onEdit('reverse', !spec.reverse)}><Undo2 size={15} /><span>Reverse</span></button>}
+            {runtime?.live ? <button type="button" className="smp-toggle smp-mini" aria-pressed={runtime.live.frozen} aria-label="Freeze" title="Freeze: stop listening and keep the last 8 seconds"
+              onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime.live!.frozen ? 'thaw' : 'freeze'])}><Snowflake size={15} /><span>Freeze</span></button>
+              : <button type="button" className="smp-toggle smp-mini" aria-pressed={!!spec.normalize} aria-label="Normalize" title="Normalize: bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} /><span>Normalize</span></button>}
           </div>
-          <div className="smp-knobs two">
+          <div className="smp-knobs two smp-play-knobs">
             <CommittedKnob id={id + '-glide'} defaultValue={0} name="Glide" value={spec.glide} min={0} max={2} step={.001} suffix="s" precision={3}
-              description="Mono only: slide from the held note to the next one" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('glide', n)} onCommit={n => onEdit('glide', n)} />
+              description="Mono only: slide to the next note (Legato: only between held keys; Always: also from the last note after it was let go)" format={n => n <= 0 ? 'Off' : n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('glide', n)} onCommit={n => onEdit('glide', n)} />
+            <div className="smp-seg smp-glide-mode" role="radiogroup" aria-label="Glide mode">
+              {GLIDE_MODES.map(([k, label, title]) => <button key={k} type="button" role="radio" aria-checked={(spec.glide_mode ?? 'legato') === k} disabled={spec.poly}
+                title={spec.poly ? 'Glide plays in Mono' : title} onClick={() => onEdit('glide_mode', k)}>{label}</button>)}
+            </div>
             <CommittedKnob id={id + '-gain'} defaultValue={1} name="Gain" value={spec.gain} min={0} max={2} step={.01} suffix="×" precision={2} description="Level of every note" onDraft={n => onLive('gain', n)} onCommit={n => onEdit('gain', n)} />
+            <CommittedKnob id={id + '-pan'} defaultValue={0} name="Pan" value={spec.pan ?? 0} min={-1} max={1} step={.01} precision={2}
+              description="Place the Sampler left or right (C is the middle); link it to a mod pad for an autopan" format={panText} onDraft={n => onLive('pan', n)} onCommit={n => onEdit('pan', n)} />
             <CommittedKnob id={id + '-velocity'} defaultValue={1} name="Velocity" value={spec.velocity} min={0} max={2} step={.01} suffix="×" precision={2}
               description="How much softer soft notes are: 0 is fixed level, 1 is linear" onDraft={n => onLive('velocity', n)} onCommit={n => onEdit('velocity', n)} />
-            <button type="button" className="smp-toggle" aria-pressed={!!spec.normalize} title="Bring the loudest peak to full level" onClick={() => onEdit('normalize', !spec.normalize)}><Maximize2 size={15} />Normalize</button>
-            {spec.mode === 'grain' ? <>
-              <button type="button" className="smp-toggle smp-live-in" aria-pressed={!!runtime?.live} title="Live input: grains from the input as it comes in (the last 8 seconds) instead of the sample"
-                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime?.live ? 'off' : 'on'])}><Mic size={15} />Live in</button>
-              {runtime?.live ? <button type="button" className="smp-toggle" aria-pressed={runtime.live.frozen} title="Freeze: stop listening and keep the last 8 seconds"
-                onClick={() => send('sampler_live_input', [trackIndex, spec.id, runtime.live!.frozen ? 'thaw' : 'freeze'])}><Snowflake size={15} />Freeze</button> : null}
-            </> : null}
+            <CommittedKnob id={id + '-vel_attack'} defaultValue={0} name="Vel attack" value={spec.vel_attack ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
+              description="Hard notes snap, soft notes swell: at 100% the attack is up to 4 times shorter (hardest) or longer (softest)" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onDraft={n => onLive('vel_attack', n)} onCommit={n => onEdit('vel_attack', n)} />
           </div>
         </section>
         {big === 'grain' ? <GrainCard key={'g' + spec.id} spec={spec} id={id} onEdit={onEdit} onLive={onLive} onChop={() => toMode('chop')} tapFlip={tapFlip} onTapFlip={setTapFlip} /> : <>
@@ -1000,32 +1059,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
               description="How long the pitch envelope takes to settle" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('p_decay', n)} onCommit={n => onEdit('p_decay', n)} />
           </div>
         </section>
-        <section className={'smp-card smp-filter' + ((spec.filter ?? 'off') === 'off' ? ' off' : '')} aria-label="Filter">
-          <div className="smp-card-head"><h2>Filter</h2>
-            <button type="button" role="switch" className="smp-power" aria-checked={filterOn} aria-label="Filter on"
-              title={filterOn ? 'Turn the filter off (the settings are kept)' : 'Turn the filter on'}
-              onClick={() => onEdit('filter', filterOn ? 'off' : lastFilter.current)}><Power size={14} />{filterOn ? 'On' : 'Off'}</button>
-            <button type="button" className="smp-card-icon" aria-label="Edit the filter on the waveform" aria-pressed={big === 'filter'}
-              title={big === 'filter' ? 'Back to Trim' : 'Drag the cutoff and resonance on the big view above'} onClick={() => setBig(big === 'filter' ? 'wave' : 'filter')}><ArrowUp size={18} /></button></div>
-          <div className="smp-seg smp-filter-shapes" role="radiogroup" aria-label="Filter type">
-            {FILTERS.map(([f, short, name, title]) => <button key={f} type="button" role="radio" aria-label={name} aria-checked={shape === f} title={title}
-              onClick={() => { lastFilter.current = f; onEdit('filter', f); }}><FilterIcon shape={f} /><span>{short}</span></button>)}
-          </div>
-          <div className="smp-knobs two">
-            <CommittedKnob id={id + '-cutoff'} defaultValue={Math.log2(100)} name="Cutoff" value={Math.log2((spec.cutoff ?? 2000) / 20)} min={0} max={Math.log2(1000)} step={.01}
-              description="Where the filter cuts" format={n => hz(20 * 2 ** n)} onDraft={n => onLive('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} onCommit={n => onEdit('cutoff', Math.round(Math.min(20000, Math.max(20, 20 * 2 ** n))))} />
-            <CommittedKnob id={id + '-resonance'} defaultValue={0.2} name="Resonance" value={spec.resonance ?? .2} min={0} max={1} step={.01} suffix="%" precision={0}
-              description="A peak at the cutoff" format={n => Math.round(n * 100) + '%'} onDraft={n => onLive('resonance', n)} onCommit={n => onEdit('resonance', n)} />
-            <CommittedKnob id={id + '-f_env'} defaultValue={0} name="Env" value={spec.f_env ?? 0} min={-1} max={1} step={.01} suffix="%" precision={0}
-              description="How far the filter's envelope moves the cutoff (100% is five octaves)" format={n => Math.abs(n) < .005 ? 'Off' : (n > 0 ? '+' : '') + Math.round(n * 100) + '%'} onDraft={n => onLive('f_env', n)} onCommit={n => onEdit('f_env', n)} />
-            <CommittedKnob id={id + '-f_velocity'} defaultValue={0} name="Velocity" value={spec.f_velocity ?? 0} min={0} max={1} step={.01} suffix="%" precision={0}
-              description="Soft notes are darker: up to four octaves lower" format={n => n < .005 ? 'Off' : Math.round(n * 100) + '%'} onDraft={n => onLive('f_velocity', n)} onCommit={n => onEdit('f_velocity', n)} />
-            <CommittedKnob id={id + '-f_attack'} defaultValue={0} name="Attack" value={spec.f_attack ?? 0} min={0} max={3} step={.001} suffix="s" precision={3}
-              description="Time for the filter envelope to rise" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('f_attack', n)} onCommit={n => onEdit('f_attack', n)} />
-            <CommittedKnob id={id + '-f_decay'} defaultValue={0.3} name="Decay" value={spec.f_decay ?? .3} min={0} max={3} step={.001} suffix="s" precision={3}
-              description="Time for the filter envelope to fall back" format={n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'} onDraft={n => onLive('f_decay', n)} onCommit={n => onEdit('f_decay', n)} />
-          </div>
-        </section></>}
+        <FilterCard spec={spec} id={id} onEdit={onEdit} onLive={onLive} big={big === 'filter'} onBig={() => setBig(big === 'filter' ? 'wave' : 'filter')} lastFilter={lastFilter} /></>}
       </div>
       <aside className="smp-side">
         <div className={"smp-rack smp-tools" + (spec.mode === 'grain' ? ' has-grain' : '')} role="toolbar" aria-label="Sampler tools">

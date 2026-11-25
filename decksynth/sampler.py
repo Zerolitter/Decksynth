@@ -21,6 +21,14 @@ A track with device 'sampler' keeps track['sampler']:
   reverse, normalize   play backwards; bring the loudest peak to full level
   filter, cutoff, resonance   'off' / 'lp' / 'bp' / 'hp' state-variable filter per voice
   f_env, f_attack, f_decay, f_velocity   the filter's own envelope (±5 octaves) and velocity to cutoff
+  f_hold, f_sustain, f_release   the rest of that envelope (25 Nov): it stays at the top for f_hold, falls to f_sustain
+                   while the key is held, and falls from where it is over f_release after the key comes up.
+                   Older projects get f_release = f_decay, so they sound as before
+  f_env_vel        velocity to the envelope's amount (0: every note the same, 1: soft notes get none)
+  vel_attack       velocity to the amp attack: hard notes start faster, soft notes swell (up to 4x either way)
+  glide_mode       'legato' glides only between held keys; 'always' also from the last note after it was let go
+  pan              where the track sits (-1 left .. 1 right), on top of the track's own pan
+  filter 'lp24'    a 24 dB low-pass (two 12 dB stages); the resonance is on the second
   p_env, p_decay   pitch envelope: starts p_env semitones away and settles over p_decay seconds
   mode 'grain'     every key plays a cloud of short grains from its region; the g_* keys shape it (sampler_grain.py)
 """
@@ -43,12 +51,16 @@ RANGES = dict(tune=(-24., 24.), fine=(-100., 100.), start=(0., 1.), end=(0., 1.)
               loop_end=(0., 1.), attack=(0., 3.), decay=(0., 3.), sustain=(0., 1.), release=(0., 3.),
               glide=(0., 2.), gain=(0., 2.), velocity=(0., 2.))
 KEYMAPS = ('whole', 'slices', 'pitched')
-FILTERS = ('off', 'lp', 'bp', 'hp')
+FILTERS = ('off', 'lp', 'bp', 'hp', 'lp24')
+GLIDES = ('legato', 'always')
+BUTTERWORTH_K = 1.8478   # the first stage of a 4-pole Butterworth (1/Q, Q = 0.541)
 # Added with the sampler expansion; older projects get these defaults.
 OPTIONAL = dict(keymap='whole', reverse=False, normalize=False, filter='off', cutoff=2000., resonance=.2,
-                f_env=0., f_attack=0., f_decay=.3, f_velocity=0., p_env=0., p_decay=.15, **grain.DEFAULTS)
+                f_env=0., f_attack=0., f_decay=.3, f_velocity=0., p_env=0., p_decay=.15,
+                f_hold=0., f_sustain=0., f_release=.3, f_env_vel=0., vel_attack=0., glide_mode='legato', pan=0., **grain.DEFAULTS)
 OPTIONAL_RANGES = dict(cutoff=(20., 20000.), resonance=(0., 1.), f_env=(-1., 1.), f_attack=(0., 3.), f_decay=(0., 3.),
-                       f_velocity=(0., 1.), p_env=(-24., 24.), p_decay=(0., 3.), **grain.RANGES)
+                       f_velocity=(0., 1.), p_env=(-24., 24.), p_decay=(0., 3.), f_hold=(0., 3.), f_sustain=(0., 1.), f_release=(0., 3.),
+                       f_env_vel=(0., 1.), vel_attack=(0., 1.), pan=(-1., 1.), **grain.RANGES)
 EDITABLE = set(RANGES) | set(OPTIONAL) | {'root', 'mode', 'poly', 'name', 'slices'}
 MAX_SLICES = 64
 MIN_SLICE = 1e-5    # a few frames of a ten-minute sample
@@ -70,9 +82,11 @@ def validate_sampler(value):
     if not isinstance(value['id'], str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', value['id']):
         raise ValueError('Invalid Sampler identity')
     out = copy.deepcopy(value)
+    if 'f_release' not in out: out['f_release'] = out.get('f_decay', OPTIONAL['f_decay'])   # older projects: the filter falls as it did
     for key, default in OPTIONAL.items(): out.setdefault(key, default)
     if out['keymap'] not in KEYMAPS: raise ValueError('Keys must be Whole, Slices or Pitched')
-    if out['filter'] not in FILTERS: raise ValueError('Filter must be Off, LP, BP or HP')
+    if out['filter'] not in FILTERS: raise ValueError('Filter must be Off, LP, LP 24, BP or HP')
+    if out['glide_mode'] not in GLIDES: raise ValueError('Glide must be Legato or Always')
     for key in ('reverse', 'normalize'):
         if type(out[key]) is not bool: raise ValueError(key.title() + ' must be on or off')
     for key in grain.MASKS: out[key] = grain.valid_masks(out[key])
@@ -124,6 +138,7 @@ class Voice(C.Structure):
     _fields_ = [('pos', C.c_double), ('step', C.c_double), ('target', C.c_double), ('glide', C.c_double),
                 ('env', C.c_double), ('rel', C.c_double), ('gain', C.c_double), ('pmul', C.c_double),
                 ('a1', C.c_double), ('a2', C.c_double), ('a3', C.c_double), ('k', C.c_double), ('ic1', C.c_double), ('ic2', C.c_double),
+                ('b1', C.c_double), ('b2', C.c_double), ('b3', C.c_double), ('ic3', C.c_double), ('ic4', C.c_double), ('amul', C.c_double),
                 ('fade_left', C.c_int64), ('fade_len', C.c_int64), ('age', C.c_int64), ('stamp', C.c_int64),
                 ('start', C.c_int64), ('end', C.c_int64), ('loop_start', C.c_int64), ('loop_end', C.c_int64), ('xfade', C.c_int64),
                 ('active', C.c_int32), ('stage', C.c_int32), ('dir', C.c_int32), ('pad', C.c_int32)]
@@ -149,6 +164,8 @@ class Sampler:
         self.voices = (Voice * SLOTS)()
         self.notes = [None]*SLOTS      # (note, token) per slot, for note-off
         self.vels = [1.]*SLOTS         # velocity 0..1 per slot, for velocity to cutoff
+        self.f_rel = [None]*SLOTS      # (seconds, level) where the filter envelope was when its key came up
+        self.last_shift = None         # Mono, Glide Always: semitones of the last note, the next one glides from there
         self.norm = 1.                 # Normalize: the gain that brings the loudest peak to full level
         self.params = Params(); self.stamp = 0; self.events = 0
         self.fade_frames = max(1, round(rate*.008))
@@ -316,7 +333,9 @@ class Sampler:
                     if self.voices[i].active and self.voices[i].stage != 3: self._release(i)
                 self.latched = set()
         start, end, loop_start, loop_end, xfade, shift = zone
-        step = (1. if self.live is not None else sample_rate_ratio(self.sample, self.rate))*2**((shift+s['tune']+s['fine']/100.)/12.)
+        ratio = 1. if self.live is not None else sample_rate_ratio(self.sample, self.rate)
+        step = ratio*2**((shift+s['tune']+s['fine']/100.)/12.)
+        last = self.last_shift; glide_from = None
         gain = s['gain']*self.norm*(velocity/127.)**self._e('velocity')
         if not s['poly'] and s['keymap'] != 'whole':
             for i, v in enumerate(self.voices):
@@ -324,6 +343,7 @@ class Sampler:
         elif not s['poly']:
             held = [i for i, v in enumerate(self.voices) if v.active and v.stage != 3 and v.fade_left < 0]
             glide = self._e('glide')
+            self.last_shift = shift
             if held and glide > 0:
                 i = held[-1]; v = self.voices[i]
                 v.target = step; v.glide = (step-v.step)/max(1., glide*self.rate)
@@ -331,6 +351,8 @@ class Sampler:
                 v.gain = gain; self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.events += 1
                 return True
             for i in held: self._fade(i)
+            if glide > 0 and last is not None and s['glide_mode'] == 'always':   # from the last note, even after it was let go
+                glide_from = ratio*2**((last+s['tune']+s['fine']/100.)/12.)
         else:
             sounding = sorted((v.stamp, i) for i, v in enumerate(self.voices) if v.active and v.fade_left < 0)
             while len(sounding) >= POLY: self._fade(sounding.pop(0)[1])
@@ -340,7 +362,12 @@ class Sampler:
         v.start, v.end, v.loop_start, v.loop_end, v.xfade = start, end, loop_start, loop_end, xfade
         v.dir = -1 if s['reverse'] else 1
         v.pos = float(start if v.dir > 0 else end - 1); v.step = v.target = step; v.glide = 0.; v.env = 0.; v.rel = 0.; v.gain = gain
+        if glide_from is not None and glide_from != step:
+            v.step = glide_from; v.glide = (step-glide_from)/max(1., self._e('glide')*self.rate)
         v.pmul = 1.; v.a1 = v.a2 = v.a3 = v.ic1 = v.ic2 = 0.; v.k = 2.
+        v.b1 = v.b2 = v.b3 = v.ic3 = v.ic4 = 0.
+        # Velocity to attack: full velocity is up to 4x faster, the softest up to 4x slower; the middle keeps the knob's time.
+        va = self._e('vel_attack'); v.amul = 4.**(va*(2.*velocity/127.-1.)) if va else 1.
         v.fade_left = -1; v.fade_len = self.fade_frames; v.age = 0; v.stamp = self.stamp; v.active = 1; v.stage = 0
         if s['mode'] == 'grain':
             v.dir = 1; grain.reset_cloud(self.clouds[i], self.stamp)
@@ -348,7 +375,8 @@ class Sampler:
             self.steppers[i] = grain.Stepper(self.stamp*104729 + i)
             for gr in self.grains:
                 if gr.voice == i: gr.active = 0
-        self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.sustained.discard(i); self.latched.discard(i); self.events += 1
+        self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.f_rel[i] = None
+        self.sustained.discard(i); self.latched.discard(i); self.events += 1
         self._modulate()
         return True
 
@@ -402,7 +430,7 @@ class Sampler:
     def panic(self):
         for v in self.voices: v.active = 0
         for gr in self.grains: gr.active = 0
-        self.notes = [None]*SLOTS; self.sustained = set(); self.latched = set()
+        self.notes = [None]*SLOTS; self.sustained = set(); self.latched = set(); self.last_shift = None
 
     # -- audio ----------------------------------------------------------------------------------
     def render_into_buffer(self, buf, offset, frames):
@@ -496,10 +524,11 @@ class Sampler:
                     for i in range(count): out[offset+i] += scratch[i]*g
             else:
                 part = [0.]*count
+                data = self.live.data if self.live is not None else self.sample.data   # Live in: grains read the input buffer
                 if self.grain_mode:
-                    grain.mix_grains_python(self.voices, self.clouds, self.params, self.gparams, self.grains, self.sample.data, part, count)
+                    grain.mix_grains_python(self.voices, self.clouds, self.params, self.gparams, self.grains, data, part, count)
                 else:
-                    mix_python(self.voices, self.params, self.sample.data, part, count)
+                    mix_python(self.voices, self.params, data, part, count)
                 for i in range(count): out[offset+i] += part[i]*g
             offset += count
 
@@ -532,18 +561,27 @@ class Sampler:
         if not p_env and not filtered and not shift and not self._shifted: return
         self._shifted = bool(shift)
         p_fall = 4.6/max(.001, self._e('p_decay')); f_attack = self._e('f_attack'); f_fall = 4.6/max(.001, self._e('f_decay'))
-        k = 2. - 1.96*min(1., max(0., s['resonance'] + m.get('resonance', 0.))); top = .45*rate
-        f_env = s['f_env'] + m.get('f_env', 0.); cut = m.get('cutoff', 0.); f_vel = self._e('f_velocity')
+        f_hold = self._e('f_hold'); f_sus = self._e('f_sustain'); r_fall = 4.6/max(.001, self._e('f_release'))
+        res = min(1., max(0., s['resonance'] + m.get('resonance', 0.))); k = 2. - 1.96*res; top = .45*rate
+        steep = s['filter'] == 'lp24'
+        if steep: k2 = .7654 - .7254*res; k = BUTTERWORTH_K   # 24 dB: a flat first stage, the resonance on the second
+        f_env = s['f_env'] + m.get('f_env', 0.); cut = m.get('cutoff', 0.); f_vel = self._e('f_velocity'); f_ev = self._e('f_env_vel')
         for i, v in enumerate(self.voices):
             if not v.active: continue
             t = v.age/rate
             v.pmul = 2.**(((p_env*math.exp(-t*p_fall)) if p_env else 0.)/12. + shift/12.) if (p_env or shift) else 1.
             if filtered:
-                fe = t/f_attack if t < f_attack else math.exp(-(t-f_attack)*f_fall)
-                octaves = f_env*5.*fe + f_vel*4.*(self.vels[i]-1.) + cut
+                # Attack (straight up), Hold at the top, Decay to Sustain; after the key: Release from wherever it was.
+                fe = t/f_attack if t < f_attack else 1. if t < f_attack+f_hold else f_sus+(1.-f_sus)*math.exp(-(t-f_attack-f_hold)*f_fall)
+                if v.stage == 3:
+                    if self.f_rel[i] is None: self.f_rel[i] = (t, fe)
+                    fe = self.f_rel[i][1]*math.exp(-(t-self.f_rel[i][0])*r_fall)
+                amount = f_env*(1.-f_ev*(1.-self.vels[i])) if f_ev else f_env
+                octaves = amount*5.*fe + f_vel*4.*(self.vels[i]-1.) + cut
                 fc = min(top, max(20., s['cutoff']*2.**octaves))
                 g = math.tan(math.pi*fc/rate)
                 v.k = k; v.a1 = 1./(1.+g*(g+k)); v.a2 = g*v.a1; v.a3 = g*v.a2
+                if steep: v.b1 = 1./(1.+g*(g+k2)); v.b2 = g*v.b1; v.b3 = g*v.b2
 
     def head(self, i):
         """Where cloud i reads now (frames): Position plus how far Scan has moved it, inside its region."""
@@ -635,6 +673,23 @@ def _interp(data, p, v, pos):
     return ((c3*t+c2)*t+c1)*t+x0
 
 
+def voice_filter(v, filter, value):
+    """native voice_filter: 1 LP, 2 BP, 3 HP (12 dB), 4 LP 24 dB (a second low-pass on its own state)."""
+    v3 = value-v.ic2
+    v1 = v.a1*v.ic1+v.a2*v3
+    v2 = v.ic2+v.a2*v.ic1+v.a3*v3
+    v.ic1 = 2.*v1-v.ic1
+    v.ic2 = 2.*v2-v.ic2
+    if filter == 4:
+        w3 = v2-v.ic4
+        w1 = v.b1*v.ic3+v.b2*w3
+        w2 = v.ic4+v.b2*v.ic3+v.b3*w3
+        v.ic3 = 2.*w1-v.ic3
+        v.ic4 = 2.*w2-v.ic4
+        return w2
+    return v2 if filter == 1 else v1 if filter == 2 else value-v.k*v1-v2
+
+
 def mix_python(voices, p, data, out, frames):
     """The C kernel, line for line (used when the native library is unavailable)."""
     for v in voices:
@@ -649,15 +704,9 @@ def mix_python(voices, p, data, out, frames):
             if not looping:
                 edge = ((v.end-pos) if v.dir > 0 else (pos-v.start+1.))/p.edge
                 if edge < 1.: value *= edge if edge > 0. else 0.
-            if p.filter > 0:
-                v3 = value-v.ic2
-                v1 = v.a1*v.ic1+v.a2*v3
-                v2 = v.ic2+v.a2*v.ic1+v.a3*v3
-                v.ic1 = 2.*v1-v.ic1
-                v.ic2 = 2.*v2-v.ic2
-                value = v2 if p.filter == 1 else v1 if p.filter == 2 else value-v.k*v1-v2
+            if p.filter > 0: value = voice_filter(v, p.filter, value)
             if stage == 0:
-                env += p.attack
+                env += p.attack*v.amul
                 if env >= 1.: env = 1.; stage = 1
             elif stage == 1:
                 env -= p.decay

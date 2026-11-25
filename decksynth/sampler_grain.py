@@ -196,7 +196,7 @@ def _spawn(v, c, g, grains, slot, at):
 
 def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
     """sampler_grain_mix, line for line."""
-    from .sampler import _interp
+    from .sampler import _interp, voice_filter
     window = TABLES_BY_ADDRESS[g.window]
     for slot, v in enumerate(voices):
         if not v.active: continue
@@ -224,15 +224,9 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
             if left <= 0: gr.active = 0
         for f in range(frames):
             value = buf[f]
-            if p.filter > 0:
-                v3 = value - v.ic2
-                v1 = v.a1*v.ic1 + v.a2*v3
-                v2 = v.ic2 + v.a2*v.ic1 + v.a3*v3
-                v.ic1 = 2.*v1 - v.ic1
-                v.ic2 = 2.*v2 - v.ic2
-                value = v2 if p.filter == 1 else v1 if p.filter == 2 else value - v.k*v1 - v2
+            if p.filter > 0: value = voice_filter(v, p.filter, value)
             if v.stage == 0:
-                v.env += p.attack
+                v.env += p.attack*v.amul
                 if v.env >= 1.: v.env = 1.; v.stage = 1
             elif v.stage == 1:
                 v.env -= p.decay

@@ -17,6 +17,7 @@ static inline void ds_ftz(void) {}
 
 typedef struct {
     double pos, step, target, glide, env, rel, gain, pmul, a1, a2, a3, k, ic1, ic2;
+    double b1, b2, b3, ic3, ic4, amul;    /* 24 dB low-pass second stage; amul scales the attack (velocity, 25 Nov) */
     int64_t fade_left, fade_len, age, stamp, start, end, loop_start, loop_end, xfade;
     int32_t active, stage, dir, pad;
 } SamplerVoice;
@@ -47,8 +48,27 @@ static double interp(const SamplerParams *p, const SamplerVoice *v, double pos) 
     return ((c3 * t + c2) * t + c1) * t + x0;
 }
 
+/* The voice's filter, one sample. 1 low-pass, 2 band-pass, 3 high-pass (12 dB), 4 low-pass 24 dB:
+ * the 12 dB low-pass (a1..a3) into a second one (b1..b3) on its own state. */
+static inline double voice_filter(SamplerVoice *v, int filter, double value) {
+    double v3 = value - v->ic2;
+    double v1 = v->a1 * v->ic1 + v->a2 * v3;
+    double v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
+    v->ic1 = 2.0 * v1 - v->ic1;
+    v->ic2 = 2.0 * v2 - v->ic2;
+    if (filter == 4) {
+        double w3 = v2 - v->ic4;
+        double w1 = v->b1 * v->ic3 + v->b2 * w3;
+        double w2 = v->ic4 + v->b2 * v->ic3 + v->b3 * w3;
+        v->ic3 = 2.0 * w1 - v->ic3;
+        v->ic4 = 2.0 * w2 - v->ic4;
+        return w2;
+    }
+    return filter == 1 ? v2 : filter == 2 ? v1 : value - v->k * v1 - v2;
+}
+
 /* Adds `frames` samples of every active voice into out (mono).
- * Modes: 0 one shot, 1 hold, 2 loop. Filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass. */
+ * Modes: 0 one shot, 1 hold, 2 loop. Filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass, 4 low-pass 24 dB. */
 void sampler_mix(SamplerVoice *voices, int count, const SamplerParams *p, double *out, int frames) { ds_ftz();
     if (!p->data || count < 0 || count > 64 || frames < 0 || frames > 4096) return;
     for (int slot = 0; slot < count; ++slot) {
@@ -66,16 +86,9 @@ void sampler_mix(SamplerVoice *voices, int count, const SamplerParams *p, double
                 double edge = (v->dir > 0 ? (double)v->end - v->pos : v->pos - (double)v->start + 1.0) / (double)p->edge;
                 if (edge < 1.0) value *= edge > 0.0 ? edge : 0.0;
             }
-            if (p->filter > 0) {
-                double v3 = value - v->ic2;
-                double v1 = v->a1 * v->ic1 + v->a2 * v3;
-                double v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
-                v->ic1 = 2.0 * v1 - v->ic1;
-                v->ic2 = 2.0 * v2 - v->ic2;
-                value = p->filter == 1 ? v2 : p->filter == 2 ? v1 : value - v->k * v1 - v2;
-            }
+            if (p->filter > 0) value = voice_filter(v, p->filter, value);
             if (v->stage == 0) {
-                v->env += p->attack;
+                v->env += p->attack * v->amul;
                 if (v->env >= 1.0) { v->env = 1.0; v->stage = 1; }
             } else if (v->stage == 1) {
                 v->env -= p->decay;
@@ -222,16 +235,9 @@ void sampler_grain_mix(SamplerVoice *voices, SamplerCloud *clouds, int count, co
         }
         for (int f = 0; f < frames; ++f) {
             double value = buf[f];
-            if (p->filter > 0) {
-                double v3 = value - v->ic2;
-                double v1 = v->a1 * v->ic1 + v->a2 * v3;
-                double v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
-                v->ic1 = 2.0 * v1 - v->ic1;
-                v->ic2 = 2.0 * v2 - v->ic2;
-                value = p->filter == 1 ? v2 : p->filter == 2 ? v1 : value - v->k * v1 - v2;
-            }
+            if (p->filter > 0) value = voice_filter(v, p->filter, value);
             if (v->stage == 0) {
-                v->env += p->attack;
+                v->env += p->attack * v->amul;
                 if (v->env >= 1.0) { v->env = 1.0; v->stage = 1; }
             } else if (v->stage == 1) {
                 v->env -= p->decay;

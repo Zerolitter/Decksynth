@@ -63,8 +63,10 @@ export type SamplerSpec={version:1;id:string;name:string;family:string;source:Dr
   attack:number;decay:number;sustain:number;release:number;poly:boolean;glide:number;gain:number;velocity:number;
   /** Chop: [start, end] or [start, end, root] pairs, 0..1 of the sample, in order (sampler expansion stage 3). */ slices?:number[][];
   /** Stage 4: how keys play the slices, and the extra tuning. */
-  keymap?:'whole'|'slices'|'pitched';reverse?:boolean;normalize?:boolean;filter?:'off'|'lp'|'bp'|'hp';cutoff?:number;resonance?:number;
+  keymap?:'whole'|'slices'|'pitched';reverse?:boolean;normalize?:boolean;filter?:'off'|'lp'|'lp24'|'bp'|'hp';cutoff?:number;resonance?:number;
   f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number;
+  /** Filter batch (25 Nov): the rest of the filter envelope, velocity to its amount and to the amp attack, Glide Always, Pan. */
+  f_hold?:number;f_sustain?:number;f_release?:number;f_env_vel?:number;vel_attack?:number;glide_mode?:'legato'|'always';pan?:number;
   /** Grain mode (24 Nov, decksynth/sampler_grain.py). */
   g_pos?:number;g_size?:number;g_density?:number;g_spray?:number;g_scan?:number;g_spread?:number;g_scale?:GrainScale;
   g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow;

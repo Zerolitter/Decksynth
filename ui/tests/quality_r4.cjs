@@ -115,7 +115,7 @@ with wave.open(sys.argv[1],'wb') as w:
   await rack.getByRole('radio',{name:'Filter',exact:true}).click();
   const fpower=p.getByRole('switch',{name:'Filter on'});
   assert.equal(await fpower.getAttribute('aria-checked'),'false','filter starts off');
-  assert.equal(await p.locator('.smp-filter-shapes svg.smp-filter-icon').count(),3,'three curve icons');
+  assert.equal(await p.locator('.smp-filter-shapes svg.smp-filter-icon').count(),4,'four curve icons (LP 24, 25 Nov)');
   await fpower.click();
   await p.waitForFunction(()=>window.__r4.state.tracks[0].sampler.filter==='lp');
   await p.getByRole('radio',{name:'High-pass',exact:true}).click();
