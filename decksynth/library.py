@@ -82,7 +82,8 @@ def fx(modules=None, macros=(TONE, SPACE), mods=(), x=0., y=0.):
                        'bitcrusher': dict(mix=0, bits=8, rate=.25), 'phaser': dict(mix=0),
                        'flanger': dict(mix=0), 'stutter': dict(mix=0, repeats=3, length=4),
                        'ringmod': dict(mix=0), 'volume': dict(level=1, mix=1), 'time': dict(mix=0),
-                       'chorus': dict(mix=0), 'compressor': dict(mix=0), 'eq': dict(low=0, mid=0, high=0), 'cloud': dict(mix=0)}
+                       'chorus': dict(mix=0), 'compressor': dict(mix=0), 'eq': dict(low=0, mid=0, high=0), 'cloud': dict(mix=0),
+                       'tape': dict(mix=0), 'smear': dict(mix=0), 'shimmer': dict(mix=0), 'space': dict(mix=0)}
             m['params'].update(neutral[m['id']])
     for i, (name, targets) in enumerate(macros):
         c['macros'][i]['name'] = name

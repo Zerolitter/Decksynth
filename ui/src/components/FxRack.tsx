@@ -12,7 +12,7 @@ import { FX_PRESETS, presetParams } from '../fx-presets';
 import { MACRO_COLORS, MOD_COLORS, linkedSourceColors, sourceColor, sourceTargets, withTargets, type Live, type Source } from './ModParts';
 
 export { MACRO_COLORS, MOD_COLORS };
-const NPAR=6;
+const NPAR=8;  // parameters per module in the engine's array (decksynth/fx.py NPAR)
 const BLURB:Record<FxModuleId,string>={
   cloud:'Diffused, pitch-scattered stereo texture',stutter:'Repeats short slices in time', filter:'Low, band or high pass', overdrive:'Warm to heavy distortion',
   bitcrusher:'Lo-fi grit and aliasing', volume:'Level, for gating and tremolo', phaser:'Sweeping notches',
@@ -21,7 +21,9 @@ const BLURB:Record<FxModuleId,string>={
   compressor:'Evens out loud and soft', eq:'Low, mid and high tone', autowah:'Opens up the harder you play',
   resonator:'Strings that ring with your notes', gate:'Rhythmic on/off pattern on the beat',
   pitch:'Up or down in semitones and cents', autotune:'Pulls notes to the project scale',
-  duck:'Another track pushes this one down', vocoder:'Another track shapes this one\'s tone'};
+  duck:'Another track pushes this one down', vocoder:'Another track shapes this one\'s tone',
+  tape:'Wow, flutter, saturation and hiss', smear:'Blurs the sound in time', shimmer:'Reverb that climbs in pitch',
+  space:'Huge hall with Freeze'};
 
 /** The effects you can still add, as big tap targets. Used in the empty FX window and in the Add sheet. */
 function FxPickerGrid({chain,onAdd}:{chain:FxChain;onAdd:(id:FxModuleId)=>void}){

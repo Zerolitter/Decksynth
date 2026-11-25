@@ -11,7 +11,7 @@ from pathlib import Path
 ORDER = ['stutter', 'filter', 'overdrive', 'bitcrusher', 'volume', 'phaser',
          'flanger', 'ringmod', 'delay', 'reverb', 'time',
          'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate', 'cloud',
-         'pitch', 'autotune', 'duck', 'vocoder']
+         'pitch', 'autotune', 'duck', 'vocoder', 'tape', 'smear', 'shimmer', 'space']
 # (key, min, max, init) per module, in the same order the native code reads them.
 PARAMS = {
     'stutter': [('length', 1, 6, 3), ('speed', 0, 1, .6), ('repeats', 1, 8, 4), ('mix', 0, 1, .5)],
@@ -47,9 +47,20 @@ PARAMS['vocoder'] = [('source', 0, 15, 0), ('response', 0, 1, .3), ('shift', -1,
 KEYED = ('duck', 'vocoder')  # effects fed by another track, in dsfx_key slot order
 NATIVE_R2 = ('pitch', 'autotune', 'duck', 'vocoder')
 PARAMS['cloud']=[('time',0,1,.35),('density',0,1,.7),('scatter',0,1,.5),('feedback',0,.88,.4),('tone',0,1,.6),('mix',0,1,.4)]
+# Ambient FX (25 Nov): Tape, Smear, Shimmer and Space, true stereo (dsfx.c keeps their state in the left channel).
+# Character (Fresh / Worn / Broken), Interval (+12 / +7 / +19 / +24) and Freeze (off / on) are whole-number choices.
+PARAMS['tape'] = [('wow', 0, 1, .3), ('flutter', 0, 1, .2), ('drive', 0, 1, .3), ('age', 0, 1, .3), ('hiss', 0, 1, .2),
+                  ('mix', 0, 1, 1), ('character', 0, 2, 0)]
+PARAMS['smear'] = [('size', 0, 1, .5), ('blur', 0, 1, .6), ('motion', 0, 1, .3), ('tone', 0, 1, .7), ('mix', 0, 1, .5)]
+PARAMS['shimmer'] = [('decay', 1, 20, 6), ('shimmer', 0, 1, .5), ('tone', 0, 1, .6), ('width', 0, 1, .8), ('mix', 0, 1, .4),
+                     ('interval', 0, 3, 0)]
+PARAMS['space'] = [('size', 0, 1, .7), ('decay', 1, 60, 6), ('predelay', 0, 200, 20), ('damp', 0, 1, .4), ('mod', 0, 1, .3),
+                   ('mix', 0, 1, .4), ('freeze', 0, 1, 0)]
+AMBIENT = ('tape', 'smear', 'shimmer', 'space')
+STEPPED = {('tape', 'character'), ('shimmer', 'interval'), ('space', 'freeze')}  # whole numbers, never glide
 GATE_PERFORMANCE={'retrig':(0,2,2),'phase':(0,1,0.),'notelen':(0,1,1.),'hold':(0,1,0)}
 GATE_LENGTHS = (4, 6, 8, 9, 12, 16)
-NPAR = 6
+NPAR = 8  # parameters per module in the native array (dsfx.c NPAR; dsfx_npar() must agree)
 # Sound knobs a macro or mod pad can move too: (min, max) in the knob's own units.
 SOUND_PARAMS = {
     'pan':(-1,1),'filter': (.02, 1), 'curve': (-1, 1), 'balance': (0, 1), 'focus': (0, 1), 'focus_center': (1, 16),
@@ -163,6 +174,8 @@ def validate_chain(chain):
                 assert isinstance(v, (int, float)) and math.isfinite(v)
                 params[key] = min(hi, max(lo, float(v)))
             if 'source' in params: params['source'] = float(round(params['source']))
+            for module, key in STEPPED:
+                if m['id'] == module: params[key] = float(round(params[key]))
             if m['id']=='gate':
                 for key,(lo,hi,init) in GATE_PERFORMANCE.items():
                     if key not in m['params']:continue
@@ -221,6 +234,9 @@ def _load(legacy=False):
                 cached=library_path()
                 if cached.exists():source=cached
             lib = ctypes.CDLL(str(source))
+            # The params array is NPAR values per module: a library built with another layout would read the
+            # wrong knobs, so it counts as missing (FX bypassed) until tools/build-native.sh rebuilds it.
+            if not legacy and (not hasattr(lib, 'dsfx_npar') or lib.dsfx_npar() != NPAR): raise OSError('stale FX library')
             lib.dsfx_create.restype = ctypes.c_void_p; lib.dsfx_create.argtypes = [ctypes.c_double]
             lib.dsfx_destroy.argtypes = [ctypes.c_void_p]
             lib.dsfx_reset.argtypes = [ctypes.c_void_p]
@@ -476,6 +492,8 @@ PARAM_INDEX = {(m, key): (j, lo, hi, init) for m, specs in PARAMS.items() for j,
 
 
 # Effects sleep after this many seconds of silence in and out: the longest echo or grain buffer is 3 s.
+# Long reverb tails (Space decays up to 60 s, Shimmer 20 s) keep the output above REST_FLOOR, so they are never
+# cut: the count only starts once the tail itself is below the floor. A frozen Space never sleeps (see configure).
 REST_SECONDS = 4.
 REST_FLOOR = 1e-6
 
@@ -498,6 +516,7 @@ class TrackFx:
         self.watched = False  # the engine sets this for the track the screen shows
         self._mods_live = False; self._written = set(); self._gate_module = None; self._by_id = {}
         self._tail = 0  # blocks left to fade out after the last effect is switched off
+        self._hold = False  # Space is frozen: its tail must keep sounding, so the track never sleeps
         self._scale = None; self._readout = (ctypes.c_double * 3)()
     def retrigger(self,frame=None,empty=True):
         """A note started on this track: in Retrigger mode the puck goes back to the start of its path."""
@@ -588,6 +607,8 @@ class TrackFx:
                     raise ValueError('Stereo controls require the cached native kernel; run tools/build-native-filter.py and restart')
         self.chain = chain
         gate=next((m for m in (chain or {}).get('modules',[]) if m['id']=='gate'),None)
+        self._hold = any(m['id'] == 'space' and m['on'] and not m.get('bypass') and m['params'].get('freeze', 0) >= .5
+                         for m in (chain or {}).get('modules', []))
         self._quiet=0; self._gate_module=gate; self._written=set(); self._by_id={m['id']:m for m in (chain or {}).get('modules',[])}
         values={k:(gate['params'].get(k,v[2]) if gate else v[2]) for k,v in GATE_PERFORMANCE.items()}
         if values['retrig']!=self.gate_values['retrig']:self.clear_gate_events()
@@ -663,7 +684,7 @@ class TrackFx:
         has stayed silent for longer than the longest echo any effect can hold (REST_SECONDS), the effects
         are asleep: the block is answered with zeros at once, and the first sound wakes them again."""
         silent_in = not any(samples) and (right is None or not any(right)) and (key is None or all(k is None for k in key))
-        if silent_in and self.rest_enabled and self.active and not self._tail and self._quiet >= self.rate * REST_SECONDS:
+        if silent_in and self.rest_enabled and self.active and not self._tail and not self._hold and self._quiet >= self.rate * REST_SECONDS:
             n = len(samples)
             self._gate_frame = (self._gate_frame if frame is None else int(frame)) + n
             return ([0.] * n, [0.] * n) if _stereo else [0.] * n
@@ -743,7 +764,7 @@ class TrackFx:
         c=cbus.lib();scan=bufs.scan
         heard_l=scan(left,n)[0];heard_r=has_right and scan(right,n)[0]
         silent_in=not heard_l and not heard_r and (key is None or all(k is None for k in key))
-        if silent_in and self.rest_enabled and self.active and not self._tail and self._quiet>=self.rate*REST_SECONDS:
+        if silent_in and self.rest_enabled and self.active and not self._tail and not self._hold and self._quiet>=self.rate*REST_SECONDS:
             self._gate_frame=(self._gate_frame if frame is None else int(frame))+n
             cbus.zero(left,0,n);cbus.zero(right,0,n);return
         # --- _process

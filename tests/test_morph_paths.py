@@ -2,7 +2,7 @@ import math
 import unittest
 
 from decksynth.core import Engine
-from decksynth.fx import PATHS, RATES, default_chain, morph_point, pad_mix, path_point, validate_chain
+from decksynth.fx import NPAR, PATHS, RATES, default_chain, morph_point, pad_mix, path_point, validate_chain
 
 
 def chain_with(**morph):
@@ -39,7 +39,7 @@ class MorphPathTests(unittest.TestCase):
         for _ in range(12):
             e.render(512); seen.add(round(e.fx[0].puck[0], 2))
             # Macro 1 is Puck X and drives Delay feedback, so the effective feedback follows the puck
-            self.assertAlmostEqual(e.fx[0].params[8 * 6 + 1], min(.95, .4 + e.fx[0].puck[0] * .95), places=2)
+            self.assertAlmostEqual(e.fx[0].params[8 * NPAR + 1], min(.95, .4 + e.fx[0].puck[0] * .95), places=2)
         self.assertGreater(len(seen), 4, 'the puck travels along the circle')
         self.assertIn('puck', e.fx_live(0))
 
@@ -63,7 +63,7 @@ class MorphPathTests(unittest.TestCase):
         c['mods'][0].update(shape='square', rate=0)  # pad 1 sits in the top-left corner: +1 for the first half
         e.set_fx(0, c); e.render(512)
         self.assertAlmostEqual(e.fx[0].puck[2], 1.)
-        self.assertAlmostEqual(e.fx[0].params[8 * 6 + 1], .95)
+        self.assertAlmostEqual(e.fx[0].params[8 * NPAR + 1], .95)
 
     def test_old_saved_chains_and_bad_values(self):
         c = default_chain(); c['morph'] = dict(x=.2, y=.4, xMacro=2, yMacro=3)

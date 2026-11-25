@@ -35,7 +35,7 @@ class NativeDsp(unittest.TestCase):
 @unittest.skipUnless(available(), 'native FX library not built')
 class Chain(unittest.TestCase):
     def test_new_effects_are_in_the_chain_and_off_in_old_projects(self):
-        self.assertEqual(ORDER[-4:], R2)
+        self.assertEqual(ORDER[18:22], R2)
         c = default_chain(); c['modules'] = [m for m in c['modules'] if m['id'] not in R2]
         out = validate_chain(c)
         self.assertEqual(sorted(m['id'] for m in out['modules']), sorted(ORDER))

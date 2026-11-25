@@ -7,7 +7,7 @@ lib.dsfx_process.argtypes = [C.c_void_p, D, C.c_int, C.POINTER(C.c_int), C.POINT
 lib.dsfx_key.argtypes = [C.c_void_p, C.c_int, D, C.c_int]
 lib.dsfx_scale.argtypes = [C.c_void_p, C.c_int, C.c_int]
 lib.dsfx_readout.argtypes = [C.c_void_p, D]
-R = 48000; NMOD = 22; NPAR = 6; BLOCK = 512
+R = 48000; NMOD = 26; NPAR = 8; BLOCK = 512
 IDS = {'pitch': 18, 'autotune': 19, 'duck': 20, 'vocoder': 21}
 
 def run(mod, params, x, key=None, scale=None):

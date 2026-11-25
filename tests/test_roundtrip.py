@@ -22,7 +22,7 @@ OLD_PROJECTS = [FIXTURES / 'm1a-chain-23.decksynth', FIXTURES / 'spectral_s1_leg
 APPEND_ONLY = {
     'effect order': (fxmod.ORDER, ['stutter', 'filter', 'overdrive', 'bitcrusher', 'volume', 'phaser', 'flanger', 'ringmod',
                                    'delay', 'reverb', 'time', 'chorus', 'compressor', 'eq', 'autowah', 'resonator', 'gate',
-                                   'cloud', 'pitch', 'autotune', 'duck', 'vocoder']),
+                                   'cloud', 'pitch', 'autotune', 'duck', 'vocoder', 'tape', 'smear', 'shimmer', 'space']),
     'LFO shapes': (fxmod.SHAPES[:10], ['sine', 'triangle', 'saw', 'ramp', 'square', 'pulse', 'random', 'smooth', 'steps', 'curve']),
     'LFO rates': (fxmod.RATES, [16, 8, 4, 2, 1, .5, .25, 32, 64, 128]),
     'morph paths': (fxmod.PATHS, ['hand', 'circle', 'eight', 'flower', 'triangle', 'square', 'spiral', 'star', 'wave', 'drift']),
@@ -56,6 +56,10 @@ PARAM_ORDER = {
     'autotune': ['speed', 'amount', 'mix'],
     'duck': ['source', 'amount', 'sens', 'attack', 'release'],
     'vocoder': ['source', 'response', 'shift', 'air', 'mix'],
+    'tape': ['wow', 'flutter', 'drive', 'age', 'hiss', 'mix', 'character'],
+    'smear': ['size', 'blur', 'motion', 'tone', 'mix'],
+    'shimmer': ['decay', 'shimmer', 'tone', 'width', 'mix', 'interval'],
+    'space': ['size', 'decay', 'predelay', 'damp', 'mod', 'mix', 'freeze'],
 }
 
 

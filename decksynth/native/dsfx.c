@@ -1,4 +1,4 @@
-/* DeckSynth FX chain: 22 mono effect modules processed in blocks.
+/* DeckSynth FX chain: 26 effect modules (22 mono, 4 true-stereo ambient ones) processed in blocks.
  * Written for DeckSynth; module set follows the user's PrismFX reference,
  * all DSP here is original and generic (SVF, Schroeder/Freeverb-style reverb, etc.).
  * Build: gcc -O2 -fPIC -shared -o libdsfx.so dsfx.c -lm
@@ -15,12 +15,13 @@ static inline void ds_ftz(void) { _mm_setcsr(_mm_getcsr() | 0x8040); }
 static inline void ds_ftz(void) {}
 #endif
 
-#define NMOD 22
-#define NPAR 6
+#define NMOD 26
+#define NPAR 8
 #define PI 3.14159265358979323846
 
 enum { STUTTER, FILTER, OVERDRIVE, BITCRUSH, VOLUME, PHASER, FLANGER, RINGMOD, DELAY, REVERB, TIMEFX,
-       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE, CLOUD, PITCH, AUTOTUNE, DUCK, VOCODER };
+       CHORUS, COMP, EQ, AUTOWAH, RESONATOR, AUDIOGATE, CLOUD, PITCH, AUTOTUNE, DUCK, VOCODER,
+       TAPE, SMEAR, SHIMMER, SPACE };
 
 #define DLY_LEN (48000*3)
 #define FLG_LEN 2048
@@ -41,6 +42,27 @@ static const int AP_LEN[2] = {556, 441};
 /* pitch shifter: one read head plays; near the end of its range a second head starts where the
  * sound looks the same (best correlation) and the two crossfade, so the splice keeps the waveform */
 typedef struct { float buf[PS_LEN]; int w; double d[2]; int act, fade, init; } Shifter;
+
+/* Ambient effects (25 Nov): Tape, Smear, Shimmer and Space. They are stereo in, stereo out, so their state
+ * lives in the left channel's FxTrack only (the mono chain runs them on two copies and averages).
+ * Every buffer length is a power of two: reads wrap with a mask. */
+#define TP_LEN 2048
+typedef struct { float buf[2][TP_LEN]; int w, init, rnd_n; unsigned seed;
+    double ph1, ph2, phf, phf2, rnd, rnd_t, dprev, env, lp[2][2], hpx[2], hpy[2]; } TapeState;
+#define SM_N 8
+#define SM_LEN 4096
+typedef struct { float buf[2][SM_N][SM_LEN]; int w, init; double ph[2][SM_N], d[2][SM_N], lp[2]; } SmearState;
+#define FDN 8
+#define DIF_LEN 1024
+#define SHM_LEN 8192
+#define SHF_LEN 4096
+#define SHF_WIN 2048.0
+typedef struct { float line[FDN][SHM_LEN], sh[FDN][SHF_LEN], dif[2][2][DIF_LEN]; int w;
+    double shd, lp[FDN], dcx[2], dcy[2]; } ShimmerState;
+#define SP_LEN 16384
+#define SP_PRE 16384
+typedef struct { float line[FDN][SP_LEN], pre[2][SP_PRE], dif[2][4][DIF_LEN]; int w, init;
+    double ph[FDN], d[FDN], lp[FDN], frz, dcx[2], dcy[2]; } SpaceState;
 
 typedef struct {
     double rate;
@@ -95,7 +117,11 @@ typedef struct {
     const double *key[2]; int key_n[2];
     double dk_env, dk_red;
     double vc_c[VOC_B][2], vc_m[VOC_B][4], vc_env[VOC_B], vc_cenv[VOC_B], vc_hp, vc_hpx;
+    TapeState tp; SmearState sm; ShimmerState shm; SpaceState sp;
 } FxTrack;
+
+/* Parameters per module in the params array; Python refuses a library whose layout differs. */
+int dsfx_npar(void) { return NPAR; }
 
 FxTrack *dsfx_create(double rate) {
     FxTrack *t = calloc(1, sizeof(FxTrack));
@@ -674,8 +700,214 @@ static void m_vocoder(FxTrack *t, double *b, int n, const double *p) {
     }
 }
 
+/* ---- Ambient effects (25 Nov): Tape, Smear, Shimmer, Space. Stereo in, stereo out (a = left, b = right),
+ * state in t (the left channel's FxTrack). No allocation; every feedback path is bounded. ---- */
+
+static inline double amb_rd(const float *buf, int mask, int w, double d) {
+    double rp = w - d; double fl = floor(rp); int j = (int)fl; double f = rp - fl;
+    double x = buf[j & mask], y = buf[(j + 1) & mask];
+    return x + (y - x) * f;
+}
+static inline double amb_rnd(unsigned *s) { *s = *s * 1664525u + 1013904223u; return (double)(*s >> 8) / 8388608.0 - 1.0; }
+/* identity below 2, then bends smoothly towards 3: a loop that would run away stays bounded */
+static inline double amb_clip(double v) { double a = fabs(v); return a <= 2 ? v : copysign(2 + tanh(a - 2), v); }
+static inline double amb_lpcoef(double fc, double rate) { return exp(-2 * PI * fmin(fc, .45 * rate) / rate); }
+/* Fast Walsh-Hadamard transform of 8 values, scaled to keep energy: the feedback matrix of both reverbs. */
+static inline void amb_hadamard(double *x) {
+    for (int h = 1; h < 8; h <<= 1)
+        for (int i = 0; i < 8; i += h << 1)
+            for (int j = i; j < i + h; j++) { double u = x[j], v = x[j + h]; x[j] = u + v; x[j + h] = u - v; }
+    for (int i = 0; i < 8; i++) x[i] *= 0.35355339059327373;
+}
+static inline double amb_ap(float *buf, int mask, int w, double d, double g, double x) {
+    double o = amb_rd(buf, mask, w, d), s = amb_clip(x + g * o);
+    buf[w & mask] = (float)s; return o - g * s;
+}
+
+/* Tape: wow (slow drifting pitch), flutter (fast), drive, age (top end rolls off), hiss, through a short
+ * modulated delay. Character Fresh / Worn / Broken scales wow, flutter and age by 1, 1.6 and 2.5.
+ * p: wow, flutter, drive, age, hiss, mix, character. The dry part of Mix is read at the tape's own delay, so a
+ * blend never comb-filters; the whole effect is about 4 ms late. */
+static void m_tape(FxTrack *t, double *a, double *b, int n, const double *p) {
+    static const double MUL[3] = {1, 1.6, 2.5};
+    TapeState *s = &t->tp; const int mask = TP_LEN - 1;
+    double mul = MUL[(int)clampd(round(p[6]), 0, 2)], sr = t->rate / 48000.0;
+    double wow = clampd(p[0], 0, 1) * mul, flut = clampd(p[1], 0, 1) * mul, drive = clampd(p[2], 0, 1);
+    double age = fmin(1, clampd(p[3], 0, 1) * mul), hiss = clampd(p[4], 0, 1) * 0.0137, mix = clampd(p[5], 0, 1);
+    double base = fmin(200 * sr, TP_LEN / 2.0);
+    if (!s->init) { s->init = 1; s->dprev = base; s->seed = 0x2545f491u; }
+    /* the modulation at the end of this chunk; the delay glides there sample by sample */
+    double dt = n / t->rate;
+    s->ph1 += 2 * PI * .47 * (1 + .3 * s->rnd) * dt; s->ph2 += 2 * PI * 1.31 * dt;
+    s->phf += 2 * PI * 8.3 * dt; s->phf2 += 2 * PI * 11.7 * dt;
+    if (s->ph1 > 2 * PI) s->ph1 -= 2 * PI; if (s->ph2 > 2 * PI) s->ph2 -= 2 * PI;
+    if (s->phf > 2 * PI) s->phf -= 2 * PI; if (s->phf2 > 2 * PI) s->phf2 -= 2 * PI;
+    s->rnd_n += n; if (s->rnd_n > .35 * t->rate) { s->rnd_n = 0; s->rnd_t = amb_rnd(&s->seed); }
+    s->rnd += (s->rnd_t - s->rnd) * (1 - exp(-dt / .25));
+    double wsig = .5 * sin(s->ph1) + .25 * sin(s->ph2) + .25 * s->rnd, fsig = .75 * sin(s->phf) + .25 * sin(s->phf2);
+    double d1 = base + 80 * sr * wow * wsig + 1.25 * sr * flut * fsig, d0 = s->dprev; s->dprev = d1;
+    double k = 1 + 7 * drive, norm = .316 / tanh(.316 * k);
+    double clp = amb_lpcoef(20000 * pow(.2, age), t->rate), chp = exp(-2 * PI * (15 + 85 * age) / t->rate);
+    double att = exp(-1 / (.005 * t->rate)), rel = exp(-1 / (.3 * t->rate));
+    for (int i = 0; i < n; i++) {
+        double d = d0 + (d1 - d0) * (i + 1) / n, in = fmax(fabs(a[i]), fabs(b[i]));
+        s->env = in > s->env ? att * s->env + (1 - att) * in : rel * s->env;
+        double g = hiss * fmin(1, s->env * 100);
+        for (int c = 0; c < 2; c++) {
+            double *x = c ? b + i : a + i;
+            s->buf[c][s->w] = (float)*x;
+            double y = amb_rd(s->buf[c], mask, s->w, d), dry = amb_rd(s->buf[c], mask, s->w, base);
+            y = tanh(k * y) * norm + g * amb_rnd(&s->seed);
+            s->lp[c][0] += (1 - clp) * (y - s->lp[c][0]); s->lp[c][1] += (1 - clp) * (s->lp[c][0] - s->lp[c][1]);
+            y = s->lp[c][1];
+            double h = chp * (s->hpy[c] + y - s->hpx[c]); s->hpx[c] = y; s->hpy[c] = h;
+            *x = dry * (1 - mix) + h * mix;
+        }
+        s->w = (s->w + 1) & mask;
+    }
+}
+
+/* Smear: eight modulated all-pass delays per channel (prime ratios, different left and right) blur the sound in
+ * time without colouring it much. p: size (longest delay 3..80 ms), blur (all-pass gain .3-.75), motion (slow
+ * drift of every delay), tone (low-pass on the wet), mix. */
+static void m_smear(FxTrack *t, double *a, double *b, int n, const double *p) {
+    static const double PR[2][SM_N] = {{131, 197, 271, 359, 467, 613, 787, 1009}, {137, 191, 263, 349, 479, 601, 773, 997}};
+    SmearState *s = &t->sm; const int mask = SM_LEN - 1;
+    double lmax = (3 + 77 * clampd(p[0], 0, 1)) * 1e-3 * t->rate, g = .3 + .45 * clampd(p[1], 0, 1);
+    double motion = clampd(p[2], 0, 1), clp = amb_lpcoef(1500 * pow(13.33, clampd(p[3], 0, 1)), t->rate), mix = clampd(p[4], 0, 1);
+    double d0[2][SM_N], d1[2][SM_N], dt = n / t->rate;
+    for (int c = 0; c < 2; c++) for (int k = 0; k < SM_N; k++) {
+        double len = lmax * PR[c][k] / 1009.0, depth = motion * (.006 * len + 3);
+        s->ph[c][k] += 2 * PI * (.11 + .037 * k + .013 * c) * dt; if (s->ph[c][k] > 2 * PI) s->ph[c][k] -= 2 * PI;
+        double target = clampd(len + depth * sin(s->ph[c][k] + 1.7 * k), 1, SM_LEN - 4);
+        d0[c][k] = s->init ? s->d[c][k] : target; d1[c][k] = s->d[c][k] = target;
+    }
+    s->init = 1;
+    for (int i = 0; i < n; i++) {
+        double f = (i + 1.0) / n;
+        for (int c = 0; c < 2; c++) {
+            double *x = c ? b + i : a + i, v = *x;
+            for (int k = 0; k < SM_N; k++) v = amb_ap(s->buf[c][k], mask, s->w, d0[c][k] + (d1[c][k] - d0[c][k]) * f, g, v);
+            s->lp[c] += (1 - clp) * (v - s->lp[c]);
+            *x = *x * (1 - mix) + s->lp[c] * mix;
+        }
+        s->w = (s->w + 1) & mask;
+    }
+}
+
+/* Shimmer: an eight-line feedback delay network whose lines are partly pitch-shifted up (Interval) on every
+ * pass, so the tail climbs. The shifter is two crossfaded read heads with triangular windows (their gains sum
+ * to 1), so no pass can gain level: loop gain <= the decay gain < 1, and a soft clip guards the loop anyway.
+ * p: decay 1..20 s, shimmer, tone, width, mix, interval (+12 / +7 / +19 / +24 semitones). */
+static void m_shimmer(FxTrack *t, double *a, double *b, int n, const double *p) {
+    static const double LEN[FDN] = {1499, 1801, 2111, 2393, 2689, 2969, 3271, 3557};
+    static const double DIF[2][2] = {{241, 173}, {229, 181}};
+    static const double SEMI[4] = {12, 7, 19, 24};
+    ShimmerState *s = &t->shm; const int lm = SHM_LEN - 1, sm = SHF_LEN - 1, dm = DIF_LEN - 1;
+    double sr = t->rate / 48000.0, T = clampd(p[0], 1, 20), sh_amt = clampd(p[1], 0, 1), amt = .06 * sh_amt, keep = 1 - amt;
+    double clp = amb_lpcoef(2000 * pow(8, clampd(p[2], 0, 1)), t->rate), width = clampd(p[3], 0, 1), mix = clampd(p[4], 0, 1);
+    double ratio = pow(2, SEMI[(int)clampd(round(p[5]), 0, 3)] / 12), ing = .5 * fmin(1, sqrt(3 / T));
+    int len[FDN]; double gk[FDN];
+    for (int k = 0; k < FDN; k++) { len[k] = (int)fmin(LEN[k] * sr, SHM_LEN - 2); gk[k] = pow(10, -3 * len[k] / (T * t->rate)); }
+    double dc = exp(-2 * PI * 20 / t->rate);
+    for (int i = 0; i < n; i++) {
+        double in[2] = {a[i], b[i]};
+        for (int c = 0; c < 2; c++) {
+            double y = dc * (s->dcy[c] + in[c] - s->dcx[c]); s->dcx[c] = in[c]; s->dcy[c] = y;
+            for (int k = 0; k < 2; k++) y = amb_ap(s->dif[c][k], dm, s->w, DIF[c][k] * sr, .6, y);
+            in[c] = y * ing;
+        }
+        double o[FDN], y[FDN], wl = 0, wr = 0;
+        for (int k = 0; k < FDN; k++) {
+            o[k] = s->line[k][(s->w - len[k]) & lm];
+            s->lp[k] += (1 - clp) * (o[k] - s->lp[k]);
+            double v = s->lp[k];
+            s->sh[k][s->w & sm] = (float)v;
+            double d1 = fmod(s->shd + k * SHF_WIN / FDN, SHF_WIN), d2 = fmod(d1 + SHF_WIN / 2, SHF_WIN);
+            double g1 = 1 - fabs(2 * d1 / SHF_WIN - 1), sv = g1 * amb_rd(s->sh[k], sm, s->w, d1 + 2) + (1 - g1) * amb_rd(s->sh[k], sm, s->w, d2 + 2);
+            y[k] = gk[k] * (v * keep + sv * amt);
+            /* the climbing copy is also heard straight, once: that is the shimmer you hear; only a little of it recirculates */
+            double hear = o[k] + 2 * sh_amt * sv * gk[k];
+            if (k & 1) wr += hear; else wl += hear;
+        }
+        amb_hadamard(y);
+        for (int k = 0; k < FDN; k++) s->line[k][s->w & lm] = (float)amb_clip(y[k] + in[k & 1]);
+        s->shd += 1 - ratio; while (s->shd < 0) s->shd += SHF_WIN; while (s->shd >= SHF_WIN) s->shd -= SHF_WIN;
+        s->w = (s->w + 1) & lm;  /* the smaller power-of-two buffers wrap with it through their own masks */
+        double mid = (wl + wr) * .25, side = (wl - wr) * .25 * width;
+        a[i] = a[i] * (1 - mix) + (mid + side) * mix;
+        b[i] = b[i] * (1 - mix) + (mid - side) * mix;
+    }
+}
+
+/* Space: a big modulated hall, an eight-line feedback delay network after pre-delay and input diffusion.
+ * Freeze cuts the input to the tank and holds the tail: feedback 1, no damping and no modulation, so the
+ * lines are read at whole-sample delays and keep their level indefinitely; the dry sound still passes.
+ * p: size, decay 1..60 s, pre-delay 0..200 ms, damp, mod, mix, freeze (0/1). */
+static void m_space(FxTrack *t, double *a, double *b, int n, const double *p) {
+    static const double LEN[FDN] = {4799, 5381, 5953, 6553, 7151, 7741, 8363, 9001};
+    static const double DIF[4] = {142, 107, 379, 277};
+    SpaceState *s = &t->sp; const int lm = SP_LEN - 1, pm = SP_PRE - 1, dm = DIF_LEN - 1;
+    double sr = t->rate / 48000.0, sc = .25 + .75 * clampd(p[0], 0, 1), T = clampd(p[1], 1, 60);
+    double pre = clampd(p[2] * 1e-3 * t->rate, 1, SP_PRE - 4), damp = .05 + .7 * clampd(p[3], 0, 1);
+    double mod = clampd(p[4], 0, 1), mix = clampd(p[5], 0, 1), want = p[6] >= .5 ? 1 : 0;
+    /* freeze glides in and out over about 50 ms, then snaps exactly to 0 or 1 */
+    double fc = 1 - exp(-n / (.05 * t->rate));
+    s->frz += (want - s->frz) * fc; if (fabs(want - s->frz) < 1e-3) s->frz = want;
+    double frz = s->frz, ing = .45 * fmin(1, sqrt(3 / T)) * (1 - frz), cd = damp * (1 - frz);
+    double d0[FDN], d1[FDN], gk[FDN], dt = n / t->rate;
+    for (int k = 0; k < FDN; k++) {
+        double len = floor(fmin(LEN[k] * sr * sc, SP_LEN - 64) + .5), md = mod * (3 + 10 * sc) * sr * (1 - frz);
+        s->ph[k] += 2 * PI * (.13 + .083 * k) * dt; if (s->ph[k] > 2 * PI) s->ph[k] -= 2 * PI;
+        double target = md > 0 ? len + md * sin(s->ph[k] + 2.1 * k) : len;
+        d0[k] = s->init ? s->d[k] : target; d1[k] = s->d[k] = target;
+        double g = pow(10, -3 * len / (T * t->rate)); gk[k] = frz >= 1 ? 1 : g + (1 - g) * frz;
+    }
+    s->init = 1;
+    double dc = exp(-2 * PI * 20 / t->rate), dif = (.5 + .5 * sc) * sr;
+    for (int i = 0; i < n; i++) {
+        double in[2] = {a[i], b[i]}, f = (i + 1.0) / n;
+        for (int c = 0; c < 2; c++) {
+            s->pre[c][s->w & pm] = (float)in[c];
+            double y = amb_rd(s->pre[c], pm, s->w, pre);
+            double h = dc * (s->dcy[c] + y - s->dcx[c]); s->dcx[c] = y; s->dcy[c] = h; y = h;
+            for (int k = 0; k < 4; k++) y = amb_ap(s->dif[c][k], dm, s->w, DIF[k] * dif * (c ? 1.07 : 1), .62, y);
+            in[c] = y * ing;
+        }
+        double o[FDN], y[FDN], wl = 0, wr = 0;
+        for (int k = 0; k < FDN; k++) {
+            double d = d0[k] + (d1[k] - d0[k]) * f;
+            o[k] = amb_rd(s->line[k], lm, s->w, d);
+            s->lp[k] = o[k] + cd * (s->lp[k] - o[k]);
+            y[k] = gk[k] * s->lp[k];
+            if (k & 1) wr += o[k]; else wl += o[k];
+        }
+        amb_hadamard(y);
+        for (int k = 0; k < FDN; k++) s->line[k][s->w & lm] = (float)amb_clip(y[k] + in[k & 1]);
+        s->w = (s->w + 1) & lm;
+        a[i] = a[i] * (1 - mix) + wl * .3 * mix;
+        b[i] = b[i] * (1 - mix) + wr * .3 * mix;
+    }
+}
+
+/* The four ambient effects in the mono chain: run on a copy as left and right and take the average. */
+static void ambient_stereo(FxTrack *t, int m, double *a, double *b, int n, const double *p) {
+    switch (m) {
+        case TAPE: m_tape(t, a, b, n, p); break;
+        case SMEAR: m_smear(t, a, b, n, p); break;
+        case SHIMMER: m_shimmer(t, a, b, n, p); break;
+        case SPACE: m_space(t, a, b, n, p); break;
+    }
+}
+static void ambient_mono(FxTrack *t, int m, double *x, int n, const double *p) {
+    double r[CHUNK]; memcpy(r, x, n * sizeof(double));
+    ambient_stereo(t, m, x, r, n, p);
+    for (int i = 0; i < n; i++) x[i] = .5 * (x[i] + r[i]);
+}
+
 static void run_module(FxTrack *t, int m, double *b, int n, const double *p, double bpm) {
     switch (m) {
+        case TAPE: case SMEAR: case SHIMMER: case SPACE: ambient_mono(t, m, b, n, p); break;
         case STUTTER: m_stutter(t, b, n, p, bpm); break;
         case FILTER: m_filter(t, b, n, p); break;
         case OVERDRIVE: m_drive(b, n, p); break;
@@ -701,6 +933,9 @@ static void run_module(FxTrack *t, int m, double *b, int n, const double *p, dou
     }
 }
 
+/* Whole-number choices of the ambient effects jump instead of gliding through the values between. */
+static const int STEPPED[3] = {TAPE * NPAR + 6, SHIMMER * NPAR + 5, SPACE * NPAR + 6};
+
 /* order: NMOD module ids in chain order; on: NMOD flags (by module id);
  * params: NMOD*NPAR values (by module id).
  * The block runs in 16-sample chunks: parameters glide from last block's values to these, and an effect
@@ -717,6 +952,7 @@ void dsfx_process(FxTrack *t, double *b, int n, const int *order, const int *on,
         double w = (double)(c + 1) / chunks;
         for (int i = 0; i < NMOD * NPAR; i++) t->pcur[i] = start[i] + (params[i] - start[i]) * w;
         for (int i = 0; i < 3; i++) t->pcur[AUDIOGATE * NPAR + i] = params[AUDIOGATE * NPAR + i];  /* cells and steps: no glide */
+        for (int i = 0; i < 3; i++) t->pcur[STEPPED[i]] = params[STEPPED[i]];  /* Character, Interval, Freeze */
         t->g_offset=off;
         double *x = b + off;
         for (int k = 0; k < NMOD; k++) {
@@ -753,6 +989,7 @@ void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,
         int off=c*CHUNK,len=n-off<CHUNK?n-off:CHUNK;double w=(double)(c+1)/chunks;
         for(int i=0;i<NMOD*NPAR;i++)l->pcur[i]=start[i]+(params[i]-start[i])*w;
         for(int i=0;i<3;i++)l->pcur[AUDIOGATE*NPAR+i]=params[AUDIOGATE*NPAR+i];
+        for(int i=0;i<3;i++)l->pcur[STEPPED[i]]=params[STEPPED[i]];
         l->g_offset=r->g_offset=off;double *a=left+off,*b=right+off;
         for(int k=0;k<NMOD;k++) {
             int m=order[k];if(m<0||m>=NMOD)continue;
@@ -764,6 +1001,7 @@ void dsfx_process_stereo(FxTrack *l,FxTrack *r,double *left,double *right,int n,
             if(m==REVERB)r->stereo_width=clampd(p[5],0,1);
             if(m==CLOUD)r->stereo_phase=1.73;
             if(m==DELAY && p[3]>0)m_pingpong(l,r,a,b,len,p,bpm);
+            else if(m>=TAPE)ambient_stereo(l,m,a,b,len,p);  /* true stereo: state in l only */
             else {run_module(l,m,a,len,p,bpm);run_module(r,m,b,len,p,bpm);}
             if(m==CHORUS)m_haas(r,b,len,p[5]);
             if(a0<1||a1<1)for(int i=0;i<len;i++){double g=a0+(a1-a0)*(i+1)/len;a[i]=da[i]*(1-g)+a[i]*g;b[i]=db[i]*(1-g)+b[i]*g;}

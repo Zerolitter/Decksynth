@@ -2,7 +2,8 @@
 // Module set follows the user's PrismFX reference recordings; all DSP is DeckSynth's own.
 
 export type FxModuleId = 'stutter'|'filter'|'overdrive'|'bitcrusher'|'volume'|'phaser'
-  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate'|'cloud'|'pitch'|'autotune'|'duck'|'vocoder';
+  |'flanger'|'ringmod'|'delay'|'reverb'|'time'|'chorus'|'compressor'|'eq'|'autowah'|'resonator'|'gate'|'cloud'|'pitch'|'autotune'|'duck'|'vocoder'
+  |'tape'|'smear'|'shimmer'|'space';
 
 export type FxParamDef = { key:string; label:string; min:number; max:number; init:number; suffix?:string; precision?:number;
   /** labels for each whole value from min to max: shown as tap buttons instead of a knob */ options?:string[];
@@ -214,6 +215,24 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
     {key:'source',label:'Voice from',min:0,max:15,init:0,precision:0,editor:'track',modulatable:false},
     {key:'response',label:'Response',min:0,max:1,init:.3},{key:'shift',label:'Formant',min:-1,max:1,init:0},
     {key:'air',label:'Air',min:0,max:1,init:.3},{...mix,init:1}]},
+  // Ambient FX (25 Nov): stereo effects for deep ambient sounds. Colours are tokens (src/tokens.css).
+  tape:{name:'Tape',color:'var(--fx-tape)',blurb:'Wow, flutter, warm saturation, a rolled-off top and hiss.',params:[
+    {key:'wow',label:'Wow',min:0,max:1,init:.3},{key:'flutter',label:'Flutter',min:0,max:1,init:.2},
+    {key:'drive',label:'Drive',min:0,max:1,init:.3},{key:'age',label:'Age',min:0,max:1,init:.3},
+    {key:'hiss',label:'Hiss',min:0,max:1,init:.2},{...mix,init:1},
+    {key:'character',label:'Character',min:0,max:2,init:0,precision:0,options:['Fresh','Worn','Broken'],modulatable:false}]},
+  smear:{name:'Smear',color:'var(--fx-smear)',blurb:'Blurs the sound in time with a chain of drifting all-pass delays.',params:[
+    {key:'size',label:'Size',min:0,max:1,init:.5},{key:'blur',label:'Blur',min:0,max:1,init:.6},
+    {key:'motion',label:'Motion',min:0,max:1,init:.3},{key:'tone',label:'Tone',min:0,max:1,init:.7},mix]},
+  shimmer:{name:'Shimmer',color:'var(--fx-shimmer)',blurb:'A long reverb whose tail climbs in pitch.',params:[
+    {key:'decay',label:'Decay',min:1,max:20,init:6,suffix:' s',precision:1},{key:'shimmer',label:'Shimmer',min:0,max:1,init:.5},
+    {key:'tone',label:'Tone',min:0,max:1,init:.6},{...width,init:.8},{...mix,init:.4},
+    {key:'interval',label:'Interval',min:0,max:3,init:0,precision:0,options:['+12','+7','+19','+24'],modulatable:false}]},
+  space:{name:'Space',color:'var(--fx-space)',blurb:'A huge modulated hall; Freeze holds the tail.',params:[
+    {key:'size',label:'Size',min:0,max:1,init:.7},{key:'decay',label:'Decay',min:1,max:60,init:6,suffix:' s',precision:1},
+    {key:'predelay',label:'Pre-delay',min:0,max:200,init:20,suffix:' ms',precision:1},{key:'damp',label:'Damp',min:0,max:1,init:.4},
+    {key:'mod',label:'Mod',min:0,max:1,init:.3},{...mix,init:.4},
+    {key:'freeze',label:'Freeze',min:0,max:1,init:0,precision:0,options:['Off','Freeze'],modulatable:false}]},
   gate:{name:'Audio gate',color:'#ff7eb6',params:[
     {key:'length',label:'Cells',min:0,max:5,init:2,precision:0,hidden:true},
     {key:'division',label:'Cell size',min:0,max:4,init:2,precision:0,hidden:true},
@@ -286,7 +305,7 @@ export function targetInfo(t:{module:FxTarget['module'];param:string}){
 
 export const FX_ORDER:FxModuleId[]=['stutter','filter','overdrive','bitcrusher','volume','phaser',
   'flanger','ringmod','delay','reverb','time','chorus','compressor','eq','autowah','resonator','gate','cloud',
-  'pitch','autotune','duck','vocoder'];
+  'pitch','autotune','duck','vocoder','tape','smear','shimmer','space'];
 export const defaultModule=(id:FxModuleId):FxModuleState=>({id,on:false,params:Object.fromEntries(FX_MODULES[id].params.map(p=>[p.key,p.init]))});
 /** Switch an effect on at the end of the chain. */
 export function addModule(chain:FxChain,id:FxModuleId):FxChain{
