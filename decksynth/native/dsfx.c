@@ -1227,6 +1227,63 @@ int dsfx_voice3(double *out, int n, const double *tab, const double *prev, doubl
     return voice_ext(out,n,tab,prev,st,v,f);
 }
 
+/* Pitch envelope in one call (25 Nov). A note that starts away from its pitch and falls (or rises) to it is
+ * rendered in SLICE-sample slices, each with its own pitch: the same slices and factors as strike.slices() in
+ * Python (2^(amt e^(-(t + n/2)/dec) / 12) for a slice of n samples starting t samples into the note, and one
+ * slice once t passes `end`), but without a ctypes call per slice. Returns the voice kernels' bits: bit 0 the
+ * voice has finished, bit 1 the table crossfade has finished (in any slice). */
+#define PITCH_SLICE 32
+typedef struct { double amt, dec, end; } DsPitch;
+static inline double pitch_factor(const DsPitch *p, double t, int n) { return pow(2, p->amt * exp(-(t + n / 2.0) / p->dec) / 12); }
+/* The next slice from `off` (samples into the block) for a note `age0` samples old at the block start. */
+static inline int pitch_slice(const DsPitch *p, double age0, int off, int n, double *fac) {
+    double t = age0 + off;
+    if (t >= p->end) { *fac = 1; return n - off; }
+    int m = n - off < PITCH_SLICE ? n - off : PITCH_SLICE;
+    *fac = pitch_factor(p, t, m); return m;
+}
+static int pitch_core(double *out, int n, const double *tab, const double *prev, double *st, int released,
+                      double step, double gain, double a, double d, double sus, double rel, double k, const DsPitch *p) {
+    double age0 = st[1]; int res = 0, bits = 0;
+    if (age0 >= p->end) return voice_core(out, n, tab, prev, st, released, step, gain, a, d, sus, rel, k);
+    for (int off = 0; off < n;) {
+        double fac; int m = pitch_slice(p, age0, off, n, &fac);
+        res = voice_core(out + off, m, tab, prev, st, released, step * fac, gain, a, d, sus, rel, k);
+        if (res & 2) { prev = NULL; bits |= 2; }
+        if (res & 1) { bits |= 1; break; }
+        off += m;
+    }
+    return bits;
+}
+int dsfx_voice_pitch(double *out, int n, const double *tab, const double *prev, double *st, int released,
+                     double step, double gain, double a, double d, double sus, double rel, const DsPitch *p) {
+    return pitch_core(out, n, tab, prev, st, released, step, gain, a, d, sus, rel, 0, p);
+}
+int dsfx_voice_curve_pitch(double *out, int n, const double *tab, const double *prev, double *st, int released,
+                           double step, double gain, double a, double d, double sus, double rel, double k, const DsPitch *p) { ds_ftz();
+    return pitch_core(out, n, tab, prev, st, released, step, gain, a, d, sus, rel, k, p);
+}
+static int pitch_ext(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f, const DsPitch *p) {
+    double age0 = st[1]; int res = 0, bits = 0;
+    if (age0 >= p->end) return voice_ext(out, n, tab, prev, st, v, f);
+    DsVoice w = *v;
+    for (int off = 0; off < n;) {
+        double fac; int m = pitch_slice(p, age0, off, n, &fac);
+        w.step = v->step * fac;
+        res = voice_ext(out + off, m, tab, prev, st, &w, f);
+        if (res & 2) { prev = NULL; bits |= 2; }
+        if (res & 1) { bits |= 1; break; }
+        off += m;
+    }
+    return bits;
+}
+int dsfx_voice2_pitch(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsPitch *p) { ds_ftz();
+    return pitch_ext(out, n, tab, prev, st, v, NULL, p);
+}
+int dsfx_voice3_pitch(double *out, int n, const double *tab, const double *prev, double *st, const DsVoice *v, const DsFilter *f, const DsPitch *p) { ds_ftz();
+    return pitch_ext(out, n, tab, prev, st, v, f, p);
+}
+
 /* Strike stage (24 Nov): what a real instrument does in its first moments, after the voice is rendered.
  *   damping: a gentle low-pass (12 dB/oct) that starts wide open and closes towards a few partials above the
  *            note over tau samples, so the upper partials die faster than the fundamental (strings, keys, bells);

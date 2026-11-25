@@ -23,8 +23,9 @@ fi
 export CC="$CC_CMD"
 
 # 1) FX library next to the engine (decksynth/native/libdsfx.so)
+# -ffp-contract=off like the cached kernels: no fused multiply-add, so the sound is the same on every CPU (zig cc builds for this CPU)
 # shellcheck disable=SC2086
-$CC_CMD -O2 -shared -fPIC -o decksynth/native/libdsfx.so decksynth/native/dsfx.c -lm
+$CC_CMD -O2 -ffp-contract=off -shared -fPIC -o decksynth/native/libdsfx.so decksynth/native/dsfx.c -lm
 
 # 2) Content-addressed kernels the engine looks for in $XDG_CACHE_HOME/decksynth/native
 if [ "$#" -gt 0 ]; then

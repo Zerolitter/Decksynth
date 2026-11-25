@@ -27,8 +27,8 @@ from .sampler_engine import SamplerEngine
 from .sampler import validate_sampler
 from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
-from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, native_voice_curve, MasterStage, DsVoice, default_chain as default_fx, validate_chain as validate_fx
-from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
+from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, native_voice_curve, native_pitch, MasterStage, DsVoice, default_chain as default_fx, validate_chain as validate_fx
+from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, native_voice_pitch as native_filter_voice_pitch, DsFilter
 from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
 from . import strike, sample_layer
@@ -502,13 +502,22 @@ class Synth(ExpressionVoice):
                     fast=None; break
             if fast is not None:
                 pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
+                # The pitch envelope's slices in one C call per voice (strike.DsPitch); Python slices with an older library.
+                pk=native_pitch('dsfx_voice_pitch') if pitched else None; pkc=native_pitch('dsfx_voice_curve_pitch') if pk else None
+                if pk is not None:pa=self.pargs=strike.pitch_args(p,sr,getattr(self,'pargs',None));pref=ctypes.byref(pa)
                 for key,v in list(self.voices.items()):
                     rel=v['release']; prev=v.get('prev')
                     st[0]=v['phase']; st[1]=v['age']; st[2]=rel[0] if rel else 0; st[3]=rel[1] if rel else 0
                     st[4]=v['level']; st[5]=v.get('xf',1.)
                     step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
                     dst=self._scratch(frames) if hit else buf; res=0
-                    for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                    if pk is not None:
+                        if curve and not v.get('fast') and curved is not None:
+                            res=pkc(dst,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,a,d,p['sustain'],slow,curve,pref)
+                        else:
+                            res=pk(dst,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,a,d,p['sustain'],quick if v.get('fast') else slow,pref)
+                        if res&2:prev=None
+                    for off,n,fac in (() if pk is not None else strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
                         if curve and not v.get('fast') and curved is not None:
                             res=curved(strike.at(dst,off),n,v['table'],prev,st,rel is not None,step*fac,self.amp(v,p)*.23*trem,
                                        a,d,p['sustain'],slow,curve)
@@ -572,6 +581,10 @@ class Synth(ExpressionVoice):
                                         for v in self.voices.values()):fast=None
         out=(target if target is not None else (ctypes.c_double*frames)()) if fast is not None else [0.]*frames
         va=self.vargs; st=self.st; pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
+        pk=None
+        if pitched and fast is not None:
+            pk=native_filter_voice_pitch() if extended else native_pitch('dsfx_voice2_pitch')
+            if pk is not None:pa=self.pargs=strike.pitch_args(p,sr,getattr(self,'pargs',None));pref=ctypes.byref(pa)
         cfg=dict(a=a,d=d,sus=p['sustain'],uni=uni,detune=p.get('uni_detune',.3)*.5,ftype=ft,reso=p.get('vcf_reso',.2),
                  envamt=p.get('vcf_env',.3)*6,rate=float(sr),npart=16,stretch=.008*inh*inh,sub=sub,suboct=int(p.get('sub_oct',1)))
         fc=dict(a=max(1,p.get('fenv_a',p['attack'])*sr),d=max(1,p.get('fenv_d',p['decay'])*sr),
@@ -603,7 +616,11 @@ class Synth(ExpressionVoice):
                 if extended:
                     for k,val in fc.items():setattr(self.fargs,k,val)
                 res=0
-                for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                if pk is not None:
+                    va.step=cfg['step']
+                    res=pk(dst,frames,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs),pref) if extended else pk(dst,frames,v['table'],prev,st,ctypes.byref(va),pref)
+                    if res&2:prev=None
+                for off,n,fac in (() if pk is not None else strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
                     va.step=cfg['step']*fac
                     res=fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs)) if extended else fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va))
                     if res&2:prev=None
@@ -1898,8 +1915,12 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     # Frozen tracks ring out from where the transport stopped (their file holds the tail).
                     self.freeze_ring={tr:start for tr in range(len(frozen)) if frozen[tr]}
                     self.playing=False; self.frame=0; start=0; end=n; self.release_loops()
+                # A muted track still plays its notes while an unmuted track's Ducking or Vocoder hears it (25 Nov:
+                # in a freeze render every other track is muted, and the Vocoder heard nothing).
+                heard={src for tr,(t,fx) in enumerate(zip(self.project.tracks,self.fx)) if not t['mute']
+                       for src in fx.key_sources() if src is not None and src!=tr}
                 for tr,t in enumerate(self.project.tracks if self.playing else []):
-                    if t['mute'] or frozen[tr]:continue
+                    if (t['mute'] and tr not in heard) or frozen[tr]:continue
                     if song:
                         # Timeline: each bar plays the bar of its block's clip that lines up with the grid.
                         for beat,action,key,bar,note in songs.song_events(song,lambda k:self.project.clip_notes(tr,k),tr,
