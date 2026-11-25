@@ -350,6 +350,9 @@ def worker(commands,updates):
                         note=engine.make_sampler_later(*args)
                         if note:send(dict(message=note))
                     elif cmd=='sampler_edit':engine.edit_sampler(*args)
+                    elif cmd=='sampler_recipe':
+                        try:engine.apply_recipe(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='sampler_live':engine.preview_sampler(*args)
                     elif cmd=='sampler_detect':
                         engine.detect_sampler_root_later(*args)  # in the background; the message comes from the poll

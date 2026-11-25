@@ -449,7 +449,7 @@
 /* r4b: even tool columns with a small display beside them; the three cards share the width so Play keeps two columns */
 .sampler-page .smp-deck{grid-template-columns:minmax(0,1fr) 360px}
 .sampler-page .smp-deck>.smp-cards>.smp-card{flex:1 1 0;min-width:280px}
-.sampler-page .smp-tools.smp-rack{gap:6px;padding:7px 16px}
+.sampler-page .smp-tools.smp-rack{gap:6px;padding:7px 10px}
 .sampler-page .smp-rack-main{display:flex;gap:6px;min-width:0}
 .sampler-page .smp-rack-grid{flex:1 1 auto;display:flex;flex-direction:column;gap:5px;min-width:0}
 .sampler-page .smp-rack .smp-tool{height:46px;min-height:46px}
@@ -494,7 +494,7 @@
 :is(.sampler-page,.drum-smp) .smp-handle.h-grain b{background:var(--c-grain)}
 /* With the Grain tab in the rack: five tabs in the top row, so the frame and the display give a little room. */
 .sampler-page .smp-tools.smp-rack.has-grain{padding:7px 10px}
-.sampler-page .smp-tools.has-grain .smp-rack-display{flex-basis:80px}
+.sampler-page .smp-tools .smp-rack-display{flex-basis:80px}
 
 /* G3 (24 Nov): the Grain card's pages in its title bar; Roam's bracket and end tag on the waveform. */
 .smp-grain-pages{align-self:flex-start}
@@ -573,3 +573,12 @@
 .sampler-page .smp-toggle.smp-mini{flex:0 0 58px;flex-direction:column;gap:1px;padding:0 2px}
 .sampler-page .smp-toggle.smp-mini>span{font-size:9.5px;font-weight:800;line-height:1;opacity:.85}
 .sampler-page .smp-toggle.smp-mini:disabled{opacity:.45}
+
+/* Recipes (25 Nov): a sheet with a grid of 44 px+ buttons, coloured by kind (UI-RULES 11, 13, 14). Name over a one-line hint, never cut. */
+.smp-sheet.smp-recipes{width:min(760px,94vw);gap:10px}
+.smp-sheet .smp-recipe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.smp-sheet .smp-recipe{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:62px;padding:6px 9px;text-align:left;
+  border:1px solid color-mix(in srgb,var(--tool) 50%,var(--ui-line));background:color-mix(in srgb,var(--tool) 10%,var(--ui-surface))}
+.smp-sheet .smp-recipe:hover{background:color-mix(in srgb,var(--tool) 22%,var(--ui-surface))}
+.smp-sheet .smp-recipe b{font-size:13px;color:var(--tool)}
+.smp-sheet .smp-recipe span{font-size:10.5px;font-weight:600;line-height:1.2;color:var(--ui-text-2);white-space:normal}

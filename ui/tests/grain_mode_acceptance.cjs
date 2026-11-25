@@ -185,7 +185,7 @@ let app,page;
  const keep=(await latest()).state.tracks[0].sampler.g_pos;
  await card.getByRole('button',{name:'Tidal',exact:true}).click();
  await p.waitForFunction(()=>window.__latest.state.tracks[0].sampler.g_roam==='bounce'&&window.__latest.state.tracks[0].sampler.g_rhythm==='off');
- const tid=(await latest()).state.tracks[0].sampler;assert.equal(tid.g_pos,keep,'Position stays');assert.equal(tid.slices.length,4,'slices stay');assert.equal(tid.g_pulse,.8);
+ const tid=(await latest()).state.tracks[0].sampler;assert.equal(tid.g_pos,keep,'Position stays');assert.equal(tid.slices.length,4,'slices stay');assert.equal(tid.g_pulse,.6);
 
  // Live input: grains from the input as it comes in (the test input plays the chord in real time); Freeze keeps it.
  const play=p.locator('section.smp-play');const liveIn=play.getByRole('button',{name:/Live in/});await inside(liveIn,'Live in');

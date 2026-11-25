@@ -123,6 +123,22 @@ class SamplerEngine:
         if clean['mode'] != 'grain' and self.live_track == track: self.samplers[track].live_off(); self.live_track = None
         self.samplers[track].configure(clean)
 
+    def apply_recipe(self, track, sampler_id, recipe_id):
+        """One tap on the Recipes page: the Sampler's play and filter settings, the track's FX chain and its sends, as ONE undo step.
+        The sample and its points stay; the Grain page's own settings are not touched."""
+        from . import sampler_recipes as recipes
+        spec = self.sampler_target(track, sampler_id); tr = track_index(track)
+        candidate = copy.deepcopy(spec); candidate.update(recipes.recipe_settings(recipe_id))
+        clean = validate_sampler(candidate)
+        chain = recipes.recipe_chain(recipe_id, self.project.tracks[tr].get('fx'))
+        sends = recipes.recipe_sends(recipe_id)
+        self.snapshot(); self.project.tracks[tr]['sampler'] = clean
+        if clean['mode'] != spec['mode'] or clean['poly'] != spec['poly']: self.samplers[tr].panic()
+        if clean['mode'] != 'grain' and self.live_track == tr: self.samplers[tr].live_off(); self.live_track = None
+        self.samplers[tr].configure(clean)
+        self.set_fx(tr, chain)
+        for bus, amount in sends.items(): self.set_send(tr, bus, amount)
+
     def preview_sampler(self, track, sampler_id, changes):
         """A knob that is still turning: the playing Sampler follows; the project and undo wait for the release."""
         spec = self.sampler_target(track, sampler_id)

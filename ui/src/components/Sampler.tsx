@@ -3,7 +3,7 @@
    slices (Threshold / Regions / BPM, Split / Join), tap a slice to hear it, and send slices to Drum Rack pads. The cards hold
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
+import { Activity, ChefHat, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -39,7 +39,7 @@ function FilterIcon({ shape }: { shape: FilterShape }) {
     <path className="axis" d="M2 16 H28" /><path className="curve" d={FILTER_PATH[shape]} /></svg>;
 }
 /** Tool colours, as on the SEQ panel's rail: a coloured icon and a short label. */
-const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', grain: 'var(--c-grain)', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
+const TOOL_COLOR = { trim: '#6fa8ff', chop: '#ff8f5c', env: '#61e3bf', filter: '#e47cf5', grain: 'var(--c-grain)', recipe: 'var(--c-recipe)', library: '#e0b07e', record: '#ff6b6b', load: '#a7b4ff', clear: '#9fb4c8' } as const;
 const tool = (k: keyof typeof TOOL_COLOR) => ({ ['--tool' as string]: TOOL_COLOR[k] });
 const hz = (f: number) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz';
 const MODES: [SamplerMode, string, string][] = [
@@ -146,6 +146,41 @@ const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
   ['Ping Flow', 'rhythm', 'Through the slices and back, flowing', { g_size: .15, g_density: 16, g_spray: .01, g_window: 'welch', g_rhythm: 'pingpong', g_div: '1/8' }],
 ];
 const PRESET_COLOR: Record<string, string> = { pad: 'var(--c-grain)', drone: '#61e3bf', texture: '#a7b4ff', glitch: '#ff8f5c', rhythm: '#e47cf5' };
+/** Recipes (25 Nov): one tap turns the loaded sample into a playing style. Settings only (decksynth/sampler_recipes.py holds the values):
+    the sample and its points stay; the play mode, mono and glide, the amp, filter and filter envelope, and the track's FX chain and sends
+    change together, as one undo step. */
+const RECIPES: [string, string, 'bass' | 'lead' | 'chords' | 'pad' | 'arp', string][] = [
+  ['bass_pluck', 'Bass Pluck', 'bass', 'Mono, short and round, with a quick filter snap'],
+  ['acid', 'Acid', 'bass', 'Mono with glide, a squelchy 24 dB filter and overdrive'],
+  ['sub_bass', 'Sub Bass', 'bass', 'Mono and dark: only the low end, long and steady'],
+  ['swell_lead', 'Swell Lead', 'lead', 'Mono lead that opens up as you hold it, with chorus'],
+  ['glide_lead', 'Glide Lead', 'lead', 'Mono lead that slides between every note'],
+  ['chord_stab', 'Chord Stab', 'chords', 'Short chord hits with a quick filter pop'],
+  ['future_chords', 'Future Chords', 'chords', 'Big, wide, bright chords with a long tail'],
+  ['soft_keys', 'Soft Keys', 'chords', 'Gentle keys, brighter the harder you play'],
+  ['space_pad', 'Space Pad', 'pad', 'Looping pad that fades in and rings out in a big room'],
+  ['cinematic_pad', 'Cinematic Pad', 'pad', 'A very slow, dark swell with a drifting cloud'],
+  ['shimmer_arp', 'Shimmer Arp', 'arp', 'Short bright notes with echoes, made for the arp'],
+];
+const RECIPE_COLOR = { bass: 'var(--c-pat-bass)', lead: 'var(--c-pat-melodie)', chords: 'var(--c-chord)', pad: 'var(--c-guide)', arp: 'var(--c-arp)' } as const;
+/** The Recipes sheet: a grid of buttons (UI-RULES 11, 44 px); a tap applies the recipe and closes it. A blank tap, Esc or Done also close it. */
+function RecipeSheet({ onPick, onClose }: { onPick(id: string): void; onClose(): void }) {
+  const close = useRef(onClose); close.current = onClose;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); close.current(); } };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="smp-sheet smp-recipes" role="dialog" aria-label="Recipes">
+      <header><ChefHat size={20} /><h2>Recipes <em>for this sample</em></h2><button type="button" className="smp-done" onClick={onClose}>Done</button></header>
+      <div className="smp-recipe-grid" role="group" aria-label="Recipes">
+        {RECIPES.map(([id, name, kind, hint]) => <button key={id} type="button" className="smp-recipe" style={{ ['--tool' as string]: RECIPE_COLOR[kind] }} title={hint + ' (replaces the play, filter and FX settings; Undo brings them back)'}
+          onClick={() => onPick(id)}><b>{name}</b><span>{hint}</span></button>)}
+      </div>
+    </div>
+  </div>;
+}
 /** Rhythm steps the read point through the Chop slices. */
 const stepping = (s: SamplerSpec) => (s.g_rhythm ?? 'off') !== 'off' && (s.slices?.length ?? 0) > 0;
 /** Roam or Motion moves the read point inside the bracket Position .. Position + Range. */
@@ -901,6 +936,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
 }) {
   const spec = track.sampler;
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [recipesOpen, setRecipesOpen] = useState(false);
   const [mode, setMode] = useState<'trim' | 'chop'>(() => (spec?.slices?.length ? 'chop' : 'trim'));
   // Round 2: the big panel can also show the amp envelope or the filter curve, with points to drag.
   const [big, setBig] = useState<'wave' | 'env' | 'filter' | 'grain'>(() => spec?.mode === 'grain' ? 'grain' : 'wave');
@@ -1077,6 +1113,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
               title="Grain: Position on the waveform, the grains as they sound, and the Grain card" onClick={() => setBig('grain')}><Sparkles size={18} /><span>Grain</span></button> : null}
           </div>
           <div className="smp-rack-row">
+            <button type="button" className="smp-tool smp-recipes-open" style={tool('recipe')} aria-label="Recipes" aria-pressed={recipesOpen} onClick={() => setRecipesOpen(o => !o)} title="Recipes: turn this sample into a bass, lead, chords or pad in one tap"><ChefHat size={18} /><span>Recipes</span></button>
             <button type="button" className="smp-tool smp-lib-open" style={tool('library')} aria-label="Library" aria-pressed={libraryOpen} onClick={() => setLibraryOpen(o => !o)} title="Library: load a saved sample, or save this one"><BookOpen size={18} /><span>Library</span></button>
             <button type="button" className="smp-tool smp-rec-open" style={tool('record')} aria-label="Record" aria-pressed={recording} onClick={() => setRecording(r => !r)} title="Record the piano or another input into this Sampler"><Mic size={18} /><span>Record</span></button>
             <button type="button" className="smp-tool smp-load" style={tool('load')} aria-label="Load WAV" onClick={onLoadWav} title={'Load a WAV file, up to 10 minutes' + (file ? ' (now: ' + file + ')' : '')}><FolderOpen size={18} /><span>Load</span></button>
@@ -1103,6 +1140,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
       {sending && mode === 'chop' ? <SendSheet spec={spec} selected={sel} trackIndex={trackIndex} tracks={tracks} onClose={() => setSending(false)}
         onSend={(target, how, options) => send('sampler_send', [trackIndex, spec.id, target, how, options])} /> : null}
     </>}
+    {recipesOpen ? <RecipeSheet onClose={() => setRecipesOpen(false)} onPick={id => { send('sampler_recipe', [trackIndex, spec.id, id]); setRecipesOpen(false); }} /> : null}
     {recording ? <RecordSheet spec={spec} trackIndex={trackIndex} record={record} send={send} onClose={() => setRecording(false)} /> : null}
   </section>;
 }
