@@ -31,22 +31,45 @@ export function useRackOrder(rack:RefObject<HTMLElement|null>,ids:string[],onReo
       // Keep an ordinary rail tap owned by its button; capturing the header would swallow its click.
       const el=(e.target as Element).closest<HTMLElement>('.rail-open')??e.currentTarget,root=rack.current;if(!root)return;
       const original=[...latest.current.ids],card=el.closest<HTMLElement>('[data-panel]');
-      let x=e.clientX,y=e.clientY,next=original,marker:HTMLElement|null=null;
-      const clear=()=>{card?.removeAttribute('data-rack-dragging');marker?.removeAttribute('data-drop-side');};
+      const x0=e.clientX,y0=e.clientY,top0=root.scrollTop,left0=root.scrollLeft,home=card?.getBoundingClientRect();
+      let x=x0,y=y0,next=original,marker:HTMLElement|null=null;
+      const clear=()=>{
+        if(card){card.removeAttribute('data-rack-dragging');card.style.removeProperty('transform');}
+        marker?.removeAttribute('data-drop-side');
+      };
+      // The card rides under the finger, and the drop place is the card under the finger (or the nearest one when the
+      // finger is in a gap): rows and columns both count, so a drag works in every direction on the FX grid (25 Nov).
+      const place=()=>{
+        if(card)card.style.transform='translate('+(x-x0+root.scrollLeft-left0)+'px,'+(y-y0+root.scrollTop-top0)+'px)';
+        marker?.removeAttribute('data-drop-side');marker=null;next=original;
+        const r=root.getBoundingClientRect();if(y<r.top-24||y>r.bottom+24||x<r.left-24||x>r.right+24)return;
+        // Back over its own place: it stays where it was.
+        const up=root.scrollTop-top0,left=root.scrollLeft-left0;
+        if(home&&x>=home.left-left&&x<=home.right-left&&y>=home.top-up&&y<=home.bottom-up)return;
+        let best:HTMLElement|null=null,bestD=Infinity;
+        for(const n of Array.from(root.querySelectorAll<HTMLElement>('[data-panel]'))){
+          if(n===card)continue;
+          const b=n.getBoundingClientRect(),dx=Math.max(b.left-x,0,x-b.right),dy=Math.max(b.top-y,0,y-b.bottom),d=dx*dx+dy*dy;
+          if(d<bestD){best=n;bestD=d;}
+        }
+        if(!best)return;
+        const b=best.getBoundingClientRect(),other=best.dataset.panel!;
+        const order=original.filter(v=>v!==id),at=order.indexOf(other);
+        if(at<0)return;
+        // Before or after the card under the finger: its left or right half; past its row, the side the finger is on.
+        const after=y>b.bottom?true:y<b.top?false:x>=b.left+b.width/2;
+        order.splice(at+(after?1:0),0,id);next=order;marker=best;best.dataset.dropSide=after?'after':'before';
+      };
       drag.current=startRelativeDrag(el,e.nativeEvent,{
         threshold:7,pointerLock:false,
         onStart:()=>{moved.current=true;card?.setAttribute('data-rack-dragging','true');return true;},
         onMove:({dx,dy})=>{
-          x+=dx;y+=dy;marker?.removeAttribute('data-drop-side');marker=null;next=original;
-          const r=root.getBoundingClientRect();if(y<r.top||y>r.bottom||x<r.left-24||x>r.right+24)return;
+          x+=dx;y+=dy;
+          const r=root.getBoundingClientRect();
+          // Near an edge of the rack, scroll it so cards out of sight can be reached.
+          if(y>r.bottom-28)root.scrollTop+=12;else if(y<r.top+28)root.scrollTop-=12;
           if(x>r.right-24)root.scrollLeft+=12;else if(x<r.left+24)root.scrollLeft-=12;
-          const cards=Array.from(root.querySelectorAll<HTMLElement>('[data-panel]')).filter(n=>n!==card);
-          const target=cards.find(n=>{const b=n.getBoundingClientRect();return x>=b.left&&x<=b.right;});
-          if(!target)return;
-          const b=target.getBoundingClientRect(),after=x>=b.left+b.width/2,other=target.dataset.panel!;
-          const order=original.filter(v=>v!==id),at=order.indexOf(other);
-          if(at<0)return;
-          order.splice(at+(after?1:0),0,id);next=order;marker=target;target.dataset.dropSide=after?'after':'before';
+          place();
         },
         onEnd:(canceled)=>{
           clear();
