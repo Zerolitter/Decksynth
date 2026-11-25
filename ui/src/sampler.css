@@ -289,7 +289,7 @@
 .comp-meter .drag-handle.is-line i{left:22px}
 .drag-box .drag-handle.label-stack span{top:24px}
 
-/* r3: value boxes hug their values in an even grid (Sir, 16 Nov) */
+/* r3: value boxes hug their values in an even grid (16 Nov) */
 :is(.sampler-page,.drum-smp) .smp-knobs.two{grid-template-columns:repeat(auto-fit,126px);justify-content:space-evenly;gap:6px 8px}
 :is(.sampler-page,.drum-smp) .smp-knobs.two .tactile-knob{grid-template-columns:44px 76px;justify-content:start;width:126px}
 :is(.sampler-page,.drum-smp) .smp-knobs.two .tactile-knob .knob-value,
@@ -367,7 +367,7 @@
 .smp-meter.rec-meter .rec-threshold span{position:absolute;left:5px;top:-3px;font-size:9.5px;font-weight:700;color:var(--ui-white)}
 .sampler-page .drum-device-bar{gap:10px}
 
-/* r4 (Sir, 16 Nov): no header bar; the waveform takes its room. The tools live in a rack above the Amp card,
+/* r4 (16 Nov): no header bar; the waveform takes its room. The tools live in a rack above the Amp card,
    Chop's tools in a rack strip under the waveform, Whole : Env as one swap box, the filter as curve icons with a switch. */
 .sampler-page .smp-deck{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 344px;gap:8px;min-width:0}
 .sampler-page .smp-deck>.smp-cards{grid-column:1;grid-row:1}

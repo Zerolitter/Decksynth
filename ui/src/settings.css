@@ -1,4 +1,4 @@
-/* Settings window (Sir, 25 Nov): a left navigation with eight sections, a search over all of them, window actions at the bottom of the navigation.
+/* Settings window (25 Nov): a left navigation with eight sections, a search over all of them, window actions at the bottom of the navigation.
    Colours come from tokens.css only. Everything tappable is at least 44 px. */
 .decksynth-shell .settings-dialog.sv-dialog{width:min(1000px,calc(100vw - 24px));height:min(680px,calc(100vh - 24px));max-height:calc(100vh - 24px);padding:12px 14px 14px;gap:10px;
   overflow:hidden;background:var(--ui-surface);border:1px solid var(--ui-line-strong);border-radius:var(--ui-r-lg)}

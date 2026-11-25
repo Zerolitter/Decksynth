@@ -23,7 +23,7 @@ type Props={
   onTrack:(key:'volume'|'mute',value:number|boolean)=>void;
   onShape:(shape:Shape)=>void;
   onChain:(c:FxChain)=>void; armed:Source|null; source?:Source; live?:Live;
-  /** the preset name and Save, shown inside the tool rack (Sir, 16 Nov) */ preset?:ReactNode;
+  /** the preset name and Save, shown inside the tool rack (16 Nov) */ preset?:ReactNode;
   /** the track's Reverb and Delay sends (Sends.tsx), and the button for the shared settings in that card's title bar */ sends?:ReactNode; sendsAction?:ReactNode;
   /** Sample layer (25 Nov): what the engine knows of the chosen file, the sample library for the picker, and the commands */
   layer?:LayerInfo; library?:SampleLibraryState|null; onChooseFolder?:()=>Promise<string|null>;
@@ -51,7 +51,7 @@ function Curve({kind}:{kind:number}){
   return <svg width="28" height="20" viewBox="0 0 28 20" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
 }
 
-/** The synth's Sound page (Sir, 16 Nov): every sound-shaping editor in its own fixed place, nothing in tabs, nothing folded,
+/** The synth's Sound page (16 Nov): every sound-shaping editor in its own fixed place, nothing in tabs, nothing folded,
  *  no side scroll. Top: the 16 partials (draw them), the big graph (live wave, or the amp / filter envelope with points to drag)
  *  and a tool rack that picks the graph's view. Below: eight module cards in four columns. */
 export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed,source,live,preset,sends,sendsAction,layer,library,onChooseFolder,onLayerFile,onLayerPartials,send}:Props){

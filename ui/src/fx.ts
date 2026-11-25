@@ -48,7 +48,7 @@ export const MOD_RATES=['4 bars','2 bars','1 bar','1/2','1/4','1/8','1/16','8 ba
 export const MOD_RATE_ORDER=[9,8,7,0,1,2,3,4,5,6];
 /** Morph pad path speeds use the original seven rates only. */
 export const PATH_RATE_COUNT=7;
-/** Morph pad path speeds, slowest first: 32 bars down to 1/16 (Sir, 16 Nov: 4 bars was too short). */
+/** Morph pad path speeds, slowest first: 32 bars down to 1/16 (16 Nov: 4 bars was too short). */
 export const PATH_RATE_ORDER=[9,8,7,0,1,2,3,4,5,6];
 export const FEEL_FACTOR:Record<ModFeel,number>={'':1,'T':2/3,'D':1.5};
 export const STEP_COUNTS=[4,8,16] as const;

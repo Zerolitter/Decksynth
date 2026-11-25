@@ -72,7 +72,7 @@ with wave.open(sys.argv[1],'wb') as w:
   await p.keyboard.press('Escape');
   await sheet.waitFor({state:'detached'});
 
-  // Batch 2 (Sir, 16 Nov): crop to Start-End, save the kit to the library, clear a pad.
+  // Batch 2 (16 Nov): crop to Start-End, save the kit to the library, clear a pad.
   const kitId=await p.evaluate(t=>window.__rp.state.tracks[t].drum_rack.id,tr);
   const padState=()=>p.evaluate(([t,i])=>window.__rp.state.tracks[t].drum_rack.pads[i],[tr,empty]);
   const full=(await padState()).source.frames;

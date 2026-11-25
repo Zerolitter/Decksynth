@@ -1,5 +1,5 @@
 // Settings redesign (25 Nov): left navigation with 8 sections, search, tap lists, Custom values, hotkey editing, close routes.
-// Opens Electron: never run it while Sir's own Decksynth is open (tools/deck_busy.sh).
+// Opens Electron: never run it while the maintainer's own Decksynth is open (tools/deck_busy.sh).
 'use strict';
 const {launch}=require('./workflow_helpers.cjs'),assert=require('node:assert/strict');
 let h;

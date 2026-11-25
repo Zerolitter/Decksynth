@@ -499,7 +499,7 @@ PARAM_INDEX = {(m, key): (j, lo, hi, init) for m, specs in PARAMS.items() for j,
 
 
 # Effects sleep after this many seconds of silence in and out: the longest echo or grain buffer is 3 s.
-# Long reverb tails (Space and Shimmer decay up to 20 s; Space was 60 s until 25 Nov, capped for Sir: too long and heavy) keep the output above REST_FLOOR, so they are never
+# Long reverb tails (Space and Shimmer decay up to 20 s; Space was 60 s until 25 Nov, capped: too long and heavy) keep the output above REST_FLOOR, so they are never
 # cut: the count only starts once the tail itself is below the floor. A frozen Space never sleeps (see configure).
 REST_SECONDS = 4.
 REST_FLOOR = 1e-6

@@ -22,7 +22,7 @@ const KEYMAPS: ['whole' | 'slices' | 'pitched', string, string][] = [
   ['pitched', 'Pitched', "Each key plays the slice whose pitch is nearest, tuned to the key (finds each slice's pitch)"],
 ];
 type FilterShape = 'lp' | 'lp24' | 'bp' | 'hp';
-// Round 4 (Sir, 16 Nov): the filter types as drawings of their curves, and a power switch like the Drum Rack compressor.
+// Round 4 (16 Nov): the filter types as drawings of their curves, and a power switch like the Drum Rack compressor.
 const FILTERS: [FilterShape, string, string, string][] = [
   ['lp', 'LP', 'Low-pass', 'Low pass: keeps the lows, cuts above the cutoff'],
   ['lp24', 'LP 24', 'Low-pass 24 dB', 'Low pass 24 dB: cuts twice as steeply above the cutoff; darker, and the resonance sings (acid)'],
@@ -591,7 +591,7 @@ function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
   onSend(target: number, mode: 'kit' | 'pad', options: Record<string, unknown>): void; onClose(): void;
 }) {
   const slices = spec.slices ?? [];
-  // A new track at the end is a choice too, and the first pick when no Drum Rack is there (Sir, 25 Nov: not over another track).
+  // A new track at the end is a choice too, and the first pick when no Drum Rack is there (25 Nov: not over another track).
   const fresh = tracks.length < MAX_TRACKS ? tracks.length : -1;
   const others = [...tracks.map((_, i) => i).filter(i => i !== trackIndex), ...(fresh >= 0 ? [fresh] : [])];
   const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'drum_rack') ?? (fresh >= 0 ? fresh : others[0]));
@@ -968,7 +968,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const [settings, setSettings] = useState<ChopSettings>({ mode: 'threshold', threshold: -30, min_ms: 150, count: 16, bpm: Math.round(bpm) || 120, beats: 1 });
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
-  // Chop chops at once (Sir, 25 Nov): a sample with no slices is cut with the current settings as soon as Chop
+  // Chop chops at once (25 Nov): a sample with no slices is cut with the current settings as soon as Chop
   // shows it (Threshold by default), once per sample, so there is no extra tap. Existing slices are kept.
   const autoChopped = useRef('');
   const sha = spec?.source?.sha256 ?? '', ready = ['READY', 'PLAYING'].includes(runtime?.status ?? '');
@@ -1252,7 +1252,7 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
   onMake(target: number, root: number | null): void; onClose(): void;
 }) {
   // The pad's own track is a choice too: when one sound is all you need, the kit makes way for it (Undo brings the kit back).
-  // A new track at the end is offered too: with one track, the Sampler goes there instead of replacing the kit (Sir, 25 Nov).
+  // A new track at the end is offered too: with one track, the Sampler goes there instead of replacing the kit (25 Nov).
   const fresh = tracks.length < MAX_TRACKS ? tracks.length : -1;
   const others = [...tracks.map((_, i) => i), ...(fresh >= 0 ? [fresh] : [])];
   const [target, setTarget] = useState(others.find(i => i !== sourceTrack && tracks[i]?.device === 'sampler') ?? others.find(i => i !== sourceTrack) ?? sourceTrack);

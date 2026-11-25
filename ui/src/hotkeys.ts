@@ -1,4 +1,4 @@
-/* One shared key map (Sir, 25 Nov, Settings redesign).
+/* One shared key map (25 Nov, Settings redesign).
    App (transport), the note editor, the pattern library, the sample editor, Settings › Hotkeys and Help all read this list, so Help always shows
    the keys you really have. Only the keys you changed are stored (with the other settings, `AppSettings.keys`); everything else is the default below.
 

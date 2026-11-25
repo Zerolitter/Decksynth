@@ -1,4 +1,4 @@
-"""Autosave, recovery files and the On launch choice (Sir, 25 Nov, after a session was lost to a blank window).
+"""Autosave, recovery files and the On launch choice (25 Nov, after a session was lost to a blank window).
 
 Everything lives on the engine side, so it keeps working when the window is dead:
   - every `autosave` seconds (Settings: Off, 30 s, 1, 2, 5, 10 min) the project is written to

@@ -1,4 +1,4 @@
-/* The synth's Sound page (Sir, 16 Nov): partials, big graph and tool rack on top; eight module cards in four columns. */
+/* The synth's Sound page (16 Nov): partials, big graph and tool rack on top; eight module cards in four columns. */
 .harness-shell .synth-sound{flex:1;min-height:0;height:100%;display:flex;flex-direction:column;gap:8px;user-select:none}
 .harness-shell .ss-top{position:relative;flex:1 1 auto;min-height:190px;display:grid;grid-template-columns:586px minmax(0,1fr) 248px;gap:8px}
 .harness-shell .ss-graph-label{display:flex;align-items:baseline;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--c-sound);
@@ -114,7 +114,7 @@
 .harness-shell .synth-sound.is-assigning .ss-cell .knob-target{outline:2px dashed var(--armed);outline-offset:1px;border-radius:50%;cursor:copy}
 .harness-shell .synth-sound.is-assigning .ss-cell.routed-here .knob-target{outline-style:solid}
 
-/* FX page: only the effect cards; they wrap onto more rows instead of scrolling sideways (Sir, 16 Nov) */
+/* FX page: only the effect cards; they wrap onto more rows instead of scrolling sideways (16 Nov) */
 .harness-shell .frame.frame-fx{display:flex;flex-direction:column;grid-template-rows:none;min-height:0;height:100%}
 .harness-shell .frame-fx .fx-cards{flex:1;min-height:0;display:flex;flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto;gap:8px}
 .harness-shell .frame-fx .fx-cards>.rack-scroll-controls{display:none}
@@ -126,7 +126,7 @@
 .harness-shell .frame-fx .fx-cards.frame-rack{height:auto;min-height:0;max-height:none;flex:1 1 auto;overflow-x:hidden;overflow-y:auto;padding-bottom:4px}
 .harness-shell .page-link .page-body{overflow:hidden}
 
-/* Instrument switcher: each instrument keeps its colour on its icon; the chosen one fills (Sir, 16 Nov) */
+/* Instrument switcher: each instrument keeps its colour on its icon; the chosen one fills (16 Nov) */
 .harness-shell .instrument-switcher button svg{color:var(--inst)}
 .harness-shell .instrument-switcher button:not([aria-checked=true]) span{color:#aeb3b9}
 .harness-shell .instrument-switcher button[aria-checked=true]{border-color:var(--inst);background:color-mix(in srgb,var(--inst) 22%,var(--ui-surface));color:var(--ui-white);

@@ -14,7 +14,7 @@ from . import song as songs
 from . import sends as send_buses
 from . import cbus
 from .devices import device_kind
-# Clip loop lengths in bars (Sir, 15 Nov: up to 32). Any whole number of bars works (Sir, 17 Nov:
+# Clip loop lengths in bars (15 Nov: up to 32). Any whole number of bars works (17 Nov:
 # a Structure that ends on bar 17 makes a 17-bar clip); BAR_CHOICES are the quick picks.
 BAR_CHOICES=(1,2,4,8,16,32)
 MAX_BARS=32
@@ -855,7 +855,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         if p:t['fx']=validate_fx(p['fx'])
         self.synths[self.selected].panic(); self.synths[self.selected].configure(ins)
         if p:self.fx[self.selected].configure(t['fx'])
-    preset_noise=False   # Settings › "Load presets with Strike noise" (25 Nov, Sir: the burst was too present; off by default)
+    preset_noise=False   # Settings › "Load presets with Strike noise" (25 Nov: the burst was too present; off by default)
     def set_preset_options(self,noise):
         if type(noise) is not bool:raise ValueError('Preset noise is on or off')
         self.preset_noise=noise

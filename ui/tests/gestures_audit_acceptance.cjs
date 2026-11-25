@@ -1,4 +1,4 @@
-// Every knob and value box has the gestures Help describes (Sir, 16 Nov). Visits every page and instrument at
+// Every knob and value box has the gestures Help describes (16 Nov). Visits every page and instrument at
 // 1280 x HEIGHT and checks: every knob resets on a double-tap (it knows its default) and has a value box; numbers are
 // value boxes, never number fields, native selects with more than 4 options or − / + stepper pairs; a value box
 // arms on click and turns with the wheel, and a knob's value box turns with a hold and drag.
@@ -79,7 +79,7 @@ const data=fs.mkdtempSync(path.join(os.tmpdir(),'decksynth-gestures-'));
   await p.waitForTimeout(300);
   assert.equal(Number(await dial.getAttribute('aria-valuenow')),50,'double-tap resets Swing to 50 %');
 
-  // Settings › Knob pop-up value off hides the pop-up; the value box still shows the value (Sir, 16 Nov).
+  // Settings › Knob pop-up value off hides the pop-up; the value box still shows the value (16 Nov).
   await p.getByRole('button',{name:'Settings',exact:true}).click();await p.getByRole('tab',{name:'Display',exact:true}).click();
   await p.getByRole('switch',{name:'Knob pop-up value'}).uncheck();
   await p.getByRole('dialog',{name:'Settings'}).getByRole('button',{name:/CLOSE/}).click();

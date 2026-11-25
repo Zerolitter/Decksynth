@@ -52,7 +52,7 @@ class SamplerEngine:
             self.perform_held.reset(); self.live_note_map.clear(); self.down.clear()
 
     def _target_or_new(self, target):
-        """A track to put a Sampler or a slice kit on. target == the number of tracks means a new track at the end (25 Nov, Sir:
+        """A track to put a Sampler or a slice kit on. target == the number of tracks means a new track at the end (25 Nov:
         with one track, Make Sampler and Slices to pads go to a new track 2 instead of replacing the only one)."""
         tr = track_index(target)
         if tr > len(self.project.tracks): raise ValueError('Choose track 1–%d' % len(self.project.tracks))
@@ -219,7 +219,7 @@ class SamplerEngine:
         self.sampler_tasks.submit(('load', track), work, commit, fail, 'WAV not loaded: ')
 
     def grain_from_bounce(self, source, path, name=None):
-        """Synth pattern -> Grain (Sir, 25 Nov): a bounced loop of `source` becomes a new Sampler track in
+        """Synth pattern -> Grain (25 Nov): a bounced loop of `source` becomes a new Sampler track in
         Grain mode, without exporting and loading a WAV by hand. The WAV loads in the background."""
         source = track_index(source)
         if not 0 <= source < len(self.project.tracks): raise ValueError('That track is gone')
@@ -492,7 +492,7 @@ class SamplerEngine:
         self.sampler_tasks.submit(('record', track), work, commit, fail, 'Recording not saved: ')
 
     def export_drum_kit(self, track, kit_id, name, root=None, done=None):
-        """Save the 16 pads as a kit folder in the library (Sir, 16 Nov): <root>/My kits/<name>/, one WAV per pad
+        """Save the 16 pads as a kit folder in the library (16 Nov): <root>/My kits/<name>/, one WAV per pad
         (its Start-End part) and decksynth-kit.json with the pad names and sound settings, so loading the folder
         from Kits gives the same kit back. Other apps just see the WAVs."""
         import json
@@ -532,7 +532,7 @@ class SamplerEngine:
         return str(folder)
 
     def crop_drum_pad(self, track, kit_id, pad):
-        """Crop a pad to its Start-End (Sir, 16 Nov): the part outside is dropped from a new WAV, the pad plays
+        """Crop a pad to its Start-End (16 Nov): the part outside is dropped from a new WAV, the pad plays
         that file with Start and End back at the edges. Same sound, one undo step; the old file stays on disk."""
         track = track_index(track); kit = self.drum_target(track, kit_id, pad)
         p = kit['pads'][pad]; shape = p.get('shape') or {}; raw = self.drums[track].raw[pad]

@@ -28,7 +28,7 @@ class AudioSpec(C.Structure):
     _fields_=[('freq',C.c_int),('format',C.c_ushort),('channels',C.c_ubyte),('silence',C.c_ubyte),('samples',C.c_ushort),('padding',C.c_ushort),('size',C.c_uint),('callback',C.c_void_p),('userdata',C.c_void_p)]
 
 class Audio:
-    def __init__(self, preferred='System default'):   # 25 Nov, Sir: follow the system's output by default
+    def __init__(self, preferred='System default'):   # 25 Nov: follow the system's output by default
         self.lib=C.CDLL('libSDL2-2.0.so.0'); s=self.lib
         s.SDL_Init.argtypes=[C.c_uint]; s.SDL_Init.restype=C.c_int
         s.SDL_GetError.restype=C.c_char_p

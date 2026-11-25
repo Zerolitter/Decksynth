@@ -35,7 +35,7 @@ function FxPickerGrid({chain,onAdd}:{chain:FxChain;onAdd:(id:FxModuleId)=>void})
   </div>;
 }
 
-/** FX page grid (Sir, 16 Nov: "this can be done better"). The page is 9 even columns; a column fits one
+/** FX page grid (16 Nov: "this can be done better"). The page is 9 even columns; a column fits one
  *  knob cell (44 px dial + 76 px value box). Every card holds its controls in two lines, so a card is as wide as
  *  half its controls (at least 3 columns, so the title bar fits). Cards keep chain order and fill each row: the last card of a row takes the spare columns. */
 export const FX_COLS=9;
@@ -99,7 +99,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const add=(id:FxModuleId)=>{onChange(addModule(chain,id));setPicking(false);};
   useEffect(()=>{if(!picking&&!presetsFor)return;const k=(e:KeyboardEvent)=>{if(e.key==='Escape'){setPicking(false);setPresetsFor(null);}};
     window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[picking,presetsFor]);
-  // A tap anywhere outside the open sheet closes it (UI-RULES 14; Sir, 25 Nov: the presets sheet stayed open). The sheet fills
+  // A tap anywhere outside the open sheet closes it (UI-RULES 14; 25 Nov: the presets sheet stayed open). The sheet fills
   // the window below the mod band, so this listens on the whole document, not on its backdrop. Its own opener toggles as before.
   useEffect(()=>{if(!picking&&!presetsFor)return;
     const down=(e:PointerEvent)=>{const t=e.target as Element|null;

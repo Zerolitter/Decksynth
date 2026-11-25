@@ -1,4 +1,4 @@
-"""Fixes from Sir's test round of 25 Nov (Strike noise switch, preset noise setting, ...)."""
+"""Fixes from the test round of 25 Nov (Strike noise switch, preset noise setting, ...)."""
 import math
 import os
 import shutil
@@ -42,7 +42,7 @@ class StrikeNoiseSwitchTest(unittest.TestCase):
 
 
 class NewTrackTargetTest(unittest.TestCase):
-    """Make Sampler (and Slices to pads) can go to a new track at the end, in one undo step (Sir, 25 Nov)."""
+    """Make Sampler (and Slices to pads) can go to a new track at the end, in one undo step (25 Nov)."""
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp()); os.environ['DECKSYNTH_DATA_DIR'] = str(self.dir)
         wav = self.dir / 'tone.wav'; n = R // 2

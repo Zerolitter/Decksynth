@@ -12,7 +12,7 @@ import ctypes as C
 import math
 
 STRIKE_DEFAULTS=dict(damp=0.,noise=0.,noise_on=1,noise_decay=.03,noise_tone=.6,pitch_env=0.,pitch_decay=.06)
-# noise_on (25 Nov, Sir): the Strike view's Noise switch. Off silences the burst and keeps its knobs; a missing key is On, so
+# noise_on (25 Nov): the Strike view's Noise switch. Off silences the burst and keeps its knobs; a missing key is On, so
 # old songs sound the same. Presets load with it Off unless Settings › "Load presets with Strike noise" is on (Engine.apply_preset).
 STRIKE_CHOICES=dict(noise_on=(0,1))
 STRIKE_RANGES=dict(damp=(0,1),noise=(0,1),noise_decay=(.002,1),noise_tone=(0,1),pitch_env=(-24,24),pitch_decay=(.005,1))

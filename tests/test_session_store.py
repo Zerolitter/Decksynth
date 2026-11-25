@@ -1,4 +1,4 @@
-"""Autosave, recovery files and On launch (Sir, 25 Nov)."""
+"""Autosave, recovery files and On launch (25 Nov)."""
 import json
 import os
 import signal

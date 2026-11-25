@@ -1,4 +1,4 @@
-// Fixes from Sir's test round (25 Nov). Real worker, dummy audio: the Strike view has a Noise switch (44 px, writes noise_on),
+// Fixes from the test round (25 Nov). Real worker, dummy audio: the Strike view has a Noise switch (44 px, writes noise_on),
 // Settings has "Load presets with Strike noise" (off by default), the FX presets sheet closes on a tap outside it,
 // and the Space card's Decay goes up to 20 s.
 'use strict';

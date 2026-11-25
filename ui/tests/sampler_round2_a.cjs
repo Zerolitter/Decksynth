@@ -1,4 +1,4 @@
-// Round 2, batch A (Sir, 16 Nov). Knob gestures: a quick double-click only resets; one click on the value box arms
+// Round 2, batch A (16 Nov). Knob gestures: a quick double-click only resets; one click on the value box arms
 // the wheel (Shift bigger, Ctrl finer); two slow clicks open number entry. A Sampler knob is heard while it turns.
 // The MIDI status sits in Settings, not in the top bar.
 'use strict';

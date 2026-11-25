@@ -100,14 +100,14 @@ function App() {
   // live values (beat, meters, voices, load) changes; playheads and meters read the store and the clock themselves.
   const snapshot=useDeck(r=>r.snapshot,sameExceptLive);
   const setSnapshot=deckStore.set;
-  // The app always opens on Sound (Sir, 17 Nov). A UI test can start elsewhere with 'decksynth.test-page'.
+  // The app always opens on Sound (17 Nov). A UI test can start elsewhere with 'decksynth.test-page'.
   const [page,setPageState]=useState<Page>(()=>{try{return (localStorage.getItem('decksynth.test-page') as Page)||'SOUND';}catch{return 'SOUND';}});
   const [edit,setEdit]=useState<Source>({kind:'mod',index:0});
   const [armed,setArmed]=useState<Source|null>(null);
   const [settings,setSettingsState]=useState<AppSettings>(readSettings);
   const setSettings=(s:AppSettings)=>{setSettingsState(s);writeSettings(s);};
   useEffect(()=>setOverrides(settings.keys),[settings.keys]);
-  // An armed macro or mod pad stays armed across pages, so knobs anywhere can be tapped to link (Sir, 16 Nov).
+  // An armed macro or mod pad stays armed across pages, so knobs anywhere can be tapped to link (16 Nov).
   const setPage=(next:Page)=>setPageState(next);
   const closeAutomation=useCallback(()=>setAutomationEdit(undefined),[]);
   const [automationEdit,setAutomationEdit]=useState<ControlTarget|null|undefined>(undefined);
@@ -548,8 +548,8 @@ function App() {
             <button type="button" aria-label="Edit automation" aria-pressed={automationEdit!==undefined} onClick={()=>setAutomationEdit(automationEdit===undefined?null:undefined)}>Auto</button>
           </div>:null}
           <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
-          {/* The kit button sits next to the pads now (Sir, 16 Nov). */}
-          {/* The synth's preset and Save live in the Sound tool rack now (Sir, 16 Nov). */}
+          {/* The kit button sits next to the pads now (16 Nov). */}
+          {/* The synth's preset and Save live in the Sound tool rack now (16 Nov). */}
         </>:page==='PERFORM'?<ArpLive>{view=><PerformTools
           onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!view?.paused}
           onArp={a=>command('perform_action',[a,null])}/>}</ArpLive>:undefined}/>}

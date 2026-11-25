@@ -132,7 +132,7 @@ function makeWindow() {
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== safePage) event.preventDefault();
   });
-  // A blank window (Sir, 25 Nov): the page died or hung while the engine kept playing. Log it, and load the
+  // A blank window (25 Nov): the page died or hung while the engine kept playing. Log it, and load the
   // page again; the engine keeps running and the reloaded page gets its whole state (lastStatus). F5 does the same.
   const logUi = logEvent;
   let hung = null;
