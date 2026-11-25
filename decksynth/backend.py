@@ -10,6 +10,7 @@ import glob
 import os
 import gc
 import queue
+import signal
 import time
 from .drum_loader import DrumLoader
 from .drum_memory import data_directory
@@ -18,6 +19,7 @@ from .drum_library_service import DrumLibraryService
 from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOICE_RANGES, VOICE_CHOICES, FILTER_ENV, EXPRESSION_DEFAULTS, arp_view
 from .keystep import StepCapacityError
 from .render_jobs import RenderJob
+from .session_store import Session
 from .freeze import freeze_mode,freeze_modes,describe_holds,fingerprint,freeze_directory,freeze_file_name,validate_freeze,FrozenAudio
 
 class AudioSpec(C.Structure):
@@ -255,6 +257,7 @@ def worker(commands,updates):
     freeze_checked=0.
     engine=Engine(); midi=MidiDevice(); audio=None; loader=None; library=None; last_status=0; underruns=0; started=False
     capture=None  # the input a Sampler records from, open while the Record sheet is
+    session=None
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
     monitor_samples=deque(maxlen=6144)
@@ -285,6 +288,19 @@ def worker(commands,updates):
         from .sample_library import SampleLibrary
         sample_lib=engine.sample_library=SampleLibrary(data_directory(),engine.rate);sample_lib.scan()
         loader=DrumLoader(engine)
+        # Autosave and recovery (25 Nov): engine-side, so they work with the window dead (session_store.py).
+        session=Session()
+        opened=session.start()
+        if opened is not None:
+            try:
+                engine.replace_project(Project.load(opened))
+                send(dict(message='Opened your last session'+(' (Decksynth did not close properly last time)' if session.crashed else '')))
+            except Exception as exc:
+                send(dict(error='Could not open the last session (%s); it is kept as %s'%(exc,session.recovered.name if session.recovered else 'the autosave')))
+        elif session.crashed and session.recovered is not None:
+            send(dict(message='Decksynth did not close properly last time; that session is kept as '+session.recovered.name))
+        try:signal.signal(signal.SIGUSR1,lambda *_:setattr(session,'rescue',True))   # tools/save-now.sh
+        except (ValueError,OSError,AttributeError):pass
         gc.collect(); gc.freeze(); gc.set_threshold(50000,50,1000)
         running=True
         # The worker belongs to the process that started it (the bridge). If that one dies without saying
@@ -571,6 +587,7 @@ def worker(commands,updates):
                         engine.finish_record()
                         renders['export']=RenderJob('export_loop',engine.project.data(),engine.rate,str(path),track=None if tr is None else int(tr),
                                                     meta=dict(opts=dict(kind=kind,headroom=bool(headroom))))
+                    elif cmd=='session':session.set(args)
                     elif cmd=='to_grain':
                         # Synth pattern -> Grain (25 Nov): bounce this track's loop (seamless, -6 dB headroom) and play it as Grain on a new track.
                         tr=args[0] if isinstance(args,list) else args
@@ -661,6 +678,8 @@ def worker(commands,updates):
                         for meta in made:
                             with open(meta["file"]+".json","w") as side:jsonlib.dump(meta,side)
                     except (ValueError,TypeError) as exc:send(dict(error='Freeze failed: '+str(exc)))
+            wrote=session.tick(engine.project)
+            if wrote is not None and wrote.name.startswith('Saved now'):send(dict(message='Saved '+str(wrote)))
             if handled or now_freeze_check(freeze_checked):
                 freeze_checked=time.monotonic();engine.freeze_refresh()
             for rejection in loader.poll():send(dict(error=rejection))
@@ -714,7 +733,7 @@ def worker(commands,updates):
                 freezes=engine.freeze_status()
                 for key,job in renders.items():
                     if key!='export' and key[0]=='freeze':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
-                status=dict(to_grain={key[1]:round(job.progress,3) for key,job in renders.items() if key!='export' and key[0]=='grain'},freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
+                status=dict(session=session.status(),to_grain={key[1]:round(job.progress,3) for key,job in renders.items() if key!='export' and key[0]=='grain'},freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
@@ -733,8 +752,12 @@ def worker(commands,updates):
                 delta=status_delta(status,status_blobs,full_due)
                 if delta:send(delta)
             time.sleep(.002)
-    except Exception as exc:send(dict(error='Audio worker stopped: '+str(exc)))
+    except Exception as exc:
+        rescued=session.save_recovery(engine.project) if session is not None and engine is not None else None
+        session=None   # a crash keeps the running mark, so the next launch says so
+        send(dict(error='Audio worker stopped: '+str(exc)+('; your session is saved as '+str(rescued) if rescued else '')))
     finally:
+        if session is not None and engine is not None:session.stop(engine.project)
         for job in renders.values():job.cancel()
         if library:library.close()
         if engine is not None and getattr(engine,'sample_library',None):engine.sample_library.close()

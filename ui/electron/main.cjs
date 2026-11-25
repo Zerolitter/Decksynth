@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, screen } = require('electron'
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const os = require('node:os');
-const { readFileSync, mkdirSync } = require('node:fs');
+const { readFileSync, mkdirSync, appendFileSync } = require('node:fs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const UI_ROOT = path.resolve(__dirname, '..');
@@ -18,7 +18,7 @@ let lastMessage = { bridge: 'starting' };
 let lastStatus = null;
 
 const COMMANDS = new Set(['drum_library_root','drum_library_refresh','drum_load_folder',
- 'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_draft','drum_clear','drum_crop','drum_export','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','sampler_live_input','sampler_hold','to_grain','song','clip','perform_set','perform_step','perform_action',
+ 'drum_list_samples','drum_preview_sample','drum_preview_stop','drum_replace_sample','set_device','drum_note','drum_edit','drum_draft','drum_clear','drum_crop','drum_export','drum_import','sampler_make','sampler_edit','sampler_live','sampler_detect','sampler_load_wav','sampler_clear','add_track','remove_track','sample_save','sample_library_folder','sample_library_scan','sample_library_browse','sample_library_preview','sample_library_stop','sample_library_load','sampler_chop','sampler_view','sampler_audition','sampler_audition_stop','sampler_send','sampler_slice_roots','sampler_inputs','sampler_record','sampler_live_input','sampler_hold','to_grain','session','song','clip','perform_set','perform_step','perform_action',
  'midi','sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc','unlearn_cc','cancel_cc_learn','select','play','stop','panic','record','record_options','audio_latency','undo','redo','quantize','import_midi','midi_channels','play_from',
  'clear','device','audio_device','preset','parameter','edit_note','note_edit','editor_note','catalog_action','structure_add','structure_load','structure_set','structure_merge','structure_part_length','structure_extend','track','send','send_setting','tempo','bars','fx','fx_reorder','spectral_seed','cleanup',
  'metronome','save','load','export','export_wav','export_loop','freeze','unfreeze','save_preset','load_preset']);
@@ -103,6 +103,22 @@ function makeWindow() {
   window.webContents.on('will-navigate', (event, url) => {
     if (url !== safePage) event.preventDefault();
   });
+  // A blank window (Sir, 25 Nov): the page died or hung while the engine kept playing. Log it, and load the
+  // page again; the engine keeps running and the reloaded page gets its whole state (lastStatus). F5 does the same.
+  const logUi = text => { try { appendFileSync(path.join(app.getPath('userData'), 'ui-events.log'), new Date().toISOString()+' '+text+'\n'); } catch {} console.error('Decksynth:', text); };
+  let hung = null;
+  window.webContents.on('render-process-gone', (_, details) => {
+    logUi('page gone: '+details.reason+' (exit '+details.exitCode+'); reloading');
+    setTimeout(() => { if (window && !window.isDestroyed()) window.webContents.reload(); }, 500);
+  });
+  window.on('unresponsive', () => {
+    logUi('page not responding');
+    clearTimeout(hung);
+    hung = setTimeout(() => { if (window && !window.isDestroyed()) { logUi('still not responding after 8 s; reloading'); window.webContents.forcefullyCrashRenderer(); } }, 8000);
+  });
+  window.on('responsive', () => { if (hung) { clearTimeout(hung); hung = null; logUi('page responding again'); } });
+  window.webContents.on('console-message', (event, level, message) => { const lv = event.level ?? level, text = event.message ?? message;
+    if (lv === 'error' || lv === 3) logUi('page error: '+String(text).slice(0, 400)); });
   window.webContents.on('did-fail-load', (_, code, description) => {
     console.error('DeckSynth UI failed to load', code, description);
   });
@@ -125,7 +141,8 @@ function makeWindow() {
   window.on('move', fitZoom);
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
-    if (input.key === 'F11') { event.preventDefault(); window.setFullScreen(!window.isFullScreen()); }
+    if (input.key === 'F5') { event.preventDefault(); window.webContents.reload(); }
+    else if (input.key === 'F11') { event.preventDefault(); window.setFullScreen(!window.isFullScreen()); }
     else if (input.control && !input.alt && (input.key === 'q' || input.key === 'Q')) { event.preventDefault(); app.quit(); }
   });
 }
@@ -158,6 +175,9 @@ else {
   }).catch(error => {
     console.error('Decksynth: initialization failed', error);
     app.exit(1);
+  });
+  app.on('child-process-gone', (_, details) => {
+    try { appendFileSync(path.join(app.getPath('userData'), 'ui-events.log'), new Date().toISOString()+' '+details.type+' process gone: '+details.reason+'\n'); } catch {}
   });
   app.on('before-quit', () => { app.isQuitting = true; stopBackend(); });
   app.on('window-all-closed', () => app.quit());

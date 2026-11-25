@@ -140,6 +140,8 @@ export type DeckUpdate = {
   /** REC count-in: counting (beat n of 4) or armed (waiting for the first note). */
   count_in?: {state:'count';beat:number;of:number}|{state:'armed';count:number}|null;
   devices: string[]; audio: string; audio_output: string;
+  /** Autosave (25 Nov): seconds between autosaves (0 off), what opens at launch, the folder and the last write (epoch s). */
+  session?: {autosave:number;on_launch:'last'|'new';folder:string|null;saved_at:number|null;error:string|null};
   audio_outputs: string[]; voices: number; underruns: number; dsp_load?: number; buffer_ms?: number; latency_mode?: string; preview?: boolean;
   sound_undo?:number[];can_redo?:boolean;automation_arm?:boolean;audio_channels?:number;
   meter?: { channels?:{rms:number;peak:number;wave:number[]}[];rms: number; peak: number; wave: number[]; spectrum?: number[]; fx?: number[][]; fx_live?: { gate?:import('./fx').GateRuntime|null;partials?:number[]|null;params:number[]; mods:number[]; phases?:number[]; puck?:number[]; sound?:Record<string,number> } };

@@ -652,7 +652,7 @@ function App() {
     {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
         trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>{command('cleanup',c);if(c==='all')setPage('SOUND');}}
-        midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms}
+        midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms} session={snapshot?.session} onSession={c=>command('session',c)}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'Deck speakers'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
         onClose={()=>setDialog(null)}/>

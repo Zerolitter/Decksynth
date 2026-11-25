@@ -17,6 +17,7 @@ from decksynth.keystep import current_pattern, DIVISIONS
 def diagnostic_worker(commands, updates, raw_batch=None):
     """Spawn-safe isolation: never enumerate/open physical MIDI in the child."""
     os.environ['SDL_AUDIODRIVER']='dummy'
+    os.environ.setdefault('DECKSYNTH_NO_AUTOSAVE','1')  # never touch the real ~/Music autosave; DECKSYNTH_DATA_DIR still wins
     with patch.object(MidiDevice,'devices',return_value=[]):
         if raw_batch is None:
             worker(commands,updates)

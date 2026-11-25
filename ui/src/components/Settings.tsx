@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CircleDot, Eraser, Gauge, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
+import { CircleDot, Eraser, Gauge, Save, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
@@ -20,11 +20,13 @@ type Props = {
   devices:string[]; audioOutput:string; audioOutputs:string[];
   /** The connected MIDI keyboard (null: none) and the engine link, shown here instead of the top bar. */
   midiName?:string|null; bridgeStatus?:string; bufferMs?:number;
+  /** Autosave and On launch live in the engine, so they work even when this window is dead. */
+  session?:import('../types').DeckUpdate['session']; onSession?:(changes:Record<string,unknown>)=>void;
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
 };
 
 /** Settings: layout, clean-up and audio/MIDI routing in one place behind the gear icon. */
-export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
   const [confirm,setConfirm]=useState(false);
   const win=window.deckApi?.windowAction;
   const item=(c:Cleanup,icon:React.ReactNode,title:string,sub:string)=><button type="button" className="clean-item"
@@ -110,6 +112,24 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
                 className={settings.latency===v?'on':''} onClick={()=>onSettings({...settings,latency:v})}>{label}</button>)}
             </div></div>
         </div>
+        {session&&onSession?<>
+        <h3><Save size={15}/> Session</h3>
+        <div className="setting-rec">
+          <div className="setting-choice" role="group" aria-label="Autosave"
+            title="How often the project is written to the Autosave file (only when something changed). It works even if this window goes blank."><strong>Autosave</strong>
+            <div className="setting-seg">
+              {([[0,'Off'],[30,'30 s'],[60,'1 min'],[120,'2 min'],[300,'5 min'],[600,'10 min']] as const).map(([v,label])=><button key={v} type="button" aria-pressed={session.autosave===v}
+                className={session.autosave===v?'on':''} onClick={()=>onSession({autosave:v})}>{label}</button>)}
+            </div></div>
+          <div className="setting-choice" role="group" aria-label="On launch"
+            title="What Decksynth opens when it starts. The session before is always kept as a Recovered file in the Autosave folder."><strong>On launch</strong>
+            <div className="setting-seg">
+              {([['last','Last project'],['new','New project']] as const).map(([v,label])=><button key={v} type="button" aria-pressed={session.on_launch===v}
+                className={session.on_launch===v?'on':''} onClick={()=>onSession({on_launch:v})}>{label}</button>)}
+            </div></div>
+          <small>{session.error?'Autosave failed: '+session.error:session.saved_at?'Last autosave '+new Date(session.saved_at*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'. ':''}
+            {session.folder?'Autosave and recovered sessions: '+session.folder.replace(/^\/home\/[^/]+/,'~'):''}</small>
+        </div></>:null}
       </div>
     </div>
   </section>;

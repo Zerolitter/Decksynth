@@ -31,7 +31,7 @@ COMMANDS = {
     'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'record_options', 'audio_latency', 'undo', 'redo', 'quantize', 'import_midi','midi_channels','play_from',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
     'edit_note','note_edit','editor_note','catalog_action', 'structure_add', 'structure_load', 'structure_set', 'structure_merge','structure_part_length', 'structure_extend', 'track', 'send', 'send_setting', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
-    'save', 'load', 'export','export_wav','export_loop', 'freeze', 'unfreeze', 'save_preset', 'load_preset',
+    'session', 'save', 'load', 'export','export_wav','export_loop', 'freeze', 'unfreeze', 'save_preset', 'load_preset',
 }
 
 def encode(value):
@@ -77,6 +77,10 @@ def main():
                 alive.clear(); break
             time.sleep(.25)
     threading.Thread(target=watch_parent,daemon=True).start()
+    # Save now from outside, even when the window is dead (tools/save-now.sh): pass SIGUSR1 on to the worker.
+    import signal
+    try: signal.signal(signal.SIGUSR1, lambda *_: os.kill(process.pid, signal.SIGUSR1) if process.pid else None)
+    except (ValueError, OSError, AttributeError): pass
     print(encode({'bridge':'ready','process':process.pid}),flush=True)
     try:
         while alive.is_set() and process.is_alive():
