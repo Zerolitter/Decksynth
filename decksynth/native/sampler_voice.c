@@ -163,9 +163,16 @@ static double grain_spawn(const SamplerVoice *v, SamplerCloud *c, const SamplerG
     }
     double step = v->step * v->pmul * g->ratio[k + 12];
     if ((u4 < g->reverse) != ((c->flags & 1u) != 0u)) step = -step;
+    /* The whole grain stays inside the region (25 Nov): a grain that ran past the start or end read
+     * silence there and was cut off mid-fade, which popped. Too long for the room: it gets shorter. */
+    double lo = (double)v->start + 1.0, hi = (double)v->end - 3.0, speed = step < 0.0 ? -step : step;
+    double room = hi - lo, span = (double)frames * speed;
+    if (span > room) { frames = speed > 0.0 ? (int64_t)(room / speed) : 0; span = (double)frames * speed; }
+    if (centre - 0.5 * span < lo) centre = lo + 0.5 * span;
+    if (centre + 0.5 * span > hi) centre = hi - 0.5 * span;
     double gap = g->interval * (1.0 + g->jitter * (2.0 * u6 - 1.0));
     if (gap < 1.0) gap = 1.0;
-    if (c->flags & 2u) return gap;
+    if ((c->flags & 2u) || frames < 2) return gap;
     for (int i = 0; i < g->grains; ++i) {
         SamplerGrain *gr = &grains[i];
         if (gr->active) continue;

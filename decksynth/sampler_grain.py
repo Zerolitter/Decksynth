@@ -176,9 +176,14 @@ def _spawn(v, c, g, grains, slot, at):
         if k > g.spread: k = g.spread
     step = v.step*v.pmul*g.ratio[k + 12]
     if (u4 < g.reverse) != bool(c.flags & 1): step = -step
+    lo = float(v.start) + 1.; hi = float(v.end) - 3.; speed = -step if step < 0. else step   # the grain stays inside the region
+    room = hi - lo; span = float(frames)*speed
+    if span > room: frames = int(room/speed) if speed > 0. else 0; span = float(frames)*speed
+    if centre - .5*span < lo: centre = lo + .5*span
+    if centre + .5*span > hi: centre = hi - .5*span
     gap = g.interval*(1. + g.jitter*(2.*u6 - 1.))
     if gap < 1.: gap = 1.
-    if c.flags & 2: return gap
+    if c.flags & 2 or frames < 2: return gap
     for gr in grains[:g.grains]:
         if gr.active: continue
         gr.pos = centre - .5*float(frames)*step; gr.step = step

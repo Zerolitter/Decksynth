@@ -570,3 +570,11 @@
 .harness-shell .pf-pick-choices .pf-btn{min-height:44px;min-width:44px;flex:1;text-transform:none;letter-spacing:0}
 .harness-shell .pf-pick-row.wide .pf-pick-choices{display:grid;grid-template-columns:repeat(9,minmax(44px,1fr))}
 .harness-shell .pf-pick-row.wide[aria-label="Octave shift"] .pf-pick-choices{grid-template-columns:repeat(7,minmax(44px,1fr))}
+
+/* To Grain (Sir, 25 Nov): the end of the Step rec row in the Seq column, yellow like the Sampler's Grain tool.
+   A compact tool button so the column still fits at 718 px; the full description is its tooltip. */
+.harness-shell .pf-rec-row.grain{grid-template-columns:1fr 1fr 52px}
+.harness-shell .pf-to-grain{min-height:44px;min-width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;border:1px solid color-mix(in srgb,var(--c-grain) 55%,var(--ui-line));border-radius:8px;background:color-mix(in srgb,var(--c-grain) 10%,var(--ui-surface-hi));color:var(--ui-text-1);font-size:10px;font-weight:700}
+.harness-shell .pf-to-grain svg{color:var(--c-grain);flex:none}
+.harness-shell .pf-to-grain:disabled{opacity:.45}
+.harness-shell .pf-to-grain:not(:disabled):active{background:color-mix(in srgb,var(--c-grain) 28%,var(--ui-surface-hi))}

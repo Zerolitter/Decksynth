@@ -383,6 +383,10 @@ def worker(commands,updates):
                                 if capture:capture.close()
                                 capture=None; engine.record_input=None
                         else:engine.sampler_record(action,*rest)
+                    elif cmd=='sampler_hold':
+                        track=args[0]
+                        if type(track) is not int or not 0<=track<len(engine.samplers):raise ValueError('Invalid track')
+                        engine.samplers[track].set_hold(bool(args[1]))
                     elif cmd=='sampler_live_input':
                         track,sid,action=args[0],args[1],args[2]
                         if action=='on':
@@ -567,6 +571,21 @@ def worker(commands,updates):
                         engine.finish_record()
                         renders['export']=RenderJob('export_loop',engine.project.data(),engine.rate,str(path),track=None if tr is None else int(tr),
                                                     meta=dict(opts=dict(kind=kind,headroom=bool(headroom))))
+                    elif cmd=='to_grain':
+                        # Synth pattern -> Grain (25 Nov): bounce this track's loop (seamless, -6 dB headroom) and play it as Grain on a new track.
+                        tr=args[0] if isinstance(args,list) else args
+                        if type(tr) is not int or not 0<=tr<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
+                        if ('grain',tr) in renders:raise ValueError('Track %d is already on its way to Grain'%(tr+1))
+                        from .devices import MAX_TRACKS
+                        if len(engine.project.tracks)>=MAX_TRACKS:raise ValueError('%d tracks is the most: remove one to make room for the Grain track'%MAX_TRACKS)
+                        engine.finish_record()
+                        import re as _re,time as _time
+                        folder=data_directory()/'bounces';folder.mkdir(parents=True,exist_ok=True)
+                        label=engine.project.tracks[tr].get('name') or 'Track %d'%(tr+1)
+                        path=folder/('%s %s.wav'%(_re.sub(r'[^A-Za-z0-9 _-]+','',label).strip()[:40] or 'Track',_time.strftime('%Y-%m-%d %H%M%S')))
+                        renders[('grain',tr)]=RenderJob('export_loop',engine.project.data(),engine.rate,str(path),track=tr,
+                                                         meta=dict(opts=dict(kind='loop',headroom=True),name=label))
+                        send(dict(message='Bouncing %s for Grain…'%label))
                     elif cmd=='freeze':
                         tr=int(args)
                         if not 0<=tr<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
@@ -622,6 +641,15 @@ def worker(commands,updates):
                     if job.kind=='export_loop' and job.result:
                         r=job.result;send(dict(message='Loop exported: %s beats, %s'%(('%g'%r['beats']),r['path'].rsplit('/',1)[-1])))
                     else:send(dict(message='Stereo WAV exported') if job.result else dict(error='WAV export failed: '+job.error))
+                elif key[0]=='grain':
+                    if job.result:
+                        try:
+                            made=engine.grain_from_bounce(key[1],job.result['path'],job.meta.get('name'))
+                            send(dict(message='%s plays as Grain on track %d'%(job.meta.get('name'),made+1)))
+                        except (ValueError,TypeError) as exc:send(dict(error='Grain: '+str(exc)))
+                    else:
+                        err=job.error or ''
+                        send(dict(error='Nothing to bounce: the loop of %s is silent. Put the pattern in its clip first (Pattern → Song)'%job.meta.get('name') if 'silent' in err else 'Grain bounce failed: '+err))
                 elif job.error=='cancelled':pass
                 elif job.result is None:send(dict(error='Freeze failed: '+job.error))
                 else:
@@ -685,8 +713,8 @@ def worker(commands,updates):
                            fx_live=engine.fx_live(engine.selected))
                 freezes=engine.freeze_status()
                 for key,job in renders.items():
-                    if key!='export':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
-                status=dict(freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
+                    if key!='export' and key[0]=='freeze':freezes[key[1]].update(state='rendering',progress=round(job.progress,3))
+                status=dict(to_grain={key[1]:round(job.progress,3) for key,job in renders.items() if key!='export' and key[0]=='grain'},freeze=freezes,exporting=round(renders['export'].progress,3) if 'export' in renders else None,
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),

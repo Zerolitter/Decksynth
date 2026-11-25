@@ -68,6 +68,9 @@ const sampleKeys=[
  ['New effects','Pitch shift (semitones and cents), Auto-tune (pulls notes to the scale set on the Perform page), Ducking (another track pushes this one down, like a kick ducking the bass) and Vocoder (another track, such as a voice, shapes this one\'s tone). Ducking and Vocoder listen to the other track\'s own sound, even when it is muted.'],
  ['Library','The sample library: tap a card to load it (Undo brings the old sample back), ▶ to hear it first. Save the whole sample, its trim or a slice into a category. Saves to and Browses set the folders; they are remembered.'],
  ['Sends','Every track has a Reverb and a Delay send on its Sound page (Synth: the Sends card; Drum Rack: under the kit buttons; Sampler: under Amp). They all feed one shared reverb and one shared delay, after the track\'s volume and pan. Shared opens their settings: Return level, Decay, Pre-delay, Lo and Hi cut, Width; delay Time, Feedback and Ping-pong.'],
+ ['To Grain','Perform, the yellow Grain button beside Step rec: bounces this track\'s loop (a pattern goes into the clip first) and plays it as Grain on a new Sampler track. No WAV to export or load.'],
+ ['Hold (Sampler keys)','Beside the Sampler keyboard: keys and MIDI notes keep sounding after you let go; the next chord replaces them. Tap Hold again to let them go.'],
+ ['Chop','Opening Chop on a sample with no slices chops it at once with the current settings (Threshold by default). Change Level or Min to chop again.'],
  ['Right-click a knob','Edit value, Reset default, Link to › Macros or Mod pads (each in its colour, a tick when linked), Unlink. Works on Sampler and Drum Rack knobs too.'],
 ];
 const valueKeys=[

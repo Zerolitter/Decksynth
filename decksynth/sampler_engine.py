@@ -156,6 +156,20 @@ class SamplerEngine:
         self.samplers[track].loading = True; self.samplers[track].error = None
         self.sampler_tasks.submit(('load', track), work, commit, fail, 'WAV not loaded: ')
 
+    def grain_from_bounce(self, source, path, name=None):
+        """Synth pattern -> Grain (Sir, 25 Nov): a bounced loop of `source` becomes a new Sampler track in
+        Grain mode, without exporting and loading a WAV by hand. The WAV loads in the background."""
+        source = track_index(source)
+        if not 0 <= source < len(self.project.tracks): raise ValueError('That track is gone')
+        label = (name or self.project.tracks[source].get('name') or 'Track %d' % (source + 1))[:60]
+        tr = self.add_track()
+        self.set_device(tr, 'sampler')
+        spec = self.project.tracks[tr]['sampler']
+        self.project.tracks[tr]['name'] = (label + ' grains')[:32]
+        self.edit_sampler(tr, spec['id'], 'patch', dict(mode='grain', g_rhythm='off'))
+        self.load_sampler_wav(tr, spec['id'], path)
+        return tr
+
     def install_sampler_sample(self, track, sampler_id, sample, root=None):
         spec = self.sampler_target(track, sampler_id)
         clean = copy.deepcopy(spec); clean.pop('shape', None)

@@ -67,3 +67,28 @@ class LoopExport(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LoopToGrain(unittest.TestCase):
+    """Synth pattern -> Grain (Sir, 25 Nov): the bounced loop becomes a new Sampler track in Grain mode."""
+    def test_a_bounced_loop_lands_on_a_new_grain_track(self):
+        import os, time
+        e = project_with_notes()
+        with tempfile.TemporaryDirectory() as d:
+            os.environ['DECKSYNTH_DATA_DIR'] = d
+            e.sample_cache is not None or self.skipTest('no sample cache at this rate')
+            path = Path(d)/'bounce.wav'
+            export_loop_wav(e.project, e.rate, path, track=0, kind='loop', headroom=True)
+            before = len(e.project.tracks)
+            tr = e.grain_from_bounce(0, str(path), 'Warm Keys')
+            self.assertEqual(len(e.project.tracks), before + 1); self.assertEqual(tr, before)
+            t = e.project.tracks[tr]
+            self.assertEqual(t['device'], 'sampler'); self.assertEqual(t['name'], 'Warm Keys grains')
+            self.assertEqual(t['sampler']['mode'], 'grain'); self.assertEqual(t['sampler']['g_rhythm'], 'off')
+            for _ in range(200):
+                e.sampler_tasks.poll()
+                if e.samplers[tr].sample is not None: break
+                time.sleep(.02)
+            self.assertIsNotNone(e.samplers[tr].sample)
+            self.assertEqual(e.project.tracks[tr]['sampler']['mode'], 'grain')
+            self.assertEqual(e.selected, tr)

@@ -28,6 +28,8 @@ let app,page;
  const p=page=await app.firstWindow({timeout:18000});p.setDefaultTimeout(10000);
  const errors=[];p.on('pageerror',e=>errors.push(e.message));
  await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,h);},H);
+ // Windowed SteamOS caps the window at 772 px (taskbar): set the renderer viewport itself, like touch_target_acceptance.
+ await p.setViewportSize({width:1280,height:H});await p.waitForFunction(h=>innerWidth===1280&&innerHeight===h,H,{timeout:5000});
  await p.waitForFunction(()=>document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'));
  await p.evaluate(()=>{window.__msgs=[];window.deckApi.onMessage(m=>{if(m.state)window.__latest=m;if(m.samplers)window.__smp=m.samplers;if(m.message)window.__msgs.push(m.message);if(m.error)window.__msgs.push('ERROR '+m.error);});});
  await p.waitForFunction(()=>!!window.__latest);
@@ -177,7 +179,7 @@ let app,page;
 
  // Presets: twenty, one tap sets the whole grain sound (one undo step) and keeps Position and the slices.
  await pages.getByRole('radio',{name:'Presets',exact:true}).click();
- const pr=await card.locator('.smp-preset').all();assert.equal(pr.length,20,'twenty presets');for(const [i,b] of pr.entries())await inside(b,'preset '+(i+1));
+ const pr=await card.locator('.smp-preset').all();assert.equal(pr.length,22,'twenty-two presets');for(const [i,b] of pr.entries())await inside(b,'preset '+(i+1));
  await p.screenshot({path:path.join(OUT,'grain-presets-'+H+'.png')});
  const keep=(await latest()).state.tracks[0].sampler.g_pos;
  await card.getByRole('button',{name:'Tidal',exact:true}).click();

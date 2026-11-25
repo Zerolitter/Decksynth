@@ -82,6 +82,46 @@ class GrainTest(unittest.TestCase):
         self.assertGreater(max(map(abs, native)), .01)
         self.assertLess(max(abs(a-b) for a, b in zip(native, python)), 1e-9)
 
+    def test_grains_stay_inside_the_region_so_the_edges_do_not_pop(self):
+        """25 Nov (Sir: a pop when a grain touches the start or end): every grain, from start to end, reads
+        only inside its voice's region, also with full Spray, long grains, Spread up and backwards grains."""
+        self.grain(g_size=1., g_density=40., g_spray=1., g_spread=12., g_reverse=.5, g_pos=.98, g_size_rnd=1.)
+        s, _ = self.play(1, 72, 256)
+        checked = 0
+        for _ in range(40):
+            for gr in s.grains:
+                if not gr.active: continue
+                v = s.voices[gr.voice]
+                last = gr.pos + (gr.left - 1)*gr.step
+                for x in (gr.pos, last):
+                    self.assertGreaterEqual(x, v.start + 1 - 1e-6); self.assertLessEqual(x, v.end - 3 + 1e-6)
+                checked += 1
+            self.render(256)
+        self.assertGreater(checked, 100)
+
+    def test_hold_keeps_played_notes_until_the_next_phrase_or_hold_off(self):
+        """25 Nov (Sir: Grain has no Hold for the keys and MIDI)."""
+        self.grain(release=.01)
+        s = self.e.samplers[1]; s.set_hold(True)
+        self.e.voice_on(1, 60, 100, ('live', 0, 60, 60)); self.e.voice_on(1, 64, 100, ('live', 0, 64, 64))
+        self.render(2048)
+        self.e.voice_off(1, 60, ('live', 0, 60, 60)); self.e.voice_off(1, 64, ('live', 0, 64, 64))
+        self.render(R//4)
+        self.assertEqual(s.active_count, 2); self.assertTrue(s.state()['hold'])
+        self.e.voice_on(1, 67, 100, ('live', 0, 67, 67)); self.render(R//10)   # a new phrase: 60 and 64 let go
+        self.assertEqual(sorted(n for n, _ in filter(None, (s.notes[i] if v.active else None for i, v in enumerate(s.voices)))), [67])
+        self.e.voice_off(1, 67, ('live', 0, 67, 67)); self.render(2048)
+        self.assertEqual(s.active_count, 1)
+        s.set_hold(False); self.render(R//10)
+        self.assertEqual(s.active_count, 0)
+
+    def test_hold_does_not_keep_sequencer_notes(self):
+        self.grain(release=.01)
+        s = self.e.samplers[1]; s.set_hold(True)
+        self.e.voice_on(1, 60, 100, ('clip', 1, 0)); self.render(1024)
+        self.e.voice_off(1, 60, ('clip', 1, 0)); self.render(R//10)
+        self.assertEqual(s.active_count, 0)
+
     def test_spread_lands_on_the_scale(self):
         for k in range(-12, 13):
             self.assertIn(grain.snap(k, 'minor') % 12, grain.SCALE_STEPS['minor'])

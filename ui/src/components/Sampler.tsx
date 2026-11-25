@@ -125,6 +125,8 @@ const GRAIN_PRESETS: [string, string, string, Partial<SamplerSpec>][] = [
   ['Slow Drift', 'drone', 'Wanders slowly through most of the sample', { g_size: .35, g_density: 18, g_roam: 'forward', g_speed: .05, g_range: .8, g_wander: .4, g_smooth: .8, attack: .5, release: 1.5 }],
   ['Tidal', 'drone', 'Bounces back and forth, breathing', { g_size: .25, g_density: 22, g_roam: 'bounce', g_speed: .3, g_range: .6, g_pulse: .8, attack: .3, release: 1 }],
   ['Backwards Tape', 'drone', 'Every grain backwards, rolling back', { g_size: .3, g_density: 16, g_reverse: 1, g_roam: 'reverse', g_speed: .5, g_range: .5, release: .8 }],
+  ['Deep Drone', 'drone', 'Long, dense, slow grains kept in key: a deep ambient bed', { g_size: .7, g_density: 40, g_spray: .3, g_spread: 12, g_scale: 'octaves', g_jitter: .5, g_size_rnd: .3, g_amp_rnd: .3, g_roam: 'forward', g_speed: .02, g_range: .5, g_wander: .3, g_smooth: .9, attack: 1.5, release: 3 }],
+  ['Space', 'drone', 'An octave up and mostly backwards: the sound of space', { g_size: .45, g_density: 45, g_spray: .25, g_spread: 12, g_scale: 'octaves', g_reverse: .85, g_jitter: .4, g_amp_rnd: .4, g_roam: 'reverse', g_speed: .04, g_range: .6, attack: 1, release: 2.5 }],
   ['Wanderer', 'drone', 'Drifts and jumps around Position', { g_size: .2, g_density: 20, g_range: .6, g_wander: .8, g_smooth: .9, g_jump: .2, release: 1 }],
   ['Dust', 'texture', 'Tiny flat grains scattered everywhere', { g_size: .02, g_density: 60, g_spray: .6, g_window: 'rect', g_amp_rnd: .8, g_jitter: 1 }],
   ['Swarm', 'texture', 'A dense buzz of short, detuned grains', { g_size: .04, g_density: 80, g_spray: .4, g_spread: 3, g_jitter: .7 }],
@@ -867,6 +869,17 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
   const [settings, setSettings] = useState<ChopSettings>({ mode: 'threshold', threshold: -30, min_ms: 150, count: 16, bpm: Math.round(bpm) || 120, beats: 1 });
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  // Chop chops at once (Sir, 25 Nov): a sample with no slices is cut with the current settings as soon as Chop
+  // shows it (Threshold by default), once per sample, so there is no extra tap. Existing slices are kept.
+  const autoChopped = useRef('');
+  const sha = spec?.source?.sha256 ?? '', ready = ['READY', 'PLAYING'].includes(runtime?.status ?? '');
+  useEffect(() => {
+    if (mode !== 'chop' || big !== 'wave' || !spec || !sha || !ready || (spec.slices?.length ?? 0) > 0) return;
+    if (autoChopped.current === spec.id + sha || runtime?.busy?.includes('chop')) return;
+    autoChopped.current = spec.id + sha;
+    send('sampler_chop', [trackIndex, spec.id, settings.mode, settings.mode === 'threshold' ? { threshold: settings.threshold, min_ms: settings.min_ms }
+      : settings.mode === 'regions' ? { count: settings.count } : { bpm: settings.bpm, beats: settings.beats }]);
+  }, [mode, big, spec?.id, sha, ready, spec?.slices?.length]);   // eslint-disable-line react-hooks/exhaustive-deps
   // A loaded WAV has no drum family: it takes the track's colour.
   const accent = spec?.family === 'sample' || !spec?.source ? TRACK_COLORS[trackIndex % TRACK_COLORS.length] : familyColor(spec?.family);
   const style = { ['--pad-accent' as string]: accent, ['--drum-accent' as string]: TRACK_COLORS[trackIndex % TRACK_COLORS.length] };
@@ -1043,7 +1056,12 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
         {sends ? <div className="drum-sends smp-sends" aria-label="Sends">{sends}</div> : null}
       </aside>
       </div>
-      <SamplerKeys spec={spec} onMidi={onMidi} />
+      <div className="smp-keyrow">
+        <button type="button" className="smp-hold" aria-pressed={!!runtime?.hold} aria-label="Hold"
+          title={runtime?.hold ? 'Hold on: notes keep sounding after you let go; the next chord replaces them. Tap to let them go' : 'Hold: keys and MIDI notes keep sounding after you let go'}
+          onClick={() => send('sampler_hold', [trackIndex, !runtime?.hold])}>Hold</button>
+        <SamplerKeys spec={spec} onMidi={onMidi} />
+      </div>
       {sending && mode === 'chop' ? <SendSheet spec={spec} selected={sel} trackIndex={trackIndex} tracks={tracks} onClose={() => setSending(false)}
         onSend={(target, how, options) => send('sampler_send', [trackIndex, spec.id, target, how, options])} /> : null}
     </>}

@@ -145,6 +145,7 @@ class Sampler:
         self.view = None   # (sha, a, b, peaks) while the waveform is zoomed
         self.shaping = 0; self.shaped_key = None; self._pending = None
         self.sustain = False; self.sustained = set()
+        self.hold = False; self.latched = set()   # Hold (25 Nov): keys let go keep sounding until the next phrase or Hold off
         self.voices = (Voice * SLOTS)()
         self.notes = [None]*SLOTS      # (note, token) per slot, for note-off
         self.vels = [1.]*SLOTS         # velocity 0..1 per slot, for velocity to cutoff
@@ -308,6 +309,12 @@ class Sampler:
         if s is None or self.params.data is None or not 0 <= note <= 127 or not 1 <= velocity <= 127: return False
         zone = self.region(note)
         if zone is None: return False
+        if self.hold and self.latched:
+            down = [i for i, v in enumerate(self.voices) if v.active and v.stage != 3 and i not in self.latched and i not in self.sustained]
+            if not down:   # a new phrase on Hold: the notes it kept go, like the arp's Hold
+                for i in self.latched:
+                    if self.voices[i].active and self.voices[i].stage != 3: self._release(i)
+                self.latched = set()
         start, end, loop_start, loop_end, xfade, shift = zone
         step = (1. if self.live is not None else sample_rate_ratio(self.sample, self.rate))*2**((shift+s['tune']+s['fine']/100.)/12.)
         gain = s['gain']*self.norm*(velocity/127.)**self._e('velocity')
@@ -341,7 +348,7 @@ class Sampler:
             self.steppers[i] = grain.Stepper(self.stamp*104729 + i)
             for gr in self.grains:
                 if gr.voice == i: gr.active = 0
-        self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.sustained.discard(i); self.events += 1
+        self.notes[i] = (note, token); self.vels[i] = velocity/127.; self.sustained.discard(i); self.latched.discard(i); self.events += 1
         self._modulate()
         return True
 
@@ -349,8 +356,20 @@ class Sampler:
         if self.spec is None or self.spec['mode'] == 'oneshot': return
         for i, v in enumerate(self.voices):
             if v.active and v.stage != 3 and self.notes[i] is not None and self.notes[i][0] == note and (token is None or self.notes[i][1] == token):
+                if self.hold and _live(self.notes[i][1]): self.latched.add(i)   # played keys and MIDI only, not the sequencer
+                elif self.sustain: self.sustained.add(i)
+                else: self._release(i)
+
+    def set_hold(self, on):
+        """Hold: keys and MIDI notes keep sounding after they are let go; the next phrase replaces them.
+        Off lets the kept notes go (into the pedal when it is down)."""
+        self.hold = bool(on)
+        if self.hold: return
+        for i in self.latched:
+            if self.voices[i].active and self.voices[i].stage != 3:
                 if self.sustain: self.sustained.add(i)
                 else: self._release(i)
+        self.latched = set()
 
     def pedal(self, down):
         """Sustain pedal: keys let go while it is down keep sounding until it comes up."""
@@ -383,7 +402,7 @@ class Sampler:
     def panic(self):
         for v in self.voices: v.active = 0
         for gr in self.grains: gr.active = 0
-        self.notes = [None]*SLOTS; self.sustained = set()
+        self.notes = [None]*SLOTS; self.sustained = set(); self.latched = set()
 
     # -- audio ----------------------------------------------------------------------------------
     def render_into_buffer(self, buf, offset, frames):
@@ -553,15 +572,19 @@ class Sampler:
             playing = [at(self.head(i)) for i, v in enumerate(self.voices) if v.active][:POLY] if self.grain_mode else []
             grains = [at(gr.pos) for gr in self.grains if gr.active][:64]
             return dict(status='PLAYING' if self.active_count else 'LIVE', peaks=self.live.peaks(), view=[0., 1.], seconds=span/self.rate,
-                        playing=playing, grains=grains, steps=[], event=self.events, voices=self.active_count, error=self.error,
+                        playing=playing, grains=grains, steps=[], event=self.events, voices=self.active_count, hold=self.hold, error=self.error,
                         accelerated=self._kernel is not None, live=dict(frozen=self.live.frozen, level=round(self.live.level, 3)),
                         native_warning=None if self._kernel is not None else sampler_native.error())
         return dict(status=status, peaks=list(view[3] if view else self.sample.peaks) if self.sample is not None else [],
                     view=[round(view[1], 7), round(view[2], 7)] if view else [0., 1.],
                     seconds=(self.sample.frames/self.rate) if self.sample is not None else 0.,
-                    playing=playing, grains=grains, steps=steps, event=self.events, voices=self.active_count, error=self.error,
+                    playing=playing, grains=grains, steps=steps, event=self.events, voices=self.active_count, hold=self.hold, error=self.error,
                     accelerated=self._kernel is not None,
                     native_warning=None if self._kernel is not None else sampler_native.error())
+
+
+def _live(token):
+    return isinstance(token, tuple) and bool(token) and token[0] == 'live'
 
 
 def detect_root(sample, rate):

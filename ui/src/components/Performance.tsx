@@ -11,7 +11,7 @@ import {useClockValue,type Position} from '../frame-clock';
 import {chainPosition} from '../structure';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb,Sparkles} from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { ValueBox } from './ValueBox';
@@ -320,7 +320,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
     </div>
     <p className="pf-info" aria-live="polite">{'Pattern '+seq.bank+'·'+String(seq.slot).padStart(2,'0')+(state.patterns[ref]&&factoryName?' '+factoryName:'')}
       {seq.recording?<b> · rec step {cursor+1}</b>:shownStep<0?null:' · step '+(shownStep+1)}</p>
-    <div className="pf-buttons pf-rec-row">
+    <div className={'pf-buttons pf-rec-row'+(device!=='sampler'?' grain':'')}>
       <button type="button" className={'pf-btn rec'+(seq.recording?' on':'')} aria-pressed={seq.recording}
         onClick={()=>set('seq','recording',!seq.recording)}><CircleDot size={15}/>Step rec</button>
       {seq.recording?<div className="pf-pair">
@@ -330,6 +330,10 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
           title="Leave this step empty and move on">▶</button></div>
       :<button type="button" className="pf-btn" onClick={()=>set('seq','overdub',!seq.overdub)}
         title="What a recorded key does to a step that already has notes">{seq.overdub?'Overdub':'Replace'}</button>}
+      {device!=='sampler'?<button type="button" className="pf-to-grain" aria-label="To Grain" disabled={recording||seq.recording||(!edit.events.length&&!track.notes.length)}
+      title={'To Grain: bounce Track '+(selectedTrack+1)+"'s loop and play it as Grain on a new Sampler track"+(track.notes.length?'':' (the pattern goes into the clip first)')}
+      onClick={()=>{if(!track.notes.length&&edit.events.length)transferNotes('commit_song');onCommand('to_grain',[selectedTrack]);}}>
+      <Sparkles size={18}/><span>Grain</span></button>:null}
     </div>
     <div className="pf-transfers" role="group" aria-label="Pattern and Song transfers">
       <span data-testid="pf-transfer-target">Track {selectedTrack+1} · <button type="button" className={'pf-clip-link'+(clipMode?' on':'')} aria-pressed={clipMode}
