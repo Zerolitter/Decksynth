@@ -76,6 +76,38 @@ class SamplerEngine:
         if note is not None: self.edit_sampler(track, sampler_id, 'root', note)
         return note
 
+    # Finding the pitch takes about 0.1 s of Python, more than the whole audio buffer: the worker uses these two,
+    # which find it in the background and apply the result from poll_sampler_tasks(), so the audio never waits.
+    def make_sampler_later(self, track, kit_id, pad, target, root=None, family='other'):
+        """make_sampler, with the root found in the background when it is None. Its message comes from the poll."""
+        def made(result):
+            self.select(result['track'])
+            spec = self.project.tracks[result['track']]['sampler']
+            return 'Track %d plays %s on the keys' % (result['track'] + 1, spec['name'])
+        if root is not None: return made(self.make_sampler(track, kit_id, pad, target, root, family))
+        kit = self.drum_target(track, kit_id, pad); track_index(target)
+        if kit['pads'][pad]['source'] is None: raise ValueError('This pad has no sample to play on the keys')
+        if self.sampler_tasks.busy(('make', track)): raise ValueError('Still finding the pitch of the last pad')
+        sample, rate = self.drums[track].samples[pad], self.rate
+
+        def commit(found):
+            if self.drums[track].samples[pad] is not sample: raise ValueError('the pad changed while its pitch was found')
+            return made(self.make_sampler(track, kit_id, pad, target, found or 60, family))
+        self.sampler_tasks.submit(('make', track), lambda: detect_root(sample, rate), commit, None, 'Not played on the keys: ')
+
+    def detect_sampler_root_later(self, track, sampler_id):
+        """detect_sampler_root in the background. Its message comes from the poll."""
+        track = track_index(track); spec, sample = self._playing_sample(track, sampler_id)
+        if self.sampler_tasks.busy(('detect', track)): raise ValueError('Still finding the pitch')
+        sha, rate = sample.sha256, self.rate
+
+        def commit(found):
+            if self._still(track, sampler_id, sha) is None: return None
+            if found is None: return 'No clear pitch in this sample; the root stays where it was'
+            self.edit_sampler(track, sampler_id, 'root', found)
+            return 'Root set to ' + note_name(found)
+        self.sampler_tasks.submit(('detect', track), lambda: detect_root(sample, rate), commit, None, 'Pitch not found: ')
+
     def edit_sampler(self, track, sampler_id, key, value):
         """One gesture: a parameter, or several at once with key 'patch' (a dict)."""
         spec = self.sampler_target(track, sampler_id)
@@ -542,3 +574,7 @@ class SamplerEngine:
             state['busy'] = [key[0] for key, future, *_ in self.sampler_tasks.jobs if key[1] == tr and not future.done()]
             out.append(state)
         return out
+
+
+def note_name(n):
+    return ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n % 12] + str(n // 12 - 1)

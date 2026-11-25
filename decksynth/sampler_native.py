@@ -51,7 +51,7 @@ def kernel():
             _attempted = True
             try:
                 from .sampler import Voice, Params
-                library = C.CDLL(str(build_library()))
+                library = C.PyDLL(str(build_library()))  # audio thread: keeps Python's lock (see fx._load)
                 library.sampler_voice_size.restype = C.c_size_t; library.sampler_params_size.restype = C.c_size_t
                 if library.sampler_voice_size() != C.sizeof(Voice) or library.sampler_params_size() != C.sizeof(Params):
                     raise RuntimeError('Native Sampler state ABI mismatch')

@@ -220,7 +220,11 @@ def _load(legacy=False):
                 from .filter_native import library_path
                 cached=library_path()
                 if cached.exists():source=cached
-            lib = ctypes.CDLL(str(source))
+            # PyDLL, not CDLL: the call keeps Python's lock. These kernels run many short calls a block on the
+            # audio thread; with CDLL every call let go of the lock, and a busy background thread (WAV load, chop,
+            # library scan) could then hold the audio up for up to the switch interval each time (blocks went from
+            # about 1 ms to over 100 ms). Long calls made from background threads use CDLL instead (drum_native).
+            lib = ctypes.PyDLL(str(source))
             lib.dsfx_create.restype = ctypes.c_void_p; lib.dsfx_create.argtypes = [ctypes.c_double]
             lib.dsfx_destroy.argtypes = [ctypes.c_void_p]
             lib.dsfx_reset.argtypes = [ctypes.c_void_p]

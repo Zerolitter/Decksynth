@@ -85,7 +85,10 @@ def native_kernel():
         if not _attempted:
             _attempted = True
             try:
-                library = C.CDLL(str(build_library()))
+                # The mixer runs on the audio thread and keeps Python's lock for its short call (see fx._load);
+                # pad shaping runs on a background thread and can take a while, so it lets go of the lock.
+                library = C.PyDLL(str(build_library()))
+                shape_library = C.CDLL(str(build_library()))
                 library.drum_voice_size.argtypes = []
                 library.drum_voice_size.restype = C.c_size_t
                 if library.drum_voice_size() != C.sizeof(NativeVoice):
@@ -94,7 +97,7 @@ def native_kernel():
                 kernel.argtypes = [C.POINTER(NativeVoice), C.c_int, C.POINTER(C.c_double),
                                    C.c_int, C.c_int, C.c_int]
                 kernel.restype = None
-                shape = library.drum_shape
+                shape = shape_library.drum_shape
                 shape.argtypes = [C.c_void_p, C.c_int64, C.POINTER(C.c_double)]
                 shape.restype = None
                 _library, _kernel, _shape = library, kernel, shape
