@@ -11,7 +11,7 @@ import { ValueBox, parseNote } from './ValueBox';
 import { type Env } from './EnvEditor';
 import { FilterEnvView, FilterView, SamplerEnvView } from './DragGraphs';
 import { DRUM_KINDS, drumKind, padLabel, type DrumKind } from '../drum-kinds';
-import { TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv, type GrainHarm } from '../types';
+import { MAX_TRACKS, TRACK_COLORS, noteName, type SamplerRecord, type SamplerRuntime, type SamplerSpec, type Track, type SamplerMode, type GrainScale, type GrainWindow, type GrainRoam, type GrainSync, type GrainRhythm, type GrainDiv, type GrainHarm } from '../types';
 import '../sampler.css';
 
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -116,7 +116,9 @@ const GENERATE: [string, string, (n: number, off: Set<number>) => number[]][] = 
     (they belong to the sample); everything else starts from the grain defaults. One tap is one undo step. */
 const GRAIN_BASE: Partial<SamplerSpec> = { g_size: .12, g_density: 14, g_spray: .08, g_scan: 0, g_spread: 0, g_scale: 'chromatic', g_reverse: 0, g_jitter: 0,
   g_size_rnd: 0, g_amp_rnd: 0, g_window: 'hann', g_roam: 'off', g_range: .4, g_speed: .25, g_sync: 'free', g_wander: 0, g_smooth: .5, g_jump: 0, g_hold: 0,
-  g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1, sustain: 1, filter: 'off', f_env: 0 };
+  g_rev: 0, g_chaos: 0, g_pulse: 0, g_rhythm: 'off', g_div: '1/8', g_swing: 0, g_prob: 1, sustain: 1,
+  // the whole filter back to the Sampler's defaults, so nothing of Chord Pulse's low-pass stays behind (checked 25 Nov)
+  filter: 'off', cutoff: 2000, resonance: .2, f_env: 0, f_attack: 0, f_hold: 0, f_decay: .3, f_sustain: 0, f_release: .3 };
 /** Reworked 25 Nov: each one sounds right on a held chord as it is. A grain lasts Size, a new one starts every 1/Density s, so
     Size × Density is how many overlap: 2 to 6 for pads (smooth), more only for textures. Spray, Timing and the variations stay low
     (Chord Cloud and Chord Pulse are tuned settings). */
@@ -587,8 +589,10 @@ function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
   onSend(target: number, mode: 'kit' | 'pad', options: Record<string, unknown>): void; onClose(): void;
 }) {
   const slices = spec.slices ?? [];
-  const others = tracks.map((_, i) => i).filter(i => i !== trackIndex);
-  const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'drum_rack') ?? others[0]);
+  // A new track at the end is a choice too, and the first pick when no Drum Rack is there (Sir, 25 Nov: not over another track).
+  const fresh = tracks.length < MAX_TRACKS ? tracks.length : -1;
+  const others = [...tracks.map((_, i) => i).filter(i => i !== trackIndex), ...(fresh >= 0 ? [fresh] : [])];
+  const [target, setTarget] = useState(others.find(i => tracks[i]?.device === 'drum_rack') ?? (fresh >= 0 ? fresh : others[0]));
   const kit = tracks[target]?.device === 'drum_rack' ? tracks[target]?.drum_rack : undefined;
   const [what, setWhat] = useState<'kit' | 'pad'>('kit');
   const [bank, setBank] = useState(Math.max(0, Math.floor(Math.max(0, selected) / 16)));
@@ -600,14 +604,14 @@ function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
   }, [onClose]);
   const mode = what === 'pad' && kit && selected >= 0 ? 'pad' : 'kit';
   const first = bank * 16 + 1, last = Math.min(slices.length, bank * 16 + 16);
-  const describe = (i: number) => { const t = tracks[i]; if (!t) return '';
+  const describe = (i: number) => { const t = tracks[i]; if (!t) return i === fresh ? 'A new track' : '';
     return t.device === 'drum_rack' ? 'Drum Rack' + (t.drum_rack?.name ? ' · ' + t.drum_rack.name : '') : t.device === 'sampler' ? 'Sampler · ' + (t.sampler?.source ? t.sampler.name : 'empty') : 'Synth · ' + t.preset; };
   return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="smp-sheet" role="dialog" aria-label="Send slices to pads">
       <header><Grid3x3 size={20} /><h2>Send slices of <em>{spec.name}</em> to pads</h2><button type="button" className="smp-done" onClick={onClose}>Done</button></header>
       <div className="smp-targets" role="radiogroup" aria-label="Track">
         {others.map(i => <button key={i} type="button" role="radio" aria-checked={target === i} onClick={() => setTarget(i)}>
-          <b>Track {i + 1}</b><span>{describe(i)}</span></button>)}
+          <b>Track {i + 1}{i === fresh ? ' · new' : ''}</b><span>{describe(i)}</span></button>)}
       </div>
       <div className="smp-seg" role="radiogroup" aria-label="What to send">
         <button type="button" role="radio" aria-checked={mode === 'kit'} onClick={() => setWhat('kit')}>New kit of 16 slices</button>
@@ -620,7 +624,7 @@ function SendSheet({ spec, selected, trackIndex, tracks, onSend, onClose }: {
           {Array.from({ length: banks }, (_, b) => <button key={b} type="button" role="radio" aria-checked={bank === b} onClick={() => setBank(b)}>
             Slices {b * 16 + 1}–{Math.min(slices.length, b * 16 + 16)}</button>)}
         </div> : null}
-        <p>{tracks[target]?.device === 'drum_rack' ? 'Its kit is replaced' : 'Track ' + (target + 1) + ' becomes a Drum Rack'}: slices {first}–{last} go on pads 1–{last - first + 1}, as WAV files of their own. Undo brings the track back.</p>
+        <p>{tracks[target]?.device === 'drum_rack' ? 'Its kit is replaced' : target === fresh ? 'A new track ' + (target + 1) + ' is made as a Drum Rack' : 'Track ' + (target + 1) + ' becomes a Drum Rack'}: slices {first}–{last} go on pads 1–{last - first + 1}, as WAV files of their own. Undo brings the track back.</p>
       </> : <div className="smp-padgrid" role="radiogroup" aria-label="Pad">
         {[12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3].map(i => <button key={i} type="button" role="radio" aria-checked={pad === i} onClick={() => setPad(i)}>
           <b>{String(i + 1).padStart(2, '0')}</b><span>{kit?.pads[i]?.source ? kit.pads[i].name : 'empty'}</span></button>)}
@@ -1246,7 +1250,9 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
   onMake(target: number, root: number | null): void; onClose(): void;
 }) {
   // The pad's own track is a choice too: when one sound is all you need, the kit makes way for it (Undo brings the kit back).
-  const others = tracks.map((_, i) => i);
+  // A new track at the end is offered too: with one track, the Sampler goes there instead of replacing the kit (Sir, 25 Nov).
+  const fresh = tracks.length < MAX_TRACKS ? tracks.length : -1;
+  const others = [...tracks.map((_, i) => i), ...(fresh >= 0 ? [fresh] : [])];
   const [target, setTarget] = useState(others.find(i => i !== sourceTrack && tracks[i]?.device === 'sampler') ?? others.find(i => i !== sourceTrack) ?? sourceTrack);
   const [root, setRoot] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -1254,7 +1260,7 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [onClose]);
-  const what = (i: number) => { const t = tracks[i]; if (!t) return '';
+  const what = (i: number) => { const t = tracks[i]; if (!t) return i === fresh ? 'A new track' : '';
     return t.device === 'drum_rack' ? 'Drum Rack' + (t.drum_rack?.name ? ' · ' + t.drum_rack.name : '') : t.device === 'sampler' ? 'Sampler · ' + (t.sampler?.source ? t.sampler.name : 'empty') : 'Synth · ' + t.preset; };
   return <div className="smp-sheet-screen" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div ref={ref} className="smp-sheet" role="dialog" aria-label={'Play ' + padName + ' on the keys'} style={{ ['--pad-accent' as string]: DRUM_KINDS[family].color }}>
@@ -1262,7 +1268,7 @@ export function PlayOnKeysSheet({ padName, family, sourceTrack, tracks, onMake, 
       <p>Which track should play it? That track becomes a Sampler.</p>
       <div className="smp-targets" role="radiogroup" aria-label="Track">
         {others.map(i => <button key={i} type="button" role="radio" aria-checked={target === i} onClick={() => setTarget(i)}>
-          <b>Track {i + 1}{i === sourceTrack ? ' · this one' : ''}</b><span>{i === sourceTrack ? 'Only this sound: the kit makes way' : what(i)}</span></button>)}
+          <b>Track {i + 1}{i === sourceTrack ? ' · this one' : i === fresh ? ' · new' : ''}</b><span>{i === sourceTrack ? 'Only this sound: the kit makes way' : what(i)}</span></button>)}
       </div>
       <div className="smp-root" role="group" aria-label="Root note">
         <span>Root note</span>

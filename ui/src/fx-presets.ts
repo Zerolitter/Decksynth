@@ -204,9 +204,9 @@ export const FX_PRESETS: Record<FxModuleId, FxPreset[]> = {
     P('Room to Hall', { size: .35, decay: 2.5, predelay: 10, damp: .5, mod: .2, mix: .3, freeze: 0 }),
     P('Big Hall', { size: .7, decay: 6, predelay: 25, damp: .4, mod: .3, mix: .4, freeze: 0 }),
     P('Cathedral', { size: .9, decay: 14, predelay: 45, damp: .35, mod: .25, mix: .45, freeze: 0 }),
-    P('Infinite', { size: 1, decay: 60, predelay: 30, damp: .2, mod: .5, mix: .5, freeze: 0 }),
+    P('Infinite', { size: 1, decay: 20, predelay: 30, damp: .2, mod: .5, mix: .5, freeze: 0 }),
     P('Frozen Pad', { size: .85, decay: 20, predelay: 20, damp: .3, mod: .3, mix: .6, freeze: 1 }),
-    P('Dark Void', { size: 1, decay: 30, predelay: 80, damp: .85, mod: .6, mix: .55, freeze: 0 }),
+    P('Dark Void', { size: 1, decay: 18, predelay: 80, damp: .85, mod: .6, mix: .55, freeze: 0 }),
   ],
   gate: [
     P('Eighths', { length: 5, division: 2, steps: 0x5555, smooth: .3, depth: 1, pump: 0 }),

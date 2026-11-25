@@ -26,6 +26,9 @@ UNITY = .35                      # layer_level 1 plays the sample at this fracti
 ASSETS = Path(__file__).with_name('assets')
 FACTORY = 'factory:'
 MAX_SECONDS = 20                 # a layer sample longer than this is cut (it is a layer, not a backing track)
+MAX_ATTACKS = 4                  # Attack one-shots sounding at once; a newer note fades the oldest out (25 Nov: a long sample
+                                 # under a held arp stacked ~50 one-shots, each a Python loop, and the audio froze)
+MAX_LAYERS = 8                   # all layer voices of one synth at once, the same way
 
 
 def valid_file(value):
@@ -174,6 +177,17 @@ def spawn(synth, p):
             g = math.tan(math.pi*fc/sr); k = 2.-1.9*min(.95, max(0., p.get('vcf_reso', .2)))
             a1 = 1./(1.+g*(g+k)); entry['coef'] = (a1, g*a1, g*g*a1, k)
         lay.append(entry)
+    _limit(lay)
+
+
+def _limit(lay):
+    """Fade out the oldest layer voices beyond MAX_ATTACKS one-shots / MAX_LAYERS in all (a 6 ms fade, no click).
+    The layer is mixed in Python, so its cost grows with every voice: this keeps it bounded whatever plays."""
+    live = [e for e in lay if not e['dying']]
+    attacks = [e for e in live if e['mode'] != BODY]
+    for e in attacks[:max(0, len(attacks) - MAX_ATTACKS)]: e['dying'] = 1
+    live = [e for e in live if not e['dying']]
+    for e in live[:max(0, len(live) - MAX_LAYERS)]: e['dying'] = 1
 
 
 def mix(synth, out, frames, p):
@@ -190,6 +204,8 @@ def mix(synth, out, frames, p):
             if alive: target = v['level']
             else: target = 0.; e['dying'] = e['dying'] or 1
             level = e['level']; dl = (target - level)/frames
+        elif e['dying']:   # an Attack one-shot pushed out by newer notes: fade it over 6 ms
+            level = e['level']; dl = -1./fade
         else:
             level = 1.; dl = 0.
         last = n - 1; done = False
@@ -204,13 +220,14 @@ def mix(synth, out, frames, p):
                 a1, a2, a3, k = coef
                 v3 = s - s2; v1 = a1*s1 + a2*v3; v2 = s2 + a2*s1 + a3*v3
                 s1 = 2*v1 - s1; s2 = 2*v2 - s2; s = v2
-            if body: level += dl
+            if dl:
+                level += dl
+                if level <= 0. and not body: level = 0.; done = True; break
             out[i] += s*g*level
             pos += step
         e['pos'] = pos; e['s1'] = s1; e['s2'] = s2
-        if body:
-            e['level'] = level
-            if not alive and level <= 1e-4: done = True
+        e['level'] = level
+        if body and not alive and level <= 1e-4: done = True
         if not done and not body and pos >= n - 1: done = True
         if not done: keep.append(e)
     synth.layer = keep

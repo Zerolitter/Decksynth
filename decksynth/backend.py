@@ -28,7 +28,7 @@ class AudioSpec(C.Structure):
     _fields_=[('freq',C.c_int),('format',C.c_ushort),('channels',C.c_ubyte),('silence',C.c_ubyte),('samples',C.c_ushort),('padding',C.c_ushort),('size',C.c_uint),('callback',C.c_void_p),('userdata',C.c_void_p)]
 
 class Audio:
-    def __init__(self, preferred='Deck speakers'):
+    def __init__(self, preferred='System default'):   # 25 Nov, Sir: follow the system's output by default
         self.lib=C.CDLL('libSDL2-2.0.so.0'); s=self.lib
         s.SDL_Init.argtypes=[C.c_uint]; s.SDL_Init.restype=C.c_int
         s.SDL_GetError.restype=C.c_char_p
@@ -454,6 +454,7 @@ def worker(commands,updates):
                     elif cmd=='panic':engine.panic(); audio and audio.clear()
                     elif cmd=='record':engine.record_button()
                     elif cmd=='record_options':engine.set_record_options(*args)
+                    elif cmd=='preset_options':engine.set_preset_options(*args)
                     elif cmd=='audio_latency':latency.set_mode(args[0] if isinstance(args,(list,tuple)) and args else args,time.monotonic())
                     elif cmd=='undo':engine.undo_any()
                     elif cmd=='redo':engine.redo()
@@ -721,7 +722,10 @@ def worker(commands,updates):
                 if started and audio.queued()==0:
                     underruns+=1; latency.underrun(time.monotonic())
                 else:latency.tick(time.monotonic())
-                while audio.queued()<latency.target:
+                # Rendering stops topping up after 20 ms, so an engine that can't keep up (a block slower than real time) still
+                # gets back to its commands: Panic and Stop are read between blocks, never stuck behind a queue that never fills.
+                fill_until=time.perf_counter()+.02
+                while audio.queued()<latency.target and time.perf_counter()<fill_until:
                     # Keys are read before every block, so a key never waits for the whole queue to be topped up.
                     for rejection in midi.poll(engine):send(dict(error=rejection))
                     t0=time.perf_counter(); block=engine.render_stereo(256)

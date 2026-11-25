@@ -99,6 +99,13 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   const add=(id:FxModuleId)=>{onChange(addModule(chain,id));setPicking(false);};
   useEffect(()=>{if(!picking&&!presetsFor)return;const k=(e:KeyboardEvent)=>{if(e.key==='Escape'){setPicking(false);setPresetsFor(null);}};
     window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[picking,presetsFor]);
+  // A tap anywhere outside the open sheet closes it (UI-RULES 14; Sir, 25 Nov: the presets sheet stayed open). The sheet fills
+  // the window below the mod band, so this listens on the whole document, not on its backdrop. Its own opener toggles as before.
+  useEffect(()=>{if(!picking&&!presetsFor)return;
+    const down=(e:PointerEvent)=>{const t=e.target as Element|null;
+      if(!t||t.closest?.('.fx-picker-sheet .fx-picker')||t.closest?.('[data-fx-opener]'))return;
+      setPicking(false);setPresetsFor(null);};
+    document.addEventListener('pointerdown',down,true);return()=>document.removeEventListener('pointerdown',down,true);},[picking,presetsFor]);
   // Removing an effect also drops the macro and mod-pad links that pointed at it.
   const remove=(id:FxModuleId)=>{
     const drop=(t:FxTarget[])=>t.filter(x=>x.module!==id);
@@ -135,7 +142,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         power={{on:!state.bypass,label:def.name,onToggle:()=>setModule(state.id,m=>({...m,bypass:!m.bypass}))}}
         summary={state.bypass?'Off':undefined}
         actions={<span className="fx-order">
-            <button type="button" aria-label={'Presets for '+def.name} title="Presets" aria-expanded={presetsFor===state.id} onClick={()=>setPresetsFor(presetsFor===state.id?null:state.id)}><ListMusic size={14}/></button>
+            <button type="button" data-fx-opener aria-label={'Presets for '+def.name} title="Presets" aria-expanded={presetsFor===state.id} onClick={()=>setPresetsFor(presetsFor===state.id?null:state.id)}><ListMusic size={14}/></button>
             <button type="button" aria-label={'Reset '+def.name} title="Reset this effect" onClick={()=>reset(state.id)}><RotateCcw size={14}/></button>
             <button type="button" className="fx-remove" aria-label={'Remove '+def.name}
               onClick={()=>remove(state.id)}><X size={15}/></button>
@@ -187,7 +194,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
       <div className="fx-picker-head"><strong>Add an effect</strong><span>This track has none yet. Effects run left to right; tap one to add it.</span></div>
       <FxPickerGrid chain={chain} onAdd={add}/></div>
     :inactive.length?<div role="listitem" className="rack-card fx-add-card" style={{gridColumn:'span '+grid.add}}>
-      <button type="button" className="fx-add-open" aria-label="Add effect" aria-expanded={picking} onClick={()=>setPicking(v=>!v)}>
+      <button type="button" className="fx-add-open" data-fx-opener aria-label="Add effect" aria-expanded={picking} onClick={()=>setPicking(v=>!v)}>
         <Plus size={22}/><strong>Add effect</strong>
         {active.length?null:<span>This track has no effects yet.</span>}
       </button>

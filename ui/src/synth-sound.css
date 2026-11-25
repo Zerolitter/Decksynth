@@ -37,6 +37,8 @@
     linear-gradient(180deg,#262a2f,#1b1e22);box-shadow:inset 0 1px 0 #ffffff14,inset 0 -1px 0 #00000080,0 1px 2px #0007}
 .harness-shell .ss-tools{display:grid;grid-template-columns:repeat(5,minmax(44px,1fr));gap:3px}
 /* Strike view: its lanes on the left, its six knobs beside them (graph and controls together, rule 6) */
+.harness-shell .ss-graph-label .ss-noise-switch{align-self:center;height:24px;min-height:24px;text-transform:none;letter-spacing:0;pointer-events:auto}
+.harness-shell .ss-graph-label .ss-noise-switch::after{inset:-10px -4px}
 .harness-shell .ss-strike{position:absolute;inset:0;display:flex;gap:6px;padding:0 6px 4px 4px}
 .harness-shell .ss-strike-graph{flex:1 1 auto;min-width:0;position:relative}
 .harness-shell .ss-strike-graph svg{position:absolute;inset:0}

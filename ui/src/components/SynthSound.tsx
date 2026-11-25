@@ -146,7 +146,10 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
       <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':view==='layer'?'Sample layer':'Filter envelope'}>
         <div className="ss-graph-label" style={{color:view==='wave'?accent:view==='amp'?TAGS.envelope:view==='strike'?TAGS.strike:view==='layer'?TAGS.layer:TAGS.filter}}>
           {view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':view==='layer'?'Sample layer':'Filter envelope'}
-          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':view==='strike'?'the first second of a note':view==='layer'?'a recording under the partials':'drag the points · hold still for fine'}</span></div>
+          <span>{view==='wave'?(live?.partials?'live · ':'preview · ')+'three cycles of the partials':view==='strike'?'the first second of a note':view==='layer'?'a recording under the partials':'drag the points · hold still for fine'}</span>
+          {view==='strike'?<button type="button" role="switch" className="ss-power ss-noise-switch" aria-checked={!!vp('noise_on')} style={{['--tag' as string]:TAGS.character}}
+            aria-label={'Turn Strike noise '+(vp('noise_on')?'off':'on')} title="The noise burst at the start of each note"
+            onClick={()=>set('noise_on',vp('noise_on')?0:1)}><Power size={13}/>Noise {vp('noise_on')?'On':'Off'}</button>:null}</div>
         <div ref={gref} className="ss-graph-plot">
           {view==='wave'?<svg width={w} height={h} aria-hidden="true">
             <line x1={0} x2={w} y1={wave.mid} y2={wave.mid} className="ss-zero"/>
@@ -280,7 +283,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
 function StrikeGraph({p,colors}:{p:Params;colors:Record<string,string>}){
   const [ref,{w,h}]=useSize<HTMLDivElement>();
   const v=(k:VoiceKey)=>voiceParam(p,k);
-  const pe=v('pitch_env'),pd=Math.max(.005,v('pitch_decay')),nz=v('noise'),nd=Math.max(.002,v('noise_decay')),damp=v('damp');
+  const pe=v('pitch_env'),pd=Math.max(.005,v('pitch_decay')),nz=v('noise_on')?v('noise'):0,nd=Math.max(.002,v('noise_decay')),damp=v('damp');
   const tau=(.04+3*(1-damp)**2),lo=1.6-damp*.6;
   const lanes:[string,string,(t:number)=>number,boolean][]=[
     ['Pitch',colors.movement,t=>.5+pe*Math.exp(-t/pd)/48,true],

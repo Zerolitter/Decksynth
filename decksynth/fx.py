@@ -54,7 +54,7 @@ PARAMS['tape'] = [('wow', 0, 1, .3), ('flutter', 0, 1, .2), ('drive', 0, 1, .3),
 PARAMS['smear'] = [('size', 0, 1, .5), ('blur', 0, 1, .6), ('motion', 0, 1, .3), ('tone', 0, 1, .7), ('mix', 0, 1, .5)]
 PARAMS['shimmer'] = [('decay', 1, 20, 6), ('shimmer', 0, 1, .5), ('tone', 0, 1, .6), ('width', 0, 1, .8), ('mix', 0, 1, .4),
                      ('interval', 0, 3, 0)]
-PARAMS['space'] = [('size', 0, 1, .7), ('decay', 1, 60, 6), ('predelay', 0, 200, 20), ('damp', 0, 1, .4), ('mod', 0, 1, .3),
+PARAMS['space'] = [('size', 0, 1, .7), ('decay', 1, 20, 6), ('predelay', 0, 200, 20), ('damp', 0, 1, .4), ('mod', 0, 1, .3),
                    ('mix', 0, 1, .4), ('freeze', 0, 1, 0)]
 AMBIENT = ('tape', 'smear', 'shimmer', 'space')
 STEPPED = {('tape', 'character'), ('shimmer', 'interval'), ('space', 'freeze')}  # whole numbers, never glide
@@ -499,7 +499,7 @@ PARAM_INDEX = {(m, key): (j, lo, hi, init) for m, specs in PARAMS.items() for j,
 
 
 # Effects sleep after this many seconds of silence in and out: the longest echo or grain buffer is 3 s.
-# Long reverb tails (Space decays up to 60 s, Shimmer 20 s) keep the output above REST_FLOOR, so they are never
+# Long reverb tails (Space and Shimmer decay up to 20 s; Space was 60 s until 25 Nov, capped for Sir: too long and heavy) keep the output above REST_FLOOR, so they are never
 # cut: the count only starts once the tail itself is below the floor. A frozen Space never sleeps (see configure).
 REST_SECONDS = 4.
 REST_FLOOR = 1e-6

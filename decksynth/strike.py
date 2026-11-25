@@ -11,7 +11,10 @@ and damping and noise run after the voice in dsfx_strike, with strike_py as the 
 import ctypes as C
 import math
 
-STRIKE_DEFAULTS=dict(damp=0.,noise=0.,noise_decay=.03,noise_tone=.6,pitch_env=0.,pitch_decay=.06)
+STRIKE_DEFAULTS=dict(damp=0.,noise=0.,noise_on=1,noise_decay=.03,noise_tone=.6,pitch_env=0.,pitch_decay=.06)
+# noise_on (25 Nov, Sir): the Strike view's Noise switch. Off silences the burst and keeps its knobs; a missing key is On, so
+# old songs sound the same. Presets load with it Off unless Settings › "Load presets with Strike noise" is on (Engine.apply_preset).
+STRIKE_CHOICES=dict(noise_on=(0,1))
 STRIKE_RANGES=dict(damp=(0,1),noise=(0,1),noise_decay=(.002,1),noise_tone=(0,1),pitch_env=(-24,24),pitch_decay=(.005,1))
 SLICE=32
 STATE=9
@@ -35,8 +38,9 @@ def kernel():
         except AttributeError:_kernel=None
     return _kernel
 
-def active(p):return p.get('damp',0.)>0 or p.get('noise',0.)>0 or bool(p.get('pitch_env',0.))
-def strikes(p):return p.get('damp',0.)>0 or p.get('noise',0.)>0
+def noise(p):return p.get('noise',0.) if p.get('noise_on',1) else 0.
+def active(p):return p.get('damp',0.)>0 or noise(p)>0 or bool(p.get('pitch_env',0.))
+def strikes(p):return p.get('damp',0.)>0 or noise(p)>0
 
 def slices(p,age,frames,rate):
     """(offset, frames, pitch factor) for one block of a voice that is `age` samples old. One slice once the
@@ -67,7 +71,7 @@ def settings(p,note,gain,rate,args=None):
     # 0: off. A touch: about 3 s for the top to fade; full: about 40 ms. Higher notes fade sooner, as on a piano.
     e.tau=(.04+3.*(1-damp)**2)*(261.63/f0)**.35*rate if damp>0 else 0.
     e.lo=1.6-damp*.6;e.hi=7.
-    e.noise=p.get('noise',0.)*2.4;e.ndecay=max(.002,p.get('noise_decay',.03))*rate
+    e.noise=noise(p)*2.4;e.ndecay=max(.002,p.get('noise_decay',.03))*rate
     e.nfc=300*40**p.get('noise_tone',.6)*2**((note-60)/24);e.gain=gain
     return e
 

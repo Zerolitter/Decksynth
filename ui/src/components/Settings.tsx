@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { CircleDot, Eraser, Gauge, Save, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink } from 'lucide-react';
+import { CircleDot, Eraser, Gauge, Save, Headphones, LayoutGrid, Maximize, Minus, Power, Radio, RotateCcw, Sparkles, Trash2, Unlink, Zap } from 'lucide-react';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: 4 clicks before a take from a stopped transport. recWait: REC waits for the first note (UI keys, pads or MIDI). */
 /** knobBubble: the value that pops up over a knob while it turns (Sir, 16 Nov: can be turned off; the value box stays). */
+/** presetNoise: synth presets load with their Strike noise burst on (Sir, 25 Nov: off by default; the Strike view's Noise switch turns it on per sound). */
 /** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 16 ms (grows after a dropout and shrinks back), safe 21 ms. */
 export type Latency = 'low'|'auto'|'safe';
-export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency;editSound:boolean};
-const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto',editSound:true};
+export type AppSettings = {noAutoFold:boolean;countIn:boolean;recWait:boolean;knobBubble:boolean;latency:Latency;editSound:boolean;presetNoise:boolean};
+const DEFAULTS:AppSettings={noAutoFold:true,countIn:false,recWait:false,knobBubble:true,latency:'auto',editSound:true,presetNoise:false};
 const KEY='decksynth.settings';
 export function readSettings():AppSettings{
   try{return {...DEFAULTS,...JSON.parse(localStorage.getItem(KEY)||'{}')};}catch{return {...DEFAULTS};}
@@ -55,6 +56,13 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
           <input type="checkbox" role="switch" aria-label="Hear notes while editing" checked={settings.editSound}
             onChange={e=>onSettings({...settings,editSound:e.target.checked})}/>
         </label>
+        <h3><Zap size={15}/> Sound</h3>
+        <label className="setting-switch">
+          <span><strong>Load presets with Strike noise</strong>
+            <small>On: a synth preset loads with its noise burst at the start of each note. Off: it loads without it; the Noise switch on the Strike view turns it on.</small></span>
+          <input type="checkbox" role="switch" aria-label="Load presets with Strike noise" checked={settings.presetNoise}
+            onChange={e=>onSettings({...settings,presetNoise:e.target.checked})}/>
+        </label>
         {win?<><h3><Maximize size={15}/> Window</h3>
         <div className="setting-seg setting-window" role="group" aria-label="Window">
           <button type="button" onClick={()=>win('fullscreen')}><Maximize size={16}/> Full screen</button>
@@ -72,7 +80,7 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
           </select></label>
         <label className="setting-field"><span><Headphones size={16}/> AUDIO OUTPUT</span>
           <select value={audioOutput} onChange={e=>onAudio(e.target.value)}>
-            {Array.from(new Set(['Deck speakers','System default',...audioOutputs])).map(device=><option key={device} value={device}>{device}</option>)}
+            {Array.from(new Set(['System default','Deck speakers',...audioOutputs])).map(device=><option key={device} value={device}>{device}</option>)}
           </select></label>
         <button className="panic-action" onClick={onPanic}>PANIC · RELEASE ALL NOTES</button>
       </div>

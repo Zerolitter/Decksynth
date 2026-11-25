@@ -28,7 +28,7 @@ class CleanupTests(unittest.TestCase):
 
     def test_sound_returns_to_preset_start_sound(self):
         from decksynth.library import preset
-        t = self.e.project.tracks[0]; start = preset(t['preset'])['instrument']  # the finished library sound
+        t = self.e.project.tracks[0]; start = self.e.preset_sound(preset(t['preset'])['instrument'])  # the finished library sound, Strike noise as Settings say
         t['instrument']['harmonics'][3] = 1.; t['instrument']['attack'] = 2.; t['instrument']['curve'] = .8
         self.e.cleanup('sound')
         self.assertEqual(t['instrument'], start)
@@ -57,7 +57,7 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(self.e.project.tracks[0]['notes'], [])
         from decksynth.library import preset
         start = self.e.project.tracks[0]
-        self.assertEqual(start['instrument'], preset(start['preset'])['instrument'])
+        self.assertEqual(start['instrument'], self.e.preset_sound(preset(start['preset'])['instrument']))
         self.assertEqual(start['fx']['macros'][1]['value'], 0)
         self.e.undo()
         self.assertEqual(self.e.project.bpm, 97)

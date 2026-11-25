@@ -72,7 +72,7 @@ TONE_DEFAULTS=dict(env_curve=0.,air=0.,drift=0.,vel_curve=0.,gain=1.)
 VOICE_RANGES.update(env_curve=(0,1),air=(0,1),drift=(0,1),vel_curve=(0,1),gain=(.25,8))
 EXPRESSION_DEFAULTS.update(TONE_DEFAULTS)
 # Strike card (24 Nov): damping, attack noise and a pitch envelope (strike.py). 0 = the old sound.
-EXPRESSION_DEFAULTS.update(strike.STRIKE_DEFAULTS); VOICE_RANGES.update(strike.STRIKE_RANGES)
+EXPRESSION_DEFAULTS.update(strike.STRIKE_DEFAULTS); VOICE_RANGES.update(strike.STRIKE_RANGES); VOICE_CHOICES.update(strike.STRIKE_CHOICES)
 # Sample layer (25 Nov): a recording under the partials (sample_layer.py). layer_on 0 = the old sound; the file itself is the text key layer_file.
 EXPRESSION_DEFAULTS.update(sample_layer.LAYER_DEFAULTS); VOICE_RANGES.update(sample_layer.LAYER_RANGES); VOICE_CHOICES.update(sample_layer.LAYER_CHOICES)
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
@@ -850,18 +850,27 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
     def apply_preset(self,name):
         """Load a library preset (sound and its FX chain) on the selected track, with undo."""
         from .library import preset
-        p=preset(name); ins=p['instrument'] if p else instrument(name)
+        p=preset(name); ins=self.preset_sound(p['instrument'] if p else instrument(name))
         self.snapshot(); t=self.project.tracks[self.selected]; t['preset']=name; t['instrument']=ins
         if p:t['fx']=validate_fx(p['fx'])
         self.synths[self.selected].panic(); self.synths[self.selected].configure(ins)
         if p:self.fx[self.selected].configure(t['fx'])
+    preset_noise=False   # Settings › "Load presets with Strike noise" (25 Nov, Sir: the burst was too present; off by default)
+    def set_preset_options(self,noise):
+        if type(noise) is not bool:raise ValueError('Preset noise is on or off')
+        self.preset_noise=noise
+    def preset_sound(self,ins):
+        """A preset's sound as it loads: with the Strike noise switched off unless Settings asks for it (the knobs stay, so
+        the Noise switch on the Strike view brings it back as the preset made it)."""
+        if not self.preset_noise and ins.get('noise',0.)>0:ins=dict(ins,noise_on=0)
+        return ins
     def factory_sounds(self):
         """Give the four starting tracks their finished library presets (sound and FX rack). A new session
         then starts with the full sound; Project() itself stays plain, so saved files and tests are stable."""
         from .library import preset
         for i,t in enumerate(self.project.tracks):
             p=preset(t['preset'])
-            if p:t['instrument']=p['instrument']; t['fx']=p['fx']
+            if p:t['instrument']=self.preset_sound(p['instrument']); t['fx']=p['fx']
         self.configure()
         for i,t in enumerate(self.project.tracks):
             if 'fx' in t:self.fx[i].configure(t['fx'])
@@ -888,7 +897,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         if action=='sound':
             from .library import preset
             p=preset(t['preset'])
-            try:ins=p['instrument'] if p else instrument(t['preset'])
+            try:ins=self.preset_sound(p['instrument'] if p else instrument(t['preset']))
             except ValueError:ins=instrument('Warm Keys')
             t['instrument']=copy.deepcopy(ins); self.synths[self.selected].panic(); self.synths[self.selected].configure(t['instrument'])
             return

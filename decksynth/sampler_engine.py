@@ -51,10 +51,23 @@ class SamplerEngine:
         if tr == self.selected:
             self.perform_held.reset(); self.live_note_map.clear(); self.down.clear()
 
+    def _target_or_new(self, target):
+        """A track to put a Sampler or a slice kit on. target == the number of tracks means a new track at the end (25 Nov, Sir:
+        with one track, Make Sampler and Slices to pads go to a new track 2 instead of replacing the only one)."""
+        tr = track_index(target)
+        if tr > len(self.project.tracks): raise ValueError('Choose track 1–%d' % len(self.project.tracks))
+        return tr
+
+    def _grow_to(self, tr):
+        """Inside the caller's undo step: make the new track `tr` if it isn't there yet."""
+        if tr < len(self.project.tracks): return
+        self._append_track(); self.sync_tracks()
+        t = self.project.tracks[tr]; self.synths[tr].configure(t['instrument']); self.fx[tr].configure(t.get('fx'))
+
     def make_sampler(self, track, kit_id, pad, target, root=None, family='other'):
         """Play a Drum Rack pad on the keys: its sample (and shaping) becomes a Sampler on `target`.
         root None: detect it from the sample (C4 when it has no clear pitch)."""
-        kit = self.drum_target(track, kit_id, pad); tr = track_index(target)
+        kit = self.drum_target(track, kit_id, pad); tr = self._target_or_new(target)
         p = kit['pads'][pad]
         if p['source'] is None: raise ValueError('This pad has no sample to play on the keys')
         if root is None: root = detect_root(self.drums[track].samples[pad], self.rate) or 60
@@ -63,7 +76,7 @@ class SamplerEngine:
         name = p['name'] if not kit.get('name') else (p['name'] + ' - ' + kit['name'])[:80]
         spec = new_sampler(copy.deepcopy(p['source']), name, family, copy.deepcopy(p.get('shape')), root, p['tune'])
         raw = self.drums[track].raw[pad]
-        self.snapshot(); self._clear_track_notes(tr)
+        self.snapshot(); self._grow_to(tr); self._clear_track_notes(tr)
         t = self.project.tracks[tr]; t['device'] = 'sampler'; t['sampler'] = spec
         self.drum_epoch += 1
         self.drums[tr].configure(None); self.samplers[tr].configure(spec)
@@ -86,7 +99,7 @@ class SamplerEngine:
             spec = self.project.tracks[result['track']]['sampler']
             return 'Track %d plays %s on the keys' % (result['track'] + 1, spec['name'])
         if root is not None: return made(self.make_sampler(track, kit_id, pad, target, root, family))
-        kit = self.drum_target(track, kit_id, pad); track_index(target)
+        kit = self.drum_target(track, kit_id, pad); self._target_or_new(target)
         if kit['pads'][pad]['source'] is None: raise ValueError('This pad has no sample to play on the keys')
         if self.sampler_tasks.busy(('make', track)): raise ValueError('Still finding the pitch of the last pad')
         sample, rate = self.drums[track].samples[pad], self.rate
@@ -292,9 +305,10 @@ class SamplerEngine:
     def slices_to_pads(self, track, sampler_id, target, mode, options=None):
         """'kit': slices 1-16 (or the bank's 16) become a new Drum Rack kit on `target`.
         'pad': one slice replaces one pad of the Drum Rack on `target`. WAVs are written in the background."""
-        track = track_index(track); target = track_index(target)
+        track = track_index(track); target = self._target_or_new(target)
         spec, sample = self._playing_sample(track, sampler_id)
         if target == track: raise ValueError('Send the slices to another track')
+        if mode != 'kit' and target == len(self.project.tracks): raise ValueError('Choose a Drum Rack track for one slice')
         opts = options if isinstance(options, dict) else {}
         slices = spec['slices']
         if not slices: raise ValueError('Chop the sample first')
@@ -358,7 +372,8 @@ class SamplerEngine:
     def install_slice_kit(self, target, kit, samples):
         """Make `target` a Drum Rack holding `kit` in one undo step."""
         clean = validate_kit(kit)
-        self.snapshot(); self._clear_track_notes(target)
+        if target > len(self.project.tracks): raise ValueError('That track is gone')
+        self.snapshot(); self._grow_to(target); self._clear_track_notes(target)
         t = self.project.tracks[target]; t['device'] = 'drum_rack'; t['drum_rack'] = clean
         self.drum_epoch += 1
         self.samplers[target].configure(None); self.drums[target].configure(clean)

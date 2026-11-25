@@ -229,7 +229,7 @@ export const FX_MODULES:Record<FxModuleId,FxModuleDef>={
     {key:'tone',label:'Tone',min:0,max:1,init:.6},{...width,init:.8},{...mix,init:.4},
     {key:'interval',label:'Interval',min:0,max:3,init:0,precision:0,options:['+12','+7','+19','+24'],modulatable:false}]},
   space:{name:'Space',color:'var(--fx-space)',blurb:'A huge modulated hall; Freeze holds the tail.',params:[
-    {key:'size',label:'Size',min:0,max:1,init:.7},{key:'decay',label:'Decay',min:1,max:60,init:6,suffix:' s',precision:1},
+    {key:'size',label:'Size',min:0,max:1,init:.7},{key:'decay',label:'Decay',min:1,max:20,init:6,suffix:' s',precision:1},
     {key:'predelay',label:'Pre-delay',min:0,max:200,init:20,suffix:' ms',precision:1},{key:'damp',label:'Damp',min:0,max:1,init:.4},
     {key:'mod',label:'Mod',min:0,max:1,init:.3},{...mix,init:.4},
     {key:'freeze',label:'Freeze',min:0,max:1,init:0,precision:0,options:['Off','Freeze'],modulatable:false}]},

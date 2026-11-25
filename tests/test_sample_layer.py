@@ -75,6 +75,26 @@ class SampleLayerTest(unittest.TestCase):
         out = play(q, secs=.4, release_at=.0)    # note off straight away
         self.assertGreater(max(abs(v) for v in out[:2400]), .05)
 
+    def test_a_long_sample_under_a_fast_arp_stays_bounded(self):
+        # 25 Nov: Body -> Attack with a long sample while an arp ran stacked a one-shot per note and the audio froze
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, 'long.wav')
+            write_wav(path, [.3 * math.sin(2 * math.pi * 110 * i / R) for i in range(R * 4)])
+            for mode in (1, 2):
+                p = dict(sine_synth(), layer_on=1, layer_file=path, layer_mode=mode); SL.request(path, R, wait=True)
+                s = Synth(R); s.configure(p); note = None; most = 0; out = []
+                for b in range(400):                              # about 2 s of 1/32 notes
+                    if b % 10 == 0:
+                        if note is not None: s.off(note)
+                        note = (48, 52, 55, 60)[b // 10 % 4]; s.on(note, 100)
+                    out += s.render(256); most = max(most, len(s.layer))
+                self.assertLessEqual(most, SL.MAX_LAYERS + SL.MAX_ATTACKS)
+                self.assertLessEqual(len([e for e in s.layer if not e['dying']]), SL.MAX_LAYERS)
+                self.assertTrue(all(math.isfinite(v) for v in out))
+                jumps = max(abs(a - b) for a, b in zip(out, out[1:]))
+                self.assertLess(jumps, .5)                        # the pushed-out one-shots fade, they don't click
+                s.panic(); self.assertEqual(s.layer, [])
+
     def test_attack_tune_and_level(self):
         p = sine_synth(); q = layered(p)
         soft = play(layered(p, layer_level=.25), secs=.3); loud = play(layered(p, layer_level=1.5), secs=.3)

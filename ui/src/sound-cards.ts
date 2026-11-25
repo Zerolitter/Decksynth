@@ -4,7 +4,7 @@ import type { Instrument } from './types';
 export const VOICE_DEFAULTS = {vcf_type:0, vcf_cutoff:.65, vcf_reso:.2, vcf_env:.3, uni_voices:1, uni_detune:.3,
   formant:0, vowel:0, inharm:0, sub:0, sub_oct:1,pan:0,play_mode:0,glide:0,pitch:0,velocity_brightness:0,velocity_cutoff:0,vcf_keytrack:.5,
   env_curve:0, air:0, drift:0, vel_curve:0,
-  damp:0, noise:0, noise_decay:.03, noise_tone:.6, pitch_env:0, pitch_decay:.06,
+  damp:0, noise:0, noise_on:1, noise_decay:.03, noise_tone:.6, pitch_env:0, pitch_decay:.06,
   layer_on:0, layer_mode:1, layer_level:1, layer_tune:0, layer_start:0, layer_follow:0, layer_loop:0};
 export type VoiceKey = keyof typeof VOICE_DEFAULTS;
 export const voiceParam = (p:Instrument, k:VoiceKey):number => (p[k] as number|undefined) ?? VOICE_DEFAULTS[k];
