@@ -15,7 +15,8 @@
 .harness-shell .bus-chip-add.lit{border-style:solid;border-color:var(--ui-accent-strong);color:var(--ui-accent)}
 
 /* the band under a track's chain / over a bus's chain */
-.harness-shell .frame-fx.with-band .fx-cards.frame-rack{flex:0 1 auto}
+/* the rack takes the room left and scrolls; the bands (Send to buses, a bus's feeds) stay put at their edge of the page */
+.harness-shell .frame-fx.with-band .fx-cards.frame-rack{flex:1 1 0;min-height:0}
 .harness-shell .bus-band{flex:none;display:flex;gap:8px;align-items:stretch;padding:8px;border-radius:12px;border:1px solid var(--ui-line-soft);background:var(--ui-well)}
 .harness-shell .bus-band-head{width:150px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:3px;padding-left:4px}
 .harness-shell .bus-band-head>b{font-size:12px;letter-spacing:.06em;color:var(--c-fx);text-transform:uppercase}

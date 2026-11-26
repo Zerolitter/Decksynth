@@ -44,3 +44,6 @@
 /* a send the clip holds */
 .harness-shell .bus-send .clip-held{position:absolute;left:49px;width:76px;top:0;height:44px;pointer-events:none}
 .harness-shell .bus-send-body{position:relative}
+/* Base: drops the clip's changes to this effect */
+.harness-shell .frame-fx .clip-revert{display:flex;align-items:center;gap:4px;height:44px;min-height:44px;align-self:center;margin-right:4px;padding:0 8px;border-radius:6px;border:1px solid var(--clip-tc);
+  background:none;color:var(--ui-text-hi);font-size:11px;font-weight:700;white-space:nowrap;width:auto!important}

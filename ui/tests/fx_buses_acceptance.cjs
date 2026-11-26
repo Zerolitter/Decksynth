@@ -132,6 +132,34 @@ let app;
     await p.getByRole('button',{name:'Turn off Reverb'}).click();
     await p.locator('.clip-off-tag').first().waitFor();
     await check('5-clip-reverb-off',h);
+    // 6. Base: drops the clip's changes to Reverb; the tag and the button go and the card plays as in Base again
+    const rev=p.getByRole('button',{name:/^Revert Reverb to Base/});
+    await rev.waitFor();
+    await rev.click();
+    await p.locator('.clip-off-tag').first().waitFor({state:'detached'});
+    await rev.waitFor({state:'detached'});
+    await p.getByRole('button',{name:'Turn off Reverb'}).waitFor();
+    assert.ok(await p.getByRole('button',{name:/^Clear /}).isDisabled(),'a clip with nothing changed has nothing to clear');
+    await p.getByRole('button',{name:'Turn off Reverb'}).click();
+    await p.locator('.clip-off-tag').first().waitFor();
+    // 7. a folded card is a one-line bar two columns wide with its name readable and a 44 px power and open button
+    await p.getByRole('button',{name:'Fold Reverb'}).focus();
+    await p.keyboard.press('Enter');
+    const fold=p.locator('.fx-card-module.folded').first();
+    await fold.waitFor();
+    const fb=await fold.evaluate(e=>{const r=e.getBoundingClientRect(),t=e.querySelector('.rail-title').getBoundingClientRect(),
+      row=e.parentElement.getBoundingClientRect();return {w:r.width,h:r.height,tw:t.width,th:t.height,inside:r.right<=row.right+1&&r.left>=row.left-1,wm:getComputedStyle(e.querySelector('.rail-title')).writingMode};});
+    console.log('folded card',JSON.stringify(fb));
+    assert.ok(fb.w>200&&fb.w<330&&fb.h>=44&&fb.h<=48&&fb.inside,'folded card is a two-column bar: '+JSON.stringify(fb));
+    assert.ok(fb.tw>40&&fb.th<=44&&fb.wm==='horizontal-tb','folded card name is readable (horizontal): '+JSON.stringify(fb));
+    assert.ok(await fold.getByRole('button',{name:/Turn (on|off) Reverb/}).count(),'folded card keeps its power button');
+    await check('7-folded-card',h);
+    await fold.getByRole('button',{name:'Unfold Reverb'}).click();
+    await p.locator('.fx-card-module.folded').first().waitFor({state:'detached'});
+    // 8. the Send to buses strip sits at the bottom of the page, under a rack that scrolls
+    const pos=await p.evaluate(()=>{const f=document.querySelector('.frame-fx').getBoundingClientRect(),b=document.querySelector('.bus-sends-band').getBoundingClientRect(),
+      r=document.querySelector('.fx-cards').getBoundingClientRect();return {gap:f.bottom-b.bottom,underRack:b.top>=r.bottom-1};});
+    assert.ok(pos.gap<=2&&pos.gap>=-2&&pos.underRack,'Send to buses is stuck to the bottom: '+JSON.stringify(pos));
     await p.getByRole('button',{name:/^Clear /}).click();
     await p.locator('.clip-off-tag').first().waitFor({state:'detached'});
     await p.getByRole('button',{name:'Done editing clip FX'}).click();

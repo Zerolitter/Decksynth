@@ -37,7 +37,7 @@ import { ExportLoopSheet } from './components/ExportLoopSheet';
 import { MidiImportSheet, type MidiFile } from './components/MidiImportSheet';
 import { actionFor, setOverrides } from './hotkeys';
 import { Settings, readSettings, writeSettings, latencyArgs, type AppSettings, type Cleanup } from './components/Settings';
-import { defaultFxChain, normalizeChain } from './fx';
+import { FX_MODULES, defaultFxChain, normalizeChain } from './fx';
 import { Performance, PerformTools } from './components/Performance';
 import {Help} from './components/Help';
 import { ValueBox } from './components/ValueBox';
@@ -497,13 +497,24 @@ function App() {
       setClipEntry(shownK,{...clipEntry,sends:{...clipEntry?.sends,[String(b)]:{amount,through:through??cur.through}}},through!==undefined);return;}
     command('send',through===undefined?[selected,b,amount]:[selected,b,amount,through]);
   };
-  const clipOffer=(id:import('./fx').FxModuleId)=>{
-    const off=clipEntry?.fx?.[id]?.on===false&&shownK!==null;
-    const bo=busOffer(id);if(!off&&!bo)return null;
-    return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}{bo}</>;
+  // a clip's changes to one effect (its on/off and knobs) can be dropped: the card goes back to Base and loses its marks
+  const revertFx=(id:import('./fx').FxModuleId)=>{
+    if(shownK===null||!clipEntry?.fx?.[id])return;
+    const fx={...clipEntry.fx};delete fx[id];
+    const e:ClipEntry={...clipEntry,fx:Object.keys(fx).length?fx:undefined};if(!e.fx)delete e.fx;
+    setClipEntry(shownK,e.fx||e.sends?e:null,true);
   };
-  // a card's title bar needs a column more for each of the two extras it can carry (the clip's Off tag, the Move-to-bus button)
-  const clipOfferCols=(id:import('./fx').FxModuleId)=>3+(clipEntry?.fx?.[id]?.on===false&&shownK!==null?1:0)+(busOffer(id)?1:0);
+  const clipOffer=(id:import('./fx').FxModuleId)=>{
+    const held=shownK!==null&&!!clipEntry?.fx?.[id];
+    const off=held&&clipEntry?.fx?.[id]?.on===false;
+    const bo=busOffer(id);if(!held&&!bo)return null;
+    return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}
+      {held?<button type="button" className="clip-revert" aria-label={'Revert '+FX_MODULES[id].name+' to Base in clip '+'ABCDEFGH'[shownK!]}
+        title={'Drop clip '+'ABCDEFGH'[shownK!]+"'s changes to this effect: it plays as in Base"} onClick={()=>revertFx(id)}><RotateCcw size={13}/>Base</button>:null}{bo}</>;
+  };
+  // a card's title bar needs a column more for each extra it can carry (the clip's Off tag, its Base button, the Move-to-bus button)
+  const clipOfferCols=(id:import('./fx').FxModuleId)=>{const h=shownK!==null&&!!clipEntry?.fx?.[id];
+    return 3+(h&&clipEntry?.fx?.[id]?.on===false?1:0)+(h?1:0)+(busOffer(id)?1:0);};
   const reorderBus=(bus:FxBus,ids:string[]):FxChain=>{const chain=normalizeChain(bus.chain);
     return {...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};};
 

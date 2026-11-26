@@ -24,6 +24,11 @@ const subscribe=(l:()=>void)=>{listeners.add(l);return()=>{listeners.delete(l);}
 export function useFold(id:string,defaultFolded=false):[boolean,(v:boolean)=>void]{
  const scope=usePanelScope(),folded=useSyncExternalStore(subscribe,()=>isFolded(id,defaultFolded,scope));return [folded,v=>setFold(id,v,scope)];
 }
+/** Which of these panels are folded now (a rack lays its grid out around them). */
+export function useFoldedIds(ids:string[]):Set<string>{
+ const scope=usePanelScope(),snap=useSyncExternalStore(subscribe,()=>ids.filter(id=>isFolded(id,false,scope)).join('|'));
+ return new Set(snap?snap.split('|'):[]);
+}
 export function isPinned(id:string,scope=''){return !!pins[keyFor(id,scope)];}
 export function setPinned(id:string,value:boolean,scope=''){pins={...pins,[keyFor(id,scope)]:value};try{localStorage.setItem(PIN_KEY,JSON.stringify(pins));}catch{}notify();}
 const lastUsed=new Map<string,number>();

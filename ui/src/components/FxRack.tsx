@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
 import { ListMusic, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
-import { Panel, useAutoFold } from './Panel';
+import { Panel, useAutoFold, useFoldedIds } from './Panel';
 import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxParamDef, type FxTarget } from '../fx';
 import { GateSheet, GateStrip } from './GateSheet';
@@ -56,9 +56,11 @@ export function fxCardCols(id:FxModuleId,minCols=3):number{
 }
 /** spans per card in chain order, plus the span left for the Add card on the last row (0: none) */
 /** wide: the least columns for cards whose title bar carries extra buttons ("Move it there", "Off in this clip") */
-export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:Partial<Record<FxModuleId,number>>={}):{spans:Record<string,number>;add:number}{
+/** folded: cards shown as a one-line bar, FX_FOLDED_COLS columns wide whatever they hold */
+export const FX_FOLDED_COLS=2;
+export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:Partial<Record<FxModuleId,number>>={},folded:ReadonlySet<string>=new Set()):{spans:Record<string,number>;add:number}{
   const spans:Record<string,number>={};let used=0,last:FxModuleId|null=null;
-  for(const id of ids){const c=fxCardCols(id,wide[id]??3);
+  for(const id of ids){const c=folded.has(id)?FX_FOLDED_COLS:fxCardCols(id,wide[id]??3);
     if(used+c>FX_COLS&&last){spans[last]+=FX_COLS-used;used=0;}
     spans[id]=c;used+=c;last=id;}
   const rest=FX_COLS-used;
@@ -133,7 +135,8 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   };
   const ring=useRingDepth(chain,onChange,armed,(m,p)=>toggleRoute(m as FxModuleId,p));
   const capture=(module:FxModuleId,param:string)=>ring.capture(module,param);
-  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,Object.fromEntries(active.filter(m=>offer?.(m.id)).map(m=>[m.id,offerCols?.(m.id)??4])));
+  const folded=useFoldedIds(active.map(m=>'fx-'+m.id));
+  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,Object.fromEntries(active.filter(m=>offer?.(m.id)).map(m=>[m.id,offerCols?.(m.id)??4])),new Set([...folded].map(f=>f.slice(3))));
   const at=(p:FxParamDef)=>{const z=fxParamSize(p);return {gridColumn:'span '+z.w,gridRow:'span '+z.h};};
 
   return <div ref={rack} tabIndex={0} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
