@@ -12,6 +12,7 @@ from itertools import chain
 from operator import add
 from . import song as songs
 from . import sends as send_buses
+from . import clip_fx
 from . import cbus
 from .devices import device_kind
 # Clip loop lengths in bars (15 Nov: up to 32). Any whole number of bars works (17 Nov:
@@ -221,6 +222,9 @@ class Project:
             else:p.buses=send_buses.defaults()
             for t in p.tracks:
                 if 'sends' in t:t['sends']=send_buses.validate_track(t['sends'],len(p.buses))
+                if 'clip_fx' in t:
+                    t['clip_fx']=clip_fx.validate(t['clip_fx'],len(p.buses))
+                    if not t['clip_fx']:t.pop('clip_fx')
             reconcile_pattern_timing(p.performance,preserve_chain=True)
             p.performance=validate_performance(p.performance)
             # Recording-arm is a live safety state; never resume armed after reopening a file.
@@ -753,6 +757,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
         self.send_buses=send_buses.SendBuses(rate)  # the FX buses A to D (sends.py)
+        # FX per clip (clip_fx.py): per track, what the playing clip put on its chain and sends.
+        self._clip_fx={};self._clip_sends={};self._clip_glide={}
         self.selected=0; self.playing=False; self.recording=False; self.frame=0; self._bucket_cache={}
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.redo_history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.transfer_report=None
@@ -840,7 +846,87 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             if 'sends' not in t:continue
             t['sends']=send_buses.remap_track(t['sends'],i)
             if not t['sends']:t.pop('sends')
+        for t in self.project.tracks:
+            if 'clip_fx' in t:
+                t['clip_fx']=clip_fx.remap_bus(t['clip_fx'],i)
+                if not t['clip_fx']:t.pop('clip_fx')
         self.send_buses.configure(self.project.buses)
+    def set_clip_fx(self,track,clip,entry,undo=False):
+        """What one clip changes in its track's FX (clip_fx.py): None takes the clip back to the track's own chain.
+        undo: one undo step (Clear, Copy from, a power button); knob moves leave it out, like the FX knobs."""
+        from .devices import track_index
+        if track_index(track)>=len(self.project.tracks):raise ValueError('Choose track 1–%d'%len(self.project.tracks))
+        if type(clip) is not int or not 0<=clip<songs.CLIPS:raise ValueError('Choose clip A-H')
+        t=self.project.tracks[track];cf=dict(t.get('clip_fx') or {})
+        clean=None if entry is None else clip_fx.validate({str(clip):entry},len(self.project.buses)).get(str(clip))
+        if undo:self.snapshot()
+        if clean:cf[str(clip)]=clean
+        else:cf.pop(str(clip),None)
+        if cf:t['clip_fx']=dict(sorted(cf.items()))
+        else:t.pop('clip_fx',None)
+    def playing_clip(self,track):
+        """The clip a track plays now: the song's block under the playhead (None where the lane is silent), or
+        in loop mode the open clip."""
+        p=self.project;song=p.song
+        if song['on'] and not self.recording:
+            bar=songs.song_bar(song,int(self.frame/(4*self.fpb)))
+            return None if bar is None else songs.clip_at(song,track,bar)
+        return p.clips['open'][track] if track<len(p.clips['open']) else None
+    def _clip_fx_tick(self,frame=0):
+        """Between blocks: put the playing clip's FX on each track that has clip FX. Only a change of clip, of the
+        clip's FX or of the track's own chain or sends reconfigures anything; a silent lane keeps what it had."""
+        for tr,t in enumerate(self.project.tracks[:len(self.fx)]):
+            cf=t.get('clip_fx');st=self._clip_fx.get(tr)
+            if not cf:
+                if st is not None:
+                    del self._clip_fx[tr];self._clip_sends.pop(tr,None)
+                    if self.fx[tr].chain is st[3]:self._configure_fx(tr,t.get('fx'))
+                continue
+            k=self.playing_clip(tr)
+            if k is None and st is not None:continue
+            entry=cf.get(str(k)) if k is not None else None
+            base=t.get('fx');sends=t.get('sends')
+            if st is not None and st[0] is base and st[1] is entry and st[2] is sends and self.fx[tr].chain is st[3]:
+                if tr in self._clip_glide:self._clip_glide_step(tr,frame)
+                continue
+            eff=clip_fx.chain_for(base,entry)
+            # A clip that glides in: only when the playing clip changes (not on an edit), and only while playing.
+            change=(entry or {}).get('change','jump')
+            glide=None
+            if change!='jump' and self.playing and st is not None and st[4]!=k and st[0] is base:
+                glide=self._clip_glide_from(tr,eff)
+            self._clip_glide.pop(tr,None)
+            if self.fx[tr].chain is not eff:self._configure_fx(tr,eff)
+            if glide:
+                self._clip_glide[tr]=(glide,frame,max(1,round(self.fpb*(4 if change=='bar' else 1))))
+                self._clip_glide_step(tr,frame)
+            self._clip_fx[tr]=(base,entry,sends,eff,k)
+            if entry and 'sends' in entry:self._clip_sends[tr]=clip_fx.sends_for(sends,entry)
+            else:self._clip_sends.pop(tr,None)
+    def _clip_glide_from(self,tr,chain):
+        """[(array index, value now, value in the clip)] for the knobs that change and may glide."""
+        from .fx import NPAR, PARAMS as FXP
+        fx=self.fx[tr];out=[]
+        if chain is None or fx.chain is None:return out
+        for m in chain['modules']:
+            idx=FX_ORDER.index(m['id'])
+            for j,(key,_,_,init) in enumerate(FXP[m['id']]):
+                if clip_fx.stepped(m['id'],key):continue
+                now=fx.params[idx*NPAR+j];new=m['params'].get(key,init)
+                if now!=new:out.append((idx*NPAR+j,now,new))
+        return out
+    def _clip_glide_step(self,tr,frame):
+        """Move gliding knobs on for this block (macros and mod pads still add on top afterwards)."""
+        pairs,start,length=self._clip_glide[tr];x=min(1.,max(0.,(frame-start)/length));fx=self.fx[tr]
+        for i,a,b in pairs:fx.params[i]=a+(b-a)*x
+        if x>=1.:del self._clip_glide[tr]
+    def _configure_fx(self,tr,chain):
+        try:self.fx[tr].configure(chain)
+        except ValueError:pass  # a card that needs a newer kernel: the track keeps its chain, as when it was set
+    def _feeds_track(self,tr,t):
+        """The track as the send mix sees it: its own sends, or the playing clip's."""
+        s=self._clip_sends.get(tr)
+        return t if s is None else {'sends':s}
     def seed_spectral(self,track,name):
         """One owned/validated shape gesture; base partials and seed metadata commit together."""
         from .devices import track_index
@@ -1168,6 +1254,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             self.snapshot(); put(clip,copy.deepcopy(p.clip_notes(track,source)))
             names=t.get('clip_names') or ['']*songs.CLIPS
             if names[source]:names=list(names);names[clip]=names[source];t['clip_names']=names
+            if t.get('clip_fx'):
+                t['clip_fx']=clip_fx.copy_clip(t['clip_fx'],source,clip)
+                if not t['clip_fx']:t.pop('clip_fx')
         elif action=='clear':
             self.snapshot(); put(clip,[])
             if t.get('clip_names') and t['clip_names'][clip]:t['clip_names']=list(t['clip_names']);t['clip_names'][clip]=''
@@ -1886,8 +1975,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             # FX buses: Send adds to the bus on top of the mix; Through goes to the bus only.
             to_mix=1
             for k in range(nb):amount[k]=0.
-            if bus_ok and 'sends' in t:
-                for k,a,through in send_buses.track_feeds(t):
+            if bus_ok and ('sends' in t or tr in self._clip_sends):
+                for k,a,through in send_buses.track_feeds(self._feeds_track(tr,t)):
                     if k>=nb:continue
                     if through:to_mix=0
                     if a>0:amount[k]=a;buses.mark_fed(k)
@@ -1914,6 +2003,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             if self.count_end is not None:n=min(n,max(1,self.count_end-self.absolute_frame))
             events={0:[]}; start=self.frame; end=start+n; self._block_start=start
             abs_start=self.absolute_frame; abs_end=abs_start+n
+            self._clip_fx_tick(abs_start)  # FX per clip: the playing clip's FX, before macros and mods move them
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
             for tr,(fx,synth) in enumerate(zip(self.fx,self.synths)):
                 auto=self.automation_values[tr];fx.watched=tr==self.selected;fx.modulate(abs_start/self.fpb,auto)
@@ -2099,7 +2189,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             else:audio=[a+(b+c)*.5 for a,b,c in zip(audio,fl,fr)]
                     if self.capture_track==tr and stereo:self.captured.append((list(audio[0]),list(audio[1])))
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
-                    feeds=[(k,a,thr) for k,a,thr in send_buses.track_feeds(t) if k<len(bus_in)] if bus_ok else []
+                    feeds=[(k,a,thr) for k,a,thr in send_buses.track_feeds(self._feeds_track(tr,t)) if k<len(bus_in)] if bus_ok else []
                     to_mix=not any(thr for _,_,thr in feeds);feeds=[(k,a) for k,a,_ in feeds if a>0]
                     for bus,_ in feeds:self.send_buses.mark_fed(bus)
                     if stereo:

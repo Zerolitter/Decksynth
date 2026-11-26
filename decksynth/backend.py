@@ -602,6 +602,10 @@ def worker(commands,updates):
                     elif cmd=='send_setting':
                         try:engine.set_send_setting(*args)
                         except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='clip_fx':
+                        # FX per clip (clip_fx.py): [track, clip, changes or None, undo]
+                        try:engine.set_clip_fx(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd in ('bus_set','bus_chain','bus_add','bus_remove'):
                         # FX buses (sends.py): [bus, key, value] / [bus, chain] / [name, chain] / [bus]
                         fn={'bus_set':engine.set_bus,'bus_chain':engine.set_bus_chain,'bus_add':engine.add_bus,'bus_remove':engine.remove_bus}[cmd]
