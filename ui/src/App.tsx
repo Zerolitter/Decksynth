@@ -499,7 +499,8 @@ function App() {
   };
   const clipOffer=(id:import('./fx').FxModuleId)=>{
     const off=clipEntry?.fx?.[id]?.on===false&&shownK!==null;
-    return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}{busOffer(id)}</>;
+    const bo=busOffer(id);if(!off&&!bo)return null;
+    return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}{bo}</>;
   };
   const reorderBus=(bus:FxBus,ids:string[]):FxChain=>{const chain=normalizeChain(bus.chain);
     return {...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};};

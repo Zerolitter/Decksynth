@@ -49,15 +49,16 @@ export function fxParamSize(p:FxParamDef):{w:number;h:number}{
   if(p.options){const px=p.label.length*6+18+p.options.reduce((n,o)=>n+Math.max(44,o.length*7+19)+3,0);return {w:Math.max(1,Math.ceil(px/COL_PX)),h:1};}
   return {w:1,h:1};
 }
-export function fxCardCols(id:FxModuleId):number{
+export function fxCardCols(id:FxModuleId,minCols=3):number{
   const sizes=FX_MODULES[id].params.map(fxParamSize).concat(id==='autotune'||id==='duck'?[{w:2,h:1}]:[]);
   const area=sizes.reduce((n,x)=>n+x.w*x.h,0),widest=sizes.reduce((n,x)=>Math.max(n,x.w),0);
-  return Math.min(FX_COLS,Math.max(3,widest,Math.ceil(area/2)));
+  return Math.min(FX_COLS,Math.max(minCols,widest,Math.ceil(area/2)));
 }
 /** spans per card in chain order, plus the span left for the Add card on the last row (0: none) */
-export function fxGridSpans(ids:FxModuleId[],withAdd:boolean):{spans:Record<string,number>;add:number}{
+/** wide: cards whose title bar carries an extra button ("Move it there", "Off in this clip"); they get at least 4 columns */
+export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:FxModuleId[]=[]):{spans:Record<string,number>;add:number}{
   const spans:Record<string,number>={};let used=0,last:FxModuleId|null=null;
-  for(const id of ids){const c=fxCardCols(id);
+  for(const id of ids){const c=fxCardCols(id,wide.includes(id)?4:3);
     if(used+c>FX_COLS&&last){spans[last]+=FX_COLS-used;used=0;}
     spans[id]=c;used+=c;last=id;}
   const rest=FX_COLS-used;
@@ -131,7 +132,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   };
   const ring=useRingDepth(chain,onChange,armed,(m,p)=>toggleRoute(m as FxModuleId,p));
   const capture=(module:FxModuleId,param:string)=>ring.capture(module,param);
-  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0);
+  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,offer?active.map(m=>m.id).filter(id=>offer(id)):[]);
   const at=(p:FxParamDef)=>{const z=fxParamSize(p);return {gridColumn:'span '+z.w,gridRow:'span '+z.h};};
 
   return <div ref={rack} tabIndex={0} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
