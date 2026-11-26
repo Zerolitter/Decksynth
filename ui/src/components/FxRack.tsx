@@ -73,13 +73,15 @@ type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; l
   armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean;
   /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[];
   /** an extra button in a card's title bar (the track view's "Move it there" offer when a bus runs the same effect) */ offer?:(id:FxModuleId)=>ReactNode;
-  /** what the empty picker says this chain belongs to */ owner?:string};
+  /** what the empty picker says this chain belongs to */ owner?:string;
+  /** a knob the playing or edited clip holds: its letter and the Base value, for a tag on the value box (FX per clip) */
+  held?:(module:FxModuleId,key:string)=>{letter:string;base?:number}|null};
 const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const noteName=(m:number)=>NOTE_NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Math.round(m)/12)-1);
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,owner='This track'}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,owner='This track',held}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -187,6 +189,9 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
                 modColor={color}
                 onChange={v=>setParam(state.id,p.key,v)}/>}
               {routes.length?<span className="fx-route-dots">{routes.map((r,k)=><i key={k} style={{background:r.color}}/>)}</span>:null}
+              {(()=>{const h=held?.(state.id,p.key);if(!h)return null;const b=h.base??p.init;
+                return <span className="clip-held" title={'Clip '+h.letter+' sets this knob; Base is '+b.toFixed(p.precision??2)}>
+                  <s>{b.toFixed(p.precision??2)}</s><i>{h.letter}</i></span>;})()}
             </div>;
           })}
         </div>

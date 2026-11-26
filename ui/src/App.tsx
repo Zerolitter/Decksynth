@@ -30,6 +30,7 @@ import { SamplerPage, PlayOnKeysSheet, padChoices } from './components/Sampler';
 import { drumKind, padLabel } from './drum-kinds';
 import { LinkPage } from './components/LinkPage';
 import { SynthSound } from './components/SynthSound';
+import { ClipEditRow, ClipFxStrip, chainFor, entryOf, heldBy, playingClip, splitEdit, useClipEditExit, type ClipEntry } from './components/ClipFx';
 import { BusChips, BusFeeds, NewBusSheet, TrackSends, busColor, busRunning, busesOf, feedOf, BUS_LETTERS } from './components/Buses';
 import type { Source } from './components/ModParts';
 import { ExportLoopSheet } from './components/ExportLoopSheet';
@@ -282,6 +283,8 @@ function App() {
       else if(cmd==='fx'){const [index,chain]=args as [number,FxChain];next.state.tracks[index].fx=chain;}
       else if(cmd==='send'){const [index,bus,amount,through]=args as [number,number,number,boolean|undefined];const t=next.state.tracks[index];
         const old=t.sends?.[String(bus)];t.sends={...t.sends,[String(bus)]:{amount:clamp(amount,0,1),through:through??old?.through??false}};}
+      else if(cmd==='clip_fx'){const [index,k,e]=args as [number,number,ClipEntry|null];const t=next.state.tracks[index];
+        const cf={...t.clip_fx};if(e)cf[String(k)]=e;else delete cf[String(k)];t.clip_fx=Object.keys(cf).length?cf:undefined;}
       else if(cmd.startsWith('bus_')){const b=structuredClone(busesOf(next.state)),a=args as unknown[];
         if(cmd==='bus_set')(b[a[0] as number] as Record<string,unknown>)[a[1] as string]=a[2];
         else if(cmd==='bus_chain')b[a[0] as number].chain=a[1] as FxChain;
@@ -468,6 +471,35 @@ function App() {
         macros:chain.macros.map(x=>({...x,targets:drop(x.targets)})),mods:chain.mods.map(x=>({...x,targets:drop(x.targets)}))}]);
         command('send',[selected,b,Math.max(feedOf(track,b).amount,m.params.mix??.5)]);setToast('Moved to '+buses[b].name+'. Undo brings the card back.');}}>
       <ArrowRight size={14}/><i>{BUS_LETTERS[b]}</i></button>;
+  };
+  // FX per clip (26 Nov): the Clip FX strip picks a clip to edit; outside editing, the cards show the playing clip's FX.
+  const [clipEdit,setClipEdit]=useState<number|null>(null);
+  useEffect(()=>setClipEdit(null),[page,selected,fxBus]);
+  const endClipEdit=useCallback(()=>setClipEdit(null),[]);
+  useClipEditExit(clipEdit!==null&&page==='FX',endClipEdit);
+  const songOn=!!project&&songOf(project).on;
+  const playingK=project&&track?playingClip(project,selected,snapshot?.song_pos?.bar??null):null;
+  const shownK=clipEdit??playingK;
+  const clipEntry=project?entryOf(project,selected,shownK):null;
+  const baseChain=normalizeChain(track?.fx);
+  const shownChain=chainFor(baseChain,clipEntry);
+  const editClip=(k:number|null)=>{setClipEdit(k);if(k!==null&&!songOn&&project&&clipsOf(project).open[selected]!==k)command('clip',[selected,'open',k]);};
+  const setClipEntry=(k:number,e:ClipEntry|null,undo:boolean)=>command('clip_fx',[selected,k,e,undo]);
+  const onTrackChain=(next:FxChain)=>{
+    if(shownK===null||(!clipEntry&&clipEdit===null)){command('fx',[selected,next]);return;}
+    const r=splitEdit(shownChain,next,baseChain,clipEntry,clipEdit!==null);
+    if(JSON.stringify(r.base)!==JSON.stringify(baseChain))command('fx',[selected,r.base]);
+    if(JSON.stringify(r.entry)!==JSON.stringify(clipEntry))setClipEntry(shownK,r.entry,r.power);
+  };
+  const onTrackSend=(b:number,amount:number,through?:boolean)=>{
+    const cur=clipEntry?.sends?.[String(b)]??(track?feedOf(track,b):{amount:0,through:false});
+    if(shownK!==null&&(clipEdit!==null||clipEntry?.sends?.[String(b)])){
+      setClipEntry(shownK,{...clipEntry,sends:{...clipEntry?.sends,[String(b)]:{amount,through:through??cur.through}}},through!==undefined);return;}
+    command('send',through===undefined?[selected,b,amount]:[selected,b,amount,through]);
+  };
+  const clipOffer=(id:import('./fx').FxModuleId)=>{
+    const off=clipEntry?.fx?.[id]?.on===false&&shownK!==null;
+    return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}{busOffer(id)}</>;
   };
   const reorderBus=(bus:FxBus,ids:string[]):FxChain=>{const chain=normalizeChain(bus.chain);
     return {...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};};
@@ -660,13 +692,19 @@ function App() {
             onReorder={ids=>command('bus_chain',[i,reorderBus(bus,ids)])} armed={null} autoFold={!settings.noAutoFold} owner="This bus"
             playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>
         </div></PanelScope></ContextAreaScope>;})()
-      :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx with-band">
-          <FxLive>{live=><FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
-            onReorder={ids=>command('fx_reorder',[selected,ids])} offer={busOffer}
+      :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx with-band" style={{['--clip-tc' as string]:TRACK_COLORS[selected]}}>
+          <ClipFxStrip project={project} track={selected} buses={buses} playing={playingK} editing={clipEdit} onEdit={editClip}/>
+          {clipEdit!==null?<ClipEditRow project={project} track={selected} clip={clipEdit} buses={buses} heard={!songOn||playingK===clipEdit}
+            onChange={c=>clipEntry&&setClipEntry(clipEdit,{...clipEntry,change:c},true)}
+            onCopy={i=>setClipEntry(clipEdit,entryOf(project,selected,i),true)} onClear={()=>setClipEntry(clipEdit,null,true)}/>:null}
+          <FxLive>{live=><FxCards key={selected} selected={selected} chain={shownChain} onChange={onTrackChain}
+            held={heldBy(clipEntry,shownK,baseChain)}
+            onReorder={ids=>command('fx_reorder',[selected,ids])} offer={clipOffer}
             live={live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>}</FxLive>
-          <TrackSends track={track} index={selected} buses={buses} newOpen={newBus} onNew={()=>setNewBus(v=>!v)}
-            onSend={(b,amount,through)=>command('send',through===undefined?[selected,b,amount]:[selected,b,amount,through])}/>
+          <TrackSends track={clipEntry?.sends?{...track,sends:{...track.sends,...clipEntry.sends}}:track} index={selected} buses={buses} newOpen={newBus} onNew={()=>setNewBus(v=>!v)}
+            held={b=>clipEntry?.sends?.[String(b)]&&shownK!==null?{letter:'ABCDEFGH'[shownK],base:feedOf(track,b).amount}:null}
+            onSend={onTrackSend}/>
       </div></PanelScope></ContextAreaScope>
       :page==='LINK'?<ContextAreaScope area="fx"><FxLive>{live=><LinkPage key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
           live={live} bpm={project.bpm} edit={edit} onEdit={setEdit} armed={armed} onLink={setArmed}/>}</FxLive></ContextAreaScope>

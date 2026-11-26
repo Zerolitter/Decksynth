@@ -246,6 +246,7 @@ export function Arranger({project, song, selected, zoom, start, sel, onSel, onSo
                 <b className="blk-name">{clipLabel(project, tr, b.clip)}</b>
                 <BlockNotes notes={notes} b={b} from={from} to={to} bars={bars} color={color}/>
                 {notes.length ? null : <small className="blk-empty">empty</small>}
+                {project.tracks[tr].clip_fx?.[String(b.clip)] ? <i className="blk-fx" title={'Clip ' + CLIP_NAMES[b.clip] + ' brings its own FX (FX page, Clip FX)'}>FX</i> : null}
               </div>;
             })}
             {onFreeze && onUnfreeze ? <FreezeOverlay info={freeze?.[tr]} meta={freezeFor(t,'song')} mode={song.on ? 'song' : 'loop'} waveMode={'song'} from={start * 4} span={zoom * 4}

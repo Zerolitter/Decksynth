@@ -55,6 +55,8 @@ export type Track = {
   /** How much of the track feeds each FX bus (decksynth/sends.py), by bus index: 0..1 after volume and pan;
    * through: the track goes only through that bus, not straight to the mix. */
   sends?: Record<string,{amount:number;through:boolean}>;
+  /** FX per clip (decksynth/clip_fx.py), by clip index: what each clip changes in this track's FX and sends. */
+  clip_fx?: Record<string,import('./components/ClipFx').ClipEntry>;
 };
 /** The old send names, still used by the Sound pages' Send knobs: Bus A (Reverb) and Bus B (Delay). */
 export type SendBus='reverb'|'delay';

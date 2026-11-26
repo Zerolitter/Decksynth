@@ -92,8 +92,9 @@ export function BusFeeds({bus,index,tracks,onSend,onSet,onRemove}:{bus:FxBus;ind
 }
 
 /** A track's sends, under its own chain: one tile per bus with the amount and Send / Through. */
-export function TrackSends({track,index,buses,onSend,onNew,newOpen}:{track:Track;index:number;buses:FxBus[];
-  onSend:(bus:number,amount:number,through?:boolean)=>void;onNew:()=>void;newOpen:boolean}){
+export function TrackSends({track,index,buses,onSend,onNew,newOpen,held}:{track:Track;index:number;buses:FxBus[];
+  onSend:(bus:number,amount:number,through?:boolean)=>void;onNew:()=>void;newOpen:boolean;
+  /** a send the playing or edited clip sets: its letter and the Base amount (FX per clip) */ held?:(bus:number)=>{letter:string;base:number}|null}){
   const name=deviceName(track);
   return <section className="bus-band bus-sends-band" aria-label="Send to buses">
     <div className="bus-band-head"><b>Send to buses</b><small>After {name}'s chain and volume.{Object.values(track.sends??{}).some(f=>f.through)?'':' '+name+' also plays dry.'}</small></div>
@@ -104,6 +105,7 @@ export function TrackSends({track,index,buses,onSend,onNew,newOpen}:{track:Track
         <div className="bus-send-body">
           <Knob id={index+'-send-'+i} name="Send" value={f.amount} min={0} max={1} step={.005} defaultValue={0} compact accent={c}
             format={pct} description={'How much of this track goes to bus '+BUS_LETTERS[i]+' (after its volume and pan).'} onChange={v=>onSend(i,v)}/>
+          {(()=>{const h=held?.(i);return h?<span className="clip-held" title={'Clip '+h.letter+' sets this send; Base is '+pct(h.base)}><s>{pct(h.base)}</s><i>{h.letter}</i></span>:null;})()}
           <div className="bus-seg" role="radiogroup" aria-label={'Bus '+BUS_LETTERS[i]+' send or through'}>
             <button type="button" role="radio" aria-checked={!f.through} className={f.through?'':'active'} title="The track still plays dry; the bus adds its effect on top"
               onClick={()=>onSend(i,f.amount,false)}>Send</button>
