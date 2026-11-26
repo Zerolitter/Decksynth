@@ -128,6 +128,12 @@ let app;
     await p.getByRole('radiogroup',{name:/^When clip /}).waitFor();
     assert.ok(await p.getByRole('button',{name:/Clear/}).count(),'Clear button');
     await check('4-clip-edit',h);
+    // 5. the clip turns Reverb off: its card carries the "Off in this clip" tag and the title bar must still fit (Remove inside the card)
+    await p.getByRole('button',{name:'Turn off Reverb'}).click();
+    await p.locator('.clip-off-tag').first().waitFor();
+    await check('5-clip-reverb-off',h);
+    await p.getByRole('button',{name:/^Clear /}).click();
+    await p.locator('.clip-off-tag').first().waitFor({state:'detached'});
     await p.getByRole('button',{name:'Done editing clip FX'}).click();
     await p.getByRole('radiogroup',{name:/^When clip /}).waitFor({state:'detached'});
   }
