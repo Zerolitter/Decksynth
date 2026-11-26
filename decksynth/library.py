@@ -414,10 +414,10 @@ LEVELS = {
     'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.13, 'Crushed Lead': 3.02,
     'Delay Lead': 2.98, 'Phase Lead': 3.43, 'Hollow Lead': 3.68, 'Supersaw Lead': 3.38,
     'Glide Sine Lead': 2.39, 'Brass Lead': 3.58, 'Pluck Lead': 2.67, 'Vowel Lead': 2.73,
-    'Pluck': 4.8, 'Harp Pluck': 2.19, 'Kalimba': 2.2, 'Pizz': 5.95,
-    'Echo Pluck': 5.48, 'Glass Pluck': 3.32, 'Muted Pluck': 3.49, 'Koto': 2.43,
+    'Pluck': 4.64, 'Harp Pluck': 2.19, 'Kalimba': 2.2, 'Pizz': 5.66,
+    'Echo Pluck': 5.24, 'Glass Pluck': 3.32, 'Muted Pluck': 3.49, 'Koto': 2.43,
     'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.24, 'Mallet Pluck': 2.19,
-    'Filter Pluck': 5, 'Synth Harp': 3.8, 'Sparkle Pluck': 3.84, 'Bell': 2.32,
+    'Filter Pluck': 4.84, 'Synth Harp': 3.8, 'Sparkle Pluck': 3.77, 'Bell': 2.32,
     'Tubular Bell': 2.36, 'Music Box': 2.07, 'Vibes': 1.98, 'Marimba': 2.13,
     'Glocken': 2.11, 'Crystal Bell': 2.94, 'Gamelan': 2.94, 'Celesta': 2.08,
     'Frozen Bell': 1.87, 'Wind Chimes': 2.15, 'Church Bell': 2.84, 'Glass Harmonica': 1.58,
@@ -552,6 +552,13 @@ SHAPE = {
 NO_LIFT = {'Toy Piano', 'Tine Keys', 'Felt Piano', 'Concert Keys', 'Soft Upright', 'Harp Pluck', 'Kalimba', 'Glass Pluck',
            'Koto', 'Nylon Pluck', 'Sparkle Pluck', 'Sparkle Arp', 'Soft Bell Arp', 'Cello', 'Violin Lead', 'Cello Section'}
 
+# Strike noise on at load (26 Nov): the hammer, pick and finger of keys, plucks, bass and mallets is part of the sound, so these
+# presets say noise_on=1 themselves and Engine.preset_sound keeps it. Everything else still follows Settings. The burst was
+# "too present" on 25 Nov, so it comes in at about half the level the Strike view's knob was set to before.
+NOISE_ON_CATEGORIES = {'Keys', 'Plucks', 'Bass'}
+NOISE_ON = {'Marimba', 'Kalimba', 'Vibes', 'Soft Vibraphone'}
+NOISE_ON_SCALE = .55
+
 def revoice(p, category):
     """The 24 Nov pass on one finished preset (instrument and chain changed in place)."""
     ins = p['instrument']; name = p['name']
@@ -567,6 +574,8 @@ def revoice(p, category):
         for k, v in STRIKE[category].items(): ins.setdefault(k, v)
     ins.update(STRIKE_PRESET.get(name, {}))
     ins.update(shape.get('set', {}))
+    if (category in NOISE_ON_CATEGORIES or name in NOISE_ON) and ins.get('noise', 0.) > 0:
+        ins['noise_on'] = 1; ins['noise'] = round(ins['noise'] * NOISE_ON_SCALE, 3)   # explicit: loads with the burst whatever Settings say
     scale = REVERB_SCALE.get(category)
     if scale:
         for m in p['fx']['modules']:

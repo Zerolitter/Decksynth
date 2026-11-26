@@ -861,8 +861,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.preset_noise=noise
     def preset_sound(self,ins):
         """A preset's sound as it loads: with the Strike noise switched off unless Settings asks for it (the knobs stay, so
-        the Noise switch on the Strike view brings it back as the preset made it)."""
-        if not self.preset_noise and ins.get('noise',0.)>0:ins=dict(ins,noise_on=0)
+        the Noise switch on the Strike view brings it back as the preset made it). A preset that carries noise_on itself (keys,
+        plucks, bass, mallets: library.NOISE_ON) keeps it."""
+        if not self.preset_noise and ins.get('noise',0.)>0 and 'noise_on' not in ins:ins=dict(ins,noise_on=0)
         return ins
     def factory_sounds(self):
         """Give the four starting tracks their finished library presets (sound and FX rack). A new session

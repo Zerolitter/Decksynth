@@ -8,7 +8,7 @@ import unittest
 import wave
 from pathlib import Path
 
-from decksynth.core import Engine, Synth, instrument, validate_instrument
+from decksynth.core import Engine, Project, Synth, instrument, validate_instrument
 from decksynth import library
 
 R = 48000
@@ -32,13 +32,35 @@ class StrikeNoiseSwitchTest(unittest.TestCase):
         with self.assertRaises(Exception): validate_instrument(dict(p, noise_on=2))
 
     def test_presets_load_without_noise_unless_settings_ask(self):
-        name = next(p['name'] for p in library.PRESET_LIBRARY if p['instrument'].get('noise', 0) > 0)
+        name = next(p['name'] for p in library.PRESET_LIBRARY if p['instrument'].get('noise', 0) > 0 and 'noise_on' not in p['instrument'])
         e = Engine(R); e.apply_preset(name)
         ins = e.project.tracks[e.selected]['instrument']
         self.assertEqual(ins['noise_on'], 0); self.assertGreater(ins['noise'], 0)   # the knobs stay, the switch brings it back
         e.set_preset_options(True); e.apply_preset(name)
         self.assertNotEqual(e.project.tracks[e.selected]['instrument'].get('noise_on', 1), 0)
         with self.assertRaises(ValueError): e.set_preset_options('yes')
+
+    def test_keys_plucks_bass_and_mallets_load_with_their_noise_on(self):
+        flagged = [p for p in library.PRESET_LIBRARY if p['instrument'].get('noise_on') == 1]
+        cats = {p['category'] for p in flagged}
+        self.assertTrue({'Keys', 'Plucks', 'Bass'} <= cats)
+        self.assertTrue({'Marimba', 'Kalimba'} <= {p['name'] for p in flagged})
+        for p in library.PRESET_LIBRARY:   # nothing outside those families, and a loud burst never comes on by default
+            if p['instrument'].get('noise_on') == 1:
+                self.assertTrue(p['category'] in ('Keys', 'Plucks', 'Bass') or p['name'] in library.NOISE_ON, p['name'])
+                self.assertLessEqual(p['instrument']['noise'], .2, p['name'])
+        e = Engine(R); e.apply_preset('Pluck')
+        ins = e.project.tracks[e.selected]['instrument']
+        self.assertEqual(ins['noise_on'], 1); self.assertGreater(ins['noise'], 0)
+        e.apply_preset('Marimba'); self.assertEqual(e.project.tracks[e.selected]['instrument']['noise_on'], 1)
+
+    def test_other_presets_still_follow_settings_and_the_flag_survives_save_and_load(self):
+        e = Engine(R); e.apply_preset('Pluck')
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, 'p.json'); e.project.save(path)
+            back = Project.load(path)
+        self.assertEqual(back.tracks[e.selected]['instrument']['noise_on'], 1)
+        self.assertEqual(back.tracks[e.selected]['instrument']['noise'], e.project.tracks[e.selected]['instrument']['noise'])
 
 
 class NewTrackTargetTest(unittest.TestCase):

@@ -7,7 +7,7 @@ import { ACTIONS, FIXED, SCOPES, comboOf, isChanged, keysOf, problem, show, with
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
 /** countIn: beats of click before a take from a stopped transport (0 = off, 1 to 16). recWait: REC waits for the first note (UI keys, pads or MIDI). */
 /** knobBubble: the value that pops up over a knob while it turns (16 Nov: can be turned off; the value box stays). */
-/** presetNoise: synth presets load with their Strike noise burst on (25 Nov: off by default; the Strike view's Noise switch turns it on per sound). */
+/** presetNoise: synth presets load with their Strike noise burst on (25 Nov: off by default; keys, plucks, bass and mallet presets carry it on themselves since 26 Nov; the Strike view's Noise switch turns it on per sound). */
 /** latency: how much sound is kept ready before the speakers. low 5 ms, auto about 16 ms (grows after a dropout and shrinks back), safe 21 ms,
     custom a fixed buffer of latencyMs (3 to 50). */
 /** keys: only the hotkeys you changed (hotkeys.ts). */
