@@ -60,7 +60,14 @@ const ROOT=path.resolve(__dirname,'..');
   {
     const a=await bar(first),b=await card(now[5]);
     await p.mouse.move(a.x,a.y);await p.mouse.down();
-    for(let i=1;i<=12;i++)await p.mouse.move(a.x+(b.x+b.width-12-a.x)*i/12,a.y+(b.y+b.height/2-a.y)*i/12);
+    // The last card can sit below the visible rack (Clip FX strip and sends band): let the finger rest near the bottom edge
+    // until the rack's edge autoscroll has brought it fully into view, then drop on its right half.
+    const rack=await p.locator('.fx-cards').boundingBox(),rest={x:rack.x+rack.width/2,y:rack.y+rack.height-10};
+    for(let i=1;i<=12;i++)await p.mouse.move(a.x+(rest.x-a.x)*i/12,a.y+(rest.y-a.y)*i/12);
+    const t0=Date.now();let last=await card(now[5]);
+    while(last.y+last.height>rack.y+rack.height-4&&Date.now()-t0<6000){await p.waitForTimeout(50);last=await card(now[5]);}
+    assert.ok(last.y+last.height<=rack.y+rack.height,'edge autoscroll brought the last card into view');
+    for(let i=1;i<=12;i++)await p.mouse.move(rest.x+(last.x+last.width-12-rest.x)*i/12,rest.y+(last.y+last.height/2-rest.y)*i/12);
     await p.mouse.up();await p.waitForTimeout(150);
   }
   assert.deepEqual(await order(),[...now.slice(1),first],'mouse: front to the end');
@@ -98,8 +105,11 @@ const ROOT=path.resolve(__dirname,'..');
     now=want;
   }
   {
-    const top=now[0],b=await card(now[4]);
-    await finger(top,b.x+14,b.y+b.height/2);
+    // From the rack's top, the top row and the target row's upper part are both in reach; aim above the bottom edge zone so
+    // the drop is not left to the edge autoscroll.
+    await p.locator('.fx-cards').evaluate(e=>{e.scrollTop=0;});await p.waitForTimeout(150);
+    const top=now[0],b=await card(now[4]),rack=await p.locator('.fx-cards').boundingBox();
+    await finger(top,b.x+14,Math.min(b.y+b.height/2,rack.y+rack.height-60));
     const want=[...now.slice(1,4),top,...now.slice(4)];
     assert.deepEqual(await order(),want,'touch: down from the top row');
     now=want;

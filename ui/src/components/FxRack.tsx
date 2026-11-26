@@ -55,10 +55,10 @@ export function fxCardCols(id:FxModuleId,minCols=3):number{
   return Math.min(FX_COLS,Math.max(minCols,widest,Math.ceil(area/2)));
 }
 /** spans per card in chain order, plus the span left for the Add card on the last row (0: none) */
-/** wide: cards whose title bar carries an extra button ("Move it there", "Off in this clip"); they get at least 4 columns */
-export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:FxModuleId[]=[]):{spans:Record<string,number>;add:number}{
+/** wide: the least columns for cards whose title bar carries extra buttons ("Move it there", "Off in this clip") */
+export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:Partial<Record<FxModuleId,number>>={}):{spans:Record<string,number>;add:number}{
   const spans:Record<string,number>={};let used=0,last:FxModuleId|null=null;
-  for(const id of ids){const c=fxCardCols(id,wide.includes(id)?4:3);
+  for(const id of ids){const c=fxCardCols(id,wide[id]??3);
     if(used+c>FX_COLS&&last){spans[last]+=FX_COLS-used;used=0;}
     spans[id]=c;used+=c;last=id;}
   const rest=FX_COLS-used;
@@ -74,6 +74,7 @@ type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; l
   armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean;
   /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[];
   /** an extra button in a card's title bar (the track view's "Move it there" offer when a bus runs the same effect) */ offer?:(id:FxModuleId)=>ReactNode;
+  /** the least columns a card needs for what `offer` puts in its title bar */ offerCols?:(id:FxModuleId)=>number;
   /** what the empty picker says this chain belongs to */ owner?:string;
   /** a knob the playing or edited clip holds: its letter and the Base value, for a tag on the value box (FX per clip) */
   held?:(module:FxModuleId,key:string)=>{letter:string;base?:number}|null};
@@ -82,7 +83,7 @@ const noteName=(m:number)=>NOTE_NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Ma
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,owner='This track',held}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,offerCols,owner='This track',held}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -132,7 +133,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   };
   const ring=useRingDepth(chain,onChange,armed,(m,p)=>toggleRoute(m as FxModuleId,p));
   const capture=(module:FxModuleId,param:string)=>ring.capture(module,param);
-  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,offer?active.map(m=>m.id).filter(id=>offer(id)):[]);
+  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,Object.fromEntries(active.filter(m=>offer?.(m.id)).map(m=>[m.id,offerCols?.(m.id)??4])));
   const at=(p:FxParamDef)=>{const z=fxParamSize(p);return {gridColumn:'span '+z.w,gridRow:'span '+z.h};};
 
   return <div ref={rack} tabIndex={0} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"

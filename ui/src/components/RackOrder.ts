@@ -60,19 +60,26 @@ export function useRackOrder(rack:RefObject<HTMLElement|null>,ids:string[],onReo
         const after=y>b.bottom?true:y<b.top?false:x>=b.left+b.width/2;
         order.splice(at+(after?1:0),0,id);next=order;marker=best;best.dataset.dropSide=after?'after':'before';
       };
+      // Edge autoscroll: within EDGE px of the rack's top or bottom (or the sides) it scrolls every animation frame, faster
+      // nearer the edge and even while the finger rests, then re-tests the drop place so the drop lands on what scrolled in.
+      const EDGE=48;let frame=0;
+      const speed=(pos:number,lo:number,hi:number)=>pos>hi-EDGE?Math.ceil(2+10*Math.min(1,(pos-(hi-EDGE))/EDGE)):pos<lo+EDGE?-Math.ceil(2+10*Math.min(1,(lo+EDGE-pos)/EDGE)):0;
+      const tick=()=>{frame=0;const r=root.getBoundingClientRect();
+        const dy=speed(y,r.top,r.bottom),dx=speed(x,r.left,r.right);
+        if(!dy&&!dx)return;
+        const t=root.scrollTop,l=root.scrollLeft;root.scrollTop+=dy;root.scrollLeft+=dx;
+        place();
+        if(root.scrollTop!==t||root.scrollLeft!==l)frame=requestAnimationFrame(tick);};
+      const kick=()=>{place();if(!frame)frame=requestAnimationFrame(tick);};
       drag.current=startRelativeDrag(el,e.nativeEvent,{
         threshold:7,pointerLock:false,
         onStart:()=>{moved.current=true;card?.setAttribute('data-rack-dragging','true');return true;},
         onMove:({dx,dy})=>{
           x+=dx;y+=dy;
-          const r=root.getBoundingClientRect();
-          // Near an edge of the rack, scroll it so cards out of sight can be reached.
-          if(y>r.bottom-28)root.scrollTop+=12;else if(y<r.top+28)root.scrollTop-=12;
-          if(x>r.right-24)root.scrollLeft+=12;else if(x<r.left+24)root.scrollLeft-=12;
-          place();
+          kick();
         },
         onEnd:(canceled)=>{
-          clear();
+          cancelAnimationFrame(frame);frame=0;clear();
           if(!canceled&&latest.current.ids.join('|')===original.join('|')&&next.join('|')!==original.join('|'))latest.current.onReorder(next);
         },
       });

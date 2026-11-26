@@ -502,6 +502,8 @@ function App() {
     const bo=busOffer(id);if(!off&&!bo)return null;
     return <>{off?<span className="clip-off-tag"><i>{'ABCDEFGH'[shownK!]}</i>Off in this clip</span>:null}{bo}</>;
   };
+  // a card's title bar needs a column more for each of the two extras it can carry (the clip's Off tag, the Move-to-bus button)
+  const clipOfferCols=(id:import('./fx').FxModuleId)=>3+(clipEntry?.fx?.[id]?.on===false&&shownK!==null?1:0)+(busOffer(id)?1:0);
   const reorderBus=(bus:FxBus,ids:string[]):FxChain=>{const chain=normalizeChain(bus.chain);
     return {...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};};
 
@@ -700,7 +702,7 @@ function App() {
             onCopy={i=>setClipEntry(clipEdit,entryOf(project,selected,i),true)} onClear={()=>setClipEntry(clipEdit,null,true)}/>:null}
           <FxLive>{live=><FxCards key={selected} selected={selected} chain={shownChain} onChange={onTrackChain}
             held={heldBy(clipEntry,shownK,baseChain)}
-            onReorder={ids=>command('fx_reorder',[selected,ids])} offer={clipOffer}
+            onReorder={ids=>command('fx_reorder',[selected,ids])} offer={clipOffer} offerCols={clipOfferCols}
             live={live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>}</FxLive>
           <TrackSends track={clipEntry?.sends?{...track,sends:{...track.sends,...clipEntry.sends}}:track} index={selected} buses={buses} newOpen={newBus} onNew={()=>setNewBus(v=>!v)}
