@@ -39,3 +39,6 @@
 .euclid-sheet footer small{flex:1;color:var(--ui-text-2);font-size:12px;line-height:1.35}
 .euclid-sheet .euclid-write{min-width:168px;min-height:44px;font-weight:800;border-color:var(--accent)}
 .euclid-sheet .euclid-write:disabled{border-color:var(--ui-line)}
+
+.euclid-sheet .euclid-hear{display:flex;align-items:center;justify-content:center;gap:6px;min-width:96px;min-height:44px;font-weight:800}
+.euclid-sheet .euclid-hear[aria-pressed=true]{border-color:var(--accent);color:var(--ui-white)}

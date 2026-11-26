@@ -1,6 +1,7 @@
 // Screen test for the Euclid sheet: opens from the pattern tools, genre starting points, lanes, rings,
 // touch targets at 1280x718 and 1280x800, closing (Esc, blank tap, Done) and the note_edit it sends.
-// Runs in the UI preview (no audio engine): the preview applies a pattern edit to its own state. Exact notes are in tests/euclid.mjs.
+// Runs in the UI preview (no audio engine): the preview applies a pattern edit to its own state. Exact notes are in tests/euclid.mjs;
+// the engine's draft preview is in tests/test_draft_preview.py and the live bridge in tests/euclid_bridge_acceptance.py.
 'use strict';
 require('./deck_guard.cjs');
 const {_electron}=require('playwright');
@@ -19,7 +20,7 @@ fs.mkdirSync(SHOTS,{recursive:true});
   const p=await app.firstWindow({timeout:15000});
   p.setDefaultTimeout(8000);
   const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await app.evaluate(({ipcMain})=>{globalThis.edits=[];ipcMain.prependListener('deck-command',(_,cmd,args)=>{if(cmd==='note_edit')edits.push(args);});});
+  await app.evaluate(({ipcMain})=>{globalThis.edits=[];globalThis.cat=[];ipcMain.prependListener('deck-command',(_,cmd,args)=>{if(cmd==='note_edit')edits.push(args);if(cmd==='catalog_action')cat.push(args);});});
   const edits=()=>app.evaluate(()=>globalThis.edits);
   const size=async h=>{await app.evaluate(({BrowserWindow},h)=>{const w=BrowserWindow.getAllWindows()[0];w.unmaximize();w.setContentSize(1280,h);},h);
    await p.waitForTimeout(400);console.log('window',await p.evaluate(()=>[innerWidth,innerHeight]));};
@@ -38,6 +39,11 @@ fs.mkdirSync(SHOTS,{recursive:true});
   assert.equal(await sheet.getByRole('button',{name:'Techno',exact:true}).getAttribute('aria-pressed'),'true');
   assert.match(await sheet.locator('footer small').innerText(),/2 lanes · \d+ notes · replaces every note in the pattern · Techno is usually 128–140 BPM/);
   assert.equal(await sheet.locator('.euclid-ring.off').count(),0,'Techno switches both synth lanes on');
+  // A genre tap starts the preview: the draft loops in the engine, and nothing is written.
+  await p.waitForTimeout(400);
+  assert.equal(await sheet.getByRole('button',{name:'Stop',exact:true}).getAttribute('aria-pressed'),'true');
+  assert.match(await sheet.locator('footer small').innerText(),/^Listening · /);
+  assert.equal((await edits()).length,0,'hearing writes nothing');
   assert.equal(await sheet.locator('.euclid-hit').count()>10,true,'rings draw the pulses');
 
   // Every control inside the sheet is a 44 x 44 hit target and nothing covers its centre.
@@ -56,9 +62,14 @@ fs.mkdirSync(SHOTS,{recursive:true});
   await sheet.getByRole('spinbutton',{name:'Shift'}).focus();await p.keyboard.press('ArrowUp');
   await p.waitForTimeout(600);assert.match(await sheet.locator('.euclid-pick',{hasText:'Bass'}).innerText(),/8\/16 \+3/,'Shift +3');
 
+  await sheet.getByRole('button',{name:'Stop',exact:true}).click();
+  assert.equal(await sheet.getByRole('button',{name:'Hear',exact:true}).getAttribute('aria-pressed'),'false','Stop ends listening');
+  await sheet.getByRole('button',{name:'Hear',exact:true}).click();
+  assert.equal(await sheet.getByRole('button',{name:'Stop',exact:true}).getAttribute('aria-pressed'),'true','Hear starts it again');
   // Write sends one pattern edit: bass and arp notes only, inside the pattern, one note per pulse.
   await sheet.getByRole('button',{name:'Write to pattern'}).click();
   await p.waitForTimeout(300);
+  assert.equal(await sheet.getByRole('button',{name:'Hear',exact:true}).getAttribute('aria-pressed'),'false','Write stops listening');
   assert.ok(await p.locator('.pf-note').count()>0,'the pattern now has notes on screen (preview applies the edit)');
   assert.match(await sheet.locator('footer small').innerText(),/Written: \d+ notes/);
 

@@ -6,6 +6,7 @@ from .devices import device_kind
 class PatternCatalogEngine:
  def catalog_action(self,action,target,expected,identity,source_expected=None):
   if action=='stop':self.stop_pattern_preview();return
+  if action=='preview_draft':return self._preview_draft(target,identity,source_expected)
   if action not in ('preview','load','preview_user','load_user'):raise ValueError('Unknown catalog action')
   if self.recording:raise ValueError('Finish the take before using the library')
   current,_=self.note_target(target)
@@ -170,11 +171,31 @@ class PatternCatalogEngine:
   self.project.tracks[self.selected]['notes'].extend(added)
   seq_now=self.project.performance['seq'];seq_now['enabled']=False;seq_now['chain_enabled']=False
   return int(offset//4)+1,math.ceil((offset+span)/4-1e-6),bars
+ def _preview_draft(self,target,identity,pattern):
+  # A pattern being tuned (the Euclid sheet): played on loop, never written. Each new draft takes over the running
+  # preview in place, keeping its timing, after the sounding preview notes are let go (a changed pattern may no longer
+  # hold the note-off of a note the old one started).
+  if self.recording:raise ValueError('Finish the take before previewing')
+  if not isinstance(target,dict) or target.get('kind')!='pattern':raise ValueError('Invalid note target')
+  self.note_target(target)
+  track=target['track'];owner=self.project.tracks[track]
+  if target.get('kit')!=owner.get('drum_rack'):raise ValueError('Kit changed; reopen the sheet')
+  if owner['mute']:raise ValueError('Track is muted; unmute it to preview')
+  pattern=validate_pattern(copy.deepcopy(pattern))
+  live=getattr(self,'_pattern_preview',None)
+  if live and live['id']==identity and live['track']==track:
+   self._release_preview_voices(live)
+   live['state']['patterns']['1:1']=pattern;live['pattern']=pattern;live['target']=copy.deepcopy(target)
+   return
+  self.stop_pattern_preview();self.release_performance('perf_seq')
+  state=performance_defaults();state['seq']['enabled']=True;state['patterns']['1:1']=pattern
+  self._pattern_preview=dict(id=identity,track=track,origin=self.absolute_frame,state=state,target=copy.deepcopy(target),pattern=pattern,source=None)
+ def _release_preview_voices(self,preview):
+  tr=preview['track'];self.synths[tr].cancel_sources(('preview',));self.drums[tr].cancel_source('preview');self.samplers[tr].cancel_sources(('preview',))
+  self.drum_gate_keys[tr]={k for k in self.drum_gate_keys[tr] if not (isinstance(k,tuple) and k[0]=='preview')}
  def stop_pattern_preview(self):
   preview=getattr(self,'_pattern_preview',None)
-  if preview:
-   tr=preview['track'];self.synths[tr].cancel_sources(('preview',));self.drums[tr].cancel_source('preview');self.samplers[tr].cancel_sources(('preview',))
-   self.drum_gate_keys[tr]={k for k in self.drum_gate_keys[tr] if not (isinstance(k,tuple) and k[0]=='preview')}
+  if preview:self._release_preview_voices(preview)
   self._pattern_preview=None
  def preview_events(self,start,end):
   p=getattr(self,'_pattern_preview',None)

@@ -1,14 +1,14 @@
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
-import {X} from 'lucide-react';
+import {Play,Square,X} from 'lucide-react';
 import {ValueBox} from './ValueBox';
 import type {useNoteEditing} from './useNoteEditing';
-import type {NoteTarget} from '../note-ops';
+import {expectedWithEvents,type NoteTarget} from '../note-ops';
 import {euclidCycle,euclidNotes,degreePitch,writeLanes,type EuclidLane} from '../euclid';
 import {GENRES,DRUM_ROLES,SYNTH_ROLES,ROLE_LABEL,SYNTH_LABEL,drumRolePads,type Genre,type DrumRole,type SynthRole} from '../euclid-genres';
 import {DRUM_KINDS,type DrumKind} from '../drum-kinds';
 import {ROOTS} from '../chords';
-import {noteName,type DrumPad,type StepPattern} from '../types';
+import {noteName,type DrumPad,type StepPattern,type Track} from '../types';
 
 type Lane={key:string;label:string;color:string;lane:EuclidLane;note:number;degrees:number[];octave:number};
 type Scale={name:string;root:number};
@@ -55,27 +55,42 @@ function Rings({lanes,selected}:{lanes:Lane[];selected:number}){
  </svg>;
 }
 
-export function useEuclid({edit,target,recording,pat,drums,pads,scale}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;recording:boolean;pat:StepPattern;drums:boolean;pads:readonly DrumPad[];scale:Scale}){
+type Send=(command:string,args?:unknown)=>void;
+export function useEuclid({edit,target,recording,pat,drums,pads,scale,track,send}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;recording:boolean;pat:StepPattern;drums:boolean;pads:readonly DrumPad[];scale:Scale;track:Track;send:Send}){
  const [open,setOpen]=useState(false);
  const latest=useRef({target,recording});latest.current={target,recording};
  const opened=useRef(JSON.stringify(target));
  useEffect(()=>{if(open&&(recording||JSON.stringify(target)!==opened.current))setOpen(false);},[open,recording,JSON.stringify(target)]);
  return {open:()=>{if(recording)return;opened.current=JSON.stringify(target);setOpen(true);},
-  panel:open?<EuclidPanel edit={edit} target={target} pat={pat} drums={drums} pads={pads} scale={scale} close={()=>setOpen(false)}/>:null as ReactNode};
+  panel:open?<EuclidPanel edit={edit} target={target} pat={pat} drums={drums} pads={pads} scale={scale} muted={!!track.mute} kit={track.drum_rack??null} send={send} close={()=>setOpen(false)}/>:null as ReactNode};
 }
 
-function EuclidPanel({edit,target,pat,drums,pads,scale,close}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;pat:StepPattern;drums:boolean;pads:readonly DrumPad[];scale:Scale;close:()=>void}){
+function EuclidPanel({edit,target,pat,drums,pads,scale,muted,kit,send,close}:{edit:ReturnType<typeof useNoteEditing>;target:NoteTarget;pat:StepPattern;drums:boolean;pads:readonly DrumPad[];scale:Scale;muted:boolean;kit:Track['drum_rack']|null;send:Send;close:()=>void}){
  const [lanes,setLanes]=useState<Lane[]>(()=>startLanes(drums,pads)),[sel,setSel]=useState(0),[genre,setGenre]=useState<Genre|null>(null),[done,setDone]=useState('');
- const closeRef=useRef<HTMLButtonElement>(null);
+ const closeRef=useRef<HTMLButtonElement>(null),[hear,setHear]=useState(false),hearing=useRef(false);
  useEffect(()=>{const previous=document.activeElement as HTMLElement;closeRef.current?.focus();return()=>{if(previous?.isConnected)previous.focus({preventScroll:true});};},[]);
  const cur=lanes[Math.min(sel,lanes.length-1)];
  const patch=(i:number,change:Partial<EuclidLane>)=>{setDone('');setLanes(ls=>ls.map((l,j)=>j===i?{...l,lane:{...l.lane,...change}}:l));};
  const notesOf=(l:Lane)=>euclidNotes(l.lane,pat.length,pitchOf(l,drums,scale));
  const active=lanes.filter(l=>l.lane.on),count=active.reduce((n,l)=>n+notesOf(l).length,0);
+ /** What Write would leave in the pattern: the heard draft is exactly this, with the rest of the pattern around it. */
+ const draft=()=>expectedWithEvents(pat,writeLanes(edit.events,active.map(notesOf),drums?active.map(l=>l.note):null)) as StepPattern;
+ const previewTarget={...target,kit};
+ const stopHearing=()=>{if(hearing.current){hearing.current=false;send('catalog_action',['stop',previewTarget,null,'']);}};
+ // Tuning is heard: the draft loops through the engine's preview (never the pattern, never REC) and follows every change.
+ useEffect(()=>{
+  if(!hear||muted)return;
+  if(!active.length){stopHearing();return;}
+  const timer=setTimeout(()=>{hearing.current=true;send('catalog_action',['preview_draft',previewTarget,null,'euclid.draft',draft()]);},140);
+  return()=>clearTimeout(timer);
+ },[hear,muted,JSON.stringify([lanes,scale])]);
+ useEffect(()=>{if(!hear||muted)stopHearing();},[hear,muted]);
+ useEffect(()=>stopHearing,[]);
  const audition=(l:Lane)=>edit.auditionPitch(drums?l.note:degreePitch(36+scale.root+12*l.octave,scale.name,l.degrees[0]??0));
  const write=()=>{
   if(!active.length)return;
   const next=writeLanes(edit.events,active.map(notesOf),drums?active.map(l=>l.note):null);
+  setHear(false);stopHearing();
   edit.commit(next,[],edit.expectedState(),target);
   setDone('Written: '+count+' notes');
  };
@@ -86,7 +101,7 @@ function EuclidPanel({edit,target,pat,drums,pads,scale,close}:{edit:ReturnType<t
     <button type="button" ref={closeRef} className="euclid-done" aria-label="Done" onClick={close}><X size={18}/>Done</button></header>
    <div className="euclid-genres" role="group" aria-label="Genre starting points">
     {GENRES.map(g=><button type="button" key={g.id} aria-pressed={genre?.id===g.id} title={g.name+' · usually '+g.bpm[0]+'–'+g.bpm[1]+' BPM (the tempo is not changed)'}
-     onClick={()=>{setGenre(g);setDone('');setLanes(ls=>withGenre(ls,g,drums));}}>{g.name}</button>)}
+     onClick={()=>{setGenre(g);setDone('');setHear(true);setLanes(ls=>withGenre(ls,g,drums));}}>{g.name}</button>)}
     <button type="button" className="euclid-clear" title="Switch every lane off" onClick={()=>{setGenre(null);setDone('');setLanes(ls=>ls.map(l=>({...l,lane:{...l.lane,on:false}})));}}>All off</button>
    </div>
    <div className="euclid-body">
@@ -109,7 +124,8 @@ function EuclidPanel({edit,target,pat,drums,pads,scale,close}:{edit:ReturnType<t
     </div>
    </div>
    <footer>
-    <small aria-live="polite">{done||(active.length?active.length+(active.length>1?' lanes · ':' lane · ')+count+' notes · '+(drums?'replaces only these pads in the pattern':'replaces every note in the pattern')+(genre?' · '+genre.name+' is usually '+genre.bpm[0]+'–'+genre.bpm[1]+' BPM':''):'Switch a lane on, or pick a genre')}</small>
+    <small aria-live="polite">{done||(active.length?(hear&&!muted?'Listening · ':'')+active.length+(active.length>1?' lanes · ':' lane · ')+count+' notes · '+(drums?'replaces only these pads in the pattern':'replaces every note in the pattern')+(genre?' · '+genre.name+' is usually '+genre.bpm[0]+'–'+genre.bpm[1]+' BPM':''):'Switch a lane on, or pick a genre')}</small>
+    <button type="button" className="euclid-hear" aria-pressed={hear&&!muted} disabled={muted||!active.length} title={muted?'Unmute the track to hear it':hear?'Stop listening':'Hear this pattern in the track, nothing is written until Write'} onClick={()=>setHear(h=>!h)}>{hear&&!muted?<Square size={15}/>:<Play size={16}/>}{hear&&!muted?'Stop':'Hear'}</button>
     <button type="button" className="euclid-write" disabled={!active.length} onClick={write}>Write to pattern</button>
    </footer>
   </section></div>,document.querySelector('.harness-shell')??document.body);

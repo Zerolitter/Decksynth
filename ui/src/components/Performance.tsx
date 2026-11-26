@@ -159,7 +159,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   const noteExpected=clipMode?track.notes:pat;
   const edit=useNoteEditing({target:noteTarget,expected:noteExpected,events:clipMode?track.notes:patternEvents(pat),bounds:noteBounds,playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo,redo:onRedo,sound:editSound});
   const generation=useNoteGeneration(edit,noteTarget,noteBounds,recording,scale);
-  const euclid=useEuclid({edit,target:noteTarget,recording,pat,drums:device==='drum_rack',pads:track.drum_rack?.pads??[],scale});
+  const euclid=useEuclid({edit,target:noteTarget,recording,pat,drums:device==='drum_rack',pads:track.drum_rack?.pads??[],scale,track,send:onCommand});
   const noteContext=useNoteContext({edit,target:noteTarget,expected:noteExpected,bounds:noteBounds,recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
 
