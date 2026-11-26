@@ -1,0 +1,49 @@
+/* FX per clip (26 Nov, mockup fx-per-clip): the Clip FX strip is the FX page's title bar on a track; --tc is the
+   track's colour (a clip belongs to its track). Selected is orange (rule 40). */
+.harness-shell .clip-fx-strip{flex:none;display:flex;gap:6px;align-items:stretch;height:54px;padding:4px;border-radius:12px;border:1px solid var(--ui-line-soft);background:var(--ui-surface)}
+.harness-shell .clip-fx-label{display:flex;align-items:center;gap:8px;padding:0 6px 0 8px;font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--c-fx);white-space:nowrap}
+.harness-shell .clip-fx-clip{position:relative;display:flex;flex-direction:column;justify-content:center;width:108px;min-height:44px;padding:0 8px 0 12px;border-radius:9px;
+  border:1px solid var(--ui-line);background:var(--ui-surface-hi);text-align:left;overflow:hidden;color:var(--ui-text-1)}
+.harness-shell .clip-fx-clip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tc)}
+.harness-shell .clip-fx-clip.base::before{background:var(--ui-line-strong)}
+.harness-shell .clip-fx-clip b{display:flex;gap:6px;align-items:center;font-size:13px;line-height:1.1;white-space:nowrap;overflow:hidden}
+.harness-shell .clip-fx-clip b i{font-style:normal;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--tc);color:var(--tc);display:grid;place-items:center;font-size:10.5px;font-weight:800;flex:none}
+.harness-shell .clip-fx-clip small{font-size:10.5px;color:var(--ui-text-dim);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .clip-fx-clip.has small{color:var(--ui-text-2)}
+.harness-shell .clip-fx-clip.empty{width:46px;align-items:center;padding:0;opacity:.6}
+.harness-shell .clip-fx-clip.empty::before{display:none}
+.harness-shell .clip-fx-clip.empty b{justify-content:center}
+.harness-shell .clip-fx-clip.live{background:color-mix(in srgb,var(--tc) 16%,var(--ui-surface-hi));border-color:color-mix(in srgb,var(--tc) 60%,var(--ui-line))}
+.harness-shell .clip-fx-clip.live::after{content:"";position:absolute;right:7px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--tc);box-shadow:0 0 8px var(--tc)}
+.harness-shell .clip-fx-clip.sel{border-color:var(--ui-accent-strong);box-shadow:inset 0 0 0 1px var(--ui-accent-strong);opacity:1}
+.harness-shell .clip-fx-sp{flex:1}
+.harness-shell .clip-fx-edit{display:flex;align-items:center;gap:8px;padding:0 14px;min-height:44px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);font-weight:700;font-size:13px;color:var(--ui-text-2);white-space:nowrap}
+.harness-shell .clip-fx-edit.on{background:var(--ui-accent-bg);border-color:var(--ui-accent-strong);color:var(--ui-text-hi)}
+
+/* the edit row, only while a clip's FX are edited (raised charcoal with the track's edge, like a toast) */
+.harness-shell .clip-edit-row{flex:none;display:flex;align-items:center;gap:10px;height:52px;padding:4px 6px 4px 0;border-radius:12px;background:var(--ui-raised);border-left:5px solid var(--tc)}
+.harness-shell .clip-edit-msg{padding-left:10px;font-size:13.5px;font-weight:600;color:var(--ui-text-hi);line-height:1.25;white-space:nowrap}
+.harness-shell .clip-edit-msg small{display:block;font-weight:400;color:var(--ui-text-3);font-size:12px}
+.harness-shell .clip-edit-mini{font-size:11px;color:var(--ui-text-3);font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.harness-shell .clip-edit-seg,.harness-shell .clip-edit-copy{display:flex;gap:3px;align-items:center}
+.harness-shell .clip-edit-seg button,.harness-shell .clip-edit-copy button,.harness-shell .clip-edit-clear{min-height:44px;min-width:44px;padding:0 10px;border-radius:8px;border:1px solid var(--ui-line);
+  background:var(--ui-surface);color:var(--ui-text-2);font-size:12.5px;white-space:nowrap}
+.harness-shell .clip-edit-seg button.active{background:var(--ui-accent-bg);border-color:var(--ui-accent-strong);color:var(--ui-text-hi);font-weight:700}
+.harness-shell .clip-edit-seg button:disabled,.harness-shell .clip-edit-clear:disabled{opacity:.45}
+.harness-shell .clip-edit-copy button{font-weight:800;color:var(--tc)}
+.harness-shell .clip-edit-copy .clip-edit-mini{margin-left:6px}
+.harness-shell .clip-edit-clear{color:var(--ui-rec-soft);border-color:color-mix(in srgb,var(--ui-rec) 40%,var(--ui-line))}
+
+/* a knob the clip holds: the clip's letter and the Base value struck through, on its value box */
+.harness-shell .frame-fx .fx-grid-body .clip-held{position:absolute;left:49px;width:76px;top:0;height:44px;pointer-events:none;z-index:2}
+.harness-shell .clip-held s{position:absolute;right:5px;top:3px;font-size:9.5px;color:var(--ui-text-dim)}
+.harness-shell .clip-held i{position:absolute;right:4px;bottom:4px;font-style:normal;min-width:15px;height:15px;border-radius:4px;background:var(--clip-tc,var(--ui-accent));color:var(--ui-black);font-size:9.5px;font-weight:800;display:grid;place-items:center}
+.harness-shell .frame-fx .clip-off-tag{display:flex;align-items:center;gap:4px;height:26px;align-self:center;margin-right:4px;padding:0 8px;border-radius:6px;border:1px solid var(--clip-tc);
+  background:color-mix(in srgb,var(--clip-tc) 22%,var(--ui-black));color:var(--ui-text-hi);font-size:11px;font-weight:700;white-space:nowrap;width:auto!important}
+.harness-shell .frame-fx .clip-off-tag i{font-style:normal;font-weight:800}
+/* a send the clip holds */
+.harness-shell .bus-send .clip-held{position:absolute;left:49px;width:76px;top:0;height:44px;pointer-events:none}
+.harness-shell .bus-send-body{position:relative}
+/* Base: drops the clip's changes to this effect */
+.harness-shell .frame-fx .clip-revert{display:flex;align-items:center;gap:4px;height:44px;min-height:44px;align-self:center;margin-right:4px;padding:0 8px;border-radius:6px;border:1px solid var(--clip-tc);
+  background:none;color:var(--ui-text-hi);font-size:11px;font-weight:700;white-space:nowrap;width:auto!important}

@@ -1,0 +1,99 @@
+/* FX buses on the FX page (26 Nov, mockup fx-layering-v2): bus chips beside the tracks, the bus view's feeds,
+   a track's sends under its chain, and the New bus sheet. Each bus keeps one colour (--bus) everywhere. */
+.harness-shell .bus-chips{display:flex;gap:6px;align-items:stretch;height:100%;padding-left:8px;border-left:1px solid var(--ui-line)}
+.harness-shell .bus-chip{display:flex;align-items:center;gap:8px;width:124px;min-height:44px;padding:0 10px;border-radius:10px;border:1px solid var(--ui-line);
+  background:var(--ui-surface);text-align:left;color:var(--ui-text-1)}
+.harness-shell .bus-chips.tight .bus-chip{width:100px}
+.harness-shell .bus-chip-no{width:24px;height:24px;border-radius:50%;background:var(--bus);color:var(--ui-black);display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+.harness-shell .bus-chip-text{min-width:0;display:flex;flex-direction:column}
+.harness-shell .bus-chip b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .bus-chip small{font-size:10.5px;color:var(--ui-text-dim);white-space:nowrap}
+.harness-shell .bus-chip.active{border-color:var(--ui-accent-strong);background:var(--ui-accent-bg)}
+.harness-shell .bus-chip.active .bus-chip-no{box-shadow:0 0 0 2px var(--ui-accent)}
+.harness-shell .bus-chip.active b{color:var(--ui-text-hi)}
+.harness-shell .bus-chip-add{width:48px;min-height:44px;border-radius:10px;border:1px dashed var(--ui-line);background:none;color:var(--ui-text-3);display:grid;place-items:center}
+.harness-shell .bus-chip-add.lit{border-style:solid;border-color:var(--ui-accent-strong);color:var(--ui-accent)}
+
+/* the band under a track's chain / over a bus's chain */
+/* the rack takes the room left and scrolls; the bands (Send to buses, a bus's feeds) stay put at their edge of the page */
+.harness-shell .frame-fx.with-band .fx-cards.frame-rack{flex:1 1 0;min-height:0}
+.harness-shell .bus-band{flex:none;display:flex;gap:8px;align-items:stretch;padding:8px;border-radius:12px;border:1px solid var(--ui-line-soft);background:var(--ui-well)}
+.harness-shell .bus-band-head{width:150px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:3px;padding-left:4px}
+.harness-shell .bus-band-head>b{font-size:12px;letter-spacing:.06em;color:var(--c-fx);text-transform:uppercase}
+.harness-shell .bus-feeds-band .bus-band-head>b{color:var(--bus)}
+.harness-shell .bus-band-head small{color:var(--ui-text-3);font-size:12px;line-height:1.3}
+.harness-shell .bus-saves{font-size:12px;color:var(--ui-text-3)}
+.harness-shell .bus-saves b{color:var(--ui-text-hi)}
+
+/* track view: one tile per bus */
+.harness-shell .bus-send{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding:6px 8px;border-radius:10px;border:1px solid var(--ui-line);
+  border-left:3px solid var(--bus);background:var(--ui-surface)}
+.harness-shell .bus-send.zero{opacity:.85}
+.harness-shell .bus-send-head{display:flex;align-items:center;gap:8px;min-height:22px}
+.harness-shell .bus-letter{width:22px;height:22px;border-radius:50%;background:var(--bus);color:var(--ui-black);font-size:12px;font-weight:800;display:grid;place-items:center;flex:none}
+.harness-shell .bus-send-head b{font-size:13.5px;color:var(--ui-text-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .bus-fx-tags{display:flex;gap:4px;margin-left:auto;align-items:center;min-width:0;overflow:hidden}
+.harness-shell .bus-fx-tags i{font-style:normal;font-size:10.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--fc);color:var(--fc);white-space:nowrap}
+.harness-shell .bus-send-body{display:flex;align-items:center;gap:8px}
+.harness-shell .bus-send-body .tactile-knob{display:grid;grid-template-columns:44px 76px;grid-template-rows:44px;gap:0 5px;width:126px;height:44px;margin:0}
+.harness-shell .bus-send-body .tactile-knob .knob-heading{grid-column:2;grid-row:1;align-self:start;z-index:1;padding:3px 0 0 7px;text-align:left;font-size:10.5px;line-height:12px;pointer-events:none;color:var(--ui-text-3);margin:0}
+.harness-shell .bus-send-body .tactile-knob .knob-target{grid-column:1;grid-row:1;width:44px;height:44px;min-width:44px;min-height:44px}
+.harness-shell .bus-send-body .tactile-knob .knob-value,.harness-shell .bus-send-body .tactile-knob .knob-entry{grid-column:2;grid-row:1;width:76px;height:44px;min-height:44px;padding:13px 4px 0 7px;justify-content:flex-start;text-align:left;font-size:12.5px;margin:0}
+.harness-shell .bus-seg{display:flex;gap:3px;margin-left:auto}
+.harness-shell .bus-seg button{min-height:44px;min-width:58px;padding:0 8px;border-radius:8px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);color:var(--ui-text-2);font-size:12.5px;white-space:nowrap}
+.harness-shell .bus-seg button.active{background:var(--ui-accent-bg);border-color:var(--ui-accent-strong);color:var(--ui-text-hi);font-weight:700}
+.harness-shell .bus-send-add{flex:0 0 120px;min-height:44px;border-radius:10px;border:1px dashed var(--ui-line);background:none;color:var(--ui-text-2);font-weight:700;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.harness-shell .bus-send-add.lit{border-style:solid;border-color:var(--ui-accent-strong);color:var(--ui-accent)}
+
+/* bus view: a fader per feeding track, the Return */
+.harness-shell .bus-feeds{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-content:center}
+.harness-shell .bus-feeds.many{grid-template-columns:repeat(4,minmax(0,1fr))}
+.harness-shell .bus-fader{position:relative;height:44px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-black);overflow:hidden;display:flex;align-items:center;gap:8px;
+  padding:0 10px;touch-action:none;cursor:ew-resize;user-select:none}
+.harness-shell .bus-fader-fill{position:absolute;inset:0 auto 0 0;width:var(--w);background:color-mix(in srgb,var(--fc) 30%,var(--ui-black));border-right:2px solid var(--fc);pointer-events:none}
+.harness-shell .bus-fader>*:not(.bus-fader-fill){position:relative}
+.harness-shell .bus-fader-no{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--fc);color:var(--fc);display:grid;place-items:center;font-size:11px;font-weight:800;flex:none}
+.harness-shell .bus-fader-no.round{border-radius:50%;background:var(--fc);color:var(--ui-black)}
+.harness-shell .bus-fader b{flex:1;min-width:0;font-size:13px;color:var(--ui-text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .bus-fader em{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ui-text-hi);font-size:13px}
+.harness-shell .bus-fader-tag{font-size:9.5px;font-weight:800;letter-spacing:.05em;padding:2px 5px;border-radius:5px;background:var(--ui-surface-hi);color:var(--ui-text-3)}
+.harness-shell .bus-fader.zero .bus-fader-fill{border-right-color:transparent}
+.harness-shell .bus-fader.zero b,.harness-shell .bus-fader.zero em{color:var(--ui-text-dim)}
+.harness-shell .bus-fader:focus-visible{outline:2px solid var(--ui-accent);outline-offset:1px}
+.harness-shell .bus-return{width:300px;flex:none;display:flex;flex-direction:column;gap:6px;justify-content:center}
+.harness-shell .bus-return-row{display:flex;gap:6px}
+.harness-shell .bus-tog{flex:1;min-height:44px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);font-size:13px;font-weight:600;color:var(--ui-text-2);
+  display:flex;align-items:center;justify-content:center;gap:6px}
+.harness-shell .bus-tog.on{background:var(--ui-accent-bg);border-color:var(--ui-accent-strong);color:var(--ui-text-hi)}
+.harness-shell .bus-tog.warn{color:var(--ui-rec-soft)}
+
+/* "Move it there": a track card whose effect a bus already runs */
+.harness-shell .fx-cards .bus-offer{display:flex;align-items:center;gap:6px;height:44px;padding:0 10px;border:0;border-left:1px solid var(--ui-line-soft);
+  background:color-mix(in srgb,var(--bus) 12%,transparent);color:var(--ui-text-hi);width:auto!important;min-width:56px}
+.harness-shell .fx-cards .bus-offer i{width:18px;height:18px;border-radius:50%;background:var(--bus);color:var(--ui-black);font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center}
+
+/* New bus sheet */
+.harness-shell .bus-sheet-scrim{position:fixed;inset:0;z-index:60;background:color-mix(in srgb,var(--ui-black) 62%,transparent);display:flex;align-items:flex-start;justify-content:center;padding-top:110px}
+.harness-shell .bus-sheet{width:min(880px,calc(100% - 32px));background:var(--ui-surface);border:1px solid var(--ui-line-strong);border-radius:14px;box-shadow:0 24px 70px var(--ui-black-pure);padding:12px 16px 14px}
+.harness-shell .bus-sheet header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.harness-shell .bus-sheet header .bus-letter{width:26px;height:26px}
+.harness-shell .bus-sheet h3{margin:0;font-size:16px;color:var(--ui-text-hi);white-space:nowrap}
+.harness-shell .bus-sheet header span:not(.bus-letter){flex:1;min-width:0;color:var(--ui-text-3);font-size:12.5px}
+.harness-shell .bus-sheet-x{width:44px;height:44px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);color:var(--ui-text-2);display:grid;place-items:center}
+.harness-shell .bus-sheet-label{font-size:11px;color:var(--ui-text-3);font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:8px 0 6px}
+.harness-shell .bus-sheet-label small{text-transform:none;letter-spacing:0;font-weight:400}
+.harness-shell .bus-templates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.harness-shell .bus-templates button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:78px;padding:9px 12px;border-radius:11px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);text-align:left}
+.harness-shell .bus-templates b{font-size:14px;color:var(--ui-text-hi)}
+.harness-shell .bus-templates small{font-size:12px;color:var(--ui-text-3);line-height:1.3}
+.harness-shell .bus-templates .bus-fx-tags{margin-left:0;flex-wrap:wrap}
+.harness-shell .bus-templates button.active,.harness-shell .bus-track-pick button.active{border-color:var(--ui-accent-strong);background:var(--ui-accent-bg)}
+.harness-shell .bus-track-pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.harness-shell .bus-track-pick button{min-height:48px;border-radius:10px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);display:flex;align-items:center;gap:8px;padding:0 10px;text-align:left}
+.harness-shell .bus-track-pick b{font-size:13px;color:var(--ui-text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.harness-shell .bus-track-no{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--tc);color:var(--tc);display:grid;place-items:center;font-size:11px;font-weight:800;flex:none}
+.harness-shell .bus-sheet footer{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:12px}
+.harness-shell .bus-sheet footer span{margin-right:auto;font-size:12px;color:var(--ui-text-3)}
+.harness-shell .bus-sheet-btn{min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-surface-hi);color:var(--ui-text);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.harness-shell .bus-sheet-btn.go{background:var(--ui-accent-bg);border-color:var(--ui-accent-strong);color:var(--ui-text-hi)}

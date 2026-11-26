@@ -12,6 +12,7 @@ from itertools import chain
 from operator import add
 from . import song as songs
 from . import sends as send_buses
+from . import clip_fx
 from . import cbus
 from .devices import device_kind
 # Clip loop lengths in bars (15 Nov: up to 32). Any whole number of bars works (17 Nov:
@@ -27,8 +28,8 @@ from .sampler_engine import SamplerEngine
 from .sampler import validate_sampler
 from .spectral import seed_shape, next_seed, validate_metadata, energy_norm
 from .spectral_native import prepare_kernel as prepare_spectral_kernel, bound_table
-from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, native_voice_curve, MasterStage, DsVoice, default_chain as default_fx, validate_chain as validate_fx
-from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, DsFilter
+from .fx import TrackFx, SOUND_PARAMS, ORDER as FX_ORDER, build_table, native_voice, native_voice2, native_voice_curve, native_pitch, MasterStage, DsVoice, default_chain as default_fx, validate_chain as validate_fx
+from .filter_native import prepare_kernel as prepare_filter_kernel, native_voice as native_filter_voice, native_voice_pitch as native_filter_voice_pitch, DsFilter
 from .controllers import ControllerEngine,validate_mappings
 from .expression import ExpressionVoice
 from . import strike, sample_layer
@@ -155,7 +156,7 @@ class Project:
                      for i,n in enumerate(['Warm Keys','Bass','Atmospheric Pad','Bell'])]
         self.performance=performance_defaults()
         self.song=songs.defaults(); self.clips=songs.empty_clips()
-        self.sends=send_buses.defaults()
+        self.buses=send_buses.defaults()  # the FX buses A to D (sends.py)
     @property
     def beats(self): return self.bars*4
     def clip_notes(self,track,clip):
@@ -166,8 +167,9 @@ class Project:
     def data(self):
         d=dict(version=1,bpm=self.bpm,bars=self.bars,metronome=self.metronome,
                tracks=self.tracks,performance=self.performance,song=self.song,clips=self.clips_data())
-        # Shared send settings are saved once changed, so older projects stay byte-for-byte the same.
-        if self.sends!=send_buses.defaults():d['sends']=self.sends
+        # FX buses are sent and saved once they differ from a new project's (Reverb on A, Delay on B), so the
+        # state and undo copies stay small and older projects stay byte-for-byte the same.
+        if not send_buses.is_default(self.buses):d['buses']=self.buses
         return d
     def saved_data(self):
         """The file form: chord settings added on 16 Nov are written once they differ from their
@@ -203,7 +205,6 @@ class Project:
                 if 'automation' in t:t['automation']=validate_automation(t['automation'])
                 if 'fx' in t:t['fx']=validate_fx(t['fx'])
                 if 'freeze' in t:t['freeze']=validate_freeze(t['freeze'])
-                if 'sends' in t:t['sends']=send_buses.validate_track(t['sends'])
                 if 'clip_names' in t:
                     assert isinstance(t['clip_names'],list) and len(t['clip_names'])==songs.CLIPS
                     t['clip_names']=[clean_clip_name(x) for x in t['clip_names']]
@@ -221,7 +222,15 @@ class Project:
             p.song=songs.validate(d['song'],d['bars'],n) if 'song' in d else songs.defaults(d['bars'],n)
             p.clips=songs.validate_clips(d['clips'],d['bars']*4,n) if 'clips' in d else songs.empty_clips(n)
             p.performance=validate_performance(d['performance']) if 'performance' in d else performance_defaults()
-            p.sends=send_buses.validate(d['sends']) if 'sends' in d else send_buses.defaults()
+            # FX buses; a project from before them has the shared Reverb and Delay ('sends'): Bus A and Bus B.
+            if 'buses' in d:p.buses=send_buses.validate(d['buses'])
+            elif 'sends' in d:p.buses=send_buses.migrate(d['sends'])
+            else:p.buses=send_buses.defaults()
+            for t in p.tracks:
+                if 'sends' in t:t['sends']=send_buses.validate_track(t['sends'],len(p.buses))
+                if 'clip_fx' in t:
+                    t['clip_fx']=clip_fx.validate(t['clip_fx'],len(p.buses))
+                    if not t['clip_fx']:t.pop('clip_fx')
             reconcile_pattern_timing(p.performance,preserve_chain=True)
             p.performance=validate_performance(p.performance)
             # Recording-arm is a live safety state; never resume armed after reopening a file.
@@ -539,13 +548,22 @@ class Synth(ExpressionVoice):
                     fast=None; break
             if fast is not None:
                 pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
+                # The pitch envelope's slices in one C call per voice (strike.DsPitch); Python slices with an older library.
+                pk=native_pitch('dsfx_voice_pitch') if pitched else None; pkc=native_pitch('dsfx_voice_curve_pitch') if pk else None
+                if pk is not None:pa=self.pargs=strike.pitch_args(p,sr,getattr(self,'pargs',None));pref=ctypes.byref(pa)
                 for key,v in list(self.voices.items()):
                     rel=v['release']; prev=v.get('prev')
                     st[0]=v['phase']; st[1]=v['age']; st[2]=rel[0] if rel else 0; st[3]=rel[1] if rel else 0
                     st[4]=v['level']; st[5]=v.get('xf',1.)
                     step=440*2**((v['note']-69)/12)*2048/sr*self.bend*2**(p.get('pitch',0)/12)*v.get('pitch_factor',1.)*v.get('drift',1.)*(1+mod*.002*math.sin(self.clock/sr*2*math.pi*.4))
                     dst=self._scratch(frames) if hit else buf; res=0
-                    for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                    if pk is not None:
+                        if curve and not v.get('fast') and curved is not None:
+                            res=pkc(dst,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,a,d,p['sustain'],slow,curve,pref)
+                        else:
+                            res=pk(dst,frames,v['table'],prev,st,rel is not None,step,self.amp(v,p)*.23*trem,a,d,p['sustain'],quick if v.get('fast') else slow,pref)
+                        if res&2:prev=None
+                    for off,n,fac in (() if pk is not None else strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
                         if curve and not v.get('fast') and curved is not None:
                             res=curved(strike.at(dst,off),n,v['table'],prev,st,rel is not None,step*fac,self.amp(v,p)*.23*trem,
                                        a,d,p['sustain'],slow,curve)
@@ -609,6 +627,10 @@ class Synth(ExpressionVoice):
                                         for v in self.voices.values()):fast=None
         out=(target if target is not None else (ctypes.c_double*frames)()) if fast is not None else [0.]*frames
         va=self.vargs; st=self.st; pitched=bool(p.get('pitch_env',0.)); hit=strike.strikes(p)
+        pk=None
+        if pitched and fast is not None:
+            pk=native_filter_voice_pitch() if extended else native_pitch('dsfx_voice2_pitch')
+            if pk is not None:pa=self.pargs=strike.pitch_args(p,sr,getattr(self,'pargs',None));pref=ctypes.byref(pa)
         cfg=dict(a=a,d=d,sus=p['sustain'],uni=uni,detune=p.get('uni_detune',.3)*.5,ftype=ft,reso=p.get('vcf_reso',.2),
                  envamt=p.get('vcf_env',.3)*6,rate=float(sr),npart=16,stretch=.008*inh*inh,sub=sub,suboct=int(p.get('sub_oct',1)))
         fc=dict(a=max(1,p.get('fenv_a',p['attack'])*sr),d=max(1,p.get('fenv_d',p['decay'])*sr),
@@ -640,7 +662,11 @@ class Synth(ExpressionVoice):
                 if extended:
                     for k,val in fc.items():setattr(self.fargs,k,val)
                 res=0
-                for off,n,fac in (strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
+                if pk is not None:
+                    va.step=cfg['step']
+                    res=pk(dst,frames,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs),pref) if extended else pk(dst,frames,v['table'],prev,st,ctypes.byref(va),pref)
+                    if res&2:prev=None
+                for off,n,fac in (() if pk is not None else strike.slices(p,v['age'],frames,sr) if pitched else ((0,frames,1.),)):
                     va.step=cfg['step']*fac
                     res=fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va),ctypes.byref(self.fargs)) if extended else fast(strike.at(dst,off),n,v['table'],prev,st,ctypes.byref(va))
                     if res&2:prev=None
@@ -767,7 +793,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
     def __init__(self,rate=48000):
         self.rate=rate; self.project=Project(); self.synths=[Synth(rate) for _ in range(4)]
         self.fx=[TrackFx(rate) for _ in range(4)];self._pan_state=[None]*4
-        self.send_buses=send_buses.SendBuses(rate)  # the shared Reverb and Delay (sends.py)
+        self.send_buses=send_buses.SendBuses(rate)  # the FX buses A to D (sends.py)
+        # FX per clip (clip_fx.py): per track, what the playing clip put on its chain and sends.
+        self._clip_fx={};self._clip_sends={};self._clip_glide={}
         self.selected=0; self.playing=False; self.recording=False; self.frame=0; self._bucket_cache={}
         self.pending={}; self.down=set(); self.capture_sustain=set(); self.history=[]; self.redo_history=[]; self.record_start=0; self.record_end=0; self.click_age=99999; self.limit=1.
         self.transfer_report=None
@@ -798,27 +826,144 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.midi_learn=None
         for t,s in zip(self.project.tracks,self.synths): s.configure(t['instrument'])
         for t,fx in zip(self.project.tracks,self.fx): fx.configure(t.get('fx'))
-        self.send_buses.configure(getattr(self.project,'sends',None))
+        self.send_buses.configure(getattr(self.project,'buses',None))
         self.configure_drums()
         self.configure_samplers()
     def set_fx(self,track,chain):
         """Replace one track's FX chain (validated); applies on the next audio block."""
         clean=validate_fx(chain);self.record_fx_changes(track,self.project.tracks[track].get('fx') or default_fx(),clean); self.project.tracks[track]['fx']=clean; self.fx[track].configure(clean)
-    def set_send(self,track,bus,amount):
-        """How much of one track goes to the shared Reverb or Delay (0..1, after its volume and pan)."""
+    def set_send(self,track,bus,amount,through=None):
+        """How much of one track feeds an FX bus (0..1, after its volume and pan), and whether it goes Through the
+        bus only (not straight to the mix). bus: its index, or 'reverb' / 'delay' for Bus A / Bus B (the old sends).
+        through None keeps the track's current choice."""
         from .devices import track_index
         if track_index(track)>=len(self.project.tracks):raise ValueError('Choose track 1–%d'%len(self.project.tracks))
-        if bus not in send_buses.BUSES:raise ValueError('Unknown send')
-        t=self.project.tracks[track];sends=dict(t.get('sends') or {});sends[bus]=float(amount)
-        t['sends']=send_buses.validate_track(sends)
+        i=send_buses.bus_index(bus,len(self.project.buses))
+        t=self.project.tracks[track];sends=copy.deepcopy(t.get('sends') or {})
+        old=sends.get(str(i),{'amount':0.,'through':False})
+        if not (type(amount) in (int,float) and math.isfinite(amount)):raise ValueError('Invalid track sends')
+        if through is not None and not isinstance(through,bool):raise ValueError('Through is on or off')
+        sends[str(i)]={'amount':float(amount),'through':old['through'] if through is None else through}
+        t['sends']=send_buses.validate_track(sends,len(self.project.buses))
+        if not t['sends']:t.pop('sends')
     def set_send_setting(self,bus,key,value):
-        """Change a shared Reverb or Delay setting, or its Return level (key 'level')."""
-        if bus not in send_buses.BUSES:raise ValueError('Unknown send')
-        current=copy.deepcopy(self.project.sends)
-        if key=='level':current[bus]['level']=value
-        elif any(k==key for k,*_ in send_buses.SETTINGS[bus]):current[bus]['params'][key]=value
-        else:raise ValueError('Unknown send setting')
-        self.project.sends=send_buses.validate(current);self.send_buses.configure(self.project.sends)
+        """The old shared Reverb / Delay settings: a setting of the Reverb on Bus A or the Delay on Bus B, or that
+        bus's Return level (key 'level')."""
+        if bus not in send_buses.LEGACY:raise ValueError('Unknown send')
+        i=send_buses.bus_index(bus,len(self.project.buses))
+        if key=='level':return self.set_bus(i,'return',value)
+        if not any(k==key for k,*_ in send_buses.SETTINGS[bus]):raise ValueError('Unknown send setting')
+        chain=copy.deepcopy(self.project.buses[i]['chain'])
+        module=next((m for m in chain['modules'] if m['id']==bus),None)
+        if module is None:raise ValueError('Unknown send setting')
+        module['params'][key]=float(round(value)) if (bus,key)==('delay','time') and type(value) in (int,float) and math.isfinite(value) else value
+        self.set_bus_chain(i,chain)
+    def set_bus(self,bus,key,value):
+        """A bus's name, colour, Return level or Mute."""
+        i=send_buses.bus_index(bus,len(self.project.buses))
+        if key not in ('name','colour','return','mute'):raise ValueError('Unknown bus setting')
+        buses=copy.deepcopy(self.project.buses);buses[i][key]=value
+        self.project.buses=send_buses.validate(buses);self.send_buses.configure(self.project.buses)
+    def set_bus_chain(self,bus,chain):
+        """Replace a bus's FX chain (validated); applies on the next audio block."""
+        i=send_buses.bus_index(bus,len(self.project.buses))
+        self.project.buses[i]['chain']=validate_fx(chain);self.send_buses.configure(self.project.buses)
+    def add_bus(self,name=None,chain=None):
+        """A new empty bus after the others (at most four). One undo step. Returns its index."""
+        if len(self.project.buses)>=send_buses.MAX_BUSES:raise ValueError('Four buses at most')
+        i=len(self.project.buses);bus=send_buses.new_bus(i,name,validate_fx(chain) if chain is not None else None)
+        bus=send_buses.validate([*self.project.buses,bus])[-1]
+        self.snapshot();self.project.buses.append(bus);self.send_buses.configure(self.project.buses)
+        return i
+    def remove_bus(self,bus):
+        """Take a bus out: its feeds go, and Through tracks on it play straight to the mix again. One undo step."""
+        i=send_buses.bus_index(bus,len(self.project.buses))
+        self.snapshot();self.project.buses.pop(i)
+        for t in self.project.tracks:
+            if 'sends' not in t:continue
+            t['sends']=send_buses.remap_track(t['sends'],i)
+            if not t['sends']:t.pop('sends')
+        for t in self.project.tracks:
+            if 'clip_fx' in t:
+                t['clip_fx']=clip_fx.remap_bus(t['clip_fx'],i)
+                if not t['clip_fx']:t.pop('clip_fx')
+        self.send_buses.configure(self.project.buses)
+    def set_clip_fx(self,track,clip,entry,undo=False):
+        """What one clip changes in its track's FX (clip_fx.py): None takes the clip back to the track's own chain.
+        undo: one undo step (Clear, Copy from, a power button); knob moves leave it out, like the FX knobs."""
+        from .devices import track_index
+        if track_index(track)>=len(self.project.tracks):raise ValueError('Choose track 1–%d'%len(self.project.tracks))
+        if type(clip) is not int or not 0<=clip<songs.CLIPS:raise ValueError('Choose clip A-H')
+        t=self.project.tracks[track];cf=dict(t.get('clip_fx') or {})
+        clean=None if entry is None else clip_fx.validate({str(clip):entry},len(self.project.buses)).get(str(clip))
+        if undo:self.snapshot()
+        if clean:cf[str(clip)]=clean
+        else:cf.pop(str(clip),None)
+        if cf:t['clip_fx']=dict(sorted(cf.items()))
+        else:t.pop('clip_fx',None)
+    def playing_clip(self,track):
+        """The clip a track plays now: the song's block under the playhead (None where the lane is silent), or
+        in loop mode the open clip."""
+        p=self.project;song=p.song
+        if song['on'] and not self.recording:
+            bar=songs.song_bar(song,int(self.frame/(4*self.fpb)))
+            return None if bar is None else songs.clip_at(song,track,bar)
+        return p.clips['open'][track] if track<len(p.clips['open']) else None
+    def _clip_fx_tick(self,frame=0):
+        """Between blocks: put the playing clip's FX on each track that has clip FX. Only a change of clip, of the
+        clip's FX or of the track's own chain or sends reconfigures anything; a silent lane keeps what it had."""
+        for tr,t in enumerate(self.project.tracks[:len(self.fx)]):
+            cf=t.get('clip_fx');st=self._clip_fx.get(tr)
+            if not cf:
+                if st is not None:
+                    del self._clip_fx[tr];self._clip_sends.pop(tr,None)
+                    if self.fx[tr].chain is st[3]:self._configure_fx(tr,t.get('fx'))
+                continue
+            k=self.playing_clip(tr)
+            if k is None and st is not None:continue
+            entry=cf.get(str(k)) if k is not None else None
+            base=t.get('fx');sends=t.get('sends')
+            if st is not None and st[0] is base and st[1] is entry and st[2] is sends and self.fx[tr].chain is st[3]:
+                if tr in self._clip_glide:self._clip_glide_step(tr,frame)
+                continue
+            eff=clip_fx.chain_for(base,entry)
+            # A clip that glides in: only when the playing clip changes (not on an edit), and only while playing.
+            change=(entry or {}).get('change','jump')
+            glide=None
+            if change!='jump' and self.playing and st is not None and st[4]!=k and st[0] is base:
+                glide=self._clip_glide_from(tr,eff)
+            self._clip_glide.pop(tr,None)
+            if self.fx[tr].chain is not eff:self._configure_fx(tr,eff)
+            if glide:
+                self._clip_glide[tr]=(glide,frame,max(1,round(self.fpb*(4 if change=='bar' else 1))))
+                self._clip_glide_step(tr,frame)
+            self._clip_fx[tr]=(base,entry,sends,eff,k)
+            if entry and 'sends' in entry:self._clip_sends[tr]=clip_fx.sends_for(sends,entry)
+            else:self._clip_sends.pop(tr,None)
+    def _clip_glide_from(self,tr,chain):
+        """[(array index, value now, value in the clip)] for the knobs that change and may glide."""
+        from .fx import NPAR, PARAMS as FXP
+        fx=self.fx[tr];out=[]
+        if chain is None or fx.chain is None:return out
+        for m in chain['modules']:
+            idx=FX_ORDER.index(m['id'])
+            for j,(key,_,_,init) in enumerate(FXP[m['id']]):
+                if clip_fx.stepped(m['id'],key):continue
+                now=fx.params[idx*NPAR+j];new=m['params'].get(key,init)
+                if now!=new:out.append((idx*NPAR+j,now,new))
+        return out
+    def _clip_glide_step(self,tr,frame):
+        """Move gliding knobs on for this block (macros and mod pads still add on top afterwards)."""
+        pairs,start,length=self._clip_glide[tr];x=min(1.,max(0.,(frame-start)/length));fx=self.fx[tr]
+        for i,a,b in pairs:fx.params[i]=a+(b-a)*x
+        if x>=1.:del self._clip_glide[tr]
+    def _configure_fx(self,tr,chain):
+        try:self.fx[tr].configure(chain)
+        except ValueError:pass  # a card that needs a newer kernel: the track keeps its chain, as when it was set
+    def _feeds_track(self,tr,t):
+        """The track as the send mix sees it: its own sends, or the playing clip's."""
+        s=self._clip_sends.get(tr)
+        return t if s is None else {'sends':s}
     def seed_spectral(self,track,name):
         """One owned/validated shape gesture; base partials and seed metadata commit together."""
         from .devices import track_index
@@ -1060,7 +1205,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.stop(); d=self.history.pop(); self.project.tracks=d['tracks']; self.project.bpm=d['bpm']; self.project.bars=d['bars']
         self.project.song=d.get('song',self.project.song)
         if 'clips' in d:self.project.clips=d['clips']
-        self.project.sends=copy.deepcopy(d.get('sends',send_buses.defaults()))
+        self.project.buses=copy.deepcopy(d.get('buses',send_buses.defaults()))
         self.project.metronome=d['metronome']
         self.project.performance=copy.deepcopy(d.get('performance',performance_defaults()))
         self.project.performance['seq']['recording']=False
@@ -1147,6 +1292,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             self.snapshot(); put(clip,copy.deepcopy(p.clip_notes(track,source)))
             names=t.get('clip_names') or ['']*songs.CLIPS
             if names[source]:names=list(names);names[clip]=names[source];t['clip_names']=names
+            if t.get('clip_fx'):
+                t['clip_fx']=clip_fx.copy_clip(t['clip_fx'],source,clip)
+                if not t['clip_fx']:t.pop('clip_fx')
         elif action=='clear':
             self.snapshot(); put(clip,[])
             if t.get('clip_names') and t['clip_names'][clip]:t['clip_names']=list(t['clip_names']);t['clip_names'][clip]=''
@@ -1829,7 +1977,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         is not there (bufs.mix then holds the mix for the Python limiter)."""
         c=cbus.lib();tracks=len(self.synths);addr=cbus.addr
         mix,mix_r=bufs.mix,bufs.mix_r;cbus.zero(mix,0,n);cbus.zero(mix_r,0,n)
-        bus_in=self.send_buses.start_block_c(n)
+        buses=self.send_buses;buses.start_block_c(n);amount=buses.c_amount;nb=buses.count;bus_ok=buses.available
         has_right=[r is not None for r in drum_right]
         # Ducking and Vocoder hear another track's own sound (before its FX and volume), even when muted:
         # copy it now, before the FX below change the buffers in place.
@@ -1862,14 +2010,18 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     fl,fr=block;cbus.add_list(left,fl,n);cbus.add_list(right,fr,n)
             if self.capture_track==tr:self.captured.append((left[:n],right[:n]))
             vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
-            amounts=send_buses.track_amounts(t);sends=[]
-            for bus,a in zip(send_buses.BUSES,amounts):
-                if a>0:
-                    self.send_buses.mark_fed(bus);bl,br=bus_in[bus];sends+=[addr(bl),addr(br),a]
-                else:sends+=[None,None,0.]
+            # FX buses: Send adds to the bus on top of the mix; Through goes to the bus only.
+            to_mix=1
+            for k in range(nb):amount[k]=0.
+            if bus_ok and ('sends' in t or tr in self._clip_sends):
+                for k,a,through in send_buses.track_feeds(self._feeds_track(tr,t)):
+                    if k>=nb:continue
+                    if through:to_mix=0
+                    if a>0:amount[k]=a;buses.mark_fed(k)
             pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)+self._sampler_pan(tr,t,fx)))
             bufs.pan[0]=pan if self._pan_state[tr] is None else self._pan_state[tr]
-            c.dsfx_mix_track(addr(left),addr(right),n,vol,pan,addr(bufs.pan),step,addr(mix),addr(mix_r),*sends)
+            c.dsfx_mix_track_n(addr(left),addr(right),n,vol,pan,addr(bufs.pan),step,addr(mix),addr(mix_r),to_mix,nb,
+                               buses.c_left,buses.c_right,amount)
             self._pan_state[tr]=bufs.pan[0]
         self.send_buses.mix_into_c(bufs,bpm,beat)
         # Standalone dry sample audition uses the real native audio clock.
@@ -1889,6 +2041,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             if self.count_end is not None:n=min(n,max(1,self.count_end-self.absolute_frame))
             events={0:[]}; start=self.frame; end=start+n; self._block_start=start
             abs_start=self.absolute_frame; abs_end=abs_start+n
+            self._clip_fx_tick(abs_start)  # FX per clip: the playing clip's FX, before macros and mods move them
             # Macros and mod pads move FX and Sound knobs once per block, before the voices render.
             for tr,(fx,synth) in enumerate(zip(self.fx,self.synths)):
                 auto=self.automation_values[tr];fx.watched=tr==self.selected;fx.modulate(abs_start/self.fpb,auto)
@@ -1936,8 +2089,12 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     # Frozen tracks ring out from where the transport stopped (their file holds the tail).
                     self.freeze_ring={tr:start for tr in range(len(frozen)) if frozen[tr]}
                     self.playing=False; self.frame=0; start=0; end=n; self.release_loops()
+                # A muted track still plays its notes while an unmuted track's Ducking or Vocoder hears it (25 Nov:
+                # in a freeze render every other track is muted, and the Vocoder heard nothing).
+                heard={src for tr,(t,fx) in enumerate(zip(self.project.tracks,self.fx)) if not t['mute']
+                       for src in fx.key_sources() if src is not None and src!=tr}
                 for tr,t in enumerate(self.project.tracks if self.playing else []):
-                    if t['mute'] or frozen[tr]:continue
+                    if (t['mute'] and tr not in heard) or frozen[tr]:continue
                     if song:
                         # Timeline: each bar plays the bar of its block's clip that lines up with the grid.
                         for beat,action,key,bar,note in songs.song_events(song,lambda k:self.project.clip_notes(tr,k),tr,
@@ -2037,8 +2194,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 else:click=()
             # Per-track FX run once per block, then the mix is summed in the original order.
             if not use_c:mix=[0.]*n;right=[0.]*n if stereo else None
-            # Sends: each track feeds the shared Reverb and Delay after its volume and pan.
-            bus_in=self.send_buses.start_block(n,stereo) if not use_c else {}
+            # FX buses: each track feeds them after its volume and pan (Send: on top of the mix; Through: instead).
+            bus_in=self.send_buses.start_block(n,stereo) if not use_c else ();bus_ok=self.send_buses.available
             # Ducking and Vocoder hear another track's own sound (before its FX and volume), even when muted.
             keys=[None]*len(track_audio)
             for tr,fx in enumerate(self.fx if not use_c else ()):
@@ -2070,7 +2227,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             else:audio=[a+(b+c)*.5 for a,b,c in zip(audio,fl,fr)]
                     if self.capture_track==tr and stereo:self.captured.append((list(audio[0]),list(audio[1])))
                     vol=min(1.,max(0.,t['volume']+fx.sound.get('volume',0.)))
-                    feeds=[(bus,a) for bus,a in zip(send_buses.BUSES,send_buses.track_amounts(t)) if a>0]
+                    feeds=[(k,a,thr) for k,a,thr in send_buses.track_feeds(self._feeds_track(tr,t)) if k<len(bus_in)] if bus_ok else []
+                    to_mix=not any(thr for _,_,thr in feeds);feeds=[(k,a) for k,a,_ in feeds if a>0]
                     for bus,_ in feeds:self.send_buses.mark_fed(bus)
                     if stereo:
                         pan=min(1.,max(-1.,t['instrument'].get('pan',0.)+fx.sound.get('pan',0.)+self._sampler_pan(tr,t,fx)))
@@ -2082,7 +2240,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             # Pan has settled: the gains are constant over the block, so mix whole lists at once
                             # (same arithmetic, same order, as the per-sample loop below).
                             gl=vol*(1-current)*.5;gr=vol*(1+current)*.5
-                            mix[:]=[m+l*gl for m,l in zip(mix,left_audio)];right[:]=[m+r*gr for m,r in zip(right,right_audio)]
+                            if to_mix:mix[:]=[m+l*gl for m,l in zip(mix,left_audio)];right[:]=[m+r*gr for m,r in zip(right,right_audio)]
                             for bus,a in feeds:
                                 bl,br=bus_in[bus]
                                 bl[:]=[b+l*gl*a for b,l in zip(bl,left_audio)];br[:]=[b+r*gr*a for b,r in zip(br,right_audio)]
@@ -2090,12 +2248,13 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             for j,(l,r) in enumerate(zip(left_audio,right_audio)):
                                 current+=min(step,max(-step,pan-current))
                                 gl=vol*(1-current)*.5;gr=vol*(1+current)*.5
-                                mix[j]+=l*gl;right[j]+=r*gr
+                                if to_mix:mix[j]+=l*gl;right[j]+=r*gr
                                 for bus,a in feeds:
                                     bl,br=bus_in[bus];bl[j]+=l*gl*a;br[j]+=r*gr*a
                         self._pan_state[tr]=current
                     else:
-                        for j,v in enumerate(audio):mix[j]+=v*vol
+                        if to_mix:
+                            for j,v in enumerate(audio):mix[j]+=v*vol
                         for bus,a in feeds:
                             bl=bus_in[bus][0]
                             for j,v in enumerate(audio):bl[j]+=v*vol*a

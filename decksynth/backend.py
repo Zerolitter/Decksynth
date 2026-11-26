@@ -253,6 +253,8 @@ class LatencyGovernor:
 
 
 AUDIO_SWITCH_INTERVAL=.0005
+# The longest one top-up pass of the output buffer may render before the worker reads its commands again (see the loop).
+FILL_LIMIT=.25
 
 def parent_watchdog(parent,grace=5.,poll=.5,exit=os._exit):
     """Start a daemon thread that ends this process `grace` seconds after its parent has gone. Returns the thread."""
@@ -328,6 +330,7 @@ def worker(commands,updates):
         # quit (the app was killed), the worker is handed to another parent: stop then, so nothing keeps playing.
         parent_checked=time.monotonic()
         while running:
+            behind=False
             now_check=time.monotonic()
             if now_check-parent_checked>.25:
                 parent_checked=now_check
@@ -599,6 +602,15 @@ def worker(commands,updates):
                     elif cmd=='send_setting':
                         try:engine.set_send_setting(*args)
                         except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd=='clip_fx':
+                        # FX per clip (clip_fx.py): [track, clip, changes or None, undo]
+                        try:engine.set_clip_fx(*args)
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
+                    elif cmd in ('bus_set','bus_chain','bus_add','bus_remove'):
+                        # FX buses (sends.py): [bus, key, value] / [bus, chain] / [name, chain] / [bus]
+                        fn={'bus_set':engine.set_bus,'bus_chain':engine.set_bus_chain,'bus_add':engine.add_bus,'bus_remove':engine.remove_bus}[cmd]
+                        try:fn(*(args or []))
+                        except (ValueError,TypeError) as exc:send(dict(error=str(exc)))
                     elif cmd=='tempo':
                         # Stop before changing the beat-to-sample conversion.
                         engine.stop(); engine.project.bpm=max(30,min(240,float(args)))
@@ -731,9 +743,12 @@ def worker(commands,updates):
                 if started and audio.queued()==0:
                     underruns+=1; latency.underrun(time.monotonic())
                 else:latency.tick(time.monotonic())
-                # Rendering stops topping up after 20 ms, so an engine that can't keep up (a block slower than real time) still
-                # gets back to its commands: Panic and Stop are read between blocks, never stuck behind a queue that never fills.
-                fill_until=time.perf_counter()+.02
+                # A pass stops topping up after 250 ms, so an engine that can't keep up at all (a block slower than real time) still
+                # gets back to its commands: Panic and Stop are read between passes, never stuck behind a queue that never fills.
+                # The limit must stay well above the buffer's length: 20 ms (25 Nov) cut the pass after a dropout short, before the
+                # deeper buffer was full, and the status work in between ate the time, so on a heavy song one dropout led to the
+                # next (160+ in 20 s instead of 3).
+                fill_until=time.perf_counter()+FILL_LIMIT
                 while audio.queued()<latency.target and time.perf_counter()<fill_until:
                     # Keys are read before every block, so a key never waits for the whole queue to be topped up.
                     for rejection in midi.poll(engine):send(dict(error=rejection))
@@ -744,6 +759,7 @@ def worker(commands,updates):
                         left=block[::2];right=block[1::2];mono=[l+r for l,r in zip(left,right)]
                         if 'levels' in watched or 'wave' in watched:monitor_left.extend(left);monitor_right.extend(right);monitor_samples.extend(mono)
                         if 'spectrum' in watched:spectrum_samples.extend(mono)
+                behind=audio.queued()<latency.target   # the pass was cut short: no rest before the next one
                 if not started:audio.start(); started=True
             now=time.monotonic()
             if now-load_since>1:load_shown=load_peak; load_peak=0.; load_since=now
@@ -787,7 +803,7 @@ def worker(commands,updates):
                 if full_due:last_full=now
                 delta=status_delta(status,status_blobs,full_due)
                 if delta:send(delta)
-            time.sleep(.002)
+            if not behind:time.sleep(.002)
     except Exception as exc:
         rescued=session.save_recovery(engine.project) if session is not None and engine is not None else None
         session=None   # a crash keeps the running mark, so the next launch says so

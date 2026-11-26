@@ -34,8 +34,8 @@ class RecipeDataTest(unittest.TestCase):
                 known = {k: (lo, hi) for k, lo, hi, _ in fx.PARAMS[fx_id]}
                 self.assertLessEqual(set(params), set(known), rid + ' ' + fx_id)
                 for k, v in params.items(): self.assertTrue(known[k][0] <= v <= known[k][1], '%s %s.%s=%r' % (rid, fx_id, k, v))
-            for bus, v in send.items(): self.assertTrue(bus in sends.BUSES and 0 <= v <= 1, rid)
-            self.assertEqual(set(recipes.recipe_sends(rid)), set(sends.BUSES))
+            for bus, v in send.items(): self.assertTrue(bus in sends.LEGACY and 0 <= v <= 1, rid)
+            self.assertEqual(set(recipes.recipe_sends(rid)), set(sends.LEGACY))
 
     def test_the_recipes_page_lists_the_same_recipes(self):
         tsx = (ROOT / 'ui/src/components/Sampler.tsx').read_text()
@@ -66,12 +66,12 @@ class RecipeEngineTest(unittest.TestCase):
         self.assertEqual({k: s[k] for k in before}, before)
         self.assertEqual((s['poly'], s['glide_mode'], s['filter']), (False, 'always', 'lp24'))
         on = [m['id'] for m in e.project.tracks[1]['fx']['modules'] if m['on']]
-        self.assertEqual(on, ['overdrive']); self.assertEqual(e.project.tracks[1]['sends'], dict(reverb=0., delay=.15))
+        self.assertEqual(on, ['overdrive']); self.assertEqual(e.project.tracks[1]['sends'], {'1': {'amount': .15, 'through': False}})
         self.assertEqual(len(e.history), steps + 1)
         e.undo()
         self.assertEqual(self.spec()['filter'], 'off'); self.assertTrue(self.spec()['poly'])
         self.assertFalse([m for m in (e.project.tracks[1].get('fx') or {'modules': []})['modules'] if m['on']])
-        self.assertNotIn('delay', e.project.tracks[1].get('sends') or {})
+        self.assertNotIn('1', e.project.tracks[1].get('sends') or {})  # Bus B (the old Delay send)
 
     def test_a_second_recipe_replaces_the_first_chain(self):
         e = self.e

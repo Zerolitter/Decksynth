@@ -274,6 +274,12 @@ def _load(legacy=False):
                 D = ctypes.POINTER(ctypes.c_double)
                 lib.dsfx_voice_curve.argtypes = [D, ctypes.c_int, D, D, D, ctypes.c_int] + [ctypes.c_double] * 7
                 lib.dsfx_voice_curve.restype = ctypes.c_int
+            if hasattr(lib, 'dsfx_voice_pitch'):  # the pitch envelope in one call (strike.DsPitch)
+                from .strike import DsPitch
+                P = ctypes.POINTER(DsPitch)
+                lib.dsfx_voice_pitch.argtypes = lib.dsfx_voice.argtypes + [P]; lib.dsfx_voice_pitch.restype = ctypes.c_int
+                lib.dsfx_voice_curve_pitch.argtypes = lib.dsfx_voice_curve.argtypes + [P]; lib.dsfx_voice_curve_pitch.restype = ctypes.c_int
+                lib.dsfx_voice2_pitch.argtypes = lib.dsfx_voice2.argtypes + [P]; lib.dsfx_voice2_pitch.restype = ctypes.c_int
             if hasattr(lib, 'dsfx_master'):  # the master stage on the stereo mix
                 lib.dsfx_master_create.restype = ctypes.c_void_p; lib.dsfx_master_create.argtypes = [ctypes.c_double]
                 lib.dsfx_master_destroy.argtypes = [ctypes.c_void_p]
@@ -290,6 +296,7 @@ def _load(legacy=False):
                 lib.dsfx_key.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.POINTER(ctypes.c_double),ctypes.c_int]
                 lib.dsfx_scale.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int]
                 lib.dsfx_readout.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_double)]
+            if hasattr(lib,'dsfx_bus_mode'):lib.dsfx_bus_mode.argtypes=[ctypes.c_void_p,ctypes.c_int]
             if hasattr(lib,'dsfx_process_stereo'):
                 lib.dsfx_process_stereo.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.POINTER(ctypes.c_double),ctypes.POINTER(ctypes.c_double),ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_double),ctypes.c_double]
             loaded=lib
@@ -330,6 +337,11 @@ def native_voice():
     """The C voice renderer, or None when the native library is missing or older."""
     lib = _load(legacy=True)
     return lib.dsfx_voice if lib and hasattr(lib, 'dsfx_voice') else None
+
+def native_pitch(name):
+    """One of the pitch-envelope voice kernels ('dsfx_voice_pitch', 'dsfx_voice_curve_pitch', 'dsfx_voice2_pitch'), or None."""
+    lib = _load(legacy=True)
+    return getattr(lib, name) if lib and hasattr(lib, 'dsfx_voice_pitch') else None
 
 def native_voice_curve():
     """The C voice renderer with the curved decay and release, or None."""

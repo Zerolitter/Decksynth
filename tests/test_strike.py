@@ -76,6 +76,29 @@ class StrikeTest(unittest.TestCase):
         self.assertLess(max(abs(x - y) for x, y in zip(a, b)), 1e-12)
         self.assertLess(max(abs(x - y) for x, y in zip(st, sb)), 1e-9)
 
+    def test_one_call_pitch_kernels_match_the_slices(self):
+        """The pitch envelope in one C call per voice (dsfx_voice*_pitch) sounds exactly like a call per 32-sample slice."""
+        from decksynth import core, fx
+        if fx.native_pitch('dsfx_voice_pitch') is None:self.skipTest('native library not built')
+        base = dict(saw(), pitch_env=1.7, pitch_decay=.1, damp=.715)
+        cases = {'plain': {}, 'curve': dict(env_curve=.75), 'unison': dict(uni_voices=3),
+                 'filter': dict(vcf_type=1, sub=.6, env_curve=.75), 'falling': dict(pitch_env=-8.1, pitch_decay=1.)}
+        def chord(p):
+            s = Synth(R); s.configure(p); out = []
+            for i in range(60):
+                if i % 6 == 0:s.on(48 + (i // 6) % 5 * 3, 100)
+                if i % 6 == 4:s.off(48 + (i // 6) % 5 * 3)
+                out += s.render(256 if i % 7 else 100)
+            return out
+        for name, extra in cases.items():
+            p = dict(base, **extra)
+            one = chord(p)
+            saved = core.native_pitch, core.native_filter_voice_pitch
+            core.native_pitch = lambda name: None; core.native_filter_voice_pitch = lambda: None
+            try:sliced = chord(p)
+            finally:core.native_pitch, core.native_filter_voice_pitch = saved
+            self.assertEqual(one, sliced, name)
+
     def test_ranges(self):
         validate_instrument(dict(saw(), damp=1., noise=1., noise_decay=.002, noise_tone=0., pitch_env=-24., pitch_decay=1.))
         for bad in (dict(damp=1.5), dict(pitch_env=30.), dict(noise_decay=0.)):

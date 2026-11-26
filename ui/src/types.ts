@@ -54,10 +54,16 @@ export type Track = {
   freeze?: FreezeMeta;
   /** The Loop freeze next to a Song freeze: a frozen track stays frozen in both modes. */
   freeze_loop?: FreezeMeta;
-  /** How much of the track feeds the shared Reverb and Delay (decksynth/sends.py), 0..1, after volume and pan. */
-  sends?: Partial<Record<SendBus,number>>;
+  /** How much of the track feeds each FX bus (decksynth/sends.py), by bus index: 0..1 after volume and pan;
+   * through: the track goes only through that bus, not straight to the mix. */
+  sends?: Record<string,{amount:number;through:boolean}>;
+  /** FX per clip (decksynth/clip_fx.py), by clip index: what each clip changes in this track's FX and sends. */
+  clip_fx?: Record<string,import('./components/ClipFx').ClipEntry>;
 };
+/** The old send names, still used by the Sound pages' Send knobs: Bus A (Reverb) and Bus B (Delay). */
 export type SendBus='reverb'|'delay';
+/** One FX bus (decksynth/sends.py): an FX chain every track can feed. */
+export type FxBus={name:string;colour:number;chain:import('./fx').FxChain;return:number;mute:boolean};
 /** The shared Reverb and Delay every track can feed: their settings and Return level. */
 export type Sends={reverb:{params:{predelay:number;decay:number;locut:number;hicut:number;width:number};level:number};
   delay:{params:{time:number;feedback:number;width:number};level:number}};
@@ -94,7 +100,8 @@ export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING'
   /** Grain mode's live input, while it is on: the waveform is then the last 8 s of the input. */ live?:{frozen:boolean;level:number}};
 export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
 export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};
-export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing';active?:boolean;progress?:number;holds?:FreezeHold[]};
+/** 'listened': frozen, but a live track's Ducking or Vocoder (track `by`, 0-based) hears its own sound, so it plays live. */
+export type FreezeInfo = {state:'none'|'rendering'|'frozen'|'stale'|'missing'|'listened';active?:boolean;progress?:number;holds?:FreezeHold[];by?:number};
 export type StepNote = { note: number; velocity: number; tie: number };
 export type StepPattern = {
   length: number; division: string; gate: number; swing: number;
@@ -130,7 +137,8 @@ export type Project = {
   song?: import('./song').Song;
   /** Loops per track: the open one is in each track's own notes. */
   clips?: {open:number[];slots:Note[][][]};
-  sends?: Sends;
+  /** The FX buses A to D (a project from before them loads its shared Reverb and Delay as A and B). */
+  buses?: FxBus[];
 };
 export type DeckUpdate = {
   pattern_library?:{roles:Record<string,number>;ready:Record<string,boolean>;preview:{id:string;track:number;step:number}|null};

@@ -29,10 +29,17 @@ def prepare_kernel():
             lib=C.PyDLL(str(library_path()))  # audio thread: keeps Python's lock (see fx._load)
             kernel=lib.dsfx_voice3;D=C.POINTER(C.c_double)
             kernel.argtypes=[D,C.c_int,D,D,D,C.POINTER(DsVoice),C.POINTER(DsFilter)];kernel.restype=C.c_int
+            if hasattr(lib,'dsfx_voice3_pitch'):  # the pitch envelope in one call (strike.DsPitch)
+                from .strike import DsPitch
+                lib.dsfx_voice3_pitch.argtypes=kernel.argtypes+[C.POINTER(DsPitch)];lib.dsfx_voice3_pitch.restype=C.c_int
             _library=lib;_kernel=kernel
         except (OSError,AttributeError) as exc:_error=str(exc)
     return _kernel
 
 def native_voice():return _kernel
+
+def native_voice_pitch():
+    """dsfx_voice3 with the pitch envelope in one call, or None with an older library."""
+    return getattr(_library,'dsfx_voice3_pitch',None) if _kernel is not None and hasattr(_library,'dsfx_voice3_pitch') else None
 
 def native_error():return _error

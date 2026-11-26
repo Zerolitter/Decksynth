@@ -1,0 +1,44 @@
+/* Euclid sheet: lanes, rings and Fill / Steps / Shift. Colours come from tokens and the drum-kind colours (inline --lane). */
+.note-generation.euclid-sheet{width:720px;max-width:calc(100vw - 32px);max-height:calc(100vh - 24px);overflow:auto;gap:8px;padding:12px;background:var(--ui-surface);border-color:var(--ui-line)}
+.euclid-sheet header{justify-content:space-between}
+.euclid-sheet header>div{display:flex;flex-direction:column;gap:2px}
+.euclid-sheet header strong{font-size:17px}
+.euclid-sheet header span{font-size:12px;color:var(--ui-text-2)}
+.euclid-sheet .euclid-done{display:flex;align-items:center;gap:6px;min-width:88px;min-height:44px;padding:0 12px;font-weight:700}
+
+.euclid-genres{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.euclid-genres button{min-height:44px;padding:0 8px;font-weight:700;font-size:13px;white-space:nowrap}
+.euclid-genres button[aria-pressed=true]{border-color:var(--accent);color:var(--ui-white)}
+.euclid-genres .euclid-clear{color:var(--ui-text-2);font-weight:600}
+
+.euclid-body{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:12px;align-items:start}
+.euclid-lanes{display:flex;flex-direction:column;gap:4px}
+.euclid-lane{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px;--lane:var(--ui-text-2)}
+.euclid-lane>button{min-height:44px}
+.euclid-lane .euclid-power{display:grid;place-items:center;padding:0}
+.euclid-lane .euclid-power i{width:14px;height:14px;border-radius:50%;border:2px solid var(--lane);background:transparent}
+.euclid-lane .euclid-power[aria-pressed=true] i{background:var(--lane);box-shadow:0 0 8px color-mix(in srgb,var(--lane) 70%,transparent)}
+.euclid-lane .euclid-pick{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:0 12px;text-align:left;border-left:4px solid var(--lane)}
+.euclid-lane .euclid-pick b{font-size:14px}
+.euclid-lane .euclid-pick small{font-size:11px;color:var(--ui-text-2)}
+.euclid-lane .euclid-pick em{font-style:normal;font-weight:800;font-size:14px;font-variant-numeric:tabular-nums;color:var(--lane)}
+.euclid-lane.sel .euclid-pick{border-color:var(--accent);border-left-color:var(--lane);background:var(--ui-surface-hi)}
+
+.euclid-side{display:flex;flex-direction:column;align-items:center;gap:6px}
+.euclid-rings{width:200px;height:200px;flex:none;display:block}
+.euclid-ring{--lane:var(--ui-text-2)}
+.euclid-ring .euclid-track{fill:none;stroke:var(--ui-line);stroke-width:1}
+.euclid-ring .euclid-hit{fill:var(--lane)}
+.euclid-ring .euclid-gap{fill:var(--ui-line-strong)}
+.euclid-ring.sel .euclid-track{stroke:var(--lane);opacity:.55}
+.euclid-ring.off{opacity:.3}
+.euclid-values{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;width:100%}
+.euclid-values .vbox{width:100%}
+
+.euclid-sheet footer{justify-content:space-between;gap:12px}
+.euclid-sheet footer small{flex:1;color:var(--ui-text-2);font-size:12px;line-height:1.35}
+.euclid-sheet .euclid-write{min-width:168px;min-height:44px;font-weight:800;border-color:var(--accent)}
+.euclid-sheet .euclid-write:disabled{border-color:var(--ui-line)}
+
+.euclid-sheet .euclid-hear{display:flex;align-items:center;justify-content:center;gap:6px;min-width:96px;min-height:44px;font-weight:800}
+.euclid-sheet .euclid-hear[aria-pressed=true]{border-color:var(--accent);color:var(--ui-white)}

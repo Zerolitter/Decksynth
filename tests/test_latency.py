@@ -1,10 +1,17 @@
 """The latency governor: grows after a dropout, shrinks back after a quiet stretch, per mode."""
 import unittest
 
-from decksynth.backend import LatencyGovernor
+from decksynth.backend import LatencyGovernor, FILL_LIMIT
 
 
 class LatencyGovernorTests(unittest.TestCase):
+    def test_one_top_up_pass_can_fill_the_deepest_buffer_several_times(self):
+        # 25 Nov: a 20 ms limit ended the pass after a dropout before the deeper buffer was full, and a heavy song went
+        # from 3 dropouts in 20 s to 160+. A pass must be able to fill the biggest buffer (Custom 50 ms) a few times over.
+        deepest = max(LatencyGovernor.MODES[m][1] for m in LatencyGovernor.MODES) / 48000
+        self.assertGreaterEqual(FILL_LIMIT, 4 * max(deepest, .05))
+        self.assertLessEqual(FILL_LIMIT, .5)   # and Panic and Stop are still read within half a second
+
     def test_custom_is_a_fixed_buffer_in_ms(self):
         g = LatencyGovernor('auto', 0.); g.set_mode('custom', 1., 10, 48000)
         self.assertEqual((g.mode, g.ms, g.target), ('custom', 10., 480))

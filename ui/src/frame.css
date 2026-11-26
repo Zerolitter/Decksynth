@@ -254,8 +254,9 @@
 .harness-shell .rack-rail .ds-panel-title[role=button]{display:flex;align-items:center;min-height:44px;min-width:44px;cursor:grab;touch-action:none}
 .harness-shell .rack-rail>.ds-panel-bar{touch-action:none;cursor:grab}
 .harness-shell .rack-rail{position:relative}
-.harness-shell .rack-rail[data-rack-dragging]{opacity:.55;cursor:grabbing}
-.harness-shell .rack-rail[data-drop-side]::after{content:'';position:absolute;top:0;bottom:0;width:2px;background:var(--panel-tag);pointer-events:none}
+.harness-shell .rack-rail[data-rack-dragging]{cursor:grabbing;z-index:20;background-color:var(--ui-raised);
+  box-shadow:0 12px 28px color-mix(in srgb,var(--ui-black-pure) 60%,transparent);outline:2px solid var(--ui-accent)}
+.harness-shell .rack-rail[data-drop-side]::after{content:'';position:absolute;top:0;bottom:0;width:5px;border-radius:3px;background:var(--ui-accent);pointer-events:none;z-index:5}
 .harness-shell .rack-rail[data-drop-side=before]::after{left:0}
 .harness-shell .rack-rail[data-drop-side=after]::after{right:0}
 .harness-shell .frame-rack .rack-card.folded{width:48px;min-width:48px;flex:0 0 48px}

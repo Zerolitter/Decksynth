@@ -8,6 +8,12 @@ def event(start=0.,note=60,duration=.25,velocity=100):return dict(start=start,no
 def target(e,kind='clip'):
  return dict(kind=kind,track=e.selected,clip=e.project.clips['open'][e.selected],bars=e.project.bars) if kind=='clip' else dict(kind=kind,track=e.selected,bank=e.project.performance['seq']['bank'],slot=e.project.performance['seq']['slot'])
 class WorkflowNotes(unittest.TestCase):
+ def test_note_edit_and_audition_work_on_tracks_past_the_fourth(self):
+  e=Engine()
+  while len(e.project.tracks)<8:e.add_track()
+  for t in (4,5,7):
+   e.select(t);notes=[event(.5)];e.note_edit(target(e),[],notes);self.assertEqual(e.project.tracks[t]['notes'],notes)
+   e.editor_note(t,'g%d'%t,60,100);e.editor_note(t,'g%d'%t,60,0)
  def test_paint_is_one_real_transaction_and_reopens(self):
   e=Engine();notes=[event(i*.25) for i in range(4)];e.note_edit(target(e),[],notes);self.assertEqual(e.project.tracks[0]['notes'],notes);self.assertEqual(len(e.history),1)
   with tempfile.TemporaryDirectory() as d:

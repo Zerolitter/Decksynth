@@ -65,20 +65,45 @@ def freeze_mode(project):
     return 'song' if project.song['on'] else 'loop'
 
 
-def fingerprint(project, track, mode=None):
-    """Everything the frozen audio depends on, as one hash. Fader, pan, mute and names are left out
-    because they're applied live on top of the frozen audio."""
+KEYED = ('duck', 'vocoder')  # effects that hear another track (fx.KEYED)
+
+
+def key_sources(track, count):
+    """Tracks whose own sound this track's Ducking or Vocoder hears, from its saved FX chain (fx.key_sources)."""
+    out = []
+    for m in ((track.get('fx') or {}).get('modules') or []):
+        if m.get('id') in KEYED and m.get('on') and not m.get('bypass'):
+            try: src = int(round(float((m.get('params') or {}).get('source', 0))))
+            except (TypeError, ValueError): continue
+            if 0 <= src < count and src not in out: out.append(src)
+    return out
+
+
+def _sound(project, track, mode, dry=False):
+    """What one track's audio is made from. dry: its own sound only, as Ducking and the Vocoder hear it
+    (before its FX and sends)."""
     from . import song as songs
-    mode = mode or freeze_mode(project)
     t = project.tracks[track]
-    sound = {k: v for k, v in t.items() if k not in _LIVE_KEYS}
+    sound = {k: v for k, v in t.items() if k not in _LIVE_KEYS and not (dry and k in ('fx', 'sends'))}
     if isinstance(sound.get('instrument'), dict):
         sound['instrument'] = {k: v for k, v in sound['instrument'].items() if k != 'pan'}
-    data = dict(v=1, mode=mode, bpm=project.bpm, bars=project.bars, track=sound)
+    data = dict(track=sound)
     if mode == 'song':
-        s = project.song
-        data.update(length=s['length'], lane=s['lanes'][track],
-                    clips=[project.clip_notes(track, k) for k in range(songs.CLIPS)])
+        data.update(lane=project.song['lanes'][track], clips=[project.clip_notes(track, k) for k in range(songs.CLIPS)])
+    return data
+
+
+def fingerprint(project, track, mode=None):
+    """Everything the frozen audio depends on, as one hash. Fader, pan, mute and names are left out
+    because they're applied live on top of the frozen audio. A Ducking or Vocoder on the track hears
+    another track, so that track's own sound is part of it too (25 Nov)."""
+    mode = mode or freeze_mode(project)
+    own = _sound(project, track, mode)
+    data = dict(v=1, mode=mode, bpm=project.bpm, bars=project.bars, track=own['track'])
+    if mode == 'song':
+        data.update(length=project.song['length'], lane=own['lane'], clips=own['clips'])
+    keys = [k for k in key_sources(project.tracks[track], len(project.tracks)) if k != track]
+    if keys: data['keys'] = {str(k): _sound(project, k, mode, dry=True) for k in keys}
     raw = json.dumps(data, sort_keys=True, separators=(',', ':'), allow_nan=False, default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
 

@@ -1,10 +1,10 @@
 import {RackScrollControls,useRackNavigation} from './RackNavigation';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
 import { ListMusic, Plus, RotateCcw, X } from 'lucide-react';
 import { Knob } from './Knob';
-import { Panel, useAutoFold } from './Panel';
+import { Panel, useAutoFold, useFoldedIds } from './Panel';
 import { useRackOrder } from './RackOrder';
 import { FX_MODULES, FX_ORDER, addModule, normalizeChain, type FxChain, type FxModuleId, type FxParamDef, type FxTarget } from '../fx';
 import { GateSheet, GateStrip } from './GateSheet';
@@ -49,15 +49,18 @@ export function fxParamSize(p:FxParamDef):{w:number;h:number}{
   if(p.options){const px=p.label.length*6+18+p.options.reduce((n,o)=>n+Math.max(44,o.length*7+19)+3,0);return {w:Math.max(1,Math.ceil(px/COL_PX)),h:1};}
   return {w:1,h:1};
 }
-export function fxCardCols(id:FxModuleId):number{
+export function fxCardCols(id:FxModuleId,minCols=3):number{
   const sizes=FX_MODULES[id].params.map(fxParamSize).concat(id==='autotune'||id==='duck'?[{w:2,h:1}]:[]);
   const area=sizes.reduce((n,x)=>n+x.w*x.h,0),widest=sizes.reduce((n,x)=>Math.max(n,x.w),0);
-  return Math.min(FX_COLS,Math.max(3,widest,Math.ceil(area/2)));
+  return Math.min(FX_COLS,Math.max(minCols,widest,Math.ceil(area/2)));
 }
 /** spans per card in chain order, plus the span left for the Add card on the last row (0: none) */
-export function fxGridSpans(ids:FxModuleId[],withAdd:boolean):{spans:Record<string,number>;add:number}{
+/** wide: the least columns for cards whose title bar carries extra buttons ("Move it there", "Off in this clip") */
+/** folded: cards shown as a one-line bar, FX_FOLDED_COLS columns wide whatever they hold */
+export const FX_FOLDED_COLS=2;
+export function fxGridSpans(ids:FxModuleId[],withAdd:boolean,wide:Partial<Record<FxModuleId,number>>={},folded:ReadonlySet<string>=new Set()):{spans:Record<string,number>;add:number}{
   const spans:Record<string,number>={};let used=0,last:FxModuleId|null=null;
-  for(const id of ids){const c=fxCardCols(id);
+  for(const id of ids){const c=folded.has(id)?FX_FOLDED_COLS:fxCardCols(id,wide[id]??3);
     if(used+c>FX_COLS&&last){spans[last]+=FX_COLS-used;used=0;}
     spans[id]=c;used+=c;last=id;}
   const rest=FX_COLS-used;
@@ -71,13 +74,18 @@ export function fxGridSpans(ids:FxModuleId[],withAdd:boolean):{spans:Record<stri
 type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live;
   onReorder:(ids:FxModuleId[])=>void;
   armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean;
-  /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[]};
+  /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[];
+  /** an extra button in a card's title bar (the track view's "Move it there" offer when a bus runs the same effect) */ offer?:(id:FxModuleId)=>ReactNode;
+  /** the least columns a card needs for what `offer` puts in its title bar */ offerCols?:(id:FxModuleId)=>number;
+  /** what the empty picker says this chain belongs to */ owner?:string;
+  /** a knob the playing or edited clip holds: its letter and the Base value, for a tag on the value box (FX per clip) */
+  held?:(module:FxModuleId,key:string)=>{letter:string;base?:number}|null};
 const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const noteName=(m:number)=>NOTE_NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Math.round(m)/12)-1);
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[]}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,offerCols,owner='This track',held}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -127,7 +135,8 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
   };
   const ring=useRingDepth(chain,onChange,armed,(m,p)=>toggleRoute(m as FxModuleId,p));
   const capture=(module:FxModuleId,param:string)=>ring.capture(module,param);
-  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0);
+  const folded=useFoldedIds(active.map(m=>'fx-'+m.id));
+  const grid=fxGridSpans(active.map(m=>m.id),inactive.length>0,Object.fromEntries(active.filter(m=>offer?.(m.id)).map(m=>[m.id,offerCols?.(m.id)??4])),new Set([...folded].map(f=>f.slice(3))));
   const at=(p:FxParamDef)=>{const z=fxParamSize(p);return {gridColumn:'span '+z.w,gridRow:'span '+z.h};};
 
   return <div ref={rack} tabIndex={0} className={'frame-rack fx-cards'+(armed?' is-assigning':'')} role="list" aria-label="FX chain"
@@ -141,7 +150,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         icon={<span className="fx-slot-no">{pos+1}</span>}
         power={{on:!state.bypass,label:def.name,onToggle:()=>setModule(state.id,m=>({...m,bypass:!m.bypass}))}}
         summary={state.bypass?'Off':undefined}
-        actions={<span className="fx-order">
+        actions={<span className="fx-order">{offer?.(state.id)}
             <button type="button" data-fx-opener aria-label={'Presets for '+def.name} title="Presets" aria-expanded={presetsFor===state.id} onClick={()=>setPresetsFor(presetsFor===state.id?null:state.id)}><ListMusic size={14}/></button>
             <button type="button" aria-label={'Reset '+def.name} title="Reset this effect" onClick={()=>reset(state.id)}><RotateCcw size={14}/></button>
             <button type="button" className="fx-remove" aria-label={'Remove '+def.name}
@@ -185,13 +194,16 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
                 modColor={color}
                 onChange={v=>setParam(state.id,p.key,v)}/>}
               {routes.length?<span className="fx-route-dots">{routes.map((r,k)=><i key={k} style={{background:r.color}}/>)}</span>:null}
+              {(()=>{const h=held?.(state.id,p.key);if(!h)return null;const b=h.base??p.init;
+                return <span className="clip-held" title={'Clip '+h.letter+' sets this knob; Base is '+b.toFixed(p.precision??2)}>
+                  <s>{b.toFixed(p.precision??2)}</s><i>{h.letter}</i></span>;})()}
             </div>;
           })}
         </div>
       </Panel>};
     }).map(({id,node})=><Fragment key={id}>{node}</Fragment>)}
     {!active.length?<div role="listitem" className="fx-empty-picker" aria-label="Add effect">
-      <div className="fx-picker-head"><strong>Add an effect</strong><span>This track has none yet. Effects run left to right; tap one to add it.</span></div>
+      <div className="fx-picker-head"><strong>Add an effect</strong><span>{owner} has none yet. Effects run left to right; tap one to add it.</span></div>
       <FxPickerGrid chain={chain} onAdd={add}/></div>
     :inactive.length?<div role="listitem" className="rack-card fx-add-card" style={{gridColumn:'span '+grid.add}}>
       <button type="button" className="fx-add-open" data-fx-opener aria-label="Add effect" aria-expanded={picking} onClick={()=>setPicking(v=>!v)}>

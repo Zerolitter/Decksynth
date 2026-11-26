@@ -23,6 +23,19 @@ class DsStrike(C.Structure):
     _fields_=[('f0',C.c_double),('rate',C.c_double),('tau',C.c_double),('lo',C.c_double),('hi',C.c_double),
               ('noise',C.c_double),('ndecay',C.c_double),('nfc',C.c_double),('gain',C.c_double)]
 
+class DsPitch(C.Structure):
+    """The pitch envelope for the one-call voice kernels (dsfx_voice*_pitch in dsfx.c): they cut the block into the
+    same slices as slices() below, in C, instead of one ctypes call per 32-sample slice (25 Nov: about 1 ms a block
+    for an arp with a pitch envelope)."""
+    _fields_=[('amt',C.c_double),('dec',C.c_double),('end',C.c_double)]
+
+def pitch_args(p,rate,args=None):
+    """DsPitch for these settings, with the same numbers as slices()."""
+    e=args if args is not None else DsPitch()
+    amt=p.get('pitch_env',0.);dec=max(.005,p.get('pitch_decay',.06))*rate
+    e.amt=amt;e.dec=dec;e.end=dec*math.log(max(1.0001,abs(amt)/.01))
+    return e
+
 _kernel=None
 _tried=False
 def kernel():

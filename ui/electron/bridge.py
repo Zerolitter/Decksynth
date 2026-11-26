@@ -30,7 +30,7 @@ COMMANDS = {
     'perform_set', 'perform_step', 'perform_action',
     'midi', 'sound_gesture','sound_undo','sound_ab','automation_arm','automation','learn_cc', 'unlearn_cc', 'cancel_cc_learn', 'select', 'play', 'stop', 'panic', 'record', 'record_options', 'preset_options', 'audio_latency', 'undo', 'redo', 'quantize', 'import_midi','midi_channels','play_from',
     'clear', 'device', 'audio_device', 'preset', 'parameter',
-    'edit_note','note_edit','editor_note','catalog_action', 'structure_add', 'structure_load', 'structure_set', 'structure_merge','structure_part_length', 'structure_extend', 'track', 'send', 'send_setting', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
+    'edit_note','note_edit','editor_note','catalog_action', 'structure_add', 'structure_load', 'structure_set', 'structure_merge','structure_part_length', 'structure_extend', 'track', 'send', 'send_setting', 'bus_set', 'bus_chain', 'bus_add', 'bus_remove', 'clip_fx', 'meters_watched', 'song', 'clip', 'tempo', 'bars', 'metronome', 'fx', 'fx_reorder', 'cleanup',
     'session', 'save', 'load', 'export','export_wav','export_loop', 'freeze', 'unfreeze', 'save_preset', 'load_preset',
 }
 

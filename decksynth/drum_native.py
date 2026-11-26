@@ -75,12 +75,13 @@ _attempted = False
 _kernel = None
 _library = None
 _shape = None
+_codec = None
 _error = None
 
 
 def native_kernel():
     """Prepare the optional library once, before any rack starts rendering."""
-    global _attempted, _kernel, _library, _shape, _error
+    global _attempted, _kernel, _library, _shape, _codec, _error
     with _lock:
         if not _attempted:
             _attempted = True
@@ -100,7 +101,14 @@ def native_kernel():
                 shape = shape_library.drum_shape
                 shape.argtypes = [C.c_void_p, C.c_int64, C.POINTER(C.c_double)]
                 shape.restype = None
-                _library, _kernel, _shape = library, kernel, shape
+                # WAV decoding for the sample loader thread (samples.py): lets go of the lock as well.
+                decode = shape_library.drum_decode
+                decode.argtypes = [C.c_char_p, C.c_int64, C.c_int64, C.c_int, C.c_int, C.c_void_p]
+                decode.restype = None
+                resample = shape_library.drum_resample
+                resample.argtypes = [C.c_void_p, C.c_int64, C.c_int64, C.c_int64, C.c_void_p, C.c_int64]
+                resample.restype = None
+                _library, _kernel, _shape, _codec = library, kernel, shape, (decode, resample)
             except (OSError, RuntimeError, ValueError, AttributeError, subprocess.SubprocessError) as error:
                 _error = str(error)
         return _kernel
@@ -110,6 +118,12 @@ def native_shape():
     """The C pad-shaping routine (drum_shape.py), or None when only Python is available."""
     native_kernel()
     return _shape
+
+
+def native_codec():
+    """(decode, resample) in C for samples.py, or None when only Python is available."""
+    native_kernel()
+    return _codec
 
 
 def native_error():

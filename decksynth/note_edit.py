@@ -24,7 +24,7 @@ def clean_events(events,span,pattern=False):
 
 class NoteEditEngine:
  def editor_note(self,track,gesture,note,velocity):
-  if type(track) is not int or not 0<=track<4 or not isinstance(gesture,str) or not 1<=len(gesture)<=64:raise ValueError('Invalid editor audition owner')
+  if type(track) is not int or not 0<=track<len(self.project.tracks) or not isinstance(gesture,str) or not 1<=len(gesture)<=64:raise ValueError('Invalid editor audition owner')
   if type(note) is not int or not 0<=note<=127 or type(velocity) is not int or not 0<=velocity<=127:raise ValueError('Invalid editor audition note')
   token=('editor',gesture)
   if velocity:
@@ -34,7 +34,7 @@ class NoteEditEngine:
  def note_target(self,target,owned=True):
   if not isinstance(target,dict) or target.get('kind') not in ('clip','pattern'):raise ValueError('Invalid note target')
   track=target.get('track')
-  if type(track) is not int or not 0<=track<4 or (owned and track!=self.selected):raise ValueError('Track changed; note edit cancelled')
+  if type(track) is not int or not 0<=track<len(self.project.tracks) or (owned and track!=self.selected):raise ValueError('Track changed; note edit cancelled')
   if 'device' in target and target['device']!=device_kind(self.project.tracks[track]):raise ValueError('Instrument changed; note edit cancelled')
   if target['kind']=='clip':
    clip=target.get('clip')

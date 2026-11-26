@@ -13,10 +13,16 @@ export function describeHolds(holds:FreezeHold[]|undefined) {
   return (holds ?? []).map(h => (h.mode==='song' ? 'Song ' : 'Loop ') + (+h.bars.toFixed(2)) + (h.bars===1 ? ' bar' : ' bars')).join(' + ');
 }
 
+/** Why a frozen track plays live: another track's Ducking or Vocoder hears its own sound, which the freeze doesn't hold. */
+export function listenedText(info:FreezeInfo|undefined) {
+  return 'Track ' + ((info?.by ?? 0) + 1) + ' listens to it (Ducking or Vocoder), so it plays live';
+}
+
 export function freezeLabel(info:FreezeInfo|undefined, name:string) {
   const s = info?.state ?? 'none';
   if (s==='rendering') return {aria:'Cancel freezing ' + name, title:'Freezing… tap to cancel'};
   if (s==='frozen') return {aria:'Unfreeze ' + name, title:'Frozen: plays as audio. Tap to play it live again'};
+  if (s==='listened') return {aria:'Unfreeze ' + name, title:listenedText(info) + '. Tap to unfreeze'};
   if (s==='stale' || s==='missing') return {aria:'Refreeze ' + name, title:'Changed since it was frozen, so it plays live. Tap to freeze again'};
   return {aria:'Freeze ' + name, title:'Freeze: turn this track into audio to save CPU'};
 }
@@ -24,9 +30,9 @@ export function freezeLabel(info:FreezeInfo|undefined, name:string) {
 /** One 44 px button in the lane head. Tap: freeze, cancel, unfreeze or refreeze, by state. */
 export function FreezeButton({info, name, onFreeze, onUnfreeze}:{info?:FreezeInfo; name:string; onFreeze():void; onUnfreeze():void}) {
   const s = info?.state ?? 'none', label = freezeLabel(info, name);
-  const act = () => (s==='rendering' || s==='frozen') ? onUnfreeze() : onFreeze();
+  const act = () => (s==='rendering' || s==='frozen' || s==='listened') ? onUnfreeze() : onFreeze();
   return <button type="button" className={'lane-freeze is-' + s} aria-label={label.aria} title={label.title}
-    aria-pressed={s==='frozen'} onClick={e => { e.stopPropagation(); act(); }}>
+    aria-pressed={s==='frozen' || s==='listened'} onClick={e => { e.stopPropagation(); act(); }}>
     {s==='rendering' ? <X size={17}/> : s==='stale' || s==='missing' ? <RefreshCw size={16}/> : <Snowflake size={18}/>}
     {s==='rendering' ? <i className="lf-ring" style={{['--p' as string]:Math.round((info?.progress ?? 0) * 100)}} aria-hidden="true"/> : null}
   </button>;
@@ -46,6 +52,12 @@ export function FreezeOverlay({info, meta, mode, waveMode, from, span, passBeats
     return <div className="freeze-overlay is-rendering" aria-live="polite">
       <i className="fo-progress" style={{width:p + '%'}} aria-hidden="true"/>
       <span className="fo-chip"><Snowflake size={13}/>Freezing {p}%</span>
+    </div>;
+  }
+  if (s==='listened') {
+    return <div className="freeze-overlay is-stale">
+      <span className="fo-chip"><Snowflake size={13}/>{listenedText(info)}. Freeze that track too, or unfreeze this one</span>
+      <button type="button" className="fo-btn" onClick={e => { e.stopPropagation(); onUnfreeze(); }}>Unfreeze</button>
     </div>;
   }
   if (s!=='frozen') {
@@ -88,6 +100,7 @@ export function FreezeSheet({tracks, infos, colors, onFreeze, onUnfreeze, onClos
       const info = infos?.[i], s = live[i], p = Math.round((info?.progress ?? 0) * 100);
       const holds = describeHolds(info?.holds);
       const what = s==='rendering' ? 'Freezing… ' + p + '%' : s==='frozen' ? 'Frozen · ' + holds
+        : s==='listened' ? listenedText(info)
         : s==='stale' ? 'Changed since freeze · plays live' : s==='missing' ? 'Frozen file is missing · plays live' : 'Live';
       return <div key={i} className={'fs-row is-' + s} style={{['--track-accent' as string]:colors[i]}}>
         <span className="fs-no">{i + 1}</span>
@@ -95,7 +108,7 @@ export function FreezeSheet({tracks, infos, colors, onFreeze, onUnfreeze, onClos
           {s==='rendering' ? <i className="fs-bar" style={{width:p + '%'}} aria-hidden="true"/> : null}</span>
         {s==='rendering' ? <button type="button" onClick={() => onUnfreeze(i)}><X size={16}/>Cancel</button>
           : s==='none' ? <button type="button" className="fs-go" onClick={() => onFreeze(i)}><Snowflake size={16}/>Freeze</button>
-          : <>{s!=='frozen' ? <button type="button" className="fs-go" onClick={() => onFreeze(i)}><RefreshCw size={15}/>Refreeze</button> : null}
+          : <>{s!=='frozen' && s!=='listened' ? <button type="button" className="fs-go" onClick={() => onFreeze(i)}><RefreshCw size={15}/>Refreeze</button> : null}
               <button type="button" onClick={() => onUnfreeze(i)}>Unfreeze</button></>}
       </div>;
     })}

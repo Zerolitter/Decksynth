@@ -171,3 +171,37 @@ void drum_shape(float *d, int64_t n, const double *p) { ds_ftz();
         for (int64_t i = 0; i < n; ++i) d[i] = (float)(tanh(d[i] * g) * norm);
     }
 }
+
+/* WAV decoding for the sample loader (samples.py _decode and _resample, the same arithmetic, so a sample loads
+ * bit for bit as before). It runs on the loader thread with Python's lock released (CDLL), so a kit loading at
+ * startup never holds up the audio. No flush-to-zero here: the loader thread is a plain Python thread.
+ * drum_decode: `count` signed little-endian PCM values (16, 24 or 32 bit) from pcm+offset, one or two channels,
+ * to mono float32 (two channels: their mean). */
+void drum_decode(const unsigned char *pcm, int64_t offset, int64_t count, int channels, int bits, float *out) {
+    const unsigned char *p = pcm + offset;
+    int width = bits / 8;
+    double scale = 1.0 / (double)((int64_t)1 << ((bits != 24 ? bits : 32) - 1));
+    double half = .5 * scale;
+    int64_t frames = channels == 2 ? count / 2 : count;
+    for (int64_t i = 0; i < frames; i++) {
+        int64_t v[2] = {0, 0};
+        for (int c = 0; c < channels; c++) {
+            const unsigned char *b = p + (i * channels + c) * width;
+            if (bits == 16) v[c] = (int16_t)(uint16_t)(b[0] | (b[1] << 8));
+            else if (bits == 24) v[c] = (int32_t)(((uint32_t)b[0] << 8) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 24));
+            else v[c] = (int32_t)((uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24));
+        }
+        out[i] = channels == 2 ? (float)((double)(v[0] + v[1]) * half) : (float)((double)v[0] * scale);
+    }
+}
+
+/* drum_resample: linear interpolation from source_rate to output_rate, `frames` output samples. */
+void drum_resample(const float *in, int64_t count, int64_t source_rate, int64_t output_rate, float *out, int64_t frames) {
+    int64_t last = count - 1;
+    for (int64_t i = 0; i < frames; i++) {
+        int64_t t = i * source_rate, left = t / output_rate, fraction = t % output_rate;
+        if (left >= last) { out[i] = in[last]; continue; }
+        double a = in[left];
+        out[i] = (float)(a + ((double)in[left + 1] - a) * ((double)fraction / (double)output_rate));
+    }
+}

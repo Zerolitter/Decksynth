@@ -182,6 +182,27 @@ def _resample(mono, source_rate, output_rate, frames):
     return array('f', [at(index) for index in range(frames)])
 
 
+def _native_codec():
+    try:
+        from .drum_native import native_codec
+        return native_codec()
+    except Exception:
+        return None
+
+
+def _decode_native(codec, raw, start, size, channels, bits, source_rate, output_rate, frames):
+    """_decode and _resample in C (drum_mix.c), with the same arithmetic and result."""
+    decode, resample = codec
+    count = size // (bits // 8)
+    mono = array('f', bytes(4 * (count // channels)))
+    decode(raw, start, count, channels, bits, mono.buffer_info()[0])
+    if source_rate == output_rate:
+        return mono
+    out = array('f', bytes(4 * frames))
+    resample(mono.buffer_info()[0], len(mono), source_rate, output_rate, out.buffer_info()[0], frames)
+    return out
+
+
 def peaks_of(data, start=0, end=None, count=256):
     """(low, high) pairs over data[start:end], using C-level min/max on slices."""
     end = len(data) if end is None else end
@@ -271,8 +292,14 @@ class SampleCache:
                 needed = frames * array('f').itemsize
                 if self._bytes + needed > self.max_bytes:
                     raise ValueError('sample cache capacity exhausted')
-            mono = _decode(memoryview(raw)[start:start + size], channels, bits)
-            data = _resample(mono, source_rate, self.rate, frames)
+            codec = _native_codec()
+            if codec is not None:
+                # In C with Python's lock released, so the audio keeps running while a kit loads (25 Nov:
+                # loading at startup had slowed from 0.6 to 1.4 s once the audio kernels kept the lock).
+                data = _decode_native(codec, raw, start, size, channels, bits, source_rate, self.rate, frames)
+            else:
+                mono = _decode(memoryview(raw)[start:start + size], channels, bits)
+                data = _resample(mono, source_rate, self.rate, frames)
             sample = DecodedSample(sha, path, self.rate, source_rate, channels,
                                    len(data), data, _peaks(data), source_frames, bits)
             with self._lock:

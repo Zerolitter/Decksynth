@@ -204,6 +204,10 @@ export function startRelativeDrag(element: HTMLElement | SVGElement, event: Poin
     // Chromium can release capture as it accepts a pointer-lock request, before
     // pointerlockchange makes the handoff observable. The document listeners
     // still own this drag until that request settles.
+    // Only this element's own capture: a touch first captures the child under the finger (the card title), and that
+    // child's lostpointercapture bubbles up here when the capture moves to this element (25 Nov: FX card drags by touch
+    // were cancelled on their first move).
+    if (event.target !== element) return;
     if ((event as PointerEvent).pointerId === id && !locked && !pendingLock && document.pointerLockElement !== element) finish(true);
   }
   function keyDown(event: KeyboardEvent) { if (event.key === "Escape") { if (started) { event.preventDefault(); event.stopPropagation(); } finish(true); } }

@@ -197,3 +197,4 @@
 .harness-shell .clip-name input{width:180px;min-height:44px;padding:0 10px;border-radius:9px;border:1px solid var(--ui-line);background:var(--inset);color:var(--ui-text);font:inherit;font-weight:600;user-select:text}
 .harness-shell .clip-name input:focus{outline:none;border-color:var(--ui-line-strong)}
 .harness-shell .lane-loop small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.harness-shell .arr-block .blk-fx{position:absolute;right:4px;top:3px;font-style:normal;font-size:9.5px;font-weight:800;padding:0 5px;border-radius:4px;background:var(--c-fx);color:var(--ui-black);line-height:15px;pointer-events:none}

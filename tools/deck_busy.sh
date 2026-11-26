@@ -28,7 +28,7 @@ orphan_workers() {
   for dir in /proc/[0-9]*; do
     pid=${dir#/proc/}
     [ "$pid" = "$$" ] && continue
-    tr '\0' ' ' < "$dir/cmdline" 2>/dev/null | grep -q 'multiprocessing.spawn import spawn_main' || continue
+    tr '\0' ' ' 2>/dev/null < "$dir/cmdline" | grep -q 'multiprocessing.spawn import spawn_main' || continue
     ppid=$(awk '/^PPid:/{print $2}' "$dir/status" 2>/dev/null)
     pcomm=$(cat "/proc/$ppid/comm" 2>/dev/null)
     { [ "$ppid" = 1 ] || [ "$pcomm" = systemd ]; } || continue      # still has its window or tool: not an orphan
@@ -42,13 +42,19 @@ running_pids() {
   for dir in /proc/[0-9]*; do
     pid=${dir#/proc/}
     [ "$pid" = "$$" ] && continue
-    [ -r "$dir/environ" ] 2>/dev/null || continue
     comm=$(cat "$dir/comm" 2>/dev/null)
     case "$comm" in
       electron*|python*|bridge*|exe) ;;
       *) continue ;;
     esac
-    tr '\0' '\n' < "$dir/environ" 2>/dev/null | grep -qx 'DECKSYNTH_USER_APP=1' && echo "$pid"
+    if env=$(tr '\0' '\n' 2>/dev/null < "$dir/environ"); then
+      printf '%s\n' "$env" | grep -qx 'DECKSYNTH_USER_APP=1' && echo "$pid"
+    else
+      # The environment can't be read from inside a container (25 Nov: the guard said "free" while the app was open).
+      # Then the app's main process is told by its command line: this checkout's Electron started on "." (launch.sh);
+      # test runs start Electron on a test script instead.
+      [ "$(tr '\0' ' ' < "$dir/cmdline" 2>/dev/null)" = "$ROOT/ui/node_modules/electron/dist/electron . " ] && echo "$pid"
+    fi
   done
 }
 

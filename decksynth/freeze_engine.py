@@ -5,7 +5,7 @@ track['freeze'] is the Song timeline (or the Loop, for older projects and loop-o
 track['freeze_loop'] is the Loop next to a Song freeze. Each mode plays its own file, so a frozen
 track stays frozen when you switch between Song and Loop."""
 from .devices import device_kind
-from .freeze import FrozenAudio, fingerprint, validate_freeze
+from .freeze import FrozenAudio, fingerprint, key_sources, validate_freeze
 
 FX_TAIL_SECONDS = 3.0
 FREEZE_KEYS = ('freeze', 'freeze_loop')
@@ -31,6 +31,7 @@ class FreezeEngine:
         self._frozen_on = [False]*4
         self.freeze_ring = {}           # track -> file cursor of the ring-out after a song ends
         self.fx_live_until = [0]*4
+        self.freeze_listened = {}       # mode -> {frozen track: the live track whose Ducking or Vocoder hears it}
 
     def freeze_refresh(self):
         """Match each track's freezes to the project. Cheap enough for a few times a second."""
@@ -49,9 +50,24 @@ class FreezeEngine:
             self.frozen_ok[tr] = ok
             self.freeze_state[tr] = ('none' if not metas else 'missing' if missing
                                      else 'frozen' if all(ok.values()) else 'stale')
+        # Ducking and the Vocoder hear another track's own sound, before its FX. A frozen track only has its
+        # finished sound (after its FX), so while a track that plays live listens to it, it plays live too.
+        # (Two tracks that both listen to each other can both be frozen: each freeze holds the other's sound.)
+        listened = {'song': {}, 'loop': {}}
+        for tr, t in enumerate(self.project.tracks):
+            if t['mute']: continue
+            for mode, heard in listened.items():
+                if self.frozen_ok[tr].get(mode): continue
+                for src in key_sources(t, len(self.project.tracks)):
+                    if src != tr and self.frozen_ok[src].get(mode): heard.setdefault(src, tr)
+        self.freeze_listened = listened
+        for tr in range(len(self.project.tracks)):
+            if self.freeze_state[tr] == 'frozen' and any(tr in heard for heard in listened.values()):
+                self.freeze_state[tr] = 'listened'
 
     def frozen_active(self, tr, mode):
-        return (not self.freeze_render and self.frozen_ok[tr].get(mode, False) and mode in self.frozen[tr])
+        return (not self.freeze_render and self.frozen_ok[tr].get(mode, False) and mode in self.frozen[tr]
+                and tr not in self.freeze_listened.get(mode, ()))
 
     def set_freeze(self, tr, meta):
         """meta: None (play live), one freeze, or a list of freezes (Song and Loop)."""
@@ -96,5 +112,8 @@ class FreezeEngine:
                 beats = meta['pass_frames']/meta['rate']*meta['bpm']/60
                 holds.append(dict(mode=mode, bars=round(beats/4, 2), ok=bool(self.frozen_ok[tr].get(mode))))
             holds.sort(key=lambda h: h['mode'] != 'song')
-            out.append(dict(state=self.freeze_state[tr], active=any(self.frozen_ok[tr].values()), holds=holds))
+            info = dict(state=self.freeze_state[tr], active=any(self.frozen_ok[tr].values()), holds=holds)
+            by = next((heard[tr] for heard in self.freeze_listened.values() if tr in heard), None)
+            if by is not None: info['by'] = by
+            out.append(info)
         return out

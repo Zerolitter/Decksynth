@@ -44,7 +44,7 @@
 .harness-shell .frame-fx .fx-track-pick .fx-track-buttons button{height:44px;min-height:44px;min-width:44px;padding:2px 6px}
 
 /* Add effect fills what is left of the last row */
-.harness-shell .frame-fx .fx-cards>.fx-add-card{width:auto;min-width:0;max-width:none;min-height:52px;height:auto;margin:0;display:flex;flex:none}
+.harness-shell .frame-fx .fx-cards>.fx-add-card{width:auto;min-width:0;max-width:none;min-height:56px;height:auto;margin:0;display:flex;flex:none}
 .harness-shell .frame-fx .fx-cards>.fx-add-card .fx-add-open{flex:1;width:auto;height:auto;min-height:52px;display:flex;align-items:center;justify-content:center;gap:8px}
 .harness-shell .frame-fx .fx-cards>.fx-add-card[style*="span 9"] .fx-add-open{flex-direction:row}
 
@@ -58,3 +58,10 @@
 .harness-shell .is-assigning .fx-choice .fx-choice-label{text-decoration:underline dashed var(--armed);text-underline-offset:4px}
 .harness-shell .is-assigning .fx-choice.routed-here .fx-choice-label{color:var(--armed);text-decoration-style:solid}
 .harness-shell .fx-route-dots{pointer-events:none}
+
+/* a folded card is a one-line bar two columns wide: power, name, tap to open (not the vertical rail of the other racks) */
+.harness-shell .frame-fx .fx-cards>.ds-panel.folded{height:44px;align-self:start}
+.harness-shell .frame-fx .fx-cards .rack-card.folded .rail-bar{flex-direction:row;align-items:center;height:42px;gap:2px;padding:0 2px 0 4px}
+.harness-shell .frame-fx .fx-cards .rack-card.folded .rail-bar .ds-panel-power{order:-1}
+.harness-shell .frame-fx .fx-cards .rack-card.folded .rail-open{flex-direction:row;flex:1;width:auto;min-width:0;height:42px;gap:6px;padding:0 6px}
+.harness-shell .frame-fx .fx-cards .rack-card.folded .rail-title{writing-mode:horizontal-tb;transform:none;flex:1;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px;line-height:42px}
