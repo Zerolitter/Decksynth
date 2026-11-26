@@ -8,6 +8,7 @@ always agree.
 """
 import copy
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -46,6 +47,10 @@ def formant(center, width=2., base=.25, tilt=1.):
     """A bump of energy around one partial, like a vowel or a body resonance."""
     return _norm([base / (k + 1) ** tilt + (1 if abs(k + 1 - center) < width else 0) *
                   (1 - abs(k + 1 - center) / width) for k in range(16)])
+
+def pulse(duty=.25, tilt=1.):
+    """A pulse wave's partials: the ones at multiples of 1/duty are missing, so it sounds nasal and hollow."""
+    return _norm([abs(math.sin(math.pi * (k + 1) * duty)) / (k + 1) ** tilt for k in range(16)])
 
 def sparse(*pairs):
     h = [0.] * 16
@@ -388,6 +393,7 @@ FINISH = {
     'FX & risers': {'chorus': _chorus(1., .4, .2, .5)},
 }
 
+# 26 Nov: the Keys, Bass, Leads, Plucks and Arps whose voices changed were re-calibrated the same way.
 # Each preset's own level ('gain'), so all 150 arrive equally loud at the master stage: the loudest 50 ms of
 # a C3-C4-E4-G4 chord at velocity 100 sits at -23 dBFS before it (tools/measure_sound.py --calibrate,
 # with small nudges per category). Sounds that open up over several bars (swells, risers) are set by ear.
@@ -395,36 +401,36 @@ LEVELS = {
     'Atmospheric Pad': 1.82, 'Glass Pad': 1.47, 'Warm Analog Pad': 3.46, 'Choir Haze': 1.61,
     'Slow Sweep Pad': 2.5, 'Shimmer Pad': 1.34, 'Dark Matter': 1.21, 'Sunrise Pad': 2.0,
     'Phase Pad': 3.17, 'Frozen Pad': 2.09, 'Velvet Pad': 1.4, 'Warm Blanket': 1.24,
-    'Super Pad': 2.21, 'Dream Pad': 1.84, 'Night Drive Pad': 1.46, 'Warm Keys': 2.58,
-    'Electric Piano': 3.09, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 2.73,
-    'Wurly Drive': 0.81, 'Toy Piano': 3.36, 'Chorus Keys': 2.63, 'Tine Keys': 2.69,
-    'Lofi Keys': 3.22, 'Concert Keys': 2.48, 'Stage EP': 3.13, 'Soft Upright': 2.41,
-    'Perc Organ': 1.38, 'Pop Keys': 2.61, 'Bass': 2.12, 'Sub Bass': 0.87,
-    'Saw Bass': 2.92, 'Square Bass': 1.52, 'Wobble Bass': 1.02, 'Acid Bass': 1.0,
-    'Pluck Bass': 2.87, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
+    'Super Pad': 2.21, 'Dream Pad': 1.84, 'Night Drive Pad': 1.46, 'Warm Keys': 1.9,
+    'Electric Piano': 2.18, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 1.72,
+    'Wurly Drive': 0.81, 'Toy Piano': 2.56, 'Chorus Keys': 3.3, 'Tine Keys': 1.71,
+    'Lofi Keys': 3.22, 'Concert Keys': 2.08, 'Stage EP': 2.11, 'Soft Upright': 1.68,
+    'Perc Organ': 1.38, 'Pop Keys': 2.61, 'Bass': 1.57, 'Sub Bass': 0.87,
+    'Saw Bass': 4.17, 'Square Bass': 1.27, 'Wobble Bass': 1.02, 'Acid Bass': 1.0,
+    'Pluck Bass': 3.21, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
     '808 Boom': 1.44, '808 Short': 2.29, '808 Grit': 0.65, '808 Glide': 0.92, '909 Kick Bass': 1.16, 'Sub Kick': 1.56,  # 25 Nov, tools/measure_sound.py --calibrate
-    'Reese Bass': 1.17, 'Deep Sub 808': 1.36, 'Ladder Bass': 3.64, 'Rubber Bass': 1.27,
-    'Finger Bass': 2.29, 'Saw Lead': 4.07, 'Square Lead': 3.55, 'Soft Flute': 1.58,
-    'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.13, 'Crushed Lead': 3.48,
-    'Delay Lead': 3.02, 'Phase Lead': 5.05, 'Hollow Lead': 4.32, 'Supersaw Lead': 3.43,
-    'Glide Sine Lead': 2.39, 'Brass Lead': 4.61, 'Pluck Lead': 2.67, 'Vowel Lead': 2.73,
-    'Pluck': 4.38, 'Harp Pluck': 3.14, 'Kalimba': 3.51, 'Pizz': 5.2,
-    'Echo Pluck': 4.86, 'Glass Pluck': 4.57, 'Muted Pluck': 3.49, 'Koto': 3.19,
-    'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.88, 'Mallet Pluck': 3.93,
-    'Filter Pluck': 4.81, 'Synth Harp': 3.8, 'Sparkle Pluck': 4.77, 'Bell': 2.32,
-    'Tubular Bell': 2.36, 'Music Box': 2.07, 'Vibes': 1.82, 'Marimba': 2.13,
+    'Reese Bass': 1.17, 'Deep Sub 808': 1.36, 'Ladder Bass': 3.36, 'Rubber Bass': 1.27,
+    'Finger Bass': 1.75, 'Saw Lead': 3.88, 'Square Lead': 3.42, 'Soft Flute': 1.72,
+    'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.13, 'Crushed Lead': 3.02,
+    'Delay Lead': 2.98, 'Phase Lead': 3.43, 'Hollow Lead': 3.68, 'Supersaw Lead': 3.38,
+    'Glide Sine Lead': 2.39, 'Brass Lead': 3.58, 'Pluck Lead': 2.67, 'Vowel Lead': 2.73,
+    'Pluck': 4.8, 'Harp Pluck': 2.19, 'Kalimba': 2.2, 'Pizz': 5.95,
+    'Echo Pluck': 5.48, 'Glass Pluck': 3.32, 'Muted Pluck': 3.49, 'Koto': 2.43,
+    'Bit Pluck': 5.87, 'Space Pluck': 6.25, 'Nylon Pluck': 2.24, 'Mallet Pluck': 2.19,
+    'Filter Pluck': 5, 'Synth Harp': 3.8, 'Sparkle Pluck': 3.84, 'Bell': 2.32,
+    'Tubular Bell': 2.36, 'Music Box': 2.07, 'Vibes': 1.98, 'Marimba': 2.13,
     'Glocken': 2.11, 'Crystal Bell': 2.94, 'Gamelan': 2.94, 'Celesta': 2.08,
     'Frozen Bell': 1.87, 'Wind Chimes': 2.15, 'Church Bell': 2.84, 'Glass Harmonica': 1.58,
-    'Soft Vibraphone': 1.77, 'Digital Bell': 2.87, 'String Ensemble': 2.58, 'Slow Strings': 2.57,
+    'Soft Vibraphone': 1.43, 'Digital Bell': 2.87, 'String Ensemble': 2.58, 'Slow Strings': 2.57,
     'Cello': 2.62, 'Violin Lead': 3.03, 'Choir Aah': 1.3, 'Choir Ooh': 1.36,
     'Vox Pad': 2.53, 'Brass Section': 4.65, 'Soft Brass': 3.06, 'Orchestral Swell': 2.0,
     'Chamber Strings': 2.46, 'Synth Strings': 3.25, 'Cello Section': 2.45, 'Angel Choir': 0.94,
-    'Tremolo Strings': 2.6, 'Arp Pluck': 5.27, 'Gated Pad': 1.94, 'Stutter Arp': 3.58,
-    'Trance Gate': 3.07, 'Bubble Seq': 4.07, 'Crushed Arp': 7.43, 'Ping Pong Arp': 4.63,
-    'Ring Seq': 2.18, 'Glide Seq': 4.2, 'Filter Seq': 3.56, 'Sparkle Arp': 4.3,
-    'Pulse Arp': 4.79, 'Acid Arp': 1.51, 'Soft Bell Arp': 3.77, 'Wide Saw Arp': 5.69,
+    'Tremolo Strings': 2.6, 'Arp Pluck': 5.55, 'Gated Pad': 1.94, 'Stutter Arp': 3.58,
+    'Trance Gate': 3.07, 'Bubble Seq': 4.07, 'Crushed Arp': 7.43, 'Ping Pong Arp': 4.15,
+    'Ring Seq': 2.18, 'Glide Seq': 4.2, 'Filter Seq': 3.56, 'Sparkle Arp': 2.92,
+    'Pulse Arp': 5.36, 'Acid Arp': 1.51, 'Soft Bell Arp': 2.01, 'Wide Saw Arp': 5.98,
     'Evolving Texture': 2.5, 'Drone': 2.27, 'Wind': 3.25, 'Haze': 2.11,
-    'Metallic Drone': 2.17, 'Dark Drone': 1.13, 'Tape Wobble': 2.35, 'Underwater': 2.37,
+    'Metallic Drone': 2.17, 'Dark Drone': 1.13, 'Tape Wobble': 2.35, 'Underwater': 4.34,
     'Ring Cloud': 1.08, 'Time Smear': 2.84, 'Glass Drone': 1.98, 'Ocean Air': 6.53,
     'Granular Mist': 3.9, 'Warm Hum': 1.91, 'Starfield': 1.02, 'Riser': 2.0,
     'Downlifter': 2.62, 'Laser Zap': 5.86, 'Alarm': 1.35, 'Robot Voice': 2.04,
@@ -447,10 +453,10 @@ def _env(cut, env, reso, a, d, s, r, vel=0.):
     return out
 REVOICE_ENV = {
     'Keys': _env(.48, .55, .12, .002, .8, .25, .4, .35),        # hammer bright, then mellow
-    'Plucks': _env(.45, .6, .18, .001, .3, .05, .25, .4),       # snap, then the body only
-    'Bass': _env(.45, .55, .22, .002, .35, .35, .15, .3),       # a pluck on the front of every note
-    'Leads': _env(.63, .3, .15, .005, .6, .55, .3, .2),        # a little bite on each note
-    'Arps & sequences': _env(.42, .55, .3, .001, .22, .1, .15, .3),
+    'Plucks': _env(.45, .6, .35, .001, .3, .05, .25, .4),       # snap, then the body only
+    'Bass': _env(.45, .55, .5, .002, .35, .35, .15, .3),       # a pluck on the front of every note
+    'Leads': _env(.63, .3, .55, .005, .6, .55, .3, .2),        # a little bite on each note
+    'Arps & sequences': _env(.42, .55, .4, .001, .22, .1, .15, .3),
     'Strings & choirs': _env(.62, .25, .1, .25, .8, .75, .6),  # the bow opens the tone
     'Pads': _env(.63, .2, .1, .9, 1.5, .8, 1.5),           # slowly opens
 }
@@ -504,18 +510,63 @@ STRIKE_PRESET = {
     'Acid Bass': dict(damp=.3), 'Rubber Bass': dict(pitch_env=5., pitch_decay=.03), 'Finger Bass': _strike(.45, .2, .01, .45),
 }
 
+# Voices (26 Nov): the lift above gave every preset the same saw floor, so a Bass and a Phase Lead started from one
+# spectrum. SHAPE says, per preset, where it starts instead: h = its own partials (kept as written, no lift),
+# set = instrument keys applied last (resonance, sub, unison). Families: round (Bass), saw, pulse (nasal, hollow),
+# odd-harmonic hollow, sparse or inharmonic (tines, mallets, bells), formant (bowed, vowels).
+def _odd(tilt):
+    return _norm([1 / (k + 1) ** tilt if k % 2 == 0 else 0 for k in range(16)])
+SHAPE = {
+    'Bass': dict(h=[1, .3, .12, .05, .02], set=dict(sub=.5, vcf_cutoff=.36, fenv_d=.28)),
+    'Saw Bass': dict(h=saw(.85), set=dict(vcf_reso=.55, sub=.1)),
+    'Finger Bass': dict(lift=0, set=dict(vcf_reso=.35, fenv_d=.5)),
+    'Square Bass': dict(lift=0, set=dict(vcf_reso=.5)),
+    'Pluck Bass': dict(h=pulse(.25, 1.1), set=dict(vcf_reso=.55, fenv_d=.16, vcf_cutoff=.4)),
+    'Reese Bass': dict(set=dict(vcf_reso=.4)), 'Ladder Bass': dict(set=dict(vcf_reso=.55)),
+    'Rubber Bass': dict(set=dict(vcf_reso=.6)), 'Wobble Bass': dict(set=dict(vcf_reso=.6)),
+    'Grit Bass': dict(set=dict(vcf_reso=.45)), 'Acid Bass': dict(set=dict(vcf_reso=.5)),
+    'Dub Bass': dict(set=dict(vcf_reso=.35)), 'Round Bass': dict(set=dict(vcf_reso=.3)),
+    'Saw Lead': dict(h=saw(.9)),
+    'Square Lead': dict(h=pulse(.25, .9), set=dict(vcf_reso=.5)),
+    'Phase Lead': dict(h=_odd(1.3), set=dict(vcf_reso=.68)),
+    'Screamer': dict(set=dict(vcf_reso=.5)), 'Sync Lead': dict(set=dict(vcf_reso=.6)),
+    'Hollow Lead': dict(set=dict(vcf_reso=.55)), 'Crushed Lead': dict(set=dict(vcf_reso=.45)),
+    'Supersaw Lead': dict(set=dict(vcf_reso=.45)), 'Brass Lead': dict(set=dict(vcf_reso=.35)),
+    'Pluck Lead': dict(set=dict(vcf_reso=.5)),
+    'Soft Flute': dict(h=sparse((1, 1), (3, .3), (5, .1))),
+    'Pluck': dict(set=dict(vcf_reso=.45)), 'Echo Pluck': dict(set=dict(vcf_reso=.4)),
+    'Filter Pluck': dict(set=dict(vcf_reso=.55)),
+    'Mallet Pluck': dict(lift=0),
+    'Arp Pluck': dict(set=dict(vcf_reso=.5)),
+    'Ping Pong Arp': dict(h=pulse(.33, 1.1), lift=0, set=dict(vcf_cutoff=.3, vcf_reso=.3, fenv_d=.3)),
+    'Pulse Arp': dict(h=pulse(.2, .9), lift=0),
+    'Warm Keys': dict(lift=0),
+    'Chorus Keys': dict(h=saw(1.), set=dict(uni_voices=3, uni_detune=.2)),
+    'Electric Piano': dict(h=sparse((1, 1), (2, .15), (4, .3), (7, .1), (14, .12)), lift=0),
+    'Stage EP': dict(h=sparse((1, 1), (2, .55), (3, .3), (5, .18), (8, .1)), lift=0),
+    'Vibes': dict(h=sparse((1, 1), (2, .2), (4, .5), (7, .14))),
+    'Soft Vibraphone': dict(h=sparse((1, 1), (3, .08), (5, .04)), set=dict(filter=.45)),
+    'Underwater': dict(h=sparse((1, .8), (2, .7), (3, .5), (4, .3), (5, .15)), set=dict(inharm=.15)),
+}
+# Presets whose written partials are the sound (tines, hammers, plucked strings, vowels): no saw floor under them.
+NO_LIFT = {'Toy Piano', 'Tine Keys', 'Felt Piano', 'Concert Keys', 'Soft Upright', 'Harp Pluck', 'Kalimba', 'Glass Pluck',
+           'Koto', 'Nylon Pluck', 'Sparkle Pluck', 'Sparkle Arp', 'Soft Bell Arp', 'Cello', 'Violin Lead', 'Cello Section'}
+
 def revoice(p, category):
     """The 24 Nov pass on one finished preset (instrument and chain changed in place)."""
     ins = p['instrument']; name = p['name']
     env = REVOICE_ENV.get(category)
+    shape = SHAPE.get(name, {})
+    if 'h' in shape: ins['harmonics'] = _norm(shape['h'])
     if env and name not in REVOICE_PLAIN and not ins.get('vcf_type'):
         ins.update(env); ins['filter'] = max(ins['filter'], BRIGHT_FLOOR[category])
-        lift = LIFT[category]
-        ins['harmonics'] = _norm([max(h, lift / (k + 1)) for k, h in enumerate(ins['harmonics'])])
+        lift = 0 if name in NO_LIFT else shape.get('lift', LIFT[category])
+        if lift: ins['harmonics'] = _norm([max(h, lift / (k + 1)) for k, h in enumerate(ins['harmonics'])])
     ins.update(REVOICE.get(name, {}))
     if category in STRIKE and name not in REVOICE_PLAIN:
         for k, v in STRIKE[category].items(): ins.setdefault(k, v)
     ins.update(STRIKE_PRESET.get(name, {}))
+    ins.update(shape.get('set', {}))
     scale = REVERB_SCALE.get(category)
     if scale:
         for m in p['fx']['modules']:
