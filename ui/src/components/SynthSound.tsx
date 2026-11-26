@@ -38,6 +38,8 @@ const SPECTRAL_NEUTRAL={curve:0,balance:.5,focus:0,focus_center:4};
 const VIEW_KEY='decksynth.synth-view';
 const GUIDE_KEY='decksynth.sound-guide';
 
+const WAVE_NAMES=['Drawn','Saw','Pulse','FM'];
+
 /** A row of buttons for a value with a few fixed choices (UI rule 11). */
 function Seg({name,options,value,onPick,wide}:{name:string;options:{label:ReactNode;value:number;aria?:string}[];value:number;onPick:(v:number)=>void;wide?:boolean}){
   return <div className={'ss-seg'+(wide?' wide':'')} role="radiogroup" aria-label={name}>
@@ -111,6 +113,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
   const editPartial=(e:React.PointerEvent)=>{const el=spectrum.current;if(!el)return;const b=el.getBoundingClientRect();
     const idx=clamp(Math.floor((e.clientX-b.left)/b.width*16),0,15),value=clamp((b.bottom-e.clientY)/Math.max(1,b.height),0,1);
     setActivePartial(idx);batch.push({index:idx,value:Number(value.toFixed(4))});};
+  const generated=vp('wave')!==0;
   const heard=useMemo(()=>live?.partials??evaluatedPartials(p,live?.sound),[p,live?.sound,live?.partials]);
 
   /* ---- the big graph ---- */
@@ -129,18 +132,18 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
   return <section className={'synth-sound'+(armed?' is-assigning':'')} aria-label="Sound" style={{['--accent-track' as string]:accent,['--armed' as string]:armed?sourceColor(armed):'transparent'}}>
     <div className="ss-top">
       <div className="ss-partials" aria-label="Partials">
-        <div className="ss-graph-label">Partials <span>drag to draw · white is what you hear</span></div>
+        <div className="ss-graph-label">Partials <span>{generated?'made by the Oscillator · switch it to Drawn to draw · white is what you hear':'drag to draw · white is what you hear'}</span></div>
         <button type="button" className="ss-guide-toggle" aria-label="Sound guidance" aria-pressed={guideOpen} title={guideOpen?'Close sound guidance':'Open sound guidance'} onClick={()=>{setGuideActive(true);setGuideOpen(open=>!open);}}><Sparkles size={17}/></button>
-        <div ref={spectrum} className="ss-bars" role="group" aria-label="Touch or drag to adjust the 16 harmonic partial levels"
-          onPointerDown={e=>{if(e.button!==0)return;e.preventDefault();(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);dragging.current=true;editPartial(e);}}
+        <div ref={spectrum} className={'ss-bars'+(generated?' is-generated':'')} role="group" aria-label={generated?'The 16 partials as the Oscillator makes them':'Touch or drag to adjust the 16 harmonic partial levels'}
+          onPointerDown={e=>{if(e.button!==0||generated)return;e.preventDefault();(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);dragging.current=true;editPartial(e);}}
           onPointerMove={e=>{if(dragging.current&&e.buttons)editPartial(e);}}
           onPointerUp={()=>{dragging.current=false;batch.flush();}} onPointerCancel={()=>{dragging.current=false;batch.flush();}}>
           {p.harmonics.map((v,i)=><div key={i} className={'ss-bar'+(activePartial===i?' current':'')} role="slider" aria-label={'Harmonic '+(i+1)}
             aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v*100)} style={{['--v' as string]:v,['--heard' as string]:clamp(heard[i]??0,0,1)}}>
             {guideOpen?<i className="ss-bar-guide" style={{['--guide' as string]:guide.contour[i]}}/>:null}<i className="ss-bar-fill"/><i className="ss-bar-heard"/><span>{i+1}</span></div>)}
         </div>
-        <div className="ss-shapes" role="radiogroup" aria-label="Starting shape">{SHAPES.map(name=>
-          <button key={name} type="button" role="radio" aria-checked={shapeUsed===name} title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
+        <div className={'ss-shapes'+(generated?' is-off':'')} role="radiogroup" aria-label="Starting shape">{SHAPES.map(name=>
+          <button key={name} type="button" role="radio" aria-checked={!generated&&shapeUsed===name} disabled={generated} title={name==='RANDOM'?'New random partials · seed '+(p.random_seed??0):undefined}
             onClick={()=>{batch.flush();onShape(name);}}>{SHAPE_NAME[name]??name}</button>)}</div>
       </div>
       <div className={'ss-graph view-'+view} aria-label={view==='wave'?'Wave':view==='amp'?'Amp envelope':view==='strike'?'Strike':view==='layer'?'Sample layer':'Filter envelope'}>
@@ -177,7 +180,7 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
         </div>
         <div className="ss-display" aria-live="polite">
           <span className={'ss-led'+(voices?' on':'')}/><b>{voices?voices+(voices===1?' voice':' voices'):'idle'}</b>
-          <small>{shapeUsed==='CUSTOM'?'Drawn':SHAPE_NAME[shapeUsed]} · {p.harmonics.filter(v=>v>.005).length} partials</small>
+          <small>{generated?WAVE_NAMES[vp('wave')]+' · '+heard.filter(v=>v>.005).length+' partials':(shapeUsed==='CUSTOM'?'Drawn':SHAPE_NAME[shapeUsed])+' · '+p.harmonics.filter(v=>v>.005).length+' partials'}</small>
         </div>
         {preset?<div className="ss-preset">{preset}</div>:null}
       </div>
@@ -200,6 +203,13 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
 
     <div className="ss-cards">
       <div className="ss-col">
+        {card('sound-wave','Oscillator',TAGS.tone,<>
+          <Seg name="Waveform" value={vp('wave')} onPick={v=>set('wave',v)} options={WAVE_NAMES.map((label,value)=>({label,value,aria:value?label+' wave':'Drawn partials'}))}/>
+          {vp('wave')===2?<div className="ss-knobs">{K('pulse_width','Width',vp('pulse_width'),.02,.5,{step:.005,format:v=>Math.round(v*100)+'%',description:'50% is a square; narrower is more nasal. Link a mod pad to it for pulse-width movement.',onChange:v=>set('pulse_width',v)})}</div>:null}
+          {vp('wave')===3?<>
+            <Seg name="FM ratio" value={vp('fm_ratio')} onPick={v=>set('fm_ratio',v)} options={[1,2,3,4,5,6,7,8].map(n=>({label:'×'+n,value:n,aria:'Modulator '+n+' times the note'}))}/>
+            <div className="ss-knobs">{K('fm_index','Index',vp('fm_index'),0,1,{suffix:'%',description:'How far the modulator bends the carrier: up opens the spectrum. Link a mod pad to it, or let Damping and the Filter envelope close it after the strike.',onChange:v=>set('fm_index',v)})}</div></>:null}
+        </>,{reset:()=>(['wave','pulse_width','fm_ratio','fm_index'] as VoiceKey[]).forEach(k=>set(k,VOICE_DEFAULTS[k]))})}
         {card('sound-tone','Tone',TAGS.tone,<div className="ss-knobs">
           {K('filter','Brightness',p.filter,.02,1,{id:'brightness',suffix:'%',onChange:v=>set('filter',v)})}
           {K('curve','Curve',spectral('curve'),-1,1,{step:.01,precision:2,onChange:v=>set('curve',v)})}

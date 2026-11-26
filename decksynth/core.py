@@ -75,6 +75,12 @@ EXPRESSION_DEFAULTS.update(TONE_DEFAULTS)
 EXPRESSION_DEFAULTS.update(strike.STRIKE_DEFAULTS); VOICE_RANGES.update(strike.STRIKE_RANGES); VOICE_CHOICES.update(strike.STRIKE_CHOICES)
 # Sample layer (25 Nov): a recording under the partials (sample_layer.py). layer_on 0 = the old sound; the file itself is the text key layer_file.
 EXPRESSION_DEFAULTS.update(sample_layer.LAYER_DEFAULTS); VOICE_RANGES.update(sample_layer.LAYER_RANGES); VOICE_CHOICES.update(sample_layer.LAYER_CHOICES)
+# Oscillator (26 Nov): where the partials come from. wave 0 = the 16 drawn partials, exactly as always (a saved sound without
+# the key is wave 0). 1 saw, 2 pulse (pulse_width .02-.5; .5 is a square, narrower is nasal; a mod pad on it is PWM), 3 two-operator
+# FM with a whole-number ratio (fm_ratio 1-8) and an index (fm_index 0-1, 0-6 in FM terms). The partials are worked out for the
+# table, so every voice kernel is unchanged and the spectrum stops at the same band limit as a drawn sound.
+OSC_DEFAULTS=dict(wave=0,pulse_width=.5,fm_ratio=2,fm_index=.3)
+EXPRESSION_DEFAULTS.update(OSC_DEFAULTS); VOICE_RANGES.update(pulse_width=(.02,.5),fm_index=(0,1)); VOICE_CHOICES.update(wave=(0,1,2,3),fm_ratio=(1,2,3,4,5,6,7,8))
 PARAM_DEFAULTS={**SPECTRAL_DEFAULTS,**VOICE_DEFAULTS,**EXPRESSION_DEFAULTS}
 def sound_default(p,key):
     if key in FILTER_ENV:return p[FILTER_ENV[key]]
@@ -271,7 +277,33 @@ class MidiParser:
         return events
 
 # Knobs that shape the wavetable. When a pad moves one, the table is rebuilt in 1/48 steps of its range.
-TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy','velocity_brightness','pitch','air')
+TABLE_KEYS=('filter',)+SPECTRAL_KEYS+('formant','vowel','spectral_energy','velocity_brightness','pitch','air','wave','pulse_width','fm_ratio','fm_index')
+
+def bessel_j(n,x):
+    """J_n(x) by its power series (n >= 0, x up to about 8: 30 terms are plenty)."""
+    term=(x/2)**n/math.factorial(n); total=term
+    for k in range(1,30):
+        term*=-(x/2)**2/(k*(k+n)); total+=term
+    return total
+
+def wave_partials(p,count):
+    """Partial levels (1 = loudest, partial 1 first, count of them) for the Oscillator's saw, pulse and FM; None for drawn partials."""
+    wave=int(p.get('wave',0))
+    if not wave:return None
+    if wave==1:w=[1/(k+1) for k in range(count)]
+    elif wave==2:
+        d=min(.5,max(.02,p.get('pulse_width',.5)));w=[abs(math.sin(math.pi*(k+1)*d))/(k+1) for k in range(count)]
+    else:
+        # FM: the carrier and its sidebands at 1 + n*ratio (a negative frequency folds back with its sign flipped), weighted by J_n(index)
+        r=int(p.get('fm_ratio',2)); index=min(1.,max(0.,p.get('fm_index',.3)))*6; w=[0.]*count
+        for n in range(-16,17):
+            f=1+n*r
+            if f==0 or abs(f)>count:continue
+            j=bessel_j(abs(n),index)*(-1 if n<0 and n%2 else 1)
+            w[abs(f)-1]+=j if f>0 else -j
+        w=[abs(x) for x in w]
+    top=max(w) or 1.
+    return [x/top for x in w]
 
 def air_weights(p,h,weights,brightness,count):
     """Partials 17 and up for Air: the top of the drawn spectrum carries on falling (1/k, the odd/even
@@ -349,8 +381,13 @@ class Synth(ExpressionVoice):
             tilt=round((velocity-.5)*2*p['velocity_brightness']*1.2,3) if velocity is not None and p.get('velocity_brightness',0) else 0.
             if 'velocity_brightness' in p:key=key+(brightness,tilt)
             if key not in self.wave_cache:
-                weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+brightness*15))**4) for k in range(min(16,count))]
-                weights=air_weights(p,h,weights,brightness,count)
+                generated=wave_partials(p,count)
+                if generated is None:
+                    weights=[h[k]*spectral_gain(p,k+1)/(1+(k/(1+brightness*15))**4) for k in range(min(16,count))]
+                    weights=air_weights(p,h,weights,brightness,count)
+                else:   # Oscillator: a generated spectrum all the way to the band limit, Brightness and Air placing the roll-off
+                    corner=1+brightness*15+p.get('air',0.)*48
+                    weights=[generated[k]*spectral_gain(p,k+1)/(1+(k/corner)**4) for k in range(count)]
                 if tilt:weights=[w*(k+1)**tilt for k,w in enumerate(weights)]
                 if vowel is not None:weights=[w*g for w,g in zip(weights,vowel)]
                 normalized=p.get('spectral_energy',0)==1

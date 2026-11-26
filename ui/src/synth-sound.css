@@ -19,6 +19,9 @@
 .harness-shell .ss-bar.current .ss-bar-fill{opacity:1;box-shadow:0 0 10px color-mix(in srgb,var(--accent-track) 40%,transparent)}
 .harness-shell .ss-bar-heard{position:absolute;left:-1px;right:-1px;bottom:calc(var(--heard) * 100% - 1px);height:2.5px;border-radius:2px;background:var(--ui-white);opacity:.9;transition:bottom .08s linear}
 .harness-shell .ss-bar span{position:absolute;left:0;right:0;bottom:-15px;text-align:center;font-size:9.5px;color:var(--ui-text-faint);font-weight:700}
+.harness-shell .ss-bars.is-generated{cursor:default}
+.harness-shell .ss-bars.is-generated .ss-bar-fill{opacity:0}
+.harness-shell .ss-shapes.is-off{opacity:.45}
 .harness-shell .ss-shapes{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .harness-shell .ss-shapes button{min-height:44px;height:44px;border-radius:7px;border:1px solid var(--line-soft);background:var(--raised);color:#c9cdd2;font-size:11.5px;font-weight:700;padding:0}
 .harness-shell .ss-shapes button[aria-checked=true]{background:color-mix(in srgb,var(--accent) 22%,var(--raised));border-color:var(--accent);color:var(--ui-white)}

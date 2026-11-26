@@ -282,6 +282,7 @@ export const SOUND_TARGETS:Record<string,{label:string;card:string;min:number;ma
   damp:{label:'Damping',card:'sound-strike',min:0,max:1},noise:{label:'Noise',card:'sound-strike',min:0,max:1},
   noise_decay:{label:'Noise time',card:'sound-strike',min:.002,max:1},noise_tone:{label:'Noise tone',card:'sound-strike',min:0,max:1},
   pitch_env:{label:'Pitch drop',card:'sound-strike',min:-24,max:24},pitch_decay:{label:'Drop time',card:'sound-strike',min:.005,max:1},
+  pulse_width:{label:'Pulse width',card:'sound-wave',min:.02,max:.5},fm_index:{label:'FM index',card:'sound-wave',min:0,max:1},
   layer_level:{label:'Sample level',card:'sound-layer',min:0,max:2},layer_tune:{label:'Sample tune',card:'sound-layer',min:-24,max:24},
   layer_start:{label:'Sample start',card:'sound-layer',min:0,max:1},
 };

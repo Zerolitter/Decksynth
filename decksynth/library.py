@@ -401,18 +401,18 @@ LEVELS = {
     'Atmospheric Pad': 1.82, 'Glass Pad': 1.47, 'Warm Analog Pad': 3.46, 'Choir Haze': 1.61,
     'Slow Sweep Pad': 2.5, 'Shimmer Pad': 1.34, 'Dark Matter': 1.21, 'Sunrise Pad': 2.0,
     'Phase Pad': 3.17, 'Frozen Pad': 2.09, 'Velvet Pad': 1.4, 'Warm Blanket': 1.24,
-    'Super Pad': 2.21, 'Dream Pad': 1.84, 'Night Drive Pad': 1.46, 'Warm Keys': 1.9,
-    'Electric Piano': 2.18, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 1.72,
+    'Super Pad': 2.21, 'Dream Pad': 1.84, 'Night Drive Pad': 3.15, 'Warm Keys': 1.9,
+    'Electric Piano': 1.76, 'Drawbar Organ': 1.1, 'Soft Clav': 6.77, 'Felt Piano': 1.72,
     'Wurly Drive': 0.81, 'Toy Piano': 2.56, 'Chorus Keys': 3.3, 'Tine Keys': 1.71,
     'Lofi Keys': 3.22, 'Concert Keys': 2.08, 'Stage EP': 2.11, 'Soft Upright': 1.68,
     'Perc Organ': 1.38, 'Pop Keys': 2.61, 'Bass': 1.57, 'Sub Bass': 0.87,
-    'Saw Bass': 4.17, 'Square Bass': 1.27, 'Wobble Bass': 1.02, 'Acid Bass': 1.0,
+    'Saw Bass': 4.54, 'Square Bass': 1.27, 'Wobble Bass': 1.02, 'Acid Bass': 1.0,
     'Pluck Bass': 3.21, 'Grit Bass': 0.71, 'Round Bass': 1.24, 'Dub Bass': 1.15,
     '808 Boom': 1.44, '808 Short': 2.29, '808 Grit': 0.65, '808 Glide': 0.92, '909 Kick Bass': 1.16, 'Sub Kick': 1.56,  # 25 Nov, tools/measure_sound.py --calibrate
     'Reese Bass': 1.17, 'Deep Sub 808': 1.36, 'Ladder Bass': 3.36, 'Rubber Bass': 1.27,
-    'Finger Bass': 1.75, 'Saw Lead': 3.88, 'Square Lead': 3.42, 'Soft Flute': 1.72,
+    'Finger Bass': 1.75, 'Saw Lead': 3.88, 'Square Lead': 4.29, 'Soft Flute': 1.72,
     'Screamer': 0.8, 'Sync Lead': 4.18, 'Whistle': 1.13, 'Crushed Lead': 3.02,
-    'Delay Lead': 2.98, 'Phase Lead': 3.43, 'Hollow Lead': 3.68, 'Supersaw Lead': 3.38,
+    'Delay Lead': 2.98, 'Phase Lead': 4.03, 'Hollow Lead': 3.68, 'Supersaw Lead': 3.38,
     'Glide Sine Lead': 2.39, 'Brass Lead': 3.58, 'Pluck Lead': 2.67, 'Vowel Lead': 2.73,
     'Pluck': 4.64, 'Harp Pluck': 2.19, 'Kalimba': 2.2, 'Pizz': 5.66,
     'Echo Pluck': 5.24, 'Glass Pluck': 3.32, 'Muted Pluck': 3.49, 'Koto': 2.43,
@@ -421,7 +421,7 @@ LEVELS = {
     'Tubular Bell': 2.36, 'Music Box': 2.07, 'Vibes': 1.98, 'Marimba': 2.13,
     'Glocken': 2.11, 'Crystal Bell': 2.94, 'Gamelan': 2.94, 'Celesta': 2.08,
     'Frozen Bell': 1.87, 'Wind Chimes': 2.15, 'Church Bell': 2.84, 'Glass Harmonica': 1.58,
-    'Soft Vibraphone': 1.43, 'Digital Bell': 2.87, 'String Ensemble': 2.58, 'Slow Strings': 2.57,
+    'Soft Vibraphone': 1.43, 'Digital Bell': 3.94, 'String Ensemble': 2.58, 'Slow Strings': 2.57,
     'Cello': 2.62, 'Violin Lead': 3.03, 'Choir Aah': 1.3, 'Choir Ooh': 1.36,
     'Vox Pad': 2.53, 'Brass Section': 4.65, 'Soft Brass': 3.06, 'Orchestral Swell': 2.0,
     'Chamber Strings': 2.46, 'Synth Strings': 3.25, 'Cello Section': 2.45, 'Angel Choir': 0.94,
@@ -518,7 +518,7 @@ def _odd(tilt):
     return _norm([1 / (k + 1) ** tilt if k % 2 == 0 else 0 for k in range(16)])
 SHAPE = {
     'Bass': dict(h=[1, .3, .12, .05, .02], set=dict(sub=.5, vcf_cutoff=.36, fenv_d=.28)),
-    'Saw Bass': dict(h=saw(.85), set=dict(vcf_reso=.55, sub=.1)),
+    'Saw Bass': dict(h=saw(.85), set=dict(vcf_reso=.55, sub=.1, wave=1)),   # Oscillator: a true saw to the band limit (Air gives the low notes their top)
     'Finger Bass': dict(lift=0, set=dict(vcf_reso=.35, fenv_d=.5)),
     'Square Bass': dict(lift=0, set=dict(vcf_reso=.5)),
     'Pluck Bass': dict(h=pulse(.25, 1.1), set=dict(vcf_reso=.55, fenv_d=.16, vcf_cutoff=.4)),
@@ -527,8 +527,8 @@ SHAPE = {
     'Grit Bass': dict(set=dict(vcf_reso=.45)), 'Acid Bass': dict(set=dict(vcf_reso=.5)),
     'Dub Bass': dict(set=dict(vcf_reso=.35)), 'Round Bass': dict(set=dict(vcf_reso=.3)),
     'Saw Lead': dict(h=saw(.9)),
-    'Square Lead': dict(h=pulse(.25, .9), set=dict(vcf_reso=.5)),
-    'Phase Lead': dict(h=_odd(1.3), set=dict(vcf_reso=.68)),
+    'Square Lead': dict(h=pulse(.25, .9), set=dict(vcf_reso=.5, wave=2, pulse_width=.22)),   # nasal narrow pulse
+    'Phase Lead': dict(h=_odd(1.3), set=dict(vcf_reso=.68, wave=2, pulse_width=.5)),   # a true square: hollow, odd partials, under the phaser
     'Screamer': dict(set=dict(vcf_reso=.5)), 'Sync Lead': dict(set=dict(vcf_reso=.6)),
     'Hollow Lead': dict(set=dict(vcf_reso=.55)), 'Crushed Lead': dict(set=dict(vcf_reso=.45)),
     'Supersaw Lead': dict(set=dict(vcf_reso=.45)), 'Brass Lead': dict(set=dict(vcf_reso=.35)),
@@ -542,7 +542,9 @@ SHAPE = {
     'Pulse Arp': dict(h=pulse(.2, .9), lift=0),
     'Warm Keys': dict(lift=0),
     'Chorus Keys': dict(h=saw(1.), set=dict(uni_voices=3, uni_detune=.2)),
-    'Electric Piano': dict(h=sparse((1, 1), (2, .15), (4, .3), (7, .1), (14, .12)), lift=0),
+    'Electric Piano': dict(h=sparse((1, 1), (2, .15), (4, .3), (7, .1), (14, .12)), lift=0, set=dict(wave=3, fm_ratio=1, fm_index=.3)),   # 2-operator FM: tine bark that Damping and the filter envelope close after the strike
+    'Night Drive Pad': dict(set=dict(wave=2, pulse_width=.36)),   # pulse width moved by a mod pad (the PWM pad)
+    'Digital Bell': dict(set=dict(wave=3, fm_ratio=3, fm_index=.5)),   # FM bell: sidebands at 1, 2, 4, 5, 7 ...
     'Stage EP': dict(h=sparse((1, 1), (2, .55), (3, .3), (5, .18), (8, .1)), lift=0),
     'Vibes': dict(h=sparse((1, 1), (2, .2), (4, .5), (7, .14))),
     'Soft Vibraphone': dict(h=sparse((1, 1), (3, .08), (5, .04)), set=dict(filter=.45)),
@@ -621,7 +623,7 @@ PADS += [
     P('Dream Pad', ins(mix(formant(4, 2.5, .3), sine([(2,.3)]), .5), 1.2,1.5,.8,2.8,.6,.4),
       fx({'phaser': dict(rate=.12, depth=.5, feedback=.3, mix=.3), 'reverb': verb(.6, .9, .3, .7)}), 'floating'),
     P('Night Drive Pad', ins(square(1.3), .6,1.,.8,1.8,.6,.25),
-      fx({'delay': echo(.2, 4, .4), 'reverb': verb(.4, .7)}), 'synthwave',
+      fx({'delay': echo(.2, 4, .4), 'reverb': verb(.4, .7)}, mods=[('triangle', B2, [('sound', 'pulse_width', .4)])]), 'synthwave',
       **LP_ENV(.45, .35, .3, 1.2, .4)),
 ]
 KEYS += [

@@ -17,6 +17,8 @@ export type Instrument = {
   vcf_morph?:number; fenv_a?:number; fenv_d?:number; fenv_s?:number; fenv_r?:number;
   uni_voices?: number; uni_detune?: number;
   formant?: number; vowel?: number; inharm?: number; sub?: number; sub_oct?: number;
+  /** Oscillator (26 Nov): 0 drawn partials (missing), 1 saw, 2 pulse, 3 FM; pulse_width .02-.5, fm_ratio 1-8, fm_index 0-1. */
+  wave?:number; pulse_width?:number; fm_ratio?:number; fm_index?:number;
 };
 export type DrumPad = {
   note:number;name:string;source:null|{path:string;sha256:string;[key:string]:unknown};
