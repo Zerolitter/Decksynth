@@ -185,3 +185,10 @@
 .harness-shell .smp-library .lib-factory b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--c-layer)}
 .harness-shell .smp-library .lib-factory button{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid color-mix(in srgb,var(--c-layer) 40%,var(--line-soft));background:color-mix(in srgb,var(--c-layer) 9%,var(--ui-surface));color:var(--ui-text);font-weight:800}
 .harness-shell .smp-library .lib-factory button[aria-pressed=true]{background:color-mix(in srgb,var(--c-layer) 26%,var(--ui-surface));border-color:var(--c-layer)}
+
+/* Oscillator strip under the Wave graph (26 Nov): the waveform choice and what the wave uses, in the graph that draws it */
+.harness-shell .ss-wave-row{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:0 8px 8px}
+.harness-shell .ss-wave-row>.ss-seg{flex:1 1 190px}
+.harness-shell .ss-wave-row>.ss-seg[aria-label="FM ratio"]{flex:1 1 100%}
+.harness-shell .ss-graph.view-wave .ss-graph-plot{position:relative;inset:auto;flex:1 1 0;min-height:0;margin-top:26px}
+.harness-shell .ss-wave-row>.ss-knobs{flex:0 0 auto;grid-template-columns:126px}

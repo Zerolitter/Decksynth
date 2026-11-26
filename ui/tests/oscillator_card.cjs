@@ -19,6 +19,7 @@ async function big(loc,label){const r=await loc.boundingBox();assert.ok(r,label+
  await p.evaluate(()=>window.deckApi.onMessage(m=>{window.__st={...window.__st,...m};}));await wait(()=>window.__st?.state);
  await size(800);
  await p.getByRole('tab',{name:'Sound',exact:true}).click();
+ await p.getByRole('radio',{name:'Wave',exact:true}).click();
 
  const wave=name=>p.getByRole('radiogroup',{name:'Waveform',exact:true}).getByRole('radio',{name,exact:true});
  for(const h of [718,800]){

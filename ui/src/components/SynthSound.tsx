@@ -171,6 +171,12 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
           :view==='amp'?<EnvEditor env={p} color={TAGS.envelope} live={live?.sound} onChange={(k,v)=>set(k,v)}/>
           :<EnvEditor env={fenv} color={TAGS.filter} live={fenvLive} onChange={(k,v)=>set(FILTER_ENV_KEYS[k],v)}/>}
         </div>
+        {view==='wave'?<div className="ss-wave-row" aria-label="Oscillator">
+          <Seg name="Waveform" value={vp('wave')} onPick={v=>set('wave',v)} options={WAVE_NAMES.map((label,value)=>({label,value}))}/>
+          {vp('wave')===2?<div className="ss-knobs">{K('pulse_width','Width',vp('pulse_width'),.02,.5,{step:.005,format:v=>Math.round(v*100)+'%',description:'50% is a square; narrower is more nasal. Link a mod pad to it for pulse-width movement.',onChange:v=>set('pulse_width',v)})}</div>:null}
+          {vp('wave')===3?<div className="ss-knobs">{K('fm_index','Index',vp('fm_index'),0,1,{suffix:'%',description:'How far the modulator bends the carrier: up opens the spectrum. Link a mod pad to it, or let Damping and the Filter envelope close it after the strike.',onChange:v=>set('fm_index',v)})}</div>:null}
+          {vp('wave')===3?<Seg name="FM ratio" value={vp('fm_ratio')} onPick={v=>set('fm_ratio',v)} options={[1,2,3,4,5,6,7,8].map(n=>({label:'×'+n,value:n,aria:'Modulator '+n+' times the note'}))}/>:null}
+        </div>:null}
       </div>
       <div className="smp-rack ss-rack" role="toolbar" aria-label="Sound tools">
         <div className="ss-tools" role="radiogroup" aria-label="Big graph">
@@ -203,13 +209,6 @@ export function SynthSound({track,selected,onParam,onTrack,onShape,onChain,armed
 
     <div className="ss-cards">
       <div className="ss-col">
-        {card('sound-wave','Oscillator',TAGS.tone,<>
-          <Seg name="Waveform" value={vp('wave')} onPick={v=>set('wave',v)} options={WAVE_NAMES.map((label,value)=>({label,value,aria:value?label+' wave':'Drawn partials'}))}/>
-          {vp('wave')===2?<div className="ss-knobs">{K('pulse_width','Width',vp('pulse_width'),.02,.5,{step:.005,format:v=>Math.round(v*100)+'%',description:'50% is a square; narrower is more nasal. Link a mod pad to it for pulse-width movement.',onChange:v=>set('pulse_width',v)})}</div>:null}
-          {vp('wave')===3?<>
-            <Seg name="FM ratio" value={vp('fm_ratio')} onPick={v=>set('fm_ratio',v)} options={[1,2,3,4,5,6,7,8].map(n=>({label:'×'+n,value:n,aria:'Modulator '+n+' times the note'}))}/>
-            <div className="ss-knobs">{K('fm_index','Index',vp('fm_index'),0,1,{suffix:'%',description:'How far the modulator bends the carrier: up opens the spectrum. Link a mod pad to it, or let Damping and the Filter envelope close it after the strike.',onChange:v=>set('fm_index',v)})}</div></>:null}
-        </>,{reset:()=>(['wave','pulse_width','fm_ratio','fm_index'] as VoiceKey[]).forEach(k=>set(k,VOICE_DEFAULTS[k]))})}
         {card('sound-tone','Tone',TAGS.tone,<div className="ss-knobs">
           {K('filter','Brightness',p.filter,.02,1,{id:'brightness',suffix:'%',onChange:v=>set('filter',v)})}
           {K('curve','Curve',spectral('curve'),-1,1,{step:.01,precision:2,onChange:v=>set('curve',v)})}
