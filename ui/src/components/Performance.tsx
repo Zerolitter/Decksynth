@@ -1,6 +1,7 @@
 import {NoteShortcuts} from './NoteShortcuts';
 import {PianoRoll,type PianoRollHandle} from './PianoRoll';
 import {useNoteGeneration} from './NoteGeneration';
+import {useEuclid} from './EuclidSheet';
 import {PatternLibrary} from './PatternLibrary';
 import {ChoiceList,STEP_CHOICES} from './LoopBars';
 import {useNoteContext} from './useNoteContext';
@@ -11,7 +12,7 @@ import {useClockValue,type Position} from '../frame-clock';
 import {chainPosition} from '../structure';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3,  MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb,Sparkles} from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronsLeft, ChevronsRight, ChevronUp, CircleDot, Combine, Dices, Fingerprint, Keyboard, ListOrdered, Layers3, Orbit, MoreHorizontal, Plus, Power, RotateCcw, Shuffle, SlidersHorizontal, Waves, X, Pause, Play, Square, Scan, Maximize2, Minimize2, ListChecks, ListMusic, Repeat, Lightbulb,Sparkles} from 'lucide-react';
 import {performanceRange} from '../piano-viewport';
 import { Knob } from './Knob';
 import { ValueBox } from './ValueBox';
@@ -158,6 +159,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   const noteExpected=clipMode?track.notes:pat;
   const edit=useNoteEditing({target:noteTarget,expected:noteExpected,events:clipMode?track.notes:patternEvents(pat),bounds:noteBounds,playing,recording,commit:(t,b,a)=>onNoteEdit(t,b as StepPattern,a),audition:onEditorNote,undo:onUndo,redo:onRedo,sound:editSound});
   const generation=useNoteGeneration(edit,noteTarget,noteBounds,recording,scale);
+  const euclid=useEuclid({edit,target:noteTarget,recording,pat,drums:device==='drum_rack',pads:track.drum_rack?.pads??[],scale});
   const noteContext=useNoteContext({edit,target:noteTarget,expected:noteExpected,bounds:noteBounds,recording,generate:generation.open,open:()=>setNoteEditorOpen(true)});
   const tap=edit.tool,setTap=edit.setTool;
 
@@ -486,6 +488,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
     <button type="button" style={tool('nudge')} aria-label="Nudge ▶" title="Move every note one step later" onClick={()=>action('nudge',1)}><ChevronsRight size={18}/><span>Later</span></button>
     <button type="button" style={tool('oct')} aria-label="Oct −" title="Everything an octave down" onClick={()=>action('octave',-1)}><b>−8</b><span>Oct</span></button>
     <button type="button" style={tool('oct')} aria-label="Oct +" title="Everything an octave up" onClick={()=>action('octave',1)}><b>+8</b><span>Oct</span></button>
+    <button type="button" style={tool('euclid')} aria-label="Euclid" title="Euclid rhythms and genre starting points" disabled={recording} onClick={()=>euclid.open()}><Orbit size={18}/><span>Euclid</span></button>
     <button type="button" style={tool('dice')} aria-label="Dice" disabled={!seq.spice} title={seq.spice?'New spice variation':'Raise Spice first'}
       onClick={()=>set('seq','spice_seed',(seq.spice_seed%1000000)+1)}><Dices size={18}/><span>Dice</span></button>
     <button type="button" aria-label="Fit notes" style={tool('more')} onClick={()=>roll.current?.fit()}><Scan size={18}/><span>Fit</span></button>
@@ -683,6 +686,7 @@ export function Performance({track,catalogStatus,onCommand,state,playing,held,ar
   return <ContextAreaScope area={mode==='chord'?'chord':mode==='arp'?'arp':'perform'}><section className={"pf pf-mode-"+mode+(keyboardShown?'':' keyboard-folded')+(noteEditorOpen?' notes-expanded':'')} aria-label="Perform"
     onKeyDown={e=>{if(e.key==='Escape'&&!e.defaultPrevented&&noteEditorOpen){e.preventDefault();setNoteEditorOpen(false);}}}>
     {generation.panel}
+    {euclid.panel}
     <header className="pf-head">
       <div className="pf-tabs" role="tablist" aria-label="Perform mode">
         {([['seq','Seq',<Layers3 size={16}/>,seq.enabled],['arp','Arp',<Waves size={16}/>,arp.enabled],

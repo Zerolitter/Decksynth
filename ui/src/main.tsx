@@ -20,6 +20,7 @@ import './synth-sound.css';
 import './fx-grid.css';
 import './pattern-library.css';
 import './touch.css';
+import './euclid.css';
 const root=document.getElementById('root');
 if(!root)throw new Error('Missing DeckSynth root node');
 createRoot(root).render(<React.StrictMode><App/></React.StrictMode>);
