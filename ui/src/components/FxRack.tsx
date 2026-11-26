@@ -1,5 +1,5 @@
 import {RackScrollControls,useRackNavigation} from './RackNavigation';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRingDepth } from './RingDepth';
 import { ListMusic, Plus, RotateCcw, X } from 'lucide-react';
@@ -71,13 +71,15 @@ export function fxGridSpans(ids:FxModuleId[],withAdd:boolean):{spans:Record<stri
 type CardProps = {selected:number; chain?:FxChain; onChange:(c:FxChain)=>void; live?:Live;
   onReorder:(ids:FxModuleId[])=>void;
   armed:Source|null; source?:Source; autoFold:boolean; beat?:number; playing?:boolean;
-  /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[]};
+  /** names of the project's tracks, for Ducking and Vocoder sources */ tracks?:string[];
+  /** an extra button in a card's title bar (the track view's "Move it there" offer when a bus runs the same effect) */ offer?:(id:FxModuleId)=>ReactNode;
+  /** what the empty picker says this chain belongs to */ owner?:string};
 const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const noteName=(m:number)=>NOTE_NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Math.round(m)/12)-1);
 
 /** FX rack: one compact card per effect, left to right, wrapping to a second row.
  *  While a mod source is linking, tapping a knob routes it there (tap again to remove). */
-export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[]}:CardProps) {
+export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source,autoFold,beat=0,playing=false,tracks=[],offer,owner='This track'}:CardProps) {
   const chain=normalizeChain(raw);
   const [picking,setPicking]=useState(false);
   const [gateOpen,setGateOpen]=useState(false);
@@ -141,7 +143,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
         icon={<span className="fx-slot-no">{pos+1}</span>}
         power={{on:!state.bypass,label:def.name,onToggle:()=>setModule(state.id,m=>({...m,bypass:!m.bypass}))}}
         summary={state.bypass?'Off':undefined}
-        actions={<span className="fx-order">
+        actions={<span className="fx-order">{offer?.(state.id)}
             <button type="button" data-fx-opener aria-label={'Presets for '+def.name} title="Presets" aria-expanded={presetsFor===state.id} onClick={()=>setPresetsFor(presetsFor===state.id?null:state.id)}><ListMusic size={14}/></button>
             <button type="button" aria-label={'Reset '+def.name} title="Reset this effect" onClick={()=>reset(state.id)}><RotateCcw size={14}/></button>
             <button type="button" className="fx-remove" aria-label={'Remove '+def.name}
@@ -191,7 +193,7 @@ export function FxCards({selected,chain:raw,onChange,onReorder,live,armed,source
       </Panel>};
     }).map(({id,node})=><Fragment key={id}>{node}</Fragment>)}
     {!active.length?<div role="listitem" className="fx-empty-picker" aria-label="Add effect">
-      <div className="fx-picker-head"><strong>Add an effect</strong><span>This track has none yet. Effects run left to right; tap one to add it.</span></div>
+      <div className="fx-picker-head"><strong>Add an effect</strong><span>{owner} has none yet. Effects run left to right; tap one to add it.</span></div>
       <FxPickerGrid chain={chain} onAdd={add}/></div>
     :inactive.length?<div role="listitem" className="rack-card fx-add-card" style={{gridColumn:'span '+grid.add}}>
       <button type="button" className="fx-add-open" data-fx-opener aria-label="Add effect" aria-expanded={picking} onClick={()=>setPicking(v=>!v)}>

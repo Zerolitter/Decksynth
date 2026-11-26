@@ -16,6 +16,7 @@ import {
   AudioWaveform, CircleDot, CircleHelp, Disc3, FileDown,
   FileAudio, FileUp, FolderOpen, Magnet, Pause, Play,
   RotateCcw, RotateCw, Save, Settings as SettingsIcon, Snowflake, Square,
+  ArrowRight,
 } from 'lucide-react';
 import { Timeline } from './components/Timeline';
 import { Arranger, ClipSheet, SongBar, type SongSel, type SongView } from './components/SongArranger';
@@ -29,7 +30,7 @@ import { SamplerPage, PlayOnKeysSheet, padChoices } from './components/Sampler';
 import { drumKind, padLabel } from './drum-kinds';
 import { LinkPage } from './components/LinkPage';
 import { SynthSound } from './components/SynthSound';
-import { SendKnobs, SendsOpen, SendsSheet } from './components/Sends';
+import { BusChips, BusFeeds, NewBusSheet, TrackSends, busColor, busRunning, busesOf, feedOf, BUS_LETTERS } from './components/Buses';
 import type { Source } from './components/ModParts';
 import { ExportLoopSheet } from './components/ExportLoopSheet';
 import { MidiImportSheet, type MidiFile } from './components/MidiImportSheet';
@@ -45,7 +46,7 @@ import type { FxChain } from './fx';
 import { harmonicShape, nextSeed, type Shape } from './spectral-seeds';
 import { totalNotes } from './pattern';
 import { PresetBrowser, LIBRARY } from './components/PresetBrowser';
-import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type Instrument, type Note, type SendBus, type StepNote } from './types';
+import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type FxBus, type Instrument, type Note, type StepNote } from './types';
 import previewState from './preview-state.json';
 import { voiceChord } from './chords';
 import './styles.css';
@@ -279,6 +280,14 @@ function App() {
         next.state.tracks[index].notes[noteIndex]=note;next.playing=false;
       }
       else if(cmd==='fx'){const [index,chain]=args as [number,FxChain];next.state.tracks[index].fx=chain;}
+      else if(cmd==='send'){const [index,bus,amount,through]=args as [number,number,number,boolean|undefined];const t=next.state.tracks[index];
+        const old=t.sends?.[String(bus)];t.sends={...t.sends,[String(bus)]:{amount:clamp(amount,0,1),through:through??old?.through??false}};}
+      else if(cmd.startsWith('bus_')){const b=structuredClone(busesOf(next.state)),a=args as unknown[];
+        if(cmd==='bus_set')(b[a[0] as number] as Record<string,unknown>)[a[1] as string]=a[2];
+        else if(cmd==='bus_chain')b[a[0] as number].chain=a[1] as FxChain;
+        else if(cmd==='bus_add')b.push({name:a[0] as string,colour:b.length,chain:a[1] as FxChain,return:.8,mute:false});
+        else if(cmd==='bus_remove')b.splice(a[0] as number,1);
+        next.state.buses=b;}
       else if(cmd==='spectral_seed'){
         const [index,name]=args as [number,Shape];if(index!==next.selected)return next;
         const ins=next.state.tracks[index].instrument,seed=name==='RANDOM'?nextSeed(ins.random_seed??0):ins.random_seed??0;
@@ -437,11 +446,31 @@ function App() {
   };
   const onParam=(key:keyof Instrument,index:number|null,value:number)=>command('parameter',[key,index,value,selected]);
   const onTrack=(key:'mute'|'volume',value:boolean|number)=>command('track',[selected,key,value]);
-  // Sends: the shared Reverb and Delay sheet opens over any Sound page; it closes when the page or track changes.
-  const [sendsOpen,setSendsOpen]=useState(false);
-  useEffect(()=>setSendsOpen(false),[page,selected]);
-  const sendProps=track?{track,index:selected,open:sendsOpen,onSend:(bus:SendBus,v:number)=>command('send',[selected,bus,v]),onOpen:()=>setSendsOpen(o=>!o)}:null;
-  const sendKnobs=sendProps?<SendKnobs {...sendProps}/>:null;
+  // FX buses (26 Nov): the FX page shows a track's chain and sends, or a bus (fxBus) with its feeds and chain.
+  const buses=project?busesOf(project):[];
+  const [fxBus,setFxBus]=useState<number|null>(null);
+  const [newBus,setNewBus]=useState(false);
+  useEffect(()=>{if(fxBus!==null&&fxBus>=buses.length)setFxBus(null);},[fxBus,buses.length]);
+  useEffect(()=>setNewBus(false),[page]);
+  const busView=page==='FX'&&fxBus!==null&&!!buses[fxBus];
+  const makeBus=(name:string,chain:FxChain,from:number[])=>{const i=buses.length;
+    command('bus_add',[name,chain]);from.forEach(t=>command('send',[t,i,.3,false]));setNewBus(false);setFxBus(i);};
+  // A track card whose time effect a bus already runs offers to move it there: the card turns off and the track's
+  // send to that bus takes the card's Mix (UI mockup v2, "Move to bus").
+  const MOVABLE=['reverb','delay','space','shimmer','cloud','smear'];
+  const busOffer=(id:import('./fx').FxModuleId)=>{
+    if(!track||!MOVABLE.includes(id))return null;const b=busRunning(buses,id);if(b<0)return null;
+    const chain=normalizeChain(track.fx),m=chain.modules.find(x=>x.id===id);if(!m)return null;
+    const drop=(t:import('./fx').FxTarget[])=>t.filter(x=>x.module!==id);
+    return <button type="button" className="bus-offer" aria-label={'Move '+id+' to bus '+BUS_LETTERS[b]+' '+buses[b].name} style={{['--bus' as string]:busColor(buses[b],b)}}
+      title={buses[b].name+' (bus '+BUS_LETTERS[b]+') already runs this effect. Move it there: this card turns off and the track sends to the bus instead.'}
+      onClick={()=>{command('fx',[selected,{...chain,modules:[...chain.modules.filter(x=>x.on&&x.id!==id),{...m,on:false},...chain.modules.filter(x=>!x.on)],
+        macros:chain.macros.map(x=>({...x,targets:drop(x.targets)})),mods:chain.mods.map(x=>({...x,targets:drop(x.targets)}))}]);
+        command('send',[selected,b,Math.max(feedOf(track,b).amount,m.params.mix??.5)]);setToast('Moved to '+buses[b].name+'. Undo brings the card back.');}}>
+      <ArrowRight size={14}/><i>{BUS_LETTERS[b]}</i></button>;
+  };
+  const reorderBus=(bus:FxBus,ids:string[]):FxChain=>{const chain=normalizeChain(bus.chain);
+    return {...chain,modules:[...ids.map(id=>chain.modules.find(m=>m.id===id)!),...chain.modules.filter(m=>!m.on)]};};
 
   useEffect(()=>{
     const handler=(event:KeyboardEvent)=>{
@@ -536,11 +565,11 @@ function App() {
     </header>
 
     {automationEdit!==undefined&&project&&track?<AutomationEditor key={selected} track={selected} lanes={track.automation??[]} target={automationEdit} beats={project.song?.on?project.song.length*4:project.bars*4} song={!!project.song?.on} playing={snapshot?.playing??false} armed={snapshot?.automation_arm??false} send={command} close={closeAutomation}/>:null}
-    {sendsOpen&&project?<SendsSheet buses={project.buses} tracks={project.tracks} onSetting={(bus,key,value)=>command('send_setting',[bus,key,value])} onClose={()=>setSendsOpen(false)}/>:null}
+    {newBus&&project&&page==='FX'?<NewBusSheet buses={buses} tracks={project.tracks} selected={fxBus===null?selected:null} onMake={makeBus} onClose={()=>setNewBus(false)}/>:null}
     <div className={'workspace-stage page-'+page.toLowerCase()}>
     {project&&track?<>
-      {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={selected}
-        onSelect={index=>command('select',index)} beats={project.bars*4} playing={snapshot?.playing??false}
+      {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={busView?-1:selected}
+        onSelect={index=>{setFxBus(null);command('select',index);}} beats={project.bars*4} playing={snapshot?.playing??false}
         tools={page==='SOUND'?<>
           {(track.device??'synth')==='synth'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
             {(['A','B'] as const).map(slot=><button key={slot} type="button" aria-label={'Compare sound '+slot} aria-pressed={(track.sound_ab?.active??'A')===slot} onClick={()=>command('sound_ab',[selected,slot])}>{slot}</button>)}
@@ -550,7 +579,8 @@ function App() {
           <InstrumentSwitcher device={track.device??'synth'} onChange={device=>{if(isPreview){setToast('Select devices in the native audio app');return;}setKitBrowserTrack(null);command('set_device',[selected,device]);}}/>
           {/* The kit button sits next to the pads now (16 Nov). */}
           {/* The synth's preset and Save live in the Sound tool rack now (16 Nov). */}
-        </>:page==='PERFORM'?<ArpLive>{view=><PerformTools
+        </>:page==='FX'?<BusChips buses={buses} tracks={project.tracks} view={busView?fxBus:null} onView={setFxBus} newOpen={newBus} onNew={()=>setNewBus(v=>!v)}/>
+        :page==='PERFORM'?<ArpLive>{view=><PerformTools
           onPanic={()=>command('panic')} arp={project.performance.arp.enabled} paused={!!view?.paused}
           onArp={a=>command('perform_action',[a,null])}/>}</ArpLive>:undefined}/>}
       <div className="page-body">
@@ -602,7 +632,7 @@ function App() {
         onReplaceSample={(folder,index,pad)=>{if(track.drum_rack){pendingSwap.current={track:selected,id:track.drum_rack.id,pad,source:track.drum_rack.pads[pad].source?.path??null};command('drum_replace_sample',[selected,track.drum_rack.id,pad,folder,index]);}}}
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}
         onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}
-        record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)} sends={sendKnobs}/>
+        record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)}/>
       :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
         runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
         library={snapshot?.sample_library} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}
@@ -613,7 +643,7 @@ function App() {
         onEdit={(key,value)=>{if(track.sampler)command('sampler_edit',[selected,track.sampler.id,key,value]);}}
         onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
         onMake={p=>command('sampler_make',[p.track,p.kit,p.pad,selected,null,p.family])}
-        onMidi={(s,a,b)=>command('midi',[s,a,b])} sends={sendKnobs}/>
+        onMidi={(s,a,b)=>command('midi',[s,a,b])}/>
       :page==='SOUND'?<ContextAreaScope area="sound"><PanelScope scope={'track:'+selected}><FxLive>{live=><SynthSound key={selected} track={track} selected={selected}
           onParam={(name,index,val)=>onParam(name,index,val)} onTrack={onTrack} onShape={name=>command('spectral_seed',[selected,name])}
           onChain={chain=>command('fx',[selected,chain])} armed={armed} source={edit} live={live}
@@ -621,12 +651,22 @@ function App() {
           onLayerFile={path=>command('layer_file',[selected,path])} onLayerPartials={()=>command('layer_partials',selected)}
           preset={<><PresetBrowser key={selected} current={track.preset} accent={TRACK_COLORS[selected]} onPreset={preset=>command('preset',preset)}/>
             <button type="button" className="page-tool-icon ss-save" aria-label="Save patch" title="Save patch"
-              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>} sends={sendProps?<SendKnobs {...sendProps} inHeader/>:null} sendsAction={<SendsOpen small open={sendsOpen} onOpen={()=>setSendsOpen(o=>!o)}/>}/>}</FxLive></PanelScope></ContextAreaScope>
-      :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx">
+              onClick={()=>showFileDialog('save','instrument','save_preset')}><Save size={18}/></button></>}/>}</FxLive></PanelScope></ContextAreaScope>
+      :page==='FX'&&busView?(()=>{const i=fxBus!,bus=buses[i];
+        return <ContextAreaScope area="fx"><PanelScope scope={'bus:'+i}><div className="frame frame-fx with-band bus-view">
+          <BusFeeds bus={bus} index={i} tracks={project.tracks} onSend={(t,v)=>command('send',[t,i,v])}
+            onSet={(key,v)=>command('bus_set',[i,key,v])} onRemove={()=>{command('bus_remove',[i]);setFxBus(null);setToast('Removed bus '+BUS_LETTERS[i]+'. Undo brings it back.');}}/>
+          <FxCards key={'bus'+i} selected={-1-i} chain={bus.chain} onChange={chain=>command('bus_chain',[i,chain])}
+            onReorder={ids=>command('bus_chain',[i,reorderBus(bus,ids)])} armed={null} autoFold={!settings.noAutoFold} owner="This bus"
+            playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>
+        </div></PanelScope></ContextAreaScope>;})()
+      :page==='FX'?<ContextAreaScope area="fx"><PanelScope scope={'track:'+selected}><div className="frame frame-fx with-band">
           <FxLive>{live=><FxCards key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
-            onReorder={ids=>command('fx_reorder',[selected,ids])}
+            onReorder={ids=>command('fx_reorder',[selected,ids])} offer={busOffer}
             live={live} armed={armed} source={edit} autoFold={!settings.noAutoFold}
             playing={snapshot?.playing??false} tracks={project.tracks.map(t=>deviceName(t))}/>}</FxLive>
+          <TrackSends track={track} index={selected} buses={buses} newOpen={newBus} onNew={()=>setNewBus(v=>!v)}
+            onSend={(b,amount,through)=>command('send',through===undefined?[selected,b,amount]:[selected,b,amount,through])}/>
       </div></PanelScope></ContextAreaScope>
       :page==='LINK'?<ContextAreaScope area="fx"><FxLive>{live=><LinkPage key={selected} selected={selected} chain={track.fx} onChange={chain=>command('fx',[selected,chain])}
           live={live} bpm={project.bpm} edit={edit} onEdit={setEdit} armed={armed} onLink={setArmed}/>}</FxLive></ContextAreaScope>
