@@ -149,6 +149,7 @@ function App() {
   const openClipNotes=(index:number)=>{command('select',index);setPerformClip(true);setPage('PERFORM');};
   const [clipSheet,setClipSheet]=useState<number|null>(null);
   const [toast,setToast]=useState('');
+  const [settingsSection,setSettingsSection]=useState<'plugins'|undefined>(undefined);
   const [bridgeStatus,setBridgeStatus]=useState(api?'CONNECTING':'PREVIEW');
   const selected=snapshot?.selected??0;
   const [kitBrowserTrack,setKitBrowserTrack]=useState<number|null>(null);
@@ -685,6 +686,8 @@ function App() {
         onLoadWav={async()=>{if(isPreview||!api){setToast('Open the native audio app to load a WAV');return;}
           const id=track.sampler?.id,tr=selected;const filepath=await api.chooseFile('open','sample');
           if(filepath&&id)command('sampler_load_wav',[tr,id,filepath]);}}
+        pluginName={snapshot?.plugins?.loaded?.kind==='instrument'?snapshot.plugins.loaded.name:undefined}
+        onPlugin={()=>{setSettingsSection('plugins');setDialog('settings');}}
         send={(cmd,args)=>command(cmd,args)}
         onEdit={(key,value)=>{if(track.sampler)command('sampler_edit',[selected,track.sampler.id,key,value]);}}
         onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
@@ -752,7 +755,7 @@ function App() {
         if(filepath)command('export_loop',[filepath,choice.track,choice.kind,choice.headroom]);
       }}/>:null}
     {toast?<div className="toast" role="status">{toast}<button aria-label="Dismiss message" onClick={()=>setToast('')}>✕</button></div>:null}
-    {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget)setDialog(null);}}>
+    {dialog?<div className={'modal-screen'+(dialog==='help'?' help-screen':'')} onPointerDown={event=>{if(event.target===event.currentTarget){setSettingsSection(undefined);setDialog(null);}}}>
       {dialog==='settings'?<Settings settings={settings} onSettings={setSettings}
         trackName={(selected+1)+' '+(track?.preset??'')} onCleanup={(c:Cleanup)=>{command('cleanup',c);if(c==='all')setPage('SOUND');}}
         midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms} session={snapshot?.session} onSession={c=>command('session',c)}
@@ -760,7 +763,7 @@ function App() {
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
         command={command} pluginTrack={{index:selected,device:track?.device??'synth',samplerId:track?.device==='sampler'?track.sampler?.id??null:null,
           hasSample:!!(track?.device==='sampler'&&track.sampler?.source),sampleName:track?.device==='sampler'?track.sampler?.name??null:null}}
-        onClose={()=>setDialog(null)}/>
+        initialSection={settingsSection} onClose={()=>{setSettingsSection(undefined);setDialog(null)}}/>
       :<Help section={helpSection} invoker={helpOrigin.current} close={()=>setDialog(null)}/>}
     </div>:null}
   </main></ModLinkProvider></MidiLearnProvider></ContextWheelProvider>;

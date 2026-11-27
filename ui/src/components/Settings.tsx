@@ -56,6 +56,7 @@ type Props = {
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
   /** Plugins: the engine command and the selected track (a take can go into its Sampler). */
   command?:(cmd:string,args?:unknown)=>void; pluginTrack?:PluginTrack;
+  initialSection?:SectionId;
 };
 
 /* ---------- small controls ---------- */
@@ -112,9 +113,9 @@ function Marked({text,q}:{text:string;q:string[]}){
 }
 
 /** Settings: eight sections in a left navigation, a search over all of them, and the window actions at the bottom of the navigation. */
-export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose,command,pluginTrack}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose,command,pluginTrack,initialSection}:Props) {
   const plugins=usePlugins();
-  const [section,setSection]=useState<SectionId>('session');
+  const [section,setSection]=useState<SectionId>(initialSection ?? 'session');
   const [query,setQuery]=useState('');
   const [confirm,setConfirm]=useState(false);
   const [midiPick,setMidiPick]=useState('Auto');

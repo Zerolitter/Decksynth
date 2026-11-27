@@ -35,7 +35,7 @@ export function PluginList({ status, send }: { status: PluginStatus; send: Send 
   const picked = status.loaded?.path ?? '';
   return <div className="sv-tap" role="radiogroup" aria-label="Plugins">
     {list.map(p => <button key={p.path} type="button" role="radio" aria-checked={picked === p.path} className={picked === p.path ? 'on' : ''}
-      disabled={status.setup !== 'ready' || !!status.busy} onClick={() => send('plugin', ['load', p.path])}>
+      disabled={(p.windows ? !status.native_ready : status.setup !== 'ready') || !!status.busy} onClick={() => send('plugin', ['load', p.path])}>
       <span>{p.name}<small>{p.windows ? 'Windows plugin through yabridge' : 'VST3'}</small></span>
       {picked === p.path ? <Plug size={16} /> : null}</button>)}
   </div>;
@@ -61,17 +61,23 @@ export function PluginLoaded({ status, send }: { status: PluginStatus; send: Sen
 export function PluginParams({ send }: { send: Send }) {
   const sent = useDeck(r => r.snapshot?.plugin_params ?? null);
   const one = useDeck(r => r.snapshot?.plugin_param ?? null);
+  const paged = useDeck(r => !!r.snapshot?.plugins?.loaded?.paged);
   const [params, setParams] = useState<PluginParam[]>([]);
   const [find, setFind] = useState('');
   useEffect(() => { setParams(sent?.params ?? []); }, [sent]);
   useEffect(() => { if (one) setParams(ps => ps.map(p => p.i === one.i ? { ...p, raw: one.raw, text: one.text } : p)); }, [one]);
+  useEffect(() => {
+    if (!paged || !sent?.path) return;
+    const timer = window.setTimeout(() => send('plugin', ['params', 0, find]), 150);
+    return () => window.clearTimeout(timer);
+  }, [find, paged, sent?.path]); // send is supplied by the stable bridge hook
   const words = find.toLowerCase().split(/\s+/).filter(Boolean);
   const hits = useMemo(() => params.filter(p => words.every(w => p.name.toLowerCase().includes(w))), [params, find]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (p: PluginParam, raw: number) => { setParams(ps => ps.map(q => q.i === p.i ? { ...q, raw } : q)); send('plugin', ['set', p.i, raw]); };
   if (!params.length) return <p className="sv-status" role="status">This plugin shows no parameters to the host; use its own window.</p>;
   return <div className="sv-plug-params">
-    {params.length > SHOWN ? <label className="sv-search sv-plug-find"><input type="search" value={find} onChange={e => setFind(e.target.value)}
-      placeholder={`Find one of ${params.length} parameters`} aria-label="Find a plugin parameter" autoComplete="off" spellCheck={false} />
+    {paged || params.length > SHOWN ? <label className="sv-search sv-plug-find"><input type="search" value={find} onChange={e => setFind(e.target.value)}
+      placeholder={`Find one of ${sent?.parameter_count ?? params.length} parameters`} aria-label="Find a plugin parameter" autoComplete="off" spellCheck={false} />
       {find ? <button type="button" aria-label="Clear" onClick={() => setFind('')}><X size={16} /></button> : null}</label> : null}
     <div className="sv-plug-grid">
       {hits.slice(0, SHOWN).map(p => <div key={p.i} className="sv-plug-param">
@@ -87,7 +93,7 @@ export function PluginParams({ send }: { send: Send }) {
               format={n => (Math.round(n * 10) / 10) + ' %'} onChange={n => set(p, Math.max(0, Math.min(1, n / 100)))} />}
       </div>)}
     </div>
-    {hits.length > SHOWN ? <p className="sv-status" role="status">{hits.length - SHOWN} more: type part of a name to find them.</p>
+    {hits.length > SHOWN ? <p className="sv-status" role="status">Showing 24 of {sent?.parameter_count ?? hits.length}: type more of a name to narrow them.</p>
       : !hits.length ? <p className="sv-status" role="status">No parameter matches “{find}”.</p> : null}
   </div>;
 }

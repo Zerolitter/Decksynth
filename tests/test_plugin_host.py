@@ -5,6 +5,7 @@ The helper needs numpy. Where it is not installed, the end-to-end tests skip; se
 folder that holds numpy to run them anyway."""
 import os
 import shutil
+import sys
 import tempfile
 import time
 import unittest
@@ -19,6 +20,7 @@ from decksynth.plugin_host import PluginHost, friendly, note_name, scan
 from decksynth.sample_library import SampleLibrary
 
 FAKE = str(Path(__file__).with_name('fake_pedalboard'))
+FAKE_NATIVE = str(Path(__file__).with_name('fake_vst3_host.py'))
 NUMPY = os.environ.get('DECKSYNTH_TEST_NUMPY_PATH', '')
 try:
     import numpy  # noqa: F401
@@ -131,6 +133,33 @@ class HelperBase:
 
 @unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
 class Helper(HelperBase, unittest.TestCase):
+    def test_windows_vst3_uses_the_native_helper_without_pedalboard(self):
+        saved = os.environ.pop('DECKSYNTH_PLUGIN_PATH')
+        native = PluginHost(self.dir / 'native-data', R, vst3_host=[sys.executable, FAKE_NATIVE])
+        try:
+            path = str(bundle(self.dir / 'plugins', 'Windows synth.vst3', windows=True))
+            native.plugins, _ = scan([str(self.dir / 'plugins')], [])
+            native.load(path)
+            events = []
+            end = time.monotonic() + 3
+            while time.monotonic() < end and native.busy:
+                events.extend(native.poll()); time.sleep(.01)
+            self.assertIsNone(native.busy)
+            self.assertEqual(native.status()['setup'], 'missing')
+            self.assertEqual(native.native_version, 'fake-juce-1.0')
+            self.assertEqual(native.loaded['name'], 'Fake Windows Synth')
+            page = next(event['plugin_params'] for event in events if 'plugin_params' in event)
+            self.assertEqual((page['params'][0]['name'], page['parameter_count']), ('Gain', 3773))
+            native.request_params(query='drive')
+            end = time.monotonic() + 3
+            while time.monotonic() < end and not any('plugin_params' in event and event['plugin_params'].get('parameter_count') == 1 for event in events):
+                events.extend(native.poll()); time.sleep(.01)
+            search = next(event['plugin_params'] for event in events if event.get('plugin_params', {}).get('parameter_count') == 1)
+            self.assertEqual(search['params'][0]['name'], 'Drive')
+        finally:
+            native.close()
+            os.environ['DECKSYNTH_PLUGIN_PATH'] = saved
+
     def test_load_lists_the_plugins_own_parameters_with_their_controls(self):
         params = self.load('Fake synth')
         self.assertEqual(self.host.loaded['kind'], 'instrument'); self.assertEqual(self.host.loaded['name'], 'Fake Synth')
@@ -206,6 +235,14 @@ class Helper(HelperBase, unittest.TestCase):
 
 @unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
 class LiveHelper(HelperBase, unittest.TestCase):
+    def test_consumed_live_reply_does_not_count_as_a_renderer_backlog(self):
+        self.load('Fake synth'); self.host.set_live(True)
+        self.host.live_seq = self.host.live_reply_seq = 6
+        self.host.live_blocks.clear()  # The audio thread already mixed every reply.
+        self.host.send_live([])
+        self.assertTrue(self.host.loaded['live'])
+        self.assertIsNone(self.host.live_fault)
+
     def test_live_synth_returns_audio_and_tracks_its_state(self):
         self.load('Fake synth')
         self.host.set_live(True)
@@ -223,6 +260,30 @@ class LiveHelper(HelperBase, unittest.TestCase):
         self.load('Fake gain')
         with self.assertRaisesRegex(ValueError,'instrument'):
             self.host.set_live(True)
+
+    def test_native_live_rejection_returns_the_button_to_off_and_reports_why(self):
+        old = os.environ.get('FAKE_NATIVE_REJECT_LIVE')
+        os.environ['FAKE_NATIVE_REJECT_LIVE'] = '1'
+        native = PluginHost(self.dir / 'native-live-data', R, vst3_host=[sys.executable, FAKE_NATIVE])
+        try:
+            path = str(bundle(self.dir / 'plugins', 'Rejected Windows synth.vst3', windows=True))
+            native.plugins, _ = scan([str(self.dir / 'plugins')], [])
+            native.load(path)
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline and native.loaded is None:
+                native.poll(); time.sleep(.01)
+            self.assertIsNotNone(native.loaded)
+            native.set_live(True)
+            deadline = time.monotonic() + 3; events = []
+            while time.monotonic() < deadline and native.loaded.get('live'):
+                events.extend(native.poll()); time.sleep(.01)
+            self.assertFalse(native.loaded['live'])
+            self.assertIn('Live audio transport is unavailable', native.error)
+            self.assertTrue(any('error' in event for event in events))
+        finally:
+            native.close()
+            if old is None: os.environ.pop('FAKE_NATIVE_REJECT_LIVE', None)
+            else: os.environ['FAKE_NATIVE_REJECT_LIVE'] = old
 
     def test_live_stays_enabled_while_the_plugin_window_is_open(self):
         self.load('Fake synth');self.host.set_live(True);self.events.clear()

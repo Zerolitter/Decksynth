@@ -273,6 +273,7 @@ def plugin_command(engine,plugins,sample_lib,args):
     elif action=='load':plugins.load(args[1] if len(args)>1 else None)
     elif action=='unload':plugins.stop()
     elif action=='set':plugins.set_param(args[1],args[2])
+    elif action=='params':plugins.request_params(args[1] if len(args)>1 else 0,args[2] if len(args)>2 else None)
     elif action=='live':plugins.set_live(bool(args[1]) if len(args)>1 else False)
     elif action=='editor':plugins.open_editor()
     elif action=='editor_close':plugins.close_editor()

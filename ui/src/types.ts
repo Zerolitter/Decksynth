@@ -176,13 +176,14 @@ export type DeckUpdate = {
   /** VST3 plugins (27 Nov): set up state, the plugins found, the loaded one and the last take. */
   plugins?: PluginStatus;
   /** The loaded plugin's parameters (sent when it loads and when its window closes), and one that just changed. */
-  plugin_params?: {path:string;params:PluginParam[]};
+  plugin_params?: {path:string;params:PluginParam[];parameter_count?:number;parameter_offset?:number};
   plugin_param?: {i:number;raw:number;text:string};
 };
 export type PluginParam={i:number;name:string;raw:number;text:string;label:string;kind:'value'|'options'|'switch';options?:string[]};
 export type PluginStatus={setup:'missing'|'installing'|'ready';progress:number|null;version:string|null;
+  native_ready?:boolean;native_version?:string|null;
   plugins:{path:string;name:string;windows:boolean}[];vst2:number;scanning:boolean;scanned:boolean;
-  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';editor:boolean;live:boolean;live_fault:string|null}|null;
+  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';paged?:boolean;editor:boolean;live:boolean;live_fault:string|null}|null;
   busy:'loading'|'listen'|'record'|null;take:{name:string;seconds:number;where:string;clipped:boolean}|null;error:string|null;revision:number};
 export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string;
   midi_file?: { path: string; channels: { channel: number; notes: number; low: number; high: number }[] } };
