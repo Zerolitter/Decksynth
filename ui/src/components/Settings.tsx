@@ -242,7 +242,7 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
         if(l){
           add({sec:'plugins',group:'Loaded',title:'Parameters',wide:true,kw:'plugin parameter knob value',control:<PluginParams send={command}/>});
           if(pluginTrack)add({sec:'plugins',group:'Loaded',title:'Record as a sample',wide:true,kw:'record render bounce sample sampler take listen',
-            hint:l.kind==='instrument'?'Plays one note, held for the Hold time, then until it is quiet (10 s at most). Record keeps the take in the sample library (Plugins) and loads it where you choose.'
+            hint:l.kind==='instrument'?'Plays one note, held for the Tap length (or as long as you hold Record), then until it is quiet (10 s at most). Record keeps the take in the sample library (Plugins) and loads it where you choose.'
               :'Plays the selected Sampler\'s sample through the effect, with its tail. Record keeps the take in the sample library (Plugins) and loads it where you choose.',
             control:<PluginTake status={plugins} send={command} track={pluginTrack}/>});
         }
