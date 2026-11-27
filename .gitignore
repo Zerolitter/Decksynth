@@ -35,6 +35,7 @@ UI-RULES.md
 *CHECKPOINT*.md
 *HANDOFF*.md
 .superpowers/
+.worktrees/
 .impeccable/
 .claude/
 .codex/
