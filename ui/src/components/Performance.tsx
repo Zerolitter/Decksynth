@@ -770,7 +770,7 @@ function PickRow<T extends string|number>({label,value,options,onPick,wide=false
 
 /* ---------- touch keyboard and expression strips ---------- */
 /** Layers, top first: keys you press > notes the arp/seq sounds > held keys > the chord outline > the scale tint. */
-function TouchKeys({id,base,keyCount,held,sounding,channel,onMidi,chord,scale}:{id:string;base:number;keyCount:number;held:number[];sounding:Set<number>;channel:number;
+export function TouchKeys({id,base,keyCount,held,sounding,channel,onMidi,chord,scale}:{id:string;base:number;keyCount:number;held:number[];sounding:Set<number>;channel:number;
   onMidi:(s:number,a:number,b:number)=>void;chord:number[]|null;scale:Set<number>|null}){
   const [down,setDown]=useState<number[]>([]);
   const pointers=useRef(new Map<number,number>());

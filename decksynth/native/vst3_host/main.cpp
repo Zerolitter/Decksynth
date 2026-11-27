@@ -300,7 +300,16 @@ private:
 
 PluginWindow::PluginWindow (Vst3Host& owner, juce::AudioProcessorEditor* editor)
     : DocumentWindow (editor->getName(), juce::Colours::black, DocumentWindow::closeButton), host (owner) {
-    setUsingNativeTitleBar (true); setContentOwned (editor, true); centreWithSize (juce::jmax (400, getWidth()), juce::jmax (300, getHeight())); setVisible (true); toFront (true);
+    setUsingNativeTitleBar (true); setContentOwned (editor, true);
+    // Place the window inside the screen's free area ourselves, below any panel and with room for the title bar.
+    // A window the window manager has to push down (centred on a small screen, its title bar under the top panel)
+    // keeps its old position inside Wine, and every click then lands off from the cursor.
+    const int titleBar = 34, w = juce::jmax (400, getWidth()), h = juce::jmax (300, getHeight());
+    auto area = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() != nullptr
+        ? juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea : juce::Rectangle<int> (0, 0, 1280, 800);
+    setBounds (area.getX() + juce::jmax (0, (area.getWidth() - w) / 2),
+               area.getY() + titleBar + juce::jmax (0, (area.getHeight() - titleBar - h) / 2), w, h);
+    setVisible (true); toFront (true);
 }
 void PluginWindow::closeButtonPressed() { host.closeEditorFromWindow(); }
 } // namespace

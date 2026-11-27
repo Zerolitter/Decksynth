@@ -106,6 +106,28 @@ class Tracks(unittest.TestCase):
         self.assertIn('B', pt.finish_learn(e)['message'])
         self.assertEqual(e.project.tracks[0]['plugin']['quick'][3], dict(i=2, name='B'))
 
+    def test_live_audio_that_fell_behind_starts_again_by_itself_three_times(self):
+        pt = PluginTracks(R); host = FakeHost(live=False); host.live_fault = 'Live renderer fell behind'
+        starts = []; host.set_live = lambda on: (starts.append(on), host.loaded.update(live=on))
+        pt._restart_live(host.loaded, host, now=0.)               # first sight of this plugin: remember it
+        for t in (0., .5, 1.):                                     # the fault: waits 1 s, then starts Live again
+            pt._restart_live(host.loaded, host, now=t)
+        self.assertEqual(starts, [True])
+        for k, t in enumerate((10., 12., 30., 40., 60., 70., 90.)):   # still failing: 2 more tries, then it waits
+            host.loaded['live'] = False; pt._restart_live(host.loaded, host, now=t)
+        self.assertEqual(len(starts), 3)
+
+    def test_start_again_turns_live_on_for_the_track_it_plays_on(self):
+        e = plugin_engine(); pt = PluginTracks(R); host = FakeHost(live=False); on = []
+        host.set_live = lambda v: on.append(v)
+        pt.activate(e, host, 0); self.assertEqual(on, [True]); self.assertEqual(host.loads, [])
+
+    def test_pitch_mod_and_aftertouch_reach_the_plugin(self):
+        e = plugin_engine(); e.plugin_track = 0; e.live_midi_out = True
+        e.selected = 0
+        e.midi(0xe0, 0, 80); e.midi(0xb0, 1, 64); e.midi(0xd0, 30, 0)
+        self.assertEqual([m for _, m in e.drain_live_midi(e.absolute_frame, 1 << 20)], [b'\xe0\x00\x50', b'\xb0\x01\x40', b'\xd0\x1e\x00'])
+
     def test_a_plugin_track_is_not_frozen_or_given_synth_voices(self):
         e = plugin_engine(); e.plugin_track = 0; e.live_midi_out = True
         e.voice_on(0, 60, 100, ('t',))

@@ -6,6 +6,7 @@ the plugin helper (plugin_host.py); its live audio becomes this track's audio, s
 Resample captures what the plugin plays, from its live output, in stereo: the loop (the track's clip from bar 1),
 what you play (from your first note until the sound dies), or one note. The audio loop only appends each block and
 its peaks here; the WAV is written in a thread."""
+import time
 import threading
 import wave
 from array import array
@@ -233,6 +234,7 @@ class PluginTracks:
         self.writer = None; self.writer_ctx = None
         self.loop_stopped = False; self.note_off_at = None; self.note = None
         self.tried = set()                    # plugin paths auto-loaded once (a failing one is not retried)
+        self.retry = (None, 0, 0.)            # (plugin path, live restarts so far, when the next may run)
 
     # -- which track the live plugin plays on ------------------------------------------------------
     @staticmethod
@@ -266,6 +268,7 @@ class PluginTracks:
         pl = plugins.loaded
         if pl and pl.pop('auto_live', False) and pl.get('kind') == 'instrument' and not pl.get('live'):
             plugins.set_live(True)
+        self._restart_live(pl, plugins)
         if pl is None and not plugins.busy and plugins.scanned and plugins.status()['setup'] == 'ready':
             for tr, t in enumerate(engine.project.tracks):
                 path = t.get('plugin', {}).get('path') if t.get('device') == 'plugin' else None
@@ -281,6 +284,23 @@ class PluginTracks:
         if self.writer is not None and self.writer.done():
             out.append(dict(take=self.writer.result, ctx=self.writer_ctx)); self.writer = None; self.writer_ctx = None
         return out
+
+    RESTARTS = 3
+
+    def _restart_live(self, pl, plugins, now=None):
+        """A Plugin track's live audio that stopped (a Windows plugin warming up can fall behind at first) starts
+        again by itself: after 1, 2 and 4 s, then it waits for Start again on the page."""
+        now = time.monotonic() if now is None else now
+        path, count, at = self.retry
+        if not pl or pl.get('track') is None or pl.get('kind') != 'instrument':
+            return
+        if pl['path'] != path: self.retry = (pl['path'], 0, 0.); return
+        if pl.get('live') or not plugins.live_fault or plugins.busy or count >= self.RESTARTS: return
+        if at == 0.: self.retry = (path, count, now + 2 ** count); return
+        if now < at: return
+        self.retry = (path, count + 1, 0.)
+        try: plugins.set_live(True)
+        except ValueError: pass
 
     def params_event(self, event):
         """Keeps the values the helper reports (all of them, or one page), and finishes a Learn."""
@@ -326,9 +346,8 @@ class PluginTracks:
         pl = plugins.loaded
         if not spec['path']: return
         if pl and pl['path'] == spec['path']:
-            if pl.get('track') != track:
-                pl['track'] = track; plugins.revision += 1
-                if pl.get('kind') == 'instrument' and not pl.get('live'): plugins.set_live(True)
+            if pl.get('track') != track: pl['track'] = track; plugins.revision += 1
+            if pl.get('kind') == 'instrument' and not pl.get('live'): plugins.set_live(True)   # also: start again after a fault
             return
         plugins.load(spec['path'], track)
 

@@ -42,7 +42,7 @@ async function main() {
       const plugins = () => ({ setup: 'ready', progress: null, version: '0.9.16', native_ready: true, native_version: '1', vst2: 0, scanning: false, scanned: true,
         plugins: [{ path: PATH, name: 'Massive X', windows: true }, { path: '/usr/lib/vst3/Surge XT.vst3', name: 'Surge XT', windows: false },
           { path: '/home/deck/.vst3/Vital.vst3', name: 'Vital', windows: false }, { path: '/home/deck/.vst3/yabridge/Pigments.vst3', name: 'Pigments', windows: true }],
-        loaded: fake.loaded ? { path: PATH, name: 'Massive X', vendor: '', kind: 'instrument', paged: false, editor: fake.editor, live: fake.live, live_fault: null, track: fake.track } : null,
+        loaded: fake.loaded ? { path: PATH, name: 'Massive X', vendor: '', kind: 'instrument', paged: false, editor: fake.editor, live: fake.live, live_fault: fake.fault || null, track: fake.track } : null,
         busy: null, take: null, error: null, revision: 1 });
       const out = () => Array.from({ length: 19 }, () => { const t = fake.t++, beat = (t % 94) / 94, env = Math.exp(-beat * 3.2) * (.55 + .3 * Math.sin(t / 40));
         return [Math.max(0, env * (.92 + .08 * Math.sin(t))), Math.max(0, env * (.78 + .1 * Math.cos(t * .7)))]; });
@@ -84,8 +84,13 @@ async function main() {
       assert.equal(await p.locator('.pt-display b').textContent(), 'Massive X');
       assert.equal(await p.locator('.page-track-window').count(), 1, 'one window button: the Plugin track with a plugin');
       await targets('.pt-page', H); await targets('.page-bar', H);
-      const keys = await p.locator('.pt-keys').boundingBox(); assert.ok(keys.y + keys.height <= H, 'keys fit at ' + H);
+      const keys = await p.locator('.pt-keys-card .pf-piano').boundingBox(); assert.ok(keys.y + keys.height <= H, 'keys fit at ' + H);
       await shot('page-' + H);
+      // live audio that fell behind: the page says so and offers Start again (it also restarts by itself)
+      await fake({ live: false, fault: 'Live renderer fell behind' });
+      await p.getByRole('button', { name: 'Start again' }).waitFor();
+      await targets('.pt-page', H); await shot('fault-' + H);
+      await fake({ live: true, fault: null }); await p.getByRole('button', { name: 'Start again' }).waitFor({ state: 'detached' });
       // the plugin window from the chip
       await fake({ editor: true }); await p.waitForTimeout(250);
       assert.equal(await p.locator('.page-track-window').getAttribute('aria-pressed'), 'true');
