@@ -4,7 +4,7 @@
    how it plays (Play), its pitch (Pitch) and its level over time (Amp). The keyboard plays it. */
 import { matches } from '../hotkeys';
 import { useEffect, useRef, useState } from 'react';
-import { Activity, ChefHat, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Plug, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
+import { Activity, ChefHat, ArrowLeft, ArrowLeftRight, ArrowRight, ArrowUp, Ban, AudioWaveform, Sparkles, BookOpen, ChevronsUpDown, Crop, Eraser, SlidersHorizontal, FolderOpen, Grid3x3, KeyboardMusic, Maximize2, Merge, Mic, Power, ScanSearch, Scissors, Snowflake, Trash2, Undo2, ZoomIn, Square } from 'lucide-react';
 import { SampleLibrarySheet, type SampleLibraryState } from './SampleLibrary';
 import { CommittedKnob } from './DrumRack';
 import { useContextTarget } from './ContextWheel';
@@ -932,10 +932,10 @@ function FilterCard({ spec, id, onEdit, onLive, big, onBig, lastFilter }: { spec
 
 type PadChoice = { track: number; kit: string; pad: number; name: string; family: DrumKind };
 
-export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, bpm, onEdit, onDetect, onMake, onMidi, onLoadWav, onPlugin, pluginName, send, library, onChooseFolder, sends }: {
+export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, bpm, onEdit, onDetect, onMake, onMidi, onLoadWav, send, library, onChooseFolder, sends }: {
   track: Track; trackIndex: number; runtime?: SamplerRuntime | null; record?: SamplerRecord; pads: PadChoice[]; tracks: Track[]; bpm: number;
   onEdit: Edit; onDetect(): void; onMake(choice: PadChoice): void; onMidi(s: number, a: number, b: number): void;
-  onLoadWav(): void; onPlugin?(): void; pluginName?:string; send(cmd: string, args: unknown): void;
+  onLoadWav(): void; send(cmd: string, args: unknown): void;
   /** The sample library (stage 11) and the folder picker for its folders. */
   library?: SampleLibraryState | null; onChooseFolder?(): Promise<string | null>;
   /** the track's Reverb and Delay sends (Sends.tsx) */ sends?: import('react').ReactNode;
@@ -1015,7 +1015,6 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           <button type="button" className="smp-empty-card" aria-label="Load a WAV" onClick={onLoadWav}><FolderOpen size={22} /><strong>Load a WAV</strong><span>A bounce or a long take, up to 10 minutes</span></button>
           <button type="button" className="smp-empty-card" aria-label="Record" onClick={() => setRecording(true)}><Mic size={22} /><strong>Record</strong><span>The piano or a mic; it goes into Chop</span></button>
           <button type="button" className="smp-empty-card" aria-label="From the library" onClick={() => setLibraryOpen(true)}><BookOpen size={22} /><strong>From the library</strong><span>Samples you saved before</span></button>
-          {pluginName ? <button type="button" className="smp-empty-card" aria-label={`Use ${pluginName}`} onClick={onPlugin}><Plug size={22} /><strong>Use {pluginName}</strong><span>Play live, open it, or record it as a sample</span></button> : null}
         </div>
       </div>
       {pads.length ? <div className="smp-pick-pads"><h3>Or play a drum pad on the keys</h3>

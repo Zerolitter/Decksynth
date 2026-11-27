@@ -22,6 +22,7 @@
     "test:drum-library": "node tests/drum_library_acceptance.cjs",
     "test:spectral-s5": "node tests/spectral_s5_acceptance.cjs",
     "test:spectral-s6": "node tests/spectral_s6_acceptance.cjs",
+    "test:plugin-track": "[ ! -f ../tools/deck_busy.sh ] || sh ../tools/deck_busy.sh && node tests/plugin_track_acceptance.cjs",
     "test:spectral-s7": "node ../tools/check-spectral-s7.cjs"
   },
   "dependencies": {

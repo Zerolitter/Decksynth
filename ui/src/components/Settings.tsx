@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CircleDot, Eraser, Headphones, Keyboard, Lock, Maximize, Minus, Monitor, Plug, Plus, Power, Radio, RotateCcw, Save, Search, Sparkles, Trash2, Unlink, X, Zap } from 'lucide-react';
 import '../settings.css';
 import { ValueBox } from './ValueBox';
-import { PluginList, PluginLoaded, PluginParams, PluginRescan, PluginSetup, PluginTake, usePlugins, type PluginTrack } from './PluginHost';
+import { PluginList, PluginRescan, PluginSetup, usePlugins } from './PluginHost';
 import { ACTIONS, FIXED, SCOPES, comboOf, isChanged, keysOf, problem, show, withKeys, cleanOverrides, type KeyOverrides } from '../hotkeys';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
@@ -55,7 +55,7 @@ type Props = {
   session?:import('../types').DeckUpdate['session']; onSession?:(changes:Record<string,unknown>)=>void;
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
   /** Plugins: the engine command and the selected track (a take can go into its Sampler). */
-  command?:(cmd:string,args?:unknown)=>void; pluginTrack?:PluginTrack;
+  command?:(cmd:string,args?:unknown)=>void;
   initialSection?:SectionId;
 };
 
@@ -113,7 +113,7 @@ function Marked({text,q}:{text:string;q:string[]}){
 }
 
 /** Settings: eight sections in a left navigation, a search over all of them, and the window actions at the bottom of the navigation. */
-export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose,command,pluginTrack,initialSection}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose,command,initialSection}:Props) {
   const plugins=usePlugins();
   const [section,setSection]=useState<SectionId>(initialSection ?? 'session');
   const [query,setQuery]=useState('');
@@ -228,24 +228,16 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
       control:<Switch label="Load presets with Strike noise" on={settings.presetNoise} onChange={v=>set({presetNoise:v})}/>});
     /* Plugins */
     if(command){
-      const ready=plugins?.setup==='ready',l=plugins?.loaded;
+      const ready=plugins?.setup==='ready';
       add({sec:'plugins',title:'Plugin hosting',kw:'vst vst3 plugin host set up install pedalboard',
         hint:ready?'VST3 plugins run in a helper of their own: one that hangs or crashes never stops Decksynth.'
           :'Hosts Linux VST3 plugins in a helper of their own, so a plugin can never stop the sound. Set up downloads pedalboard and numpy (about 21 MB, from PyPI) into Decksynth\'s data folder.',
         control:<PluginSetup status={plugins} send={command}/>});
       if(plugins&&ready){
-        add({sec:'plugins',group:'Plugins',title:'Plugins found',wide:true,kw:'vst vst3 yabridge windows load list',control:<PluginList status={plugins} send={command}/>});
+        add({sec:'plugins',group:'Plugins',title:'Plugins found',wide:true,kw:'vst vst3 yabridge windows load list',hint:'Add a Plugin track (Sound page, Plugin) to play one: its page has the window, the quick knobs and Resample.',control:<PluginList status={plugins}/>});
         add({sec:'plugins',group:'Plugins',title:'Plugin folders',kw:'vst3 path folder yabridge scan',
           hint:'~/.vst3, /usr/lib/vst3, /usr/local/lib/vst3 and VST3_PATH. Windows plugins appear after yabridgectl sync (in ~/.vst3/yabridge), and yabridge must be installed for this user.',
           control:<PluginRescan status={plugins} send={command}/>});
-        add({sec:'plugins',group:'Loaded',title:'Loaded plugin',wide:true,kw:'plugin window editor unload',control:<PluginLoaded status={plugins} send={command}/>});
-        if(l){
-          add({sec:'plugins',group:'Loaded',title:'Parameters',wide:true,kw:'plugin parameter knob value',control:<PluginParams send={command}/>});
-          if(pluginTrack)add({sec:'plugins',group:'Loaded',title:'Record as a sample',wide:true,kw:'record render bounce sample sampler take listen',
-            hint:l.kind==='instrument'?'Plays one note, held for the Tap length (or as long as you hold Record), then until it is quiet (10 s at most). Record keeps the take in the sample library (Plugins) and loads it where you choose.'
-              :'Plays the selected Sampler\'s sample through the effect, with its tail. Record keeps the take in the sample library (Plugins) and loads it where you choose.',
-            control:<PluginTake status={plugins} send={command} track={pluginTrack}/>});
-        }
       }
     }
     /* Hotkeys */
@@ -262,7 +254,7 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
         <button type="button" onClick={()=>setConfirm(false)}>Keep working</button></div>
         :<button type="button" className="sv-act danger" onClick={()=>setConfirm(true)}><Trash2 size={17}/><span><strong>Start over…</strong><small>Empty session. Asks once; Undo can bring the old one back</small></span></button>});
     return out;
-  },[settings,session,onSession,bufferMs,audioOutput,audioOutputs,devices,midiName,bridgeStatus,midiPick,confirm,rec,keyError,trackName,plugins,pluginTrack,command]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[settings,session,onSession,bufferMs,audioOutput,audioOutputs,devices,midiName,bridgeStatus,midiPick,confirm,rec,keyError,trackName,plugins,command]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const secOf=(id:SectionId)=>SECTIONS.find(s=>s.id===id)!;
   const scopeTitle=(g?:string)=>SCOPES.find(s=>s.id===g)?.title??g;

@@ -33,10 +33,15 @@ R = 48000
 
 
 class LiveEngine(unittest.TestCase):
-    """The live VST bridge needs note timing and a pre-master stereo inlet."""
+    """The live VST bridge: a Plugin track sends its notes (with their timing) and its audio is that track's audio."""
+
+    @staticmethod
+    def plugin_engine():
+        engine = Engine(R); engine.set_device(0, 'plugin'); engine.plugin_track = 0; engine.live_midi_out = True
+        return engine
 
     def test_drain_live_midi_keeps_original_note_offsets(self):
-        engine = Engine(R); engine.live_midi_out = True
+        engine = self.plugin_engine()
         engine.voice_on(0, 60, 100, ('test', 'on'))
         engine.absolute_frame = 17
         engine.voice_off(0, 60, ('test', 'on'))
@@ -45,34 +50,50 @@ class LiveEngine(unittest.TestCase):
             (17, b'\x80\x3c\x00'),
         ])
 
-    def test_external_stereo_is_audible_without_changing_block_size(self):
-        engine = Engine(R)
-        engine.master_enabled = False
-        dry = engine.render_stereo(256)
-        engine = Engine(R)
-        engine.master_enabled = False
-        wet = engine.render_stereo(256, external_stereo=([.25] * 256, [.5] * 256))
-        self.assertEqual((len(dry), len(wet)), (512, 512))
-        self.assertEqual(wet[:8], [.25, .5] * 4)
+    def test_only_the_plugin_track_sends_notes_to_the_plugin(self):
+        engine = self.plugin_engine(); engine.add_track()
+        engine.voice_on(1, 64, 100, ('test', 'synth'))           # a synth track plays its own voices
+        engine.plugin_track = None; engine.voice_on(0, 62, 100, ('test', 'other'))   # the plugin plays elsewhere
+        self.assertEqual(engine.drain_live_midi(0, 256), [])
+
+    def test_a_plugin_track_has_no_voices_of_its_own(self):
+        engine = self.plugin_engine()
+        engine.voice_on(0, 60, 100, ('test', 'on'))
+        self.assertEqual(len(engine.synths[0].voices), 0)
+
+    def test_external_stereo_is_the_plugin_tracks_audio(self):
+        def render(setup):
+            engine = self.plugin_engine(); engine.master_enabled = False; setup(engine)
+            return engine.render_stereo(256, external_stereo=([.25] * 256, [.5] * 256))
+        wet = render(lambda e: None)
+        self.assertEqual(len(wet), 512)
+        left, right = wet[200], wet[201]
+        self.assertGreater(left, 0.); self.assertAlmostEqual(right / left, 2., places=3)   # stereo, not folded
+        muted = render(lambda e: e.project.tracks[0].update(mute=True))
+        self.assertEqual(max(map(abs, muted)), 0.)                                       # the track's mute applies
+        quieter = render(lambda e: e.project.tracks[0].update(volume=.35))
+        self.assertLess(quieter[201], right)                                             # and its volume
+        elsewhere = render(lambda e: setattr(e, 'plugin_track', None))
+        self.assertEqual(max(map(abs, elsewhere)), 0.)
 
     def test_notes_are_kept_for_a_live_vst_only_while_one_listens(self):
-        engine = Engine(R)
+        engine = self.plugin_engine(); engine.live_midi_out = False
         engine.voice_on(0, 60, 100, ('test', 'on'))
         self.assertEqual(engine.drain_live_midi(0, 256), [])
 
     def test_notes_outside_midi_never_reach_the_live_vst(self):
-        engine = Engine(R); engine.live_midi_out = True
+        engine = self.plugin_engine()
         engine.voice_on(0, 130, 100, ('test', 'high')); engine.voice_on(0, -3, 100, ('test', 'low'))
         self.assertEqual(engine.drain_live_midi(0, 256), [])
 
     def test_stop_releases_the_live_vst_notes_instead_of_dropping_their_note_offs(self):
-        engine = Engine(R); engine.live_midi_out = True
+        engine = self.plugin_engine()
         engine.voice_on(0, 60, 100, ('test', 'on')); engine.drain_live_midi(0, 256)
         engine.stop()
         self.assertEqual(engine.drain_live_midi(engine.absolute_frame, 256), [(0, b'\xb0\x7b\x00')])
 
     def test_later_live_events_wait_for_their_block(self):
-        engine = Engine(R); engine.live_midi_out = True
+        engine = self.plugin_engine()
         engine._event_frame = 300; engine.voice_on(0, 60, 100, ('test', 'on')); engine._event_frame = None
         self.assertEqual(engine.drain_live_midi(0, 256), [])
         self.assertEqual(engine.drain_live_midi(256, 256), [(44, b'\x90\x3c\x64')])
@@ -82,8 +103,8 @@ class LiveEngine(unittest.TestCase):
         ext = ([.1 * (j % 7) for j in range(256)], [-.05 * (j % 5) for j in range(256)])
         outs = []
         for python_bus in (False, True):
-            engine = Engine(R); engine.python_bus = python_bus
-            engine.voice_on(0, 60, 100, ('test', 'on'))
+            engine = self.plugin_engine(); engine.python_bus = python_bus; engine.add_track()
+            engine.voice_on(1, 60, 100, ('test', 'on'))
             outs.append(engine.render_stereo(256, external_stereo=ext))
         self.assertEqual(len(outs[0]), 512)
         self.assertLess(max(abs(a - b) for a, b in zip(*outs)), 1e-6)

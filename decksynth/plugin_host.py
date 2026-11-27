@@ -277,7 +277,8 @@ class PluginHost:
     def _state_file(self, path):
         return self.folder / 'states' / (hashlib.sha1(path.encode('utf-8', 'replace')).hexdigest()[:16] + '.json') if self.folder else None
 
-    def load(self, path):
+    def load(self, path, track=None):
+        """Loads one plugin; `track` is the Plugin track it plays on (its notes and audio), or None."""
         plugin = next((p for p in self.plugins if p['path'] == path), None)
         if not isinstance(path, str) or plugin is None: raise ValueError('Choose a plugin from the list')
         if self.busy: raise ValueError('Wait until the plugin is done')
@@ -287,7 +288,7 @@ class PluginHost:
         self.stop()                                    # one plugin at a time: a fresh helper for each
         self.error = None; self.busy = 'loading'; self.load_deadline = time.monotonic()+LOAD_TIMEOUT; self.backend = backend
         try:
-            self._send('load', dict(path=path, name=name), backend=backend, path=path, rate=self.rate, state_file=str(f) if f else None)
+            self._send('load', dict(path=path, name=name, track=track), backend=backend, path=path, rate=self.rate, state_file=str(f) if f else None)
         except Exception:
             self.busy = None; self.load_deadline = None; self.backend = None
             raise
@@ -446,7 +447,8 @@ class PluginHost:
                     self.error = friendly(str(err), list(self.log), ctx.get('name'))[:400]; out.append(dict(error=self.error))
                     continue
                 self.loaded = dict(path=ctx['path'], name=msg.get('name') or ctx['name'], vendor=msg.get('vendor', ''),
-                                   kind=msg.get('kind', 'effect'), paged=self.backend == 'juce')
+                                   kind=msg.get('kind', 'effect'), paged=self.backend == 'juce', track=ctx.get('track'),
+                                   auto_live=ctx.get('track') is not None)
                 out.append(self._parameter_event(ctx['path'], msg))
                 out.append(dict(message='%s is ready (%s)' % (self.loaded['name'], 'instrument' if self.loaded['kind'] == 'instrument' else 'effect')))
             elif cmd == 'set':

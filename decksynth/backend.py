@@ -23,6 +23,7 @@ from .keystep import StepCapacityError
 from .render_jobs import RenderJob
 from .session_store import Session
 from .plugin_host import PluginHost, note_name
+from .plugin_track import PluginTracks
 from .freeze import freeze_mode,freeze_modes,describe_holds,fingerprint,freeze_directory,freeze_file_name,validate_freeze,FrozenAudio
 
 class AudioSpec(C.Structure):
@@ -313,9 +314,29 @@ def plugin_command(engine,plugins,sample_lib,args):
     else:raise ValueError('Unknown plugin action')
 
 
+def plugin_track_command(engine,plugins,tracks,sample_lib,args):
+    """Plugin tracks: ['choose', track, path] ['activate', track] ['quick', track, slot, index|None, name]
+    ['learn', track, slot] ['learn_cancel'] ['resample', track, loop|play|note, {note, velocity, hold}] ['resample_stop']
+    ['take_keep', new|library, start, end, normalize] ['take_discard']. Returns a message for the screen, or None."""
+    if not isinstance(args,list) or not args:raise ValueError('Invalid plugin track command')
+    action,rest=args[0],args[1:]
+    if action=='choose':tracks.choose(engine,plugins,*rest[:2])
+    elif action=='activate':tracks.activate(engine,plugins,*rest[:1])
+    elif action=='quick':tracks.set_quick(engine,*rest[:4])
+    elif action=='learn':tracks.start_learn(engine,plugins,*rest[:2])
+    elif action=='learn_cancel':tracks.learn=None
+    elif action=='resample':tracks.resample(engine,plugins,rest[0],rest[1],rest[2] if len(rest)>2 and isinstance(rest[2],dict) else {})
+    elif action=='resample_stop':tracks.stop(engine)
+    elif action=='take_keep':tracks.keep(engine,sample_lib,*rest[:4])
+    elif action=='take_discard':tracks.discard(engine)
+    else:raise ValueError('Unknown plugin track action')
+    return None
+
+
 def plugin_take(engine,plugins,sample_lib,take,ctx):
     """A finished take: Listen plays it; Record keeps it in the library (category Plugins) and loads it where Sir chose."""
     from pathlib import Path
+    if take.get('error'):raise ValueError(take['error'])
     if ctx.get('dest')=='listen':plugins.listen_load(take['path']);return None
     sample_lib.scan()
     stem=Path(take['path']).stem;where='the library (Plugins)'
@@ -373,7 +394,8 @@ def worker(commands,updates):
         from .sample_library import SampleLibrary
         sample_lib=engine.sample_library=SampleLibrary(data_directory(),engine.rate);sample_lib.scan()
         loader=DrumLoader(engine)
-        plugins=PluginHost(data_directory(),engine.rate)
+        plugins=PluginHost(data_directory(),engine.rate);plugins.rescan()   # a Plugin track in the session loads its plugin
+        plugin_tracks=PluginTracks(engine.rate)
         # Autosave and recovery (25 Nov): engine-side, so they work with the window dead (session_store.py).
         session=Session()
         opened=session.start()
@@ -512,6 +534,9 @@ def worker(commands,updates):
                             capture.close(); capture=None; engine.record_input=None
                     elif cmd=='sampler_slice_roots':engine.detect_slice_roots(*args)
                     elif cmd=='plugin':plugin_command(engine,plugins,sample_lib,args)
+                    elif cmd=='plugin_track':
+                        note=plugin_track_command(engine,plugins,plugin_tracks,sample_lib,args)
+                        if note:send(note)
                     elif cmd=='drum_library_root':library.set_root(args)
                     elif cmd=='drum_library_refresh':library.refresh()
                     elif cmd=='drum_load_folder':library.load_folder(*args)
@@ -720,6 +745,7 @@ def worker(commands,updates):
                         tr=int(args)
                         if not 0<=tr<len(engine.project.tracks):raise ValueError('Choose track 1–%d'%len(engine.project.tracks))
                         if ('freeze',tr) in renders:raise ValueError('Track %d is already freezing'%(tr+1))
+                        if engine.project.tracks[tr].get('device')=='plugin':raise ValueError('A Plugin track plays live: use Resample to turn it into audio')
                         engine.finish_record()
                         # Freeze holds the whole Song timeline and the Loop, whichever page or mode you are on.
                         folder=freeze_directory();folder.mkdir(parents=True,exist_ok=True)
@@ -796,7 +822,11 @@ def worker(commands,updates):
             if handled or now_freeze_check(freeze_checked):
                 freeze_checked=time.monotonic();engine.freeze_refresh()
             for rejection in loader.poll():send(dict(error=rejection))
-            for event in plugins.poll():
+            for event in plugins.poll()+plugin_tracks.poll(engine,plugins):
+                if 'plugin_params' in event or 'plugin_param' in event:plugin_tracks.params_event(event)
+                if 'plugin_params' in event and plugin_tracks.learn is not None and not plugins.editor:
+                    learnt=plugin_tracks.finish_learn(engine)
+                    if learnt:send(learnt)
                 if 'listen' in event:library.stop_preview();sample_lib.stop_preview();engine.play_sample_preview(event['listen'])
                 elif 'take' in event:
                     try:
@@ -830,11 +860,14 @@ def worker(commands,updates):
                     # A live VST instrument hears this block's notes after it (send_live) and its audio comes back a few
                     # blocks later (pull_live); without one the mix stays on the plain C path.
                     live_on=engine.live_midi_out=bool(plugins.loaded and plugins.loaded.get('live'))
+                    engine.plugin_track=PluginTracks.plugin_track(engine,plugins) if live_on else None
                     for rejection in midi.poll(engine):send(dict(error=rejection))
                     live_start=engine.absolute_frame
                     live=plugins.pull_live(256) if live_on else None
                     t0=time.perf_counter(); block=engine.render_stereo(256,external_stereo=live)
-                    if live_on:plugins.send_live(engine.drain_live_midi(live_start,256))
+                    if live_on:
+                        sent=engine.drain_live_midi(live_start,256);plugins.send_live(sent)
+                        plugin_tracks.audio(engine,live,sent)
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
                     if watched:
@@ -871,7 +904,7 @@ def worker(commands,updates):
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),layer=engine.layer_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
-                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),plugins=plugins.status(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
+                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),plugins=plugins.status(),plugin_track=plugin_tracks.status(engine,plugins),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(latency.target/(audio.rate if audio else 48000)*1000,1),latency_mode=latency.mode,latency_ms=latency.ms,

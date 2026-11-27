@@ -65,11 +65,15 @@ class DrumEngine:
         if kind == 'sampler':
             from .sampler import new_sampler, validate_sampler
             spec = validate_sampler(t['sampler']) if 'sampler' in t else new_sampler()
+        if kind == 'plugin':
+            from .plugin_track import new_plugin_spec, validate_plugin_spec
+            plug = validate_plugin_spec(t['plugin']) if 'plugin' in t else new_plugin_spec()
         self.snapshot()
         self._clear_track_notes(tr)
         t['device'] = kind
         if kind == 'drum_rack': t['drum_rack'] = kit
         if kind == 'sampler': t['sampler'] = spec
+        if kind == 'plugin': t['plugin'] = plug
         self.drum_epoch += 1
         self.drums[tr].configure(t.get('drum_rack') if kind == 'drum_rack' else None)
         self.samplers[tr].configure(t.get('sampler') if kind == 'sampler' else None)
@@ -244,8 +248,11 @@ class DrumEngine:
         return True  # Pitch, sustain and scale/chord transforms do not affect one-shots.
 
     def voice_off(self, track, note, token=None):
-        if self.live_midi_out: self._record_live_midi(0x80, note, 0)
         kind = device_kind(self.project.tracks[track])
+        if kind == 'plugin':
+            # Only the track the live plugin plays on sends it notes.
+            if self.live_midi_out and track == self.plugin_track: self._record_live_midi(0x80, note, 0)
+            return
         if kind == 'drum_rack':
             self.drum_gate_keys[track].discard(token);self.drums[track].off(note,token)
         elif kind == 'sampler': self.samplers[track].off(note, token)
