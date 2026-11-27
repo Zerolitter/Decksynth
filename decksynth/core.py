@@ -2138,7 +2138,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     k+=1
             offsets=sorted(set(events)|{n})
             # The C path (cbus.py): each track's audio stays in its fixed C buffers for the whole block.
-            use_c=stereo and n<=cbus.BLOCK and cbus.available() and not getattr(self,'python_bus',False)
+            # The native mixer finalizes its master stage in-place. A live VST block must be added before that stage.
+            use_c=stereo and external_stereo is None and n<=cbus.BLOCK and cbus.available() and not getattr(self,'python_bus',False)
             if use_c:
                 bufs=self._cbufs=getattr(self,'_cbufs',None) or cbus.TrackBuffers();bufs.ensure(len(self.synths))
             track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
