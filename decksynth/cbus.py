@@ -76,6 +76,18 @@ def add_list(buf, values, n):
 
 
 
+def put_external(left, right, external, src_offset, dst_offset, n):
+    """A live VST block slice (a left/right pair) written over a track's buffers from dst_offset on; silence
+    when there is no block (the helper sent nothing yet)."""
+    for dst, src in zip((left, right), external if external is not None else (None, None)):
+        if isinstance(src, array) and src.typecode == 'd' and src_offset + n <= len(src):
+            ctypes.memmove(addr(dst, dst_offset), src.buffer_info()[0] + 8 * src_offset, 8 * n)
+        elif src is not None and src_offset + n <= len(src):
+            put(dst, dst_offset, list(src[src_offset:src_offset + n]))
+        else:
+            zero(dst, dst_offset, n)
+
+
 def add_external(left, right, external, offset, n):
     """Add a live VST block (a left/right pair, `offset` frames in) to the mix buffers, in C."""
     for dst, src in zip((left, right), external):

@@ -19,8 +19,11 @@ def export_project_wav(project,rate,path,seconds=None,progress=None):
  frames=round(duration*e.rate);total=frames
  with wave.open(str(path),'wb') as out:
   out.setnchannels(2);out.setsampwidth(2);out.setframerate(e.rate)
+  fade=max(1,round(.01*e.rate))   # the file ends with a 10 ms fade, so a note still sounding never ends in a click
   while frames:
    count=min(256,frames);pcm=e.render_stereo(count)
+   if frames-count<fade:
+    pcm=[x*min(1.,(frames-j//2)/fade) for j,x in enumerate(pcm)]
    out.writeframesraw(struct.pack('<'+'h'*len(pcm),*[round(max(-1,min(1,x))*32767) for x in pcm]));frames-=count
    if progress:progress(1-frames/total)
  return path

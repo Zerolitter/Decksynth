@@ -200,6 +200,10 @@ class Project:
                 if kind=='drum_rack' and 'drum_rack' not in t:raise ValueError('Drum Rack kit is missing')
                 if 'sampler' in t:t['sampler']=validate_sampler(t['sampler'])
                 if kind=='sampler' and 'sampler' not in t:raise ValueError('Sampler is missing')
+                if 'plugin' in t:
+                    from .plugin_track import validate_plugin_spec
+                    t['plugin']=validate_plugin_spec(t['plugin'])
+                if kind=='plugin' and 'plugin' not in t:raise ValueError('Plugin track is missing its plugin')
                 validate_instrument(t['instrument'])
                 from .workflow import validate_ab,validate_automation
                 if 'sound_ab' in t:t['sound_ab']=validate_ab(t['sound_ab'])
@@ -814,6 +818,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.scheduled_live=[]; self.absolute_frame=0
         # Notes for a live VST instrument (plugin_host), kept only while live_midi_out is on.
         self._live_midi=deque(maxlen=4096); self.live_midi_out=False
+        # The Plugin track the live plugin plays on (backend sets it): its audio becomes that track's audio.
+        self.plugin_track=None; self._ext=None; self._ext_at=0
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
@@ -1326,7 +1332,13 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 for n in clip:
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
-        if self.live_midi_out:self._record_live_midi(0x90,note,velocity)
+        if device_kind(self.project.tracks[track])=='plugin':
+            # A Plugin track's notes go to the live plugin (only the track it plays on); it has no voices of its own.
+            if self.live_midi_out and track==self.plugin_track and not self.project.tracks[track]['mute']:
+                self._record_live_midi(0x90,note,velocity)
+                self.fx[track].retrigger(self.absolute_frame if self._event_frame is None else self._event_frame,False)
+                return True
+            return False
         if device_kind(self.project.tracks[track])=='sampler':
             empty=not any(v.active for v in self.samplers[track].voices)
             hit=False if self.project.tracks[track]['mute'] else self.samplers[track].on(note,velocity,token)
@@ -1966,7 +1978,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         q.extend(later);return out
     def render(self,frames):return self._render_bus(frames,False)
     def render_stereo(self,frames,external_stereo=None):
-        """external_stereo: a (left, right) pair of `frames` floats (a live VST block), mixed before the master stage."""
+        """external_stereo: a (left, right) pair of `frames` floats (a live VST block): the audio of the Plugin track
+        it plays on (engine.plugin_track), through that track's FX, volume, pan and sends."""
         if external_stereo is not None and (len(external_stereo)!=2 or any(len(ch)!=frames for ch in external_stereo)):
             raise ValueError('External stereo block has the wrong length')
         return self._render_bus(frames,True,external_stereo)
@@ -1988,8 +2001,11 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     if drum_right[tr] is not None:cbus.zero(right,pos,count)
                     continue
                 live_frozen[tr]=True
-            s.render_into(left,pos,count)
             kind=device_kind(self.project.tracks[tr])
+            if kind=='plugin':
+                cbus.put_external(left,right,self._ext if tr==self.plugin_track else None,self._ext_at+pos,pos,count)
+                continue
+            s.render_into(left,pos,count)
             if kind=='drum_rack':
                 # Drum Rack tracks carry their own right channel (per-pad pan).
                 ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)
@@ -2158,7 +2174,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 bufs=self._cbufs=getattr(self,'_cbufs',None) or cbus.TrackBuffers();bufs.ensure(len(self.synths))
             track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
             # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
-            drum_right=[[] if stereo and device_kind(t)=='drum_rack' else None for t in self.project.tracks]
+            drum_right=[[] if stereo and device_kind(t) in ('drum_rack','plugin') else None for t in self.project.tracks]
+            # A live VST's block is this Plugin track's audio (sliced per event below), never a separate mix input.
+            self._ext=external_stereo;self._ext_at=external_at
             for pos,nextpos in zip(offsets,offsets[1:]):
                 self._event_frame=abs_start+pos
                 for event in sorted(events[pos],key=lambda x:x[0]):
@@ -2198,6 +2216,13 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             if drum_right[tr] is not None:drum_right[tr].extend([0.]*count)
                             continue
                         live_frozen[tr]=True
+                    if device_kind(self.project.tracks[tr])=='plugin':
+                        ext=self._ext if tr==self.plugin_track else None;a=self._ext_at+pos
+                        if ext is None or a+count>len(ext[0]):part=[0.]*count;rpart=[0.]*count
+                        else:part=list(ext[0][a:a+count]);rpart=list(ext[1][a:a+count])
+                        if drum_right[tr] is not None:drum_right[tr].extend(rpart)
+                        else:part=[(l+r)*.5 for l,r in zip(part,rpart)]
+                        buf.extend(part);continue
                     part=s.render(count)
                     if device_kind(self.project.tracks[tr])=='drum_rack':
                         if drum_right[tr] is not None:
@@ -2216,8 +2241,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         else:click.append(None)
             mastered=None
             if use_c:
-                mastered=self._mix_c(bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on,
-                                     external_stereo,external_at)
+                mastered=self._mix_c(bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on)
                 if mastered is None:mix=bufs.mix[:n];right=bufs.mix_r[:n]  # no C master stage: the Python limiter below
                 else:click=()
             # Per-track FX run once per block, then the mix is summed in the original order.
@@ -2286,10 +2310,6 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         for bus,a in feeds:
                             bl=bus_in[bus][0]
                             for j,v in enumerate(audio):bl[j]+=v*vol*a
-            if external_stereo is not None and not use_c:
-                ext_l,ext_r=external_stereo
-                for j in range(n):
-                    mix[j]+=ext_l[external_at+j];right[j]+=ext_r[external_at+j]
             # Standalone dry sample audition uses the real native audio clock.
             # It never alters a pad, SONG notes, the FX chain, or playback state.
             if not use_c:

@@ -3,6 +3,7 @@ DEVICE_REGISTRY = {
     'synth': {'name': 'Synth', 'version': 1},
     'drum_rack': {'name': 'Drum Rack', 'version': 1},
     'sampler': {'name': 'Sampler', 'version': 1},
+    'plugin': {'name': 'Plugin', 'version': 1},   # a VST3 instrument (plugin_track.py)
 }
 
 
