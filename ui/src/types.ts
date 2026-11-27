@@ -182,7 +182,7 @@ export type DeckUpdate = {
 export type PluginParam={i:number;name:string;raw:number;text:string;label:string;kind:'value'|'options'|'switch';options?:string[]};
 export type PluginStatus={setup:'missing'|'installing'|'ready';progress:number|null;version:string|null;
   plugins:{path:string;name:string;windows:boolean}[];vst2:number;scanning:boolean;scanned:boolean;
-  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';editor:boolean}|null;
+  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';editor:boolean;live:boolean;live_fault:string|null}|null;
   busy:'loading'|'listen'|'record'|null;take:{name:string;seconds:number;where:string;clipped:boolean}|null;error:string|null;revision:number};
 export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string;
   midi_file?: { path: string; channels: { channel: number; notes: number; low: number; high: number }[] } };

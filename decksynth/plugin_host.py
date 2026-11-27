@@ -15,6 +15,8 @@ import subprocess
 import sys
 import threading
 import time
+import socket
+import struct
 from collections import deque
 from pathlib import Path
 
@@ -99,7 +101,7 @@ class PluginHost:
         self.plugins = []; self.vst2 = 0; self.scanning = False; self.scanned = False
         self.loaded = None; self.busy = None; self.editor = False
         self.setup = None                              # a running set up: dict(proc, progress)
-        self.take = None; self.error = None
+        self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=4); self.live_seq = 0; self.live_fault = None
         self.revision = 0; self._scan_result = None
         self._listen = None; self.listening = None
 
@@ -111,7 +113,7 @@ class PluginHost:
         setup = 'installing' if self.setup else 'ready' if self.installed() and self.ready is not False else 'missing'
         return dict(setup=setup, progress=round(self.setup['progress'], 3) if self.setup else None, version=self.version,
                     plugins=self.plugins, vst2=self.vst2, scanning=self.scanning, scanned=self.scanned,
-                    loaded=dict(self.loaded, editor=self.editor) if self.loaded else None, busy=self.busy,
+                    loaded=dict(self.loaded, editor=self.editor, live=bool(self.loaded and self.loaded.get('live')), live_fault=self.live_fault) if self.loaded else None, busy=self.busy,
                     take=self.take, error=self.error, listening=self.listening, revision=self.revision)
 
     # -- folders --------------------------------------------------------------------------------
@@ -149,11 +151,33 @@ class PluginHost:
         if self.proc is not None and self.proc.poll() is None: return
         if not self.installed(): raise ValueError('Set up plugin hosting first')
         env = dict(os.environ, PYTHONPATH=self.lib, PYTHONNOUSERSITE='1')
+        parent,child=socket.socketpair(); child.set_inheritable(True); env['DECKSYNTH_LIVE_FD']=str(child.fileno())
         self.proc = subprocess.Popen([self.python, '-u', str(WORKER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE, text=True, env=env, start_new_session=True, bufsize=1)
+                                     stderr=subprocess.PIPE, text=True, env=env, start_new_session=True, bufsize=1, pass_fds=(child.fileno(),))
+        child.close(); self.live_socket=parent; self.live_socket.setblocking(True); self.live_blocks.clear(); self.live_fault=None; self.live_seq=0
         self.lines = queue.Queue(); self.log.clear(); self.ready = None
         threading.Thread(target=self._pump, args=(self.proc.stdout, self.lines), name='plugin-out', daemon=True).start()
         threading.Thread(target=self._pump, args=(self.proc.stderr, queue.Queue(), self.log), name='plugin-log', daemon=True).start()
+        threading.Thread(target=self._live_reader, name='plugin-live-audio', daemon=True).start()
+
+    def _live_reader(self):
+        try:
+            while self.live_socket is not None:
+                head=self._recv_live(6)
+                if not head: break
+                seq,frames=struct.unpack('<IH',head); raw=self._recv_live(frames*8)
+                if len(raw)!=frames*8: break
+                self.live_blocks.append((seq,list(struct.unpack('<%df'%(frames*2),raw))))
+        except OSError: pass
+        if self.proc is not None and self.proc.poll() is None and self.loaded and self.loaded.get('live'): self.live_fault='Live renderer stopped'
+
+    def _recv_live(self,n):
+        out=b''
+        while len(out)<n:
+            part=self.live_socket.recv(n-len(out))
+            if not part:return b''
+            out+=part
+        return out
 
     def _send(self, cmd, ctx=None, **fields):
         self._start()
@@ -168,7 +192,10 @@ class PluginHost:
     def stop(self):
         """Ends the helper (a hung plugin, or Unload). Its window, if open, closes with it."""
         if self.proc is not None: self._drop(self.proc)
-        self.proc = None; self.pending.clear(); self.loaded = None; self.busy = None; self.editor = False
+        if self.live_socket is not None:
+            try:self.live_socket.close()
+            except OSError:pass
+        self.live_socket=None; self.proc = None; self.pending.clear(); self.loaded = None; self.busy = None; self.editor = False; self.live_blocks.clear(); self.live_fault=None
         self.revision += 1
 
     @staticmethod
@@ -214,6 +241,26 @@ class PluginHost:
         if type(index) is not int or type(raw) not in (int, float) or not 0. <= raw <= 1.: raise ValueError('Invalid parameter value')
         self._send('set', None, index=index, raw=float(raw))
 
+    def set_live(self, enabled):
+        if not self.loaded: raise ValueError('Load a plugin first')
+        if enabled and self.loaded.get('kind')!='instrument': raise ValueError('Live mode is for instrument plugins')
+        self.loaded['live']=bool(enabled); self.live_fault=None; self._send('live_enable' if enabled else 'live_disable', rate=self.rate)
+
+    def send_live(self, events, frames=256):
+        if not self.loaded or not self.loaded.get('live') or self.live_socket is None:return
+        if self.live_seq-len(self.live_blocks)>4:self.live_fault='Live renderer fell behind';self.loaded['live']=False;return
+        body=b''.join(struct.pack('<H3s',int(at),bytes(msg)) for at,msg in events)
+        try:self.live_socket.sendall(struct.pack('<IHH',self.live_seq,int(frames),len(events))+body);self.live_seq+=1
+        except OSError:self.live_fault='Live renderer stopped';self.loaded['live']=False
+
+    def pull_live(self, frames=256):
+        if not self.loaded or not self.loaded.get('live'):return None
+        wanted=self.live_seq-1
+        while self.live_blocks and self.live_blocks[0][0]<wanted:self.live_blocks.popleft()
+        if self.live_blocks and self.live_blocks[0][0]==wanted:
+            _,block=self.live_blocks.popleft();return block if len(block)==frames*2 else None
+        return None
+
     def open_editor(self):
         if not self.loaded: raise ValueError('Load a plugin first')
         if self.busy: raise ValueError('Wait until the plugin is done')
@@ -230,6 +277,7 @@ class PluginHost:
         `source` through an effect. `ctx` comes back with the finished take (where it goes)."""
         if not self.loaded: raise ValueError('Load a plugin first')
         if self.busy: raise ValueError('Wait until the plugin is done')
+        if self.loaded.get('live'): raise ValueError('Stop live audio before rendering a take')
         if self.editor: raise ValueError('Close the plugin window first: it is using the plugin')
         self.busy = ctx.get('mode', 'record'); self.error = None
         self._send('render', ctx, path=str(path), rate=self.rate, notes=notes or [], hold=hold, source=source)

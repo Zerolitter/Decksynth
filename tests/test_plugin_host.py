@@ -205,6 +205,38 @@ class Helper(HelperBase, unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
+class LiveHelper(HelperBase, unittest.TestCase):
+    def test_live_synth_returns_audio_and_tracks_its_state(self):
+        self.load('Fake synth')
+        self.host.set_live(True)
+        self.assertTrue(self.host.status()['loaded']['live'])
+        self.host.send_live([(0, b'\x90\x45\x64')])
+        end=time.monotonic()+3
+        block=None
+        while time.monotonic()<end and block is None:
+            block=self.host.pull_live();time.sleep(.01)
+        self.assertIsNotNone(block)
+        self.assertEqual(len(block),512)
+        self.assertGreater(max(map(abs,block)),.01)
+
+    def test_live_is_rejected_for_effect_plugins(self):
+        self.load('Fake gain')
+        with self.assertRaisesRegex(ValueError,'instrument'):
+            self.host.set_live(True)
+
+    def test_live_stays_enabled_while_the_plugin_window_is_open(self):
+        self.load('Fake synth');self.host.set_live(True);self.events.clear()
+        self.host.open_editor();time.sleep(.1)
+        self.host.send_live([(0,b'\x90\x45\x64')])
+        end=time.monotonic()+3;block=None
+        while time.monotonic()<end and block is None:
+            block=self.host.pull_live();time.sleep(.01)
+        self.assertIsNotNone(block)
+        self.host.close_editor();self.wait(lambda:not self.host.editor)
+        self.assertTrue(self.host.status()['loaded']['live'])
+
+
+@unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
 class Backend(HelperBase, unittest.TestCase):
     """The backend's side: a take lands in the library and on a Sampler track."""
     def setUp(self):

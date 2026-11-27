@@ -50,6 +50,8 @@ export function PluginLoaded({ status, send }: { status: PluginStatus; send: Sen
     <span><strong>{l.name}</strong><small>{l.kind === 'instrument' ? 'Instrument' : 'Effect'}{l.vendor ? ' · ' + l.vendor : ''}</small></span>
     <button type="button" className={'sv-btn' + (l.editor ? ' on' : '')} aria-pressed={l.editor} disabled={!!status.busy}
       onClick={() => send('plugin', [l.editor ? 'editor_close' : 'editor'])}><AppWindow size={16} /> {l.editor ? 'Close its window' : 'Open its window'}</button>
+    {l.kind === 'instrument' ? <button type="button" className={'sv-btn' + (l.live ? ' on' : '')} aria-pressed={l.live} disabled={!!status.busy}
+      onClick={() => send('plugin', ['live', !l.live])}><CircleDot size={16} /> {l.live ? 'Stop live' : 'Live'}</button> : null}
     <button type="button" className="sv-btn" onClick={() => send('plugin', ['unload'])}><X size={16} /> Unload</button>
   </div>;
 }
@@ -103,7 +105,7 @@ export function PluginTake({ status, send, track }: { status: PluginStatus; send
   const effect = l.kind === 'effect', needsSample = effect && !(isSampler && track.hasSample);
   const opts = () => ({ note, velocity, hold: hold / 10, track: track.index, sampler_id: track.samplerId });
   const dests: [Dest, string][] = [...(isSampler ? [['sampler', 'This Sampler'] as [Dest, string]] : []), ['new', 'New Sampler track'], ['library', 'Library only']];
-  const busy = !!status.busy || l.editor;
+  const busy = !!status.busy || l.editor || l.live;
   return <div className="sv-plug-take">
     {effect ? <p className="sv-status">{needsSample ? 'Select a Sampler track with a sample: the effect plays it through itself.'
       : `Plays “${track.sampleName ?? 'the sample'}” on track ${track.index + 1} through ${l.name}.`}</p>
@@ -123,7 +125,7 @@ export function PluginTake({ status, send, track }: { status: PluginStatus; send
         onClick={() => send('plugin', ['render', { ...opts(), mode: 'record', dest }])}><CircleDot size={16} /> Record</button>
     </div>
     <p className="sv-status" role="status">{status.busy === 'record' ? 'Recording…' : status.busy === 'listen' ? 'Rendering…'
-      : l.editor ? 'Close the plugin window to record.' : status.take ? `Last take: ${status.take.name} (${status.take.seconds.toFixed(1)} s) in ${status.take.where}${status.take.clipped ? ', clipped' : ''}.` : ' '}</p>
+      : l.live ? 'Live audio is playing through Decksynth. Stop live audio to render a take.' : l.editor ? 'Close the plugin window to record.' : status.take ? `Last take: ${status.take.name} (${status.take.seconds.toFixed(1)} s) in ${status.take.where}${status.take.clipped ? ', clipped' : ''}.` : ' '}</p>
   </div>;
 }
 

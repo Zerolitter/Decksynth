@@ -15,6 +15,8 @@ import re
 import sys
 import threading
 import wave
+import socket
+import struct
 
 PROTOCOL = None
 MAX_SECONDS = 60.
@@ -35,9 +37,10 @@ def finite(v, lo, hi, what):
 
 
 class Host:
-    def __init__(self, pb, np):
+    def __init__(self, pb, np, live_socket=None):
         self.pb, self.np = pb, np
         self.plugin = None; self.path = None; self.editor_close = None
+        self.live_socket=live_socket;self.live_stop=threading.Event();self.live_thread=None;self.live_enabled=False
 
     # -- loading and parameters ---------------------------------------------------------------
     def params(self):
@@ -96,6 +99,43 @@ class Host:
         self.need()
         p = self.find(int(index)); p.raw_value = finite(raw, 0., 1., 'value')
         return dict(i=int(p.index), raw=round(float(p.raw_value), 5), text=str(p.string_value)[:40])
+
+    def live_enable(self, rate):
+        if not self.need().is_instrument: raise ValueError('Live mode is for instrument plugins')
+        self.rate=int(rate)
+        if self.live_thread is None or not self.live_thread.is_alive():
+            self.live_stop.clear();self.live_thread=threading.Thread(target=self._live_loop,daemon=True);self.live_thread.start()
+        self.live_enabled=True;return dict(live=True)
+
+    def live_disable(self):
+        self.live_enabled=False;self.live_stop.set();return dict(live=False)
+
+    def _recv(self,n):
+        out=b''
+        while len(out)<n:
+            part=self.live_socket.recv(n-len(out))
+            if not part:return b''
+            out+=part
+        return out
+
+    def _live_loop(self):
+        try:
+            while not self.live_stop.is_set():
+                head=self._recv(8)
+                if not head:break
+                seq,frames,count=struct.unpack('<IHH',head);events=[]
+                for _ in range(count):
+                    entry=self._recv(5)
+                    if not entry:return
+                    at,msg=struct.unpack('<H3s',entry);events.append((msg,at/self.rate))
+                audio=self.need()(events,duration=frames/self.rate,sample_rate=self.rate,num_channels=2,buffer_size=frames,reset=False)
+                audio=self.np.asarray(audio,dtype=self.np.float32)
+                if audio.ndim==1:audio=audio[None,:]
+                if audio.shape[0]==1:audio=self.np.vstack([audio,audio])
+                audio=self.np.nan_to_num(audio[:2,:frames],nan=0.,posinf=0.,neginf=0.)
+                if audio.shape[1]<frames:audio=self.np.pad(audio,((0,0),(0,frames-audio.shape[1])))
+                self.live_socket.sendall(struct.pack('<IH',seq,frames)+audio.T.astype('<f4',copy=False).tobytes())
+        except Exception: pass
 
     # -- rendering ----------------------------------------------------------------------------
     def render(self, req):
@@ -195,7 +235,8 @@ def main():
     except Exception as exc:
         answer(dict(id=0, ready=False, error='Plugin hosting is not set up (%s)' % exc)); return
     answer(dict(id=0, ready=True, version=str(getattr(pb, '__version__', '?'))))
-    host = Host(pb, np)
+    fd=os.environ.get('DECKSYNTH_LIVE_FD');live_socket=socket.socket(fileno=int(fd)) if fd else None
+    host = Host(pb, np, live_socket)
     jobs = queue.Queue()
 
     def reader():
@@ -214,6 +255,8 @@ def main():
             if cmd == 'quit': os._exit(0)
             elif cmd == 'load': out = host.load(req.get('path'), req.get('state_file'))
             elif cmd == 'set': out = host.set(req.get('index'), req.get('raw'))
+            elif cmd == 'live_enable': out = host.live_enable(req.get('rate'))
+            elif cmd == 'live_disable': out = host.live_disable()
             elif cmd == 'params': out = dict(params=host.params())
             elif cmd == 'render': out = host.render(req)
             elif cmd == 'editor': out = host.editor(rid)

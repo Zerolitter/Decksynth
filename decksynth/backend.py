@@ -273,6 +273,7 @@ def plugin_command(engine,plugins,sample_lib,args):
     elif action=='load':plugins.load(args[1] if len(args)>1 else None)
     elif action=='unload':plugins.stop()
     elif action=='set':plugins.set_param(args[1],args[2])
+    elif action=='live':plugins.set_live(bool(args[1]) if len(args)>1 else False)
     elif action=='editor':plugins.open_editor()
     elif action=='editor_close':plugins.close_editor()
     elif action=='stop_listen':engine.stop_sample_preview()
@@ -826,7 +827,11 @@ def worker(commands,updates):
                 while audio.queued()<latency.target and time.perf_counter()<fill_until:
                     # Keys are read before every block, so a key never waits for the whole queue to be topped up.
                     for rejection in midi.poll(engine):send(dict(error=rejection))
-                    t0=time.perf_counter(); block=engine.render_stereo(256)
+                    live_start=engine.absolute_frame
+                    live=plugins.pull_live(256) if plugins.loaded and plugins.loaded.get('live') else None
+                    t0=time.perf_counter(); block=engine.render_stereo(256,external_stereo=live or [0.]*512)
+                    if plugins.loaded and plugins.loaded.get('live'):
+                        plugins.send_live(engine.drain_live_midi(live_start,256))
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
                     if watched:
