@@ -232,6 +232,15 @@ class SamplerEngine:
         self.load_sampler_wav(tr, spec['id'], path)
         return tr
 
+    def sampler_from_file(self, path, name=None):
+        """A recorded plugin take (27 Nov) on a new Sampler track. The WAV loads in the background."""
+        tr = self.add_track()
+        self.set_device(tr, 'sampler')
+        spec = self.project.tracks[tr]['sampler']
+        if name: self.project.tracks[tr]['name'] = str(name)[:32]
+        self.load_sampler_wav(tr, spec['id'], path)
+        return tr
+
     def install_sampler_sample(self, track, sampler_id, sample, root=None):
         spec = self.sampler_target(track, sampler_id)
         clean = copy.deepcopy(spec); clean.pop('shape', None)

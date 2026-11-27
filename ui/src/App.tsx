@@ -758,6 +758,8 @@ function App() {
         midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms} session={snapshot?.session} onSession={c=>command('session',c)}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'System default'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
+        command={command} pluginTrack={{index:selected,device:track?.device??'synth',samplerId:track?.device==='sampler'?track.sampler?.id??null:null,
+          hasSample:!!(track?.device==='sampler'&&track.sampler?.source),sampleName:track?.device==='sampler'?track.sampler?.name??null:null}}
         onClose={()=>setDialog(null)}/>
       :<Help section={helpSection} invoker={helpOrigin.current} close={()=>setDialog(null)}/>}
     </div>:null}

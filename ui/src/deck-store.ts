@@ -9,7 +9,7 @@ export type Received={snapshot:DeckUpdate|null;when:number};
 /** Values that change on every status tick while playing. App ignores them; their users subscribe themselves. */
 export const LIVE_KEYS=['beat','song_beat','meter','voices','dsp_load','arp_view','song_pos'] as const;
 /** Big values the engine re-sends in full every 2 s: an unchanged copy keeps its old object. */
-const STABLE_KEYS=['state','drum_racks','samplers','sample_library','drum_library','pattern_library','sampler_record','freeze','devices','audio_outputs','held_notes'] as const;
+const STABLE_KEYS=['state','drum_racks','samplers','sample_library','drum_library','pattern_library','sampler_record','freeze','devices','audio_outputs','held_notes','plugins'] as const;
 
 let current:Received={snapshot:null,when:performance.now()};
 const listeners=new Set<()=>void>();

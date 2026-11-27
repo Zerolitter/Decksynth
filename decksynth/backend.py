@@ -22,6 +22,7 @@ from .core import Engine, MidiParser, Project, instrument, SPECTRAL_RANGES, VOIC
 from .keystep import StepCapacityError
 from .render_jobs import RenderJob
 from .session_store import Session
+from .plugin_host import PluginHost, note_name
 from .freeze import freeze_mode,freeze_modes,describe_holds,fingerprint,freeze_directory,freeze_file_name,validate_freeze,FrozenAudio
 
 class AudioSpec(C.Structure):
@@ -262,6 +263,68 @@ def parent_watchdog(parent,grace=5.,poll=.5,exit=os._exit):
         while os.getppid()==parent:time.sleep(poll)
         time.sleep(grace);exit(0)
     thread=threading.Thread(target=watch,name='parent-watchdog',daemon=True);thread.start();return thread
+def plugin_command(engine,plugins,sample_lib,args):
+    """Settings > Plugins: ['scan'] ['setup'] ['load', path] ['unload'] ['set', index, raw] ['editor'] ['editor_close']
+    ['stop_listen'] ['render', {mode: listen|record, note, velocity, hold, dest: sampler|new|library, track, sampler_id}]."""
+    if not isinstance(args,list) or not args:raise ValueError('Invalid plugin command')
+    action=args[0]
+    if action=='scan':plugins.rescan()
+    elif action=='setup':plugins.start_setup()
+    elif action=='load':plugins.load(args[1] if len(args)>1 else None)
+    elif action=='unload':plugins.stop()
+    elif action=='set':plugins.set_param(args[1],args[2])
+    elif action=='editor':plugins.open_editor()
+    elif action=='editor_close':plugins.close_editor()
+    elif action=='stop_listen':engine.stop_sample_preview()
+    elif action=='render':
+        o=args[1] if len(args)>1 and isinstance(args[1],dict) else None
+        if o is None or o.get('mode') not in ('listen','record'):raise ValueError('Invalid plugin take')
+        if not plugins.loaded:raise ValueError('Load a plugin first')
+        dest=o.get('dest','library') if o['mode']=='record' else 'listen'
+        if dest not in ('listen','sampler','new','library'):raise ValueError('Choose where the take goes')
+        track,sid=o.get('track'),o.get('sampler_id')
+        if type(track) is not int or not 0<=track<len(engine.project.tracks):track=None
+        spec=None
+        if track is not None:
+            from .devices import device_kind
+            t=engine.project.tracks[track]
+            if device_kind(t)=='sampler' and t['sampler'].get('id')==sid:spec=t['sampler']
+        if dest=='sampler' and spec is None:raise ValueError('Select a Sampler track to record into it')
+        if dest=='new':
+            from .devices import MAX_TRACKS
+            if len(engine.project.tracks)>=MAX_TRACKS:raise ValueError('%d tracks is the most: remove one to make room'%MAX_TRACKS)
+        name=plugins.loaded['name']
+        if plugins.loaded['kind']=='instrument':
+            note=o.get('note',60);velocity=o.get('velocity',100);hold=o.get('hold',1.)
+            if type(note) is not int or not 0<=note<=127:raise ValueError('Choose a note')
+            if type(velocity) is not int or not 1<=velocity<=127:raise ValueError('Velocity is 1 to 127')
+            if type(hold) not in (int,float) or not .02<=hold<=60:raise ValueError('Hold is 0.02 to 60 s')
+            label='%s %s'%(name,note_name(note));notes=[dict(note=note,velocity=velocity)];source=None
+        else:
+            if spec is None or not spec.get('source'):raise ValueError('Select a Sampler track with a sample: the effect plays it')
+            source=spec['source']['path'];label='%s - %s'%(name,spec.get('name') or 'sample');notes=None;hold=None
+        if dest=='listen':
+            if plugins.folder is None:raise ValueError('Listening needs a data folder')
+            plugins.folder.mkdir(parents=True,exist_ok=True);path=plugins.folder/'listen.wav'
+        else:path=sample_lib.target('Plugins',label)
+        plugins.render(path,dict(mode=o['mode'],dest=dest,track=track,sampler_id=sid,label=label),notes=notes,hold=hold,source=source)
+    else:raise ValueError('Unknown plugin action')
+
+
+def plugin_take(engine,plugins,sample_lib,take,ctx):
+    """A finished take: Listen plays it; Record keeps it in the library (category Plugins) and loads it where Sir chose."""
+    from pathlib import Path
+    if ctx.get('dest')=='listen':plugins.listen_load(take['path']);return None
+    sample_lib.scan()
+    stem=Path(take['path']).stem;where='the library (Plugins)'
+    if ctx['dest']=='sampler':
+        engine.load_sampler_wav(ctx['track'],ctx['sampler_id'],take['path']);where='track %d and the library'%(ctx['track']+1)
+    elif ctx['dest']=='new':
+        made=engine.sampler_from_file(take['path'],ctx['label']);where='a new Sampler on track %d and the library'%(made+1)
+    plugins.take=dict(name=stem,seconds=take['seconds'],where=where,clipped=take['clipped']);plugins.revision+=1
+    return 'Recorded %s (%.1f s) into %s%s'%(stem,take['seconds'],where,'. It clipped: turn the plugin down' if take['clipped'] else '')
+
+
 def worker(commands,updates):
     # The process that started this worker (the bridge), taken first: the engine can take seconds to load.
     import multiprocessing
@@ -276,6 +339,7 @@ def worker(commands,updates):
     freeze_checked=0.
     engine=Engine(); midi=MidiDevice(); audio=None; loader=None; library=None; last_status=0; underruns=0; started=False
     capture=None  # the input a Sampler records from, open while the Record sheet is
+    plugins=None  # VST3 plugins (27 Nov): the helper process that hosts one, and its takes
     session=None
     # Capture decimated samples from the actual synthesizer mix for the UI meter.
     # Never perform display rendering or FFT work on the audio process.
@@ -307,6 +371,7 @@ def worker(commands,updates):
         from .sample_library import SampleLibrary
         sample_lib=engine.sample_library=SampleLibrary(data_directory(),engine.rate);sample_lib.scan()
         loader=DrumLoader(engine)
+        plugins=PluginHost(data_directory(),engine.rate)
         # Autosave and recovery (25 Nov): engine-side, so they work with the window dead (session_store.py).
         session=Session()
         opened=session.start()
@@ -444,6 +509,7 @@ def worker(commands,updates):
                         if action=='off' and capture and (engine.recorder is None or engine.recorder.state=='idle'):
                             capture.close(); capture=None; engine.record_input=None
                     elif cmd=='sampler_slice_roots':engine.detect_slice_roots(*args)
+                    elif cmd=='plugin':plugin_command(engine,plugins,sample_lib,args)
                     elif cmd=='drum_library_root':library.set_root(args)
                     elif cmd=='drum_library_refresh':library.refresh()
                     elif cmd=='drum_load_folder':library.load_folder(*args)
@@ -728,6 +794,14 @@ def worker(commands,updates):
             if handled or now_freeze_check(freeze_checked):
                 freeze_checked=time.monotonic();engine.freeze_refresh()
             for rejection in loader.poll():send(dict(error=rejection))
+            for event in plugins.poll():
+                if 'listen' in event:library.stop_preview();sample_lib.stop_preview();engine.play_sample_preview(event['listen'])
+                elif 'take' in event:
+                    try:
+                        note=plugin_take(engine,plugins,sample_lib,event['take'],event['ctx'])
+                        if note:send(dict(message=note))
+                    except (ValueError,TypeError) as exc:send(dict(error='Plugin take: '+str(exc)))
+                else:send(event)
             for note in engine.poll_sampler_tasks():send(note)
             if capture is not None:
                 try:
@@ -789,7 +863,7 @@ def worker(commands,updates):
                           pattern_library=engine.pattern_library_status(),state=engine.project.data(),selected=engine.selected,midi_learn=engine.midi_learn,sound_undo=engine.sound_undo_counts(),can_redo=bool(engine.redo_history),automation_arm=engine.automation_arm,beat=engine.beat%engine.project.beats,
                           playing=engine.playing,recording=engine.recording,count_in=engine.count_state(),layer=engine.layer_state(),devices=midi.devices(),connected=midi.connected,
                           voices=sum(len(s.voices) for s in engine.synths)+sum(r.active_count for r in engine.drums)+sum(s.active_count for s in engine.samplers),
-                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
+                          drum_racks=engine.drum_state(),samplers=engine.sampler_state(),sample_library=dict(sample_lib.snapshot(),preview=sample_lib.playing if engine.sample_preview_active() else None),sampler_record=engine.record_state(),plugins=plugins.status(),drum_library=library.snapshot(),audio=audio.driver if audio else 'UNAVAILABLE',
                           audio_output=audio.output if audio else 'Unavailable',audio_channels=audio.channels if audio else 0,
                           audio_outputs=audio.outputs if audio else [],underruns=underruns,
                           dsp_load=round(load_shown,3),priority=priority,song_pos=engine.song_position(),buffer_ms=round(latency.target/(audio.rate if audio else 48000)*1000,1),latency_mode=latency.mode,latency_ms=latency.ms,
@@ -814,6 +888,7 @@ def worker(commands,updates):
         if library:library.close()
         if engine is not None and getattr(engine,'sample_library',None):engine.sample_library.close()
         if loader:loader.close()
+        if plugins:plugins.close()
         if capture:capture.close()
         if engine is not None and hasattr(engine,'sampler_tasks'):engine.sampler_tasks.close()
         midi.close()

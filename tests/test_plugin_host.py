@@ -1,0 +1,244 @@
+"""VST3 plugins (27 Nov): finding plugins, the helper process, parameters, the plugin window, takes, and what the
+backend does with a take. The helper runs for real against a stand-in pedalboard (tests/fake_pedalboard).
+
+The helper needs numpy. Where it is not installed, the end-to-end tests skip; set DECKSYNTH_TEST_NUMPY_PATH to a
+folder that holds numpy to run them anyway."""
+import os
+import shutil
+import tempfile
+import time
+import unittest
+import wave
+from pathlib import Path
+
+os.environ.setdefault('DECKSYNTH_NO_AUTOSAVE', '1')
+
+from decksynth import backend
+from decksynth.core import Engine
+from decksynth.plugin_host import PluginHost, friendly, note_name, scan
+from decksynth.sample_library import SampleLibrary
+
+FAKE = str(Path(__file__).with_name('fake_pedalboard'))
+NUMPY = os.environ.get('DECKSYNTH_TEST_NUMPY_PATH', '')
+try:
+    import numpy  # noqa: F401
+    HAVE_NUMPY = True
+except ImportError:
+    HAVE_NUMPY = bool(NUMPY and Path(NUMPY, 'numpy').is_dir())
+R = 48000
+
+
+def bundle(root, *parts, windows=False):
+    path = Path(root, *parts); (path / 'Contents' / 'x86_64-linux').mkdir(parents=True)
+    if windows: (path / 'Contents' / 'x86_64-win').mkdir()
+    return path
+
+
+def tone_wav(path, seconds=.3, rate=R):
+    import math, struct
+    with wave.open(str(path), 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
+        w.writeframes(b''.join(struct.pack('<h', round(.3 * 32767 * math.sin(2 * math.pi * 220 * i / rate))) for i in range(int(seconds * rate))))
+    return path
+
+
+class Finding(unittest.TestCase):
+    def setUp(self): self.dir = Path(tempfile.mkdtemp())
+    def tearDown(self): shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_vst3_bundles_are_found_and_windows_ones_marked(self):
+        bundle(self.dir, 'Surgeish.vst3'); bundle(self.dir, 'yabridge', 'Chordz PrismFX.vst3', windows=True)
+        bundle(self.dir, 'deep', 'er', 'Kit.vst3')
+        (self.dir / 'Surgeish.vst3' / 'Contents' / 'Inner.vst3').mkdir()     # nothing inside a bundle is a plugin of its own
+        vst2 = self.dir / 'vst2'; vst2.mkdir(); (vst2 / 'old.so').write_bytes(b'')
+        found, count = scan([str(self.dir)], [str(vst2)])
+        self.assertEqual([p['name'] for p in found], ['Chordz PrismFX', 'Kit', 'Surgeish'])
+        self.assertEqual([p['windows'] for p in found], [True, False, False])
+        self.assertEqual(count, 1)
+
+    def test_missing_folders_are_fine(self):
+        self.assertEqual(scan([str(self.dir / 'nope')], [str(self.dir / 'none')]), ([], 0))
+
+    def test_names_and_messages(self):
+        self.assertEqual((note_name(60), note_name(61), note_name(36)), ('C3', 'C#3', 'C1'))
+        self.assertIn('yabridge is not installed', friendly('x', ["[error] Could not find 'libyabridge-vst3.so'"], 'Massive'))
+        self.assertIn('not a Linux VST3', friendly('Unable to scan plugin /x: unsupported plugin format', [], 'X'))
+
+    def test_without_the_libraries_it_asks_for_set_up(self):
+        old = os.environ.pop('DECKSYNTH_PLUGIN_PATH', None)
+        try:
+            host = PluginHost(self.dir, R)
+            self.assertEqual(host.status()['setup'], 'missing')
+            host.plugins = [dict(path='/x.vst3', name='X', windows=False)]
+            with self.assertRaisesRegex(ValueError, 'Set up plugin hosting first'): host.load('/x.vst3')
+        finally:
+            if old is not None: os.environ['DECKSYNTH_PLUGIN_PATH'] = old
+
+
+class HelperBase:
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp()); self.events = []
+        self.old = os.environ.get('DECKSYNTH_PLUGIN_PATH')
+        os.environ['DECKSYNTH_PLUGIN_PATH'] = FAKE + (':' + NUMPY if NUMPY else '')
+        self.host = PluginHost(self.dir / 'data', R)
+        for name in ('Fake synth.vst3', 'Fake gain.vst3', 'broken.vst3', 'crash.vst3', 'yabridge-thing.vst3'): bundle(self.dir / 'plugins', name)
+        self.host.plugins, _ = scan([str(self.dir / 'plugins')], [])
+
+    def tearDown(self):
+        self.host.close(); shutil.rmtree(self.dir, ignore_errors=True)
+        if self.old is None: os.environ.pop('DECKSYNTH_PLUGIN_PATH', None)
+        else: os.environ['DECKSYNTH_PLUGIN_PATH'] = self.old
+
+    def path(self, name): return next(p['path'] for p in self.host.plugins if p['name'] == name)
+
+    def wait(self, until, seconds=20):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            self.events += self.host.poll()
+            if until(): return self.events
+            time.sleep(.01)
+        self.fail('the plugin helper did not answer: %r / %s' % (self.events, list(self.host.log)))
+
+    def load(self, name):
+        self.host.load(self.path(name)); self.assertEqual(self.host.status()['busy'], 'loading')
+        self.wait(lambda: self.host.busy is None)
+        return [e['plugin_params'] for e in self.events if 'plugin_params' in e][-1]['params']
+
+
+@unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
+class Helper(HelperBase, unittest.TestCase):
+    def test_load_lists_the_plugins_own_parameters_with_their_controls(self):
+        params = self.load('Fake synth')
+        self.assertEqual(self.host.loaded['kind'], 'instrument'); self.assertEqual(self.host.loaded['name'], 'Fake Synth')
+        self.assertEqual([p['name'] for p in params], ['Gain', 'Drive', 'Bypass'])      # no MIDI CC parameters
+        self.assertEqual([p['kind'] for p in params], ['value', 'options', 'switch'])
+        self.assertEqual(params[1]['options'], ['Soft', 'Warm', 'Hard'])
+        self.assertEqual(params[0]['text'], '50 %')
+        self.assertTrue(self.host.status()['setup'] == 'ready' and self.host.version == 'fake-1.0')
+
+    def test_turning_a_parameter_answers_with_the_plugins_own_text(self):
+        self.load('Fake synth'); self.events.clear()
+        self.host.set_param(0, .8)
+        self.wait(lambda: any('plugin_param' in e for e in self.events))
+        self.assertEqual(next(e['plugin_param'] for e in self.events if 'plugin_param' in e), dict(i=0, raw=.8, text='80 %'))
+        with self.assertRaises(ValueError): self.host.set_param(0, 1.5)
+
+    def test_an_instrument_take_holds_the_note_and_stops_when_it_is_quiet(self):
+        self.load('Fake synth')
+        out = self.dir / 'take.wav'
+        self.host.render(out, dict(mode='record', dest='library'), notes=[dict(note=69, velocity=100)], hold=.5)
+        self.wait(lambda: any('take' in e for e in self.events))
+        take = next(e for e in self.events if 'take' in e)
+        self.assertEqual(take['ctx']['dest'], 'library')
+        with wave.open(str(out)) as w:
+            self.assertEqual((w.getnchannels(), w.getsampwidth(), w.getframerate()), (2, 3, R))
+            seconds = w.getnframes() / R
+        self.assertTrue(.68 < seconds < .8, seconds)          # 0.5 s held + 0.2 s release + 50 ms, not the 10 s tail
+        self.assertFalse(Path(str(out) + '.part').exists())
+        self.assertTrue(.4 < take['take']['peak'] <= .51)
+
+    def test_an_effect_plays_a_sample_through_it(self):
+        self.load('Fake gain'); self.assertEqual(self.host.loaded['kind'], 'effect')
+        src = tone_wav(self.dir / 'dry.wav'); out = self.dir / 'wet.wav'
+        self.host.render(out, dict(mode='record', dest='library'), source=str(src))
+        self.wait(lambda: any('take' in e for e in self.events))
+        with wave.open(str(out)) as w: self.assertAlmostEqual(w.getnframes() / R, .35, delta=.01)
+
+    def test_a_silent_take_says_so(self):
+        self.load('Fake synth'); self.host.set_param(0, 0.); self.wait(lambda: any('plugin_param' in e for e in self.events))
+        self.host.render(self.dir / 'quiet.wav', dict(mode='record'), notes=[dict(note=60)], hold=.2)
+        self.wait(lambda: self.host.busy is None)
+        self.assertIn('made no sound', self.host.error)
+
+    def test_plugin_settings_are_remembered_for_the_next_load(self):
+        self.load('Fake synth'); self.host.set_param(0, 1.)
+        self.host.render(self.dir / 'a.wav', dict(mode='record'), notes=[dict(note=60)], hold=.1)
+        self.wait(lambda: any(self.host.folder.joinpath('states').glob('*.json')))
+        self.host.stop(); self.events.clear()
+        self.assertEqual(self.load('Fake synth')[0]['raw'], 1.)
+
+    def test_the_plugin_window_hands_back_what_was_turned_in_it(self):
+        self.load('Fake synth'); self.events.clear()
+        self.host.open_editor(); self.assertTrue(self.host.status()['loaded']['editor'])
+        with self.assertRaisesRegex(ValueError, 'Close the plugin window'): self.host.render(self.dir / 'x.wav', dict(mode='record'), notes=[dict(note=60)], hold=.1)
+        time.sleep(.2); self.host.close_editor()
+        self.wait(lambda: not self.host.editor)
+        params = [e['plugin_params'] for e in self.events if 'plugin_params' in e][-1]['params']
+        self.assertEqual(params[0]['raw'], .25)
+
+    def test_a_plugin_that_cannot_open_says_why(self):
+        self.host.load(self.path('broken')); self.wait(lambda: self.host.busy is None)
+        self.assertIn('not a Linux VST3', self.host.error); self.assertIsNone(self.host.loaded)
+        self.host.load(self.path('yabridge-thing')); self.wait(lambda: self.host.busy is None)
+        self.assertIn('yabridge is not installed', self.host.error)
+
+    def test_a_crashing_plugin_never_takes_decksynth_with_it(self):
+        self.host.load(self.path('crash'))
+        self.wait(lambda: self.host.proc is None)
+        self.assertIsNone(self.host.loaded); self.assertIsNone(self.host.busy)
+        self.assertTrue(any('error' in e for e in self.events))
+        self.load('Fake synth'); self.assertEqual(self.host.loaded['name'], 'Fake Synth')   # and the next one loads
+
+
+@unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
+class Backend(HelperBase, unittest.TestCase):
+    """The backend's side: a take lands in the library and on a Sampler track."""
+    def setUp(self):
+        super().setUp()
+        self.e = Engine(R); self.e.chop_directory = str(self.dir / 'chops')
+        self.lib = SampleLibrary(self.dir / 'data', R, default_root=self.dir / 'Samples')
+
+    def tearDown(self):
+        self.e.sampler_tasks.close(); self.lib.close(); super().tearDown()
+
+    def take(self, opts):
+        self.events.clear()
+        backend.plugin_command(self.e, self.host, self.lib, ['render', opts])
+        self.wait(lambda: any('take' in e for e in self.events))
+        ev = next(e for e in self.events if 'take' in e)
+        note = backend.plugin_take(self.e, self.host, self.lib, ev['take'], ev['ctx'])
+        for _ in range(500):
+            self.e.poll_sampler_tasks()
+            if not self.e.sampler_tasks.jobs: break
+            time.sleep(.01)
+        return ev, note
+
+    def test_record_to_a_new_sampler_track(self):
+        self.load('Fake synth'); tracks = len(self.e.project.tracks)
+        ev, note = self.take(dict(mode='record', note=57, velocity=90, hold=.3, dest='new'))
+        self.assertEqual(len(self.e.project.tracks), tracks + 1)
+        t = self.e.project.tracks[-1]
+        self.assertEqual(t['device'], 'sampler'); self.assertEqual(t['name'], 'Fake Synth A2')
+        self.assertIsNotNone(t['sampler']['source'])
+        self.assertTrue(Path(ev['take']['path']).is_file()); self.assertEqual(Path(ev['take']['path']).parent.name, 'Plugins')
+        self.assertIn('new Sampler', note)
+
+    def test_record_into_this_sampler_and_effects_need_its_sample(self):
+        self.e.set_device(1, 'sampler'); sid = self.e.project.tracks[1]['sampler']['id']
+        self.load('Fake gain')
+        with self.assertRaisesRegex(ValueError, 'with a sample'):
+            backend.plugin_command(self.e, self.host, self.lib, ['render', dict(mode='record', dest='sampler', track=1, sampler_id=sid)])
+        self.load('Fake synth')
+        self.take(dict(mode='record', note=60, hold=.2, dest='sampler', track=1, sampler_id=sid))
+        spec = self.e.project.tracks[1]['sampler']
+        self.assertEqual(spec['name'], 'Fake Synth C3')
+        self.load('Fake gain')
+        ev, note = self.take(dict(mode='record', dest='sampler', track=1, sampler_id=sid))
+        self.assertEqual(self.e.project.tracks[1]['sampler']['name'], 'Fake Gain - Fake Synth C3')
+
+    def test_listen_plays_without_saving(self):
+        self.load('Fake synth')
+        ev, note = self.take(dict(mode='listen', note=60, hold=.2))
+        self.assertIsNone(note); self.assertFalse((self.dir / 'Samples').exists())
+        self.wait(lambda: any('listen' in e for e in self.events))
+        self.e.play_sample_preview(next(e['listen'] for e in self.events if 'listen' in e))
+        self.assertTrue(self.e.sample_preview_active())
+
+    def test_bad_requests_are_refused(self):
+        self.load('Fake synth')
+        for opts in (dict(mode='record', dest='sampler', note=60), dict(mode='record', note=200), dict(mode='play'), dict(mode='record', hold=99)):
+            with self.assertRaises(ValueError): backend.plugin_command(self.e, self.host, self.lib, ['render', opts])
+
+
+if __name__ == '__main__':
+    unittest.main()

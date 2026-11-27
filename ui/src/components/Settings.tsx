@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, CircleDot, Eraser, Headphones, Keyboard, Lock, Maximize, Minus, Monitor, Plus, Power, Radio, RotateCcw, Save, Search, Sparkles, Trash2, Unlink, X, Zap } from 'lucide-react';
+import { Check, CircleDot, Eraser, Headphones, Keyboard, Lock, Maximize, Minus, Monitor, Plug, Plus, Power, Radio, RotateCcw, Save, Search, Sparkles, Trash2, Unlink, X, Zap } from 'lucide-react';
 import '../settings.css';
 import { ValueBox } from './ValueBox';
+import { PluginList, PluginLoaded, PluginParams, PluginRescan, PluginSetup, PluginTake, usePlugins, type PluginTrack } from './PluginHost';
 import { ACTIONS, FIXED, SCOPES, comboOf, isChanged, keysOf, problem, show, withKeys, cleanOverrides, type KeyOverrides } from '../hotkeys';
 
 export type Cleanup = 'effects'|'sound'|'mods'|'links'|'all';
@@ -31,7 +32,7 @@ export function writeSettings(s:AppSettings){try{localStorage.setItem(KEY,JSON.s
 /** What the engine is told about the latency: a mode, plus the milliseconds for a custom buffer. */
 export const latencyArgs=(s:AppSettings):[string]|[string,number]=>s.latency==='custom'?['custom',s.latencyMs]:[s.latency];
 
-type SectionId='session'|'audio'|'midi'|'recording'|'display'|'sound'|'hotkeys'|'cleanup';
+type SectionId='session'|'audio'|'midi'|'recording'|'display'|'sound'|'plugins'|'hotkeys'|'cleanup';
 const SECTIONS:{id:SectionId;label:string;icon:React.ReactNode;colour:string}[]=[
   {id:'session',label:'Session',icon:<Save size={18}/>,colour:'var(--c-song)'},
   {id:'audio',label:'Audio',icon:<Headphones size={18}/>,colour:'var(--c-perform)'},
@@ -39,6 +40,7 @@ const SECTIONS:{id:SectionId;label:string;icon:React.ReactNode;colour:string}[]=
   {id:'recording',label:'Recording',icon:<CircleDot size={18}/>,colour:'var(--ui-rec)'},
   {id:'display',label:'Display',icon:<Monitor size={18}/>,colour:'var(--c-guide)'},
   {id:'sound',label:'Sound and editing',icon:<Zap size={18}/>,colour:'var(--c-fx)'},
+  {id:'plugins',label:'Plugins',icon:<Plug size={18}/>,colour:'var(--c-plugin)'},
   {id:'hotkeys',label:'Hotkeys',icon:<Keyboard size={18}/>,colour:'var(--t-help)'},
   {id:'cleanup',label:'Clean up',icon:<Eraser size={18}/>,colour:'var(--t-reset)'},
 ];
@@ -52,6 +54,8 @@ type Props = {
   /** Autosave and On launch live in the engine, so they work even when this window is dead. */
   session?:import('../types').DeckUpdate['session']; onSession?:(changes:Record<string,unknown>)=>void;
   onDevice:(d:string)=>void; onAudio:(d:string)=>void; onPanic:()=>void; onClose:()=>void;
+  /** Plugins: the engine command and the selected track (a take can go into its Sampler). */
+  command?:(cmd:string,args?:unknown)=>void; pluginTrack?:PluginTrack;
 };
 
 /* ---------- small controls ---------- */
@@ -62,7 +66,7 @@ function Seg<T extends string|number|boolean>({label,options,value,onPick}:{labe
 }
 
 /** Segmented presets with a last button, Custom: tapping it shows a value box (rule 36) for any number in the range. */
-function CustomSeg({label,presets,value,range,unit,format,parse,onPick,startAt}:{label:string;presets:readonly (readonly [number,string])[];value:number;
+export function CustomSeg({label,presets,value,range,unit,format,parse,onPick,startAt}:{label:string;presets:readonly (readonly [number,string])[];value:number;
   range:{min:number;max:number;step:number;coarse:number;fine:number};unit:string;format:(n:number)=>string;parse?:(t:string)=>number|null;
   onPick:(n:number)=>void;startAt:(current:number)=>number}){
   const isPreset=presets.some(([v])=>v===value);
@@ -108,7 +112,8 @@ function Marked({text,q}:{text:string;q:string[]}){
 }
 
 /** Settings: eight sections in a left navigation, a search over all of them, and the window actions at the bottom of the navigation. */
-export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose}:Props) {
+export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridgeStatus,bufferMs,session,onSession,devices,audioOutput,audioOutputs,onDevice,onAudio,onPanic,onClose,command,pluginTrack}:Props) {
+  const plugins=usePlugins();
   const [section,setSection]=useState<SectionId>('session');
   const [query,setQuery]=useState('');
   const [confirm,setConfirm]=useState(false);
@@ -118,6 +123,10 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
   const win=window.deckApi?.windowAction;
   const q=words(query);
   const set=(patch:Partial<AppSettings>)=>onSettings({...settings,...patch});
+
+  /* Plugins: look for them the first time the section opens (and once hosting is set up). */
+  const pluginsReady=plugins?.setup==='ready',pluginsScanned=!!plugins?.scanned;
+  useEffect(()=>{if(command&&(section==='plugins'||q.length)&&pluginsReady&&!pluginsScanned)command('plugin',['scan']);},[section,pluginsReady,pluginsScanned,q.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Esc: stop recording a key, then clear the search, then close. (App's own keys stay off while a dialog is open.) */
   const esc=useRef<()=>void>(()=>{});
@@ -216,6 +225,28 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
       control:<Switch label="Hear notes while editing" on={settings.editSound} onChange={v=>set({editSound:v})}/>});
     add({sec:'sound',group:'Presets',title:'Load presets with Strike noise',kw:'strike noise burst synth preset',hint:'On: a synth preset loads with its noise burst at the start of each note. Off: it loads without it; the Noise switch on the Strike view turns it on.',
       control:<Switch label="Load presets with Strike noise" on={settings.presetNoise} onChange={v=>set({presetNoise:v})}/>});
+    /* Plugins */
+    if(command){
+      const ready=plugins?.setup==='ready',l=plugins?.loaded;
+      add({sec:'plugins',title:'Plugin hosting',kw:'vst vst3 plugin host set up install pedalboard',
+        hint:ready?'VST3 plugins run in a helper of their own: one that hangs or crashes never stops Decksynth.'
+          :'Hosts Linux VST3 plugins in a helper of their own, so a plugin can never stop the sound. Set up downloads pedalboard and numpy (about 21 MB, from PyPI) into Decksynth\'s data folder.',
+        control:<PluginSetup status={plugins} send={command}/>});
+      if(plugins&&ready){
+        add({sec:'plugins',group:'Plugins',title:'Plugins found',wide:true,kw:'vst vst3 yabridge windows load list',control:<PluginList status={plugins} send={command}/>});
+        add({sec:'plugins',group:'Plugins',title:'Plugin folders',kw:'vst3 path folder yabridge scan',
+          hint:'~/.vst3, /usr/lib/vst3, /usr/local/lib/vst3 and VST3_PATH. Windows plugins appear after yabridgectl sync (in ~/.vst3/yabridge), and yabridge must be installed for this user.',
+          control:<PluginRescan status={plugins} send={command}/>});
+        add({sec:'plugins',group:'Loaded',title:'Loaded plugin',wide:true,kw:'plugin window editor unload',control:<PluginLoaded status={plugins} send={command}/>});
+        if(l){
+          add({sec:'plugins',group:'Loaded',title:'Parameters',wide:true,kw:'plugin parameter knob value',control:<PluginParams send={command}/>});
+          if(pluginTrack)add({sec:'plugins',group:'Loaded',title:'Record as a sample',wide:true,kw:'record render bounce sample sampler take listen',
+            hint:l.kind==='instrument'?'Plays one note, held for Hold, then until it is quiet (10 s at most). Record keeps the take in the sample library (Plugins) and loads it where you choose.'
+              :'Plays the selected Sampler\'s sample through the effect, with its tail. Record keeps the take in the sample library (Plugins) and loads it where you choose.',
+            control:<PluginTake status={plugins} send={command} track={pluginTrack}/>});
+        }
+      }
+    }
     /* Hotkeys */
     for(const a of ACTIONS)add({sec:'hotkeys',group:a.scope,title:a.label,hint:a.about,kw:keysOf(a.id,settings.keys).map(show).join(' ')+' key shortcut hotkey',control:keyRow(a.id)});
     for(const f of FIXED)add({sec:'hotkeys',group:f.scope,title:f.keys,hint:f.about,kw:'locked gesture mouse touch',control:<span className="sv-lock"><Lock size={14}/> fixed</span>});
@@ -230,7 +261,7 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
         <button type="button" onClick={()=>setConfirm(false)}>Keep working</button></div>
         :<button type="button" className="sv-act danger" onClick={()=>setConfirm(true)}><Trash2 size={17}/><span><strong>Start over…</strong><small>Empty session. Asks once; Undo can bring the old one back</small></span></button>});
     return out;
-  },[settings,session,onSession,bufferMs,audioOutput,audioOutputs,devices,midiName,bridgeStatus,midiPick,confirm,rec,keyError,trackName]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[settings,session,onSession,bufferMs,audioOutput,audioOutputs,devices,midiName,bridgeStatus,midiPick,confirm,rec,keyError,trackName,plugins,pluginTrack,command]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const secOf=(id:SectionId)=>SECTIONS.find(s=>s.id===id)!;
   const scopeTitle=(g?:string)=>SCOPES.find(s=>s.id===g)?.title??g;

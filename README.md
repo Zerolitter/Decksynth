@@ -32,6 +32,7 @@ and Linux desktops. Built to be played with fingers on the Deck's screen.
 **Everything else**
 - Touch first and built for the Steam Deck. Also runs on Linux desktops.
 - USB MIDI in, WAV export, adjustable audio latency.
+- VST3 plugins (optional, Settings › Plugins): load a Linux VST3, or a Windows one through yabridge, turn its parameters and record it into a Sampler. Set up downloads pedalboard and numpy into Decksynth's data folder.
 - Five demo kits, or load your own WAV libraries.
 
 ## Install
