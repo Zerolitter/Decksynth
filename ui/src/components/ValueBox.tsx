@@ -60,6 +60,8 @@ export function ValueBox({ label, value, onChange, list, min = -Infinity, max = 
   };
   const commitNow = (n: number) => { window.clearTimeout(settle.current); setDraft(null); if (n !== valueRef.current) change.current(n); };
   useEffect(() => () => window.clearTimeout(settle.current), []);
+  // The radial menu's "Edit value" asks a box to open its number entry.
+  useEffect(() => { const el = box.current, open = () => { if (!disabled) setEditing(true); }; el?.addEventListener('vbox-edit', open); return () => el?.removeEventListener('vbox-edit', open); }, [disabled]);
 
   // The wheel needs a non-passive listener to stop the page (and Ctrl+wheel zoom) from moving.
   useEffect(() => {

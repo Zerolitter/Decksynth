@@ -2,11 +2,11 @@
    (or in its own window), and record what it plays as a sample: into this Sampler, onto a new Sampler track, or
    only into the sample library (category Plugins). An effect plugin records the selected Sampler's sample played
    through it. Each part is one Settings row, so search finds them. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppWindow, CircleDot, Download, Ear, Plug, RefreshCw, Square, X } from 'lucide-react';
 import { useDeck } from '../deck-store';
 import { ValueBox } from './ValueBox';
-import { CustomSeg } from './Settings';
+import { useContextTarget } from './ContextWheel';
 import type { PluginParam, PluginStatus } from '../types';
 
 export type PluginTrack = { index: number; device: string; samplerId: string | null; hasSample: boolean; sampleName: string | null };
@@ -44,9 +44,13 @@ export function PluginList({ status, send }: { status: PluginStatus; send: Send 
 /** What is loaded, with its window and Unload. */
 export function PluginLoaded({ status, send }: { status: PluginStatus; send: Send }) {
   const l = status.loaded;
+  const context = useContextTarget(() => l ? { area: 'sound', accent: 'var(--c-plugin)', kind: 'plugin', label: l.name, caps: {
+    open: () => send('plugin', [l.editor ? 'editor_close' : 'editor']),
+    ...(l.kind === 'instrument' ? { liveToggle: () => send('plugin', ['live', !l.live]) } : {}),
+    unload: () => send('plugin', ['unload']) } } : null);
   if (status.busy === 'loading') return <p className="sv-status" role="status">Loading…</p>;
   if (!l) return <p className="sv-status" role="status">{status.error ?? 'Tap a plugin above to load it.'}</p>;
-  return <div className="sv-plug-loaded">
+  return <div {...context} className="sv-plug-loaded">
     <span><strong>{l.name}</strong><small>{l.kind === 'instrument' ? 'Instrument' : 'Effect'}{l.vendor ? ' · ' + l.vendor : ''}</small></span>
     <button type="button" className={'sv-btn' + (l.editor ? ' on' : '')} aria-pressed={l.editor} disabled={!!status.busy}
       onClick={() => send('plugin', [l.editor ? 'editor_close' : 'editor'])}><AppWindow size={16} /> {l.editor ? 'Close its window' : 'Open its window'}</button>
@@ -73,15 +77,21 @@ export function PluginParams({ send }: { send: Send }) {
   }, [find, paged, sent?.path]); // send is supplied by the stable bridge hook
   const words = find.toLowerCase().split(/\s+/).filter(Boolean);
   const hits = useMemo(() => params.filter(p => words.every(w => p.name.toLowerCase().includes(w))), [params, find]); // eslint-disable-line react-hooks/exhaustive-deps
+  const context = useContextTarget(el => {
+    const row = el.closest<HTMLElement>('[data-pi]'); const p = row && params.find(q => q.i === Number(row.dataset.pi)); if (!row || !p) return null;
+    return { area: 'sound', accent: 'var(--c-plugin)', kind: 'parameter', label: p.name, caps: {
+      ...(p.kind === 'value' ? { value: () => row.querySelector('.vbox')?.dispatchEvent(new Event('vbox-edit')) } : {}),
+      open: () => send('plugin', ['editor']) } };
+  });
   const set = (p: PluginParam, raw: number) => { setParams(ps => ps.map(q => q.i === p.i ? { ...q, raw } : q)); send('plugin', ['set', p.i, raw]); };
   if (!params.length) return <p className="sv-status" role="status">This plugin shows no parameters to the host; use its own window.</p>;
   return <div className="sv-plug-params">
     {paged || params.length > SHOWN ? <label className="sv-search sv-plug-find"><input type="search" value={find} onChange={e => setFind(e.target.value)}
       placeholder={`Find one of ${sent?.parameter_count ?? params.length} parameters`} aria-label="Find a plugin parameter" autoComplete="off" spellCheck={false} />
       {find ? <button type="button" aria-label="Clear" onClick={() => setFind('')}><X size={16} /></button> : null}</label> : null}
-    <div className="sv-plug-grid">
-      {hits.slice(0, SHOWN).map(p => <div key={p.i} className="sv-plug-param">
-        <span className="sv-plug-name" title={p.name}>{p.name}<small>{p.text}{p.label && !p.text.endsWith(p.label) ? ' ' + p.label : ''}</small></span>
+    <div {...context} className="sv-plug-grid">
+      {hits.slice(0, SHOWN).map(p => <div key={p.i} data-pi={p.i} className="sv-plug-param">
+        <span className="sv-plug-name" title={p.name}>{p.name}</span>
         {p.kind === 'switch'
           ? <input type="checkbox" role="switch" aria-label={p.name} checked={p.raw >= .5} onChange={e => set(p, e.target.checked ? 1 : 0)} />
           : p.kind === 'options' && p.options
@@ -90,7 +100,8 @@ export function PluginParams({ send }: { send: Send }) {
               return <button key={k} type="button" aria-pressed={on} className={on ? 'on' : ''} onClick={() => set(p, raw)}>{o}</button>;
             })}</div>
             : <ValueBox label={p.name} hideLabel value={Math.round(p.raw * 1000) / 10} min={0} max={100} step={1} coarse={10} fine={.1}
-              format={n => (Math.round(n * 10) / 10) + ' %'} onChange={n => set(p, Math.max(0, Math.min(1, n / 100)))} />}
+              format={n => p.text && Math.abs(n / 100 - p.raw) < .0005 ? p.text + (p.label && !p.text.endsWith(p.label) ? ' ' + p.label : '') : (Math.round(n * 10) / 10) + ' %'}
+              onChange={n => set(p, Math.max(0, Math.min(1, n / 100)))} />}
       </div>)}
     </div>
     {hits.length > SHOWN ? <p className="sv-status" role="status">Showing 24 of {sent?.parameter_count ?? hits.length}: type more of a name to narrow them.</p>
@@ -102,24 +113,46 @@ type Dest = 'sampler' | 'new' | 'library';
 /** Listen and Record. An instrument plays one note (held, then until it is quiet); an effect plays the selected
  *  Sampler's sample through it. */
 export function PluginTake({ status, send, track }: { status: PluginStatus; send: Send; track: PluginTrack }) {
-  const [note, setNote] = useState(60), [velocity, setVelocity] = useState(100), [hold, setHold] = useState(10);   // hold in 0.1 s
+  const [note, setNote] = useState(60), [velocity, setVelocity] = useState(100), [hold, setHold] = useState(1);   // hold in seconds
   const isSampler = track.device === 'sampler' && !!track.samplerId;
   const [dest, setDest] = useState<Dest>('new');            // never replaces a sample unless asked
   const l = status.loaded;
   useEffect(() => { if (!isSampler && dest === 'sampler') setDest('new'); }, [isSampler, dest]);
+  const [heldMs, setHeldMs] = useState<number | null>(null);          // while Record is held down
+  const press = useRef<{ at: number; id: number; timer: number } | null>(null);
+  useEffect(() => () => { if (press.current) window.clearInterval(press.current.timer); }, []);
+  const context = useContextTarget(() => l ? { area: 'sound', accent: 'var(--c-plugin)', kind: 'plugin', label: l.name, caps: {
+    ...(!(status.busy || l.editor || l.live) && !(l.kind === 'effect' && !(isSampler && track.hasSample)) ? {
+      play: () => send('plugin', ['render', { note, velocity, hold, track: track.index, sampler_id: track.samplerId, mode: 'listen' }]),
+      takeRecord: () => send('plugin', ['render', { note, velocity, hold, track: track.index, sampler_id: track.samplerId, mode: 'record', dest }]) } : {}) } } : null);
   if (!l) return <p className="sv-status" role="status">Load a plugin to record it.</p>;
   const effect = l.kind === 'effect', needsSample = effect && !(isSampler && track.hasSample);
-  const opts = () => ({ note, velocity, hold: hold / 10, track: track.index, sampler_id: track.samplerId });
+  const opts = () => ({ note, velocity, hold, track: track.index, sampler_id: track.samplerId });
   const dests: [Dest, string][] = [...(isSampler ? [['sampler', 'This Sampler'] as [Dest, string]] : []), ['new', 'New Sampler track'], ['library', 'Library only']];
   const busy = !!status.busy || l.editor || l.live;
-  return <div className="sv-plug-take">
+  const rec = (secs: number) => send('plugin', ['render', { ...opts(), hold: secs, mode: 'record', dest }]);
+  /* Hold Record and the note sounds for as long as your finger is down (a quick tap uses Tap length); an effect has no note to hold. */
+  const recDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (busy || needsSample || effect || e.button !== 0 || press.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const at = performance.now(); setHeldMs(0);
+    press.current = { at, id: e.pointerId, timer: window.setInterval(() => setHeldMs(performance.now() - at), 100) };
+  };
+  const recUp = (cancel: boolean) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    const p = press.current; if (!p || p.id !== e.pointerId) return;
+    window.clearInterval(p.timer); press.current = null; setHeldMs(null);
+    const ms = performance.now() - p.at;
+    if (!cancel && ms >= 400) rec(Math.min(30, Math.max(0.1, Math.round(ms / 100) / 10)));
+    else if (!cancel) rec(hold);
+  };
+  return <div {...context} className="sv-plug-take">
     {effect ? <p className="sv-status">{needsSample ? 'Select a Sampler track with a sample: the effect plays it through itself.'
       : `Plays “${track.sampleName ?? 'the sample'}” on track ${track.index + 1} through ${l.name}.`}</p>
       : <div className="sv-plug-note">
         <ValueBox label="Note" value={note} min={0} max={127} step={1} coarse={12} fine={1} format={noteName} onChange={n => setNote(Math.round(n))} />
         <ValueBox label="Velocity" value={velocity} min={1} max={127} step={1} coarse={10} fine={1} onChange={n => setVelocity(Math.round(n))} />
-        <CustomSeg label="Hold" presets={[[5, '0.5 s'], [10, '1 s'], [20, '2 s'], [40, '4 s']]} value={hold} range={{ min: 1, max: 300, step: 1, coarse: 10, fine: 1 }}
-          unit="seconds" format={n => (n / 10) + ' s'} onPick={setHold} startAt={cur => cur} />
+        <ValueBox label="Tap length" value={hold} min={0.1} max={30} step={0.5} coarse={5} fine={0.1}
+          format={n => (Math.round(n * 10) / 10) + ' s'} onChange={n => setHold(Math.round(n * 10) / 10)} />
       </div>}
     <div className="sv-plug-go">
       <div className="sv-seg" role="group" aria-label="Record into">
@@ -127,8 +160,10 @@ export function PluginTake({ status, send, track }: { status: PluginStatus; send
       </div>
       <button type="button" className="sv-btn" disabled={busy || needsSample} onClick={() => send('plugin', ['render', { ...opts(), mode: 'listen' }])}><Ear size={16} /> Listen</button>
       <button type="button" className="sv-btn" aria-label="Stop listening" title="Stop listening" onClick={() => send('plugin', ['stop_listen'])}><Square size={14} /></button>
-      <button type="button" className="sv-btn rec" disabled={busy || needsSample}
-        onClick={() => send('plugin', ['render', { ...opts(), mode: 'record', dest }])}><CircleDot size={16} /> Record</button>
+      <button type="button" data-context-ignore className={'sv-btn rec' + (heldMs !== null ? ' on' : '')} disabled={busy || needsSample} aria-label="Record"
+        title={effect ? 'Record the sample through the effect' : 'Tap records the Tap length; hold records for as long as you hold'}
+        onPointerDown={recDown} onPointerUp={recUp(false)} onPointerCancel={recUp(true)}
+        onClick={e => { if (e.detail === 0 || effect) rec(hold); }}><CircleDot size={16} /> {heldMs !== null ? (heldMs / 1000).toFixed(1) + ' s' : 'Record'}</button>
     </div>
     <p className="sv-status" role="status">{status.busy === 'record' ? 'Recording…' : status.busy === 'listen' ? 'Rendering…'
       : l.live ? 'Live audio is playing through Decksynth. Stop live audio to render a take.' : l.editor ? 'Close the plugin window to record.' : status.take ? `Last take: ${status.take.name} (${status.take.seconds.toFixed(1)} s) in ${status.take.where}${status.take.clipped ? ', clipped' : ''}.` : ' '}</p>
