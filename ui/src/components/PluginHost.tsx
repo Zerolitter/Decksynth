@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { AppWindow, CircleDot, Download, Ear, Plug, RefreshCw, Square, X } from 'lucide-react';
 import { useDeck } from '../deck-store';
 import { ValueBox } from './ValueBox';
-import { CustomSeg } from './Settings';
 import type { PluginParam, PluginStatus } from '../types';
 
 export type PluginTrack = { index: number; device: string; samplerId: string | null; hasSample: boolean; sampleName: string | null };
@@ -81,7 +80,7 @@ export function PluginParams({ send }: { send: Send }) {
       {find ? <button type="button" aria-label="Clear" onClick={() => setFind('')}><X size={16} /></button> : null}</label> : null}
     <div className="sv-plug-grid">
       {hits.slice(0, SHOWN).map(p => <div key={p.i} className="sv-plug-param">
-        <span className="sv-plug-name" title={p.name}>{p.name}<small>{p.text}{p.label && !p.text.endsWith(p.label) ? ' ' + p.label : ''}</small></span>
+        <span className="sv-plug-name" title={p.name}>{p.name}</span>
         {p.kind === 'switch'
           ? <input type="checkbox" role="switch" aria-label={p.name} checked={p.raw >= .5} onChange={e => set(p, e.target.checked ? 1 : 0)} />
           : p.kind === 'options' && p.options
@@ -90,7 +89,8 @@ export function PluginParams({ send }: { send: Send }) {
               return <button key={k} type="button" aria-pressed={on} className={on ? 'on' : ''} onClick={() => set(p, raw)}>{o}</button>;
             })}</div>
             : <ValueBox label={p.name} hideLabel value={Math.round(p.raw * 1000) / 10} min={0} max={100} step={1} coarse={10} fine={.1}
-              format={n => (Math.round(n * 10) / 10) + ' %'} onChange={n => set(p, Math.max(0, Math.min(1, n / 100)))} />}
+              format={n => p.text && Math.abs(n / 100 - p.raw) < .0005 ? p.text + (p.label && !p.text.endsWith(p.label) ? ' ' + p.label : '') : (Math.round(n * 10) / 10) + ' %'}
+              onChange={n => set(p, Math.max(0, Math.min(1, n / 100)))} />}
       </div>)}
     </div>
     {hits.length > SHOWN ? <p className="sv-status" role="status">Showing 24 of {sent?.parameter_count ?? hits.length}: type more of a name to narrow them.</p>
@@ -102,14 +102,14 @@ type Dest = 'sampler' | 'new' | 'library';
 /** Listen and Record. An instrument plays one note (held, then until it is quiet); an effect plays the selected
  *  Sampler's sample through it. */
 export function PluginTake({ status, send, track }: { status: PluginStatus; send: Send; track: PluginTrack }) {
-  const [note, setNote] = useState(60), [velocity, setVelocity] = useState(100), [hold, setHold] = useState(10);   // hold in 0.1 s
+  const [note, setNote] = useState(60), [velocity, setVelocity] = useState(100), [hold, setHold] = useState(1);   // hold in seconds
   const isSampler = track.device === 'sampler' && !!track.samplerId;
   const [dest, setDest] = useState<Dest>('new');            // never replaces a sample unless asked
   const l = status.loaded;
   useEffect(() => { if (!isSampler && dest === 'sampler') setDest('new'); }, [isSampler, dest]);
   if (!l) return <p className="sv-status" role="status">Load a plugin to record it.</p>;
   const effect = l.kind === 'effect', needsSample = effect && !(isSampler && track.hasSample);
-  const opts = () => ({ note, velocity, hold: hold / 10, track: track.index, sampler_id: track.samplerId });
+  const opts = () => ({ note, velocity, hold, track: track.index, sampler_id: track.samplerId });
   const dests: [Dest, string][] = [...(isSampler ? [['sampler', 'This Sampler'] as [Dest, string]] : []), ['new', 'New Sampler track'], ['library', 'Library only']];
   const busy = !!status.busy || l.editor || l.live;
   return <div className="sv-plug-take">
@@ -118,8 +118,8 @@ export function PluginTake({ status, send, track }: { status: PluginStatus; send
       : <div className="sv-plug-note">
         <ValueBox label="Note" value={note} min={0} max={127} step={1} coarse={12} fine={1} format={noteName} onChange={n => setNote(Math.round(n))} />
         <ValueBox label="Velocity" value={velocity} min={1} max={127} step={1} coarse={10} fine={1} onChange={n => setVelocity(Math.round(n))} />
-        <CustomSeg label="Hold" presets={[[5, '0.5 s'], [10, '1 s'], [20, '2 s'], [40, '4 s']]} value={hold} range={{ min: 1, max: 300, step: 1, coarse: 10, fine: 1 }}
-          unit="seconds" format={n => (n / 10) + ' s'} onPick={setHold} startAt={cur => cur} />
+        <ValueBox label="Hold" value={hold} min={0.1} max={30} step={0.5} coarse={5} fine={0.1}
+          format={n => (Math.round(n * 10) / 10) + ' s'} onChange={n => setHold(Math.round(n * 10) / 10)} />
       </div>}
     <div className="sv-plug-go">
       <div className="sv-seg" role="group" aria-label="Record into">
