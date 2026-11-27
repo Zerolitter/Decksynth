@@ -79,6 +79,8 @@ export type SamplerSpec={version:1;id:string;name:string;family:string;source:Dr
   f_env?:number;f_attack?:number;f_decay?:number;f_velocity?:number;p_env?:number;p_decay?:number;
   /** Filter batch (25 Nov): the rest of the filter envelope, velocity to its amount and to the amp attack, Glide Always, Pan. */
   f_hold?:number;f_sustain?:number;f_release?:number;f_env_vel?:number;vel_attack?:number;glide_mode?:'legato'|'always';pan?:number;
+  /** Sampler batch (27 Nov): seconds of the sample faded in after Start and out before End, on what each key plays. */
+  fade_in?:number;fade_out?:number;
   /** Grain mode (24 Nov, decksynth/sampler_grain.py). */
   g_pos?:number;g_size?:number;g_density?:number;g_spray?:number;g_scan?:number;g_spread?:number;g_scale?:GrainScale;
   g_reverse?:number;g_jitter?:number;g_size_rnd?:number;g_amp_rnd?:number;g_window?:GrainWindow;
@@ -99,6 +101,7 @@ export type SamplerRuntime={status:'EMPTY'|'LOADING'|'MISSING'|'READY'|'PLAYING'
   /** Grain mode: where the sounding grains read now (0..1 of the sample). */ grains?:number[];
   /** Grain Rhythm: the slice each held key reads now. */ steps?:number[];
   /** Hold: played keys and MIDI notes keep sounding after they are let go. */ hold?:boolean;
+  /** The sample that plays is stereo (27 Nov): the track carries its own right channel. */ stereo?:boolean;
   /** Grain mode's live input, while it is on: the waveform is then the last 8 s of the input. */ live?:{frozen:boolean;level:number}};
 export type FreezeMeta = {file:string;mode:'song'|'loop';fingerprint:string;frames:number;pass_frames:number;rate:number;bpm:number;peaks:number[]};
 export type FreezeHold = {mode:'song'|'loop';bars:number;ok:boolean};

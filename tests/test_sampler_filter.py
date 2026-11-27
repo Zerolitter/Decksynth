@@ -85,7 +85,7 @@ class FilterBatchTest(unittest.TestCase):
         s.on(60, 40, 'a'); s.on(67, 120, 'b'); s._modulate()
         twin = (type(s.voices[0]) * len(s.voices))()
         ctypes.memmove(twin, s.voices, ctypes.sizeof(s.voices))
-        native = [0.]*256; s.scratch[:256] = [0.]*256; s._kernel(s.voices, len(s.voices), ctypes.byref(s.params), s.scratch, 256)
+        native = [0.]*256; s.scratch[:256] = [0.]*256; s._kernel(s.voices, len(s.voices), ctypes.byref(s.params), s.scratch, None, 256)
         native = list(s.scratch[:256])
         python = [0.]*256; mix_python(twin, s.params, s.sample.data, python, 256)
         self.assertGreater(max(map(abs, python)), 1e-4)

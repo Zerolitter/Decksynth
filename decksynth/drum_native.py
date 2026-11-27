@@ -108,7 +108,10 @@ def native_kernel():
                 resample = shape_library.drum_resample
                 resample.argtypes = [C.c_void_p, C.c_int64, C.c_int64, C.c_int64, C.c_void_p, C.c_int64]
                 resample.restype = None
-                _library, _kernel, _shape, _codec = library, kernel, shape, (decode, resample)
+                side = shape_library.drum_decode_side
+                side.argtypes = [C.c_char_p, C.c_int64, C.c_int64, C.c_int, C.c_void_p, C.POINTER(C.c_double)]
+                side.restype = C.c_double
+                _library, _kernel, _shape, _codec = library, kernel, shape, (decode, resample, side)
             except (OSError, RuntimeError, ValueError, AttributeError, subprocess.SubprocessError) as error:
                 _error = str(error)
         return _kernel
@@ -121,7 +124,7 @@ def native_shape():
 
 
 def native_codec():
-    """(decode, resample) in C for samples.py, or None when only Python is available."""
+    """(decode, resample, side) in C for samples.py, or None when only Python is available."""
     native_kernel()
     return _codec
 

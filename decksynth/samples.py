@@ -6,6 +6,7 @@ Samples and their arrays are shared and must be treated as immutable by callers.
 """
 from array import array
 from dataclasses import dataclass, replace
+import ctypes as C
 import hashlib
 import io
 import os
@@ -73,6 +74,14 @@ class DecodedSample:
     peaks: tuple
     source_frames: int
     bits: int
+    # Stereo (27 Nov): data is the mono mid (left + right) / 2 that everything else uses; side is (left - right) / 2,
+    # so left = data + side and right = data - side. None for a mono file or one whose two channels are the same.
+    side: array = None
+    lr_peak: float = None   # the loudest left or right value of a stereo sample, for Normalize
+
+    @property
+    def stereo(self):
+        return self.side is not None
 
     @property
     def source(self):
@@ -166,6 +175,17 @@ def _decode(payload, channels, bits):
     return array('f', [value * scale for value in values])
 
 
+def _decode_side(payload, bits):
+    """The side channel of interleaved stereo PCM, the loudest left or right value and the loudest side value
+    (drum_decode_side)."""
+    values = _ints(payload, bits)
+    scale = 1.0 / (1 << ((bits if bits != 24 else 32) - 1)); half = .5 * scale
+    peak = max(max(values), -min(values)) * scale if len(values) else 0.
+    diff = [left - right for left, right in zip(values[0::2], values[1::2])]
+    wide = max(max(diff), -min(diff)) * half if diff else 0.
+    return array('f', [d * half for d in diff]), peak, wide
+
+
 def _resample(mono, source_rate, output_rate, frames):
     if source_rate == output_rate:
         return mono
@@ -192,7 +212,7 @@ def _native_codec():
 
 def _decode_native(codec, raw, start, size, channels, bits, source_rate, output_rate, frames):
     """_decode and _resample in C (drum_mix.c), with the same arithmetic and result."""
-    decode, resample = codec
+    decode, resample = codec[:2]
     count = size // (bits // 8)
     mono = array('f', bytes(4 * (count // channels)))
     decode(raw, start, count, channels, bits, mono.buffer_info()[0])
@@ -201,6 +221,19 @@ def _decode_native(codec, raw, start, size, channels, bits, source_rate, output_
     out = array('f', bytes(4 * frames))
     resample(mono.buffer_info()[0], len(mono), source_rate, output_rate, out.buffer_info()[0], frames)
     return out
+
+
+def _decode_side_native(codec, raw, start, size, bits, source_rate, output_rate, frames):
+    """_decode_side and _resample in C: (side, loudest left or right value, loudest side value)."""
+    _, resample, side_of = codec
+    count = size // (bits // 8)
+    side = array('f', bytes(4 * (count // 2))); wide = C.c_double(0.)
+    peak = side_of(raw, start, count, bits, side.buffer_info()[0], C.byref(wide))
+    if source_rate == output_rate:
+        return side, peak, wide.value
+    out = array('f', bytes(4 * frames))
+    resample(side.buffer_info()[0], len(side), source_rate, output_rate, out.buffer_info()[0], frames)
+    return out, peak, wide.value
 
 
 def peaks_of(data, start=0, end=None, count=256):
@@ -289,7 +322,7 @@ class SampleCache:
                     # A relink changes source provenance, not the shared PCM.
                     # Keep one resident buffer and return the requested path.
                     return cached if cached.path == path else replace(cached, path=path)
-                needed = frames * array('f').itemsize
+                needed = frames * array('f').itemsize * channels   # a stereo file also keeps its side channel
                 if self._bytes + needed > self.max_bytes:
                     raise ValueError('sample cache capacity exhausted')
             codec = _native_codec()
@@ -300,9 +333,21 @@ class SampleCache:
             else:
                 mono = _decode(memoryview(raw)[start:start + size], channels, bits)
                 data = _resample(mono, source_rate, self.rate, frames)
+            side = peak = None
+            if channels == 2:
+                if codec is not None and len(codec) > 2:
+                    # In C with Python's lock released, like the mid: a plugin take loading while the song plays
+                    # never holds up the audio (a Python scan of a 10 s side channel took 20 ms).
+                    side, peak, wide = _decode_side_native(codec, raw, start, size, bits, source_rate, self.rate, frames)
+                else:
+                    side, peak, wide = _decode_side(memoryview(raw)[start:start + size], bits)
+                    side = _resample(side, source_rate, self.rate, frames)
+                if not len(side) or wide == 0.:
+                    side = peak = None   # both channels the same: it plays as mono, with no extra memory
             sample = DecodedSample(sha, path, self.rate, source_rate, channels,
-                                   len(data), data, _peaks(data), source_frames, bits)
+                                   len(data), data, _peaks(data), source_frames, bits, side, peak)
+            used = len(data) * data.itemsize * (2 if side is not None else 1)
             with self._lock:
                 self._samples[sha] = sample
-                self._bytes += needed
+                self._bytes += used
             return sample

@@ -31,6 +31,9 @@ A track with device 'sampler' keeps track['sampler']:
   filter 'lp24'    a 24 dB low-pass (two 12 dB stages); the resonance is on the second
   p_env, p_decay   pitch envelope: starts p_env semitones away and settles over p_decay seconds
   mode 'grain'     every key plays a cloud of short grains from its region; the g_* keys shape it (sampler_grain.py)
+  fade_in, fade_out   seconds of the sample faded in after Start and out before End (27 Nov), on what each key
+                   plays (the trimmed sample or its slice), like the Drum Rack's fades. Not in Grain mode.
+A stereo sample plays in stereo (27 Nov): the track gets its own right channel, see Sampler.stereo.
 """
 import copy
 import ctypes as C
@@ -57,10 +60,11 @@ BUTTERWORTH_K = 1.8478   # the first stage of a 4-pole Butterworth (1/Q, Q = 0.5
 # Added with the sampler expansion; older projects get these defaults.
 OPTIONAL = dict(keymap='whole', reverse=False, normalize=False, filter='off', cutoff=2000., resonance=.2,
                 f_env=0., f_attack=0., f_decay=.3, f_velocity=0., p_env=0., p_decay=.15,
-                f_hold=0., f_sustain=0., f_release=.3, f_env_vel=0., vel_attack=0., glide_mode='legato', pan=0., **grain.DEFAULTS)
+                f_hold=0., f_sustain=0., f_release=.3, f_env_vel=0., vel_attack=0., glide_mode='legato', pan=0., fade_in=0., fade_out=0.,
+                **grain.DEFAULTS)
 OPTIONAL_RANGES = dict(cutoff=(20., 20000.), resonance=(0., 1.), f_env=(-1., 1.), f_attack=(0., 3.), f_decay=(0., 3.),
                        f_velocity=(0., 1.), p_env=(-24., 24.), p_decay=(0., 3.), f_hold=(0., 3.), f_sustain=(0., 1.), f_release=(0., 3.),
-                       f_env_vel=(0., 1.), vel_attack=(0., 1.), pan=(-1., 1.), **grain.RANGES)
+                       f_env_vel=(0., 1.), vel_attack=(0., 1.), pan=(-1., 1.), fade_in=(0., 2.), fade_out=(0., 2.), **grain.RANGES)
 EDITABLE = set(RANGES) | set(OPTIONAL) | {'root', 'mode', 'poly', 'name', 'slices'}
 MAX_SLICES = 64
 MIN_SLICE = 1e-5    # a few frames of a ten-minute sample
@@ -139,16 +143,18 @@ class Voice(C.Structure):
                 ('env', C.c_double), ('rel', C.c_double), ('gain', C.c_double), ('pmul', C.c_double),
                 ('a1', C.c_double), ('a2', C.c_double), ('a3', C.c_double), ('k', C.c_double), ('ic1', C.c_double), ('ic2', C.c_double),
                 ('b1', C.c_double), ('b2', C.c_double), ('b3', C.c_double), ('ic3', C.c_double), ('ic4', C.c_double), ('amul', C.c_double),
+                ('sc1', C.c_double), ('sc2', C.c_double), ('sc3', C.c_double), ('sc4', C.c_double),
                 ('fade_left', C.c_int64), ('fade_len', C.c_int64), ('age', C.c_int64), ('stamp', C.c_int64),
                 ('start', C.c_int64), ('end', C.c_int64), ('loop_start', C.c_int64), ('loop_end', C.c_int64), ('xfade', C.c_int64),
-                ('active', C.c_int32), ('stage', C.c_int32), ('dir', C.c_int32), ('pad', C.c_int32)]
+                ('active', C.c_int32), ('stage', C.c_int32), ('dir', C.c_int32), ('looped', C.c_int32)]
 
 
 class Params(C.Structure):
     _fields_ = [('data', C.c_void_p), ('frames', C.c_int64), ('start', C.c_int64), ('end', C.c_int64),
                 ('loop_start', C.c_int64), ('loop_end', C.c_int64), ('xfade', C.c_int64), ('edge', C.c_int64),
                 ('mode', C.c_int32), ('filter', C.c_int32),
-                ('attack', C.c_double), ('decay', C.c_double), ('sustain', C.c_double)]
+                ('attack', C.c_double), ('decay', C.c_double), ('sustain', C.c_double),
+                ('side', C.c_void_p), ('fade_in', C.c_double), ('fade_out', C.c_double)]
 
 
 class Sampler:
@@ -169,10 +175,10 @@ class Sampler:
         self.norm = 1.                 # Normalize: the gain that brings the loudest peak to full level
         self.params = Params(); self.stamp = 0; self.events = 0
         self.fade_frames = max(1, round(rate*.008))
-        self.scratch = (C.c_double * 256)()
+        self.scratch = (C.c_double * 256)(); self.scratch_r = (C.c_double * 256)()
         self._kernel = sampler_native.kernel()
         if self._kernel is not None:
-            self._kernel.argtypes = [C.POINTER(Voice), C.c_int, C.POINTER(Params), C.POINTER(C.c_double), C.c_int]
+            self._kernel.argtypes = [C.POINTER(Voice), C.c_int, C.POINTER(Params), C.POINTER(C.c_double), C.POINTER(C.c_double), C.c_int]
         # Grain mode: one cloud per voice slot, a shared pool of grains
         self.clouds = (grain.Cloud * SLOTS)(); self.grains = (grain.Grain * grain.GRAIN_POOL)(); self.gparams = grain.GrainParams()
         self.steppers = [None]*SLOTS
@@ -182,11 +188,17 @@ class Sampler:
         self._grain_kernel = sampler_native.grain_kernel()
         if self._grain_kernel is not None:
             self._grain_kernel.argtypes = [C.POINTER(Voice), C.POINTER(grain.Cloud), C.c_int, C.POINTER(Params),
-                                           C.POINTER(grain.GrainParams), C.POINTER(grain.Grain), C.POINTER(C.c_double), C.c_int]
+                                           C.POINTER(grain.GrainParams), C.POINTER(grain.Grain), C.POINTER(C.c_double),
+                                           C.POINTER(C.c_double), C.c_int]
 
     @property
     def active_count(self):
         return sum(1 for v in self.voices if v.active)
+
+    @property
+    def stereo(self):
+        """True while the sample that plays is stereo: the track then carries its own right channel."""
+        return bool(self.params.side) and self.params.data is not None
 
     @property
     def accelerated(self):
@@ -253,17 +265,21 @@ class Sampler:
         p = self.params; s = self.spec; sample = self.sample
         if s is not None and self.live is not None: return self._live_params()
         if s is None or sample is None or sample.frames < 4:
-            p.data = None; p.frames = 0; return
+            p.data = None; p.side = None; p.frames = 0; return
         n = sample.frames
         start = min(n-2, int(s['start']*n)); end = max(start+2, min(n, int(round(s['end']*n))))
         ls = min(max(start, int(s['loop_start']*n)), end-2); le = max(ls+2, min(end, int(round(s['loop_end']*n))))
         p.data = sample.data.buffer_info()[0]; p.frames = n
+        side = getattr(sample, 'side', None)
+        p.side = side.buffer_info()[0] if side is not None and len(side) == n else None
+        p.fade_in = s['fade_in']*sample.rate; p.fade_out = s['fade_out']*sample.rate
         p.start, p.end, p.loop_start, p.loop_end = start, end, ls, le
         # A short crossfade over the loop point, so a held note doesn't click; it needs audio before the loop.
         p.xfade = max(0, min(round(self.rate*.01), (le-ls)//2, ls-start))
         p.edge = max(1, round(self.rate*.001))
         p.mode = MODES.index(s['mode']); p.filter = FILTERS.index(s['filter'])
         peak = max((max(hi, -lo) for lo, hi in sample.peaks), default=0.)
+        if p.side and getattr(sample, 'lr_peak', None): peak = sample.lr_peak   # stereo: the louder of left and right
         self.norm = min(16., 1./peak) if s['normalize'] and peak > 1e-4 else 1.
         p.attack = 1./max(1., s['attack']*self.rate) if s['attack'] > 0 else 1./max(1., .001*self.rate)
         p.decay = (1.-s['sustain'])/max(1., s['decay']*self.rate) if s['decay'] > 0 else 1.
@@ -272,7 +288,7 @@ class Sampler:
 
     def _live_params(self):
         p = self.params; s = self.spec; live = self.live; n = len(live.data)
-        p.data = live.data.buffer_info()[0]; p.frames = n
+        p.data = live.data.buffer_info()[0]; p.frames = n; p.side = None; p.fade_in = p.fade_out = 0.
         p.start, p.end, p.loop_start, p.loop_end, p.xfade = 0, n, 0, n, 0
         p.edge = max(1, round(self.rate*.001)); p.mode = MODES.index(s['mode']); p.filter = FILTERS.index(s['filter'])
         self.norm = 1.
@@ -365,10 +381,10 @@ class Sampler:
         if glide_from is not None and glide_from != step:
             v.step = glide_from; v.glide = (step-glide_from)/max(1., self._e('glide')*self.rate)
         v.pmul = 1.; v.a1 = v.a2 = v.a3 = v.ic1 = v.ic2 = 0.; v.k = 2.
-        v.b1 = v.b2 = v.b3 = v.ic3 = v.ic4 = 0.
+        v.b1 = v.b2 = v.b3 = v.ic3 = v.ic4 = 0.; v.sc1 = v.sc2 = v.sc3 = v.sc4 = 0.
         # Velocity to attack: full velocity is up to 4x faster, the softest up to 4x slower; the middle keeps the knob's time.
         va = self._e('vel_attack'); v.amul = 4.**(va*(2.*velocity/127.-1.)) if va else 1.
-        v.fade_left = -1; v.fade_len = self.fade_frames; v.age = 0; v.stamp = self.stamp; v.active = 1; v.stage = 0
+        v.fade_left = -1; v.fade_len = self.fade_frames; v.age = 0; v.looped = 0; v.stamp = self.stamp; v.active = 1; v.stage = 0
         if s['mode'] == 'grain':
             v.dir = 1; grain.reset_cloud(self.clouds[i], self.stamp)
             self.roamers[i] = grain.Roamer(self.stamp*7919 + i, s.get('g_roam', 'off'))
@@ -433,23 +449,30 @@ class Sampler:
         self.notes = [None]*SLOTS; self.sustained = set(); self.latched = set(); self.last_shift = None
 
     # -- audio ----------------------------------------------------------------------------------
-    def render_into_buffer(self, buf, offset, frames):
-        """render_into for the engine's C buffer (cbus.py): the kernel's output is added in C."""
+    def render_into_buffer(self, buf, offset, frames, right=None):
+        """render_into for the engine's C buffer (cbus.py): the kernel's output is added in C.
+        right: the track's right buffer; a stereo sample adds its right channel there (else it plays its mid)."""
         if self._pending is not None: self.take_pending()
         if frames <= 0 or self.params.data is None or not any(v.active for v in self.voices): return
         from . import cbus
         if self._kernel is None or (self.grain_mode and self._grain_kernel is None):
-            part = buf[offset:offset + frames]; self.render_into(part, frames); cbus.put(buf, offset, part); return
+            part = buf[offset:offset + frames]
+            if right is not None and self.stereo:
+                rpart = right[offset:offset + frames]; self.render_into(part, frames, rpart); cbus.put(right, offset, rpart)
+            else: self.render_into(part, frames)
+            cbus.put(buf, offset, part); return
         s = self.spec or {}; base = s.get('gain', 1.); lift = self.mod.get('gain', 0.)
         g = max(0., base+lift)/base if lift and base > 1e-6 else 1.
-        c = cbus.lib(); at = 0
+        c = cbus.lib(); at = 0; two = right is not None and self.stereo
         while at < frames:
             count = min(256, frames-at)
             self._modulate()
             if self.grain_mode: self._beat = self._clock_at(at); self._roam(count)
             C.memset(self.scratch, 0, 8*count)
-            self._mix_native(count)
+            if two: C.memset(self.scratch_r, 0, 8*count)
+            self._mix_native(count, two)
             c.dsfx_buf_add(cbus.addr(buf, offset+at), C.addressof(self.scratch), count, g)
+            if two: c.dsfx_buf_add(cbus.addr(right, offset+at), C.addressof(self.scratch_r), count, g)
             at += count
 
     def _live_place(self):
@@ -498,18 +521,21 @@ class Sampler:
     def grain_mode(self):
         return self.spec is not None and self.spec['mode'] == 'grain'
 
-    def _mix_native(self, count):
+    def _mix_native(self, count, two=False):
+        right = self.scratch_r if two else None
         if self.grain_mode:
-            self._grain_kernel(self.voices, self.clouds, SLOTS, C.byref(self.params), C.byref(self.gparams), self.grains, self.scratch, count)
+            self._grain_kernel(self.voices, self.clouds, SLOTS, C.byref(self.params), C.byref(self.gparams), self.grains, self.scratch, right, count)
         else:
-            self._kernel(self.voices, SLOTS, C.byref(self.params), self.scratch, count)
+            self._kernel(self.voices, SLOTS, C.byref(self.params), self.scratch, right, count)
 
-    def render_into(self, out, frames):
-        """Add `frames` samples into the mono list `out`."""
+    def render_into(self, out, frames, right=None):
+        """Add `frames` samples into the mono list `out`, or, for a stereo sample when the list `right` is
+        given, its left channel into out and its right into right."""
         if self._pending is not None: self.take_pending()
         if frames <= 0 or self.params.data is None or not any(v.active for v in self.voices): return
         offset = 0; s = self.spec or {}; base = s.get('gain', 1.); lift = self.mod.get('gain', 0.)
         g = max(0., base+lift)/base if lift and base > 1e-6 else 1.
+        two = right is not None and self.stereo
         while offset < frames:
             count = min(256, frames-offset)
             self._modulate()
@@ -517,19 +543,27 @@ class Sampler:
             if self._kernel is not None and (self._grain_kernel is not None or not self.grain_mode):
                 scratch = self.scratch
                 C.memset(scratch, 0, 8*count)
-                self._mix_native(count)
+                if two: C.memset(self.scratch_r, 0, 8*count)
+                self._mix_native(count, two)
                 if g == 1.:
                     for i in range(count): out[offset+i] += scratch[i]
+                    if two:
+                        for i in range(count): right[offset+i] += self.scratch_r[i]
                 else:
                     for i in range(count): out[offset+i] += scratch[i]*g
+                    if two:
+                        for i in range(count): right[offset+i] += self.scratch_r[i]*g
             else:
-                part = [0.]*count
+                part = [0.]*count; rpart = [0.]*count if two else None
                 data = self.live.data if self.live is not None else self.sample.data   # Live in: grains read the input buffer
+                side = self.sample.side if two else None
                 if self.grain_mode:
-                    grain.mix_grains_python(self.voices, self.clouds, self.params, self.gparams, self.grains, data, part, count)
+                    grain.mix_grains_python(self.voices, self.clouds, self.params, self.gparams, self.grains, data, part, count, side, rpart)
                 else:
-                    mix_python(self.voices, self.params, data, part, count)
+                    mix_python(self.voices, self.params, data, part, count, side, rpart)
                 for i in range(count): out[offset+i] += part[i]*g
+                if two:
+                    for i in range(count): right[offset+i] += rpart[i]*g
             offset += count
 
     def _e(self, key):
@@ -617,7 +651,7 @@ class Sampler:
                     view=[round(view[1], 7), round(view[2], 7)] if view else [0., 1.],
                     seconds=(self.sample.frames/self.rate) if self.sample is not None else 0.,
                     playing=playing, grains=grains, steps=steps, event=self.events, voices=self.active_count, hold=self.hold, error=self.error,
-                    accelerated=self._kernel is not None,
+                    accelerated=self._kernel is not None, stereo=self.stereo,
                     native_warning=None if self._kernel is not None else sampler_native.error())
 
 
@@ -690,21 +724,58 @@ def voice_filter(v, filter, value):
     return v2 if filter == 1 else v1 if filter == 2 else value-v.k*v1-v2
 
 
-def mix_python(voices, p, data, out, frames):
-    """The C kernel, line for line (used when the native library is unavailable)."""
+def side_filter(v, filter, value):
+    """native side_filter: voice_filter on the side channel's own state (sc1..sc4)."""
+    v3 = value-v.sc2
+    v1 = v.a1*v.sc1+v.a2*v3
+    v2 = v.sc2+v.a2*v.sc1+v.a3*v3
+    v.sc1 = 2.*v1-v.sc1
+    v.sc2 = 2.*v2-v.sc2
+    if filter == 4:
+        w3 = v2-v.sc4
+        w1 = v.b1*v.sc3+v.b2*w3
+        w2 = v.sc4+v.b2*v.sc3+v.b3*w3
+        v.sc3 = 2.*w1-v.sc3
+        v.sc4 = 2.*w2-v.sc4
+        return w2
+    return v2 if filter == 1 else v1 if filter == 2 else value-v.k*v1-v2
+
+
+def _fades(p, v, pos, looping):
+    """native fades(): Fade in and Fade out on what the voice plays, in its playing direction (a loop fades in once)."""
+    g = 1.
+    if p.fade_in > 0. and not (looping and v.looped):
+        d = pos-v.start if v.dir > 0 else v.end-pos
+        if d < p.fade_in: g = d/p.fade_in if d > 0. else 0.
+    if p.fade_out > 0. and not looping:
+        d = v.end-pos if v.dir > 0 else pos-v.start+1.
+        if d < p.fade_out: g *= d/p.fade_out if d > 0. else 0.
+    return g
+
+
+def mix_python(voices, p, data, out, frames, side=None, right=None):
+    """The C kernel, line for line (used when the native library is unavailable).
+    side and right: a stereo sample's side channel and the right output (left = mid + side, right = mid - side)."""
+    stereo = side is not None and right is not None; faded = p.fade_in > 0. or p.fade_out > 0.
     for v in voices:
         if not v.active: continue
         span = v.loop_end-v.loop_start; looping = p.mode == 2 and span > 1
         pos, step, env, stage = v.pos, v.step, v.env, v.stage
         for f in range(frames):
-            value = _interp(data, p, v, pos)
+            value = _interp(data, p, v, pos); sv = _interp(side, p, v, pos) if stereo else 0.
             if looping and v.dir > 0 and v.xfade > 0 and pos >= v.loop_end-v.xfade:
                 t = (pos-(v.loop_end-v.xfade))/v.xfade
                 value = value*(1.-t)+_interp(data, p, v, pos-span)*t
+                if stereo: sv = sv*(1.-t)+_interp(side, p, v, pos-span)*t
             if not looping:
                 edge = ((v.end-pos) if v.dir > 0 else (pos-v.start+1.))/p.edge
-                if edge < 1.: value *= edge if edge > 0. else 0.
-            if p.filter > 0: value = voice_filter(v, p.filter, value)
+                if edge < 1.:
+                    e = edge if edge > 0. else 0.; value *= e; sv *= e
+            if faded:
+                fg = _fades(p, v, pos, looping); value *= fg; sv *= fg
+            if p.filter > 0:
+                value = voice_filter(v, p.filter, value)
+                if stereo: sv = side_filter(v, p.filter, sv)
             if stage == 0:
                 env += p.attack*v.amul
                 if env >= 1.: env = 1.; stage = 1
@@ -714,12 +785,13 @@ def mix_python(voices, p, data, out, frames):
             elif stage == 3:
                 env -= v.rel
                 if env <= 0.: env = 0.; v.active = 0
-            value *= env*v.gain
+            level = env*v.gain; value *= level; sv *= level
             if v.fade_left >= 0:
-                value *= v.fade_left/v.fade_len
+                k = v.fade_left/v.fade_len; value *= k; sv *= k
                 v.fade_left -= 1
                 if v.fade_left < 0: v.active = 0
-            out[f] += value
+            if stereo: out[f] += value+sv; right[f] += value-sv
+            else: out[f] += value
             if v.glide != 0.:
                 step += v.glide
                 if (v.glide > 0. and step >= v.target) or (v.glide < 0. and step <= v.target):
@@ -727,8 +799,8 @@ def mix_python(voices, p, data, out, frames):
             pos += step*v.pmul if v.dir > 0 else -(step*v.pmul); v.age += 1
             if looping:
                 if v.dir > 0:
-                    if pos >= v.loop_end: pos -= span
-                elif pos < v.loop_start: pos += span
+                    if pos >= v.loop_end: pos -= span; v.looped = 1
+                elif pos < v.loop_start: pos += span; v.looped = 1
             elif (pos >= v.end) if v.dir > 0 else (pos < v.start): v.active = 0
             if not v.active: break
         v.pos, v.step, v.env, v.stage = pos, step, env, stage

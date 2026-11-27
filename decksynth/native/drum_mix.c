@@ -205,3 +205,32 @@ void drum_resample(const float *in, int64_t count, int64_t source_rate, int64_t 
         out[i] = (float)(a + ((double)in[left + 1] - a) * ((double)fraction / (double)output_rate));
     }
 }
+
+/* drum_decode_side (27 Nov, stereo Sampler): the side channel of `count` interleaved stereo PCM values,
+ * (left - right) / 2 as float32, beside drum_decode's mid (left + right) / 2. Returns the loudest left or right
+ * value (0..1), for Normalize, and puts the loudest side value in *side_peak (0: both channels are the same).
+ * Same scaling as drum_decode. */
+double drum_decode_side(const unsigned char *pcm, int64_t offset, int64_t count, int bits, float *out, double *side_peak) {
+    const unsigned char *p = pcm + offset;
+    int width = bits / 8;
+    double scale = 1.0 / (double)((int64_t)1 << ((bits != 24 ? bits : 32) - 1));
+    double half = .5 * scale;
+    int64_t frames = count / 2, peak = 0, wide = 0;
+    for (int64_t i = 0; i < frames; i++) {
+        int64_t v[2] = {0, 0};
+        for (int c = 0; c < 2; c++) {
+            const unsigned char *b = p + (i * 2 + c) * width;
+            if (bits == 16) v[c] = (int16_t)(uint16_t)(b[0] | (b[1] << 8));
+            else if (bits == 24) v[c] = (int32_t)(((uint32_t)b[0] << 8) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 24));
+            else v[c] = (int32_t)((uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24));
+            int64_t a = v[c] < 0 ? -v[c] : v[c];
+            if (a > peak) peak = a;
+        }
+        int64_t d = v[0] - v[1];
+        if (d < 0) d = -d;
+        if (d > wide) wide = d;
+        out[i] = (float)((double)(v[0] - v[1]) * half);
+    }
+    *side_peak = (double)wide * half;
+    return (double)peak * scale;
+}

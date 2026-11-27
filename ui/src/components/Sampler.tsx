@@ -852,6 +852,7 @@ function AmpCard({ spec, id, onEdit, onLive, shown: onBig, onShow }: { spec: Sam
   const [draft, setDraft] = useState<Partial<Env>>({});
   const held = useRef(false), latest = useRef<Partial<Env>>({});
   const env: Env = { attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release };
+  const looping = spec.mode === 'loop', grains = spec.mode === 'grain';
   useEffect(() => {
     const up = () => { if (!held.current) return; held.current = false; const d = latest.current; latest.current = {}; setDraft({});
       if (Object.keys(d).length) onEdit('patch', d); };
@@ -864,15 +865,22 @@ function AmpCard({ spec, id, onEdit, onLive, shown: onBig, onShow }: { spec: Sam
       suffix={key === 'sustain' ? '%' : 's'} precision={key === 'sustain' ? 0 : 3} description={description}
       format={key === 'sustain' ? n => Math.round(n * 100) + '%' : n => n < 1 ? Math.round(n * 1000) + ' ms' : n.toFixed(2) + ' s'}
       onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
+  const fade = (key: 'fade_in' | 'fade_out', name: string, description: string) =>
+    <CommittedKnob id={id + '-' + key} defaultValue={0} name={name} value={spec[key] ?? 0} min={0} max={2} step={.001} suffix="s" precision={3}
+      description={description} format={n => n <= 0 ? 'Off' : secs(n)} onDraft={n => onLive(key, n)} onCommit={n => onEdit(key, n)} />;
   return <section className="smp-card smp-amp-card" aria-label="Amp">
     <div className="smp-card-head"><h2>Amp</h2>
       <button type="button" className="smp-card-icon" aria-label="Edit the envelope on the waveform" aria-pressed={onBig}
-        title={onBig ? 'Back to Trim' : 'Drag Attack, Decay, Sustain and Release over the sound above'} onClick={onShow}><ArrowUp size={18} /></button></div>
+        title={onBig ? 'Back to Trim' : 'Drag Attack, Decay, Sustain, Release and the fades over the sound above'} onClick={onShow}><ArrowUp size={18} /></button></div>
     <div className="smp-knobs two smp-amp-knobs">
       {knob('attack', 'Attack', 3, 'Time to full level after a key goes down')}
       {knob('decay', 'Decay', 3, 'Time to fall to the sustain level')}
       {knob('sustain', 'Sustain', 1, 'Level while the key is held')}
       {knob('release', 'Release', 3, 'Fade after the key comes up (Hold and Loop)')}
+      {fade('fade_in', 'Fade in', grains ? 'No effect in Grain mode: each grain has its own fade'
+        : 'Fades in the first part of what a key plays, after Start (or a slice\'s start)' + (looping ? '; a loop fades in once' : ''))}
+      {fade('fade_out', 'Fade out', grains ? 'No effect in Grain mode: each grain has its own fade'
+        : looping ? 'No effect while it loops: a loop never reaches End' : 'Fades out the last part of what a key plays, before End (or a slice\'s end)')}
     </div>
   </section>;
 }
@@ -1023,6 +1031,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
         : <p className="smp-pick-hint">Tip: load a kit on a Drum Rack track, and its pads show up here to play on the keys.</p>}
     </div> : <>
       {big === 'env' ? <div className="smp-drag-shell"><SamplerEnvView env={{ attack: spec.attack, decay: spec.decay, sustain: spec.sustain, release: spec.release }}
+        fades={spec.mode === 'grain' ? undefined : { fade_in: spec.fade_in ?? 0, fade_out: spec.fade_out ?? 0, looping: spec.mode === 'loop' }}
         seconds={runtime?.seconds ?? 0} region={[spec.start, spec.end]} peaks={runtime?.peaks ?? []} view={runtime?.view ?? [0, 1]} playing={runtime?.playing ?? []} reverse={!!spec.reverse} scale={scale}
         onLive={onLive} onCommit={p => onEdit('patch', p)} /></div>
       : big === 'filter' ? <div className="smp-drag-shell smp-filter-shell"><FilterView type={spec.filter ?? 'off'} cutoff={spec.cutoff ?? 2000} resonance={spec.resonance ?? .2}
@@ -1113,7 +1122,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
           <div className="smp-rack-row smp-tabs" role="radiogroup" aria-label="Edit">
             <button type="button" role="radio" className="smp-tool" style={tool('trim')} aria-label="Trim" aria-checked={big === 'wave' && mode === 'trim'} title="Trim: where the sample starts and ends, and its loop" onClick={() => toMode('trim')}><Crop size={18} /><span>Trim</span></button>
             <button type="button" role="radio" className="smp-tool" style={tool('chop')} aria-label="Chop" aria-checked={big === 'wave' && mode === 'chop'} title="Chop: cut it into slices for pads" onClick={() => toMode('chop')}><Scissors size={18} /><span>Chop</span></button>
-            <button type="button" role="radio" className="smp-tool" style={tool('env')} aria-label="Envelope" aria-checked={big === 'env'} title="Envelope: drag Attack, Decay, Sustain and Release over the sound" onClick={() => setBig('env')}><Activity size={18} /><span>Env</span></button>
+            <button type="button" role="radio" className="smp-tool" style={tool('env')} aria-label="Envelope" aria-checked={big === 'env'} title="Envelope: drag Attack, Decay, Sustain, Release and the fades over the sound" onClick={() => setBig('env')}><Activity size={18} /><span>Env</span></button>
             <button type="button" role="radio" className="smp-tool" style={tool('filter')} aria-label="Filter" aria-checked={big === 'filter'} title="Filter: drag the cutoff and resonance" onClick={() => setBig('filter')}><SlidersHorizontal size={18} /><span>Filter</span></button>
             {spec.mode === 'grain' ? <button type="button" role="radio" className="smp-tool" style={tool('grain')} aria-label="Grain" aria-checked={big === 'grain'}
               title="Grain: Position on the waveform, the grains as they sound, and the Grain card" onClick={() => setBig('grain')}><Sparkles size={18} /><span>Grain</span></button> : null}
@@ -1130,6 +1139,7 @@ export function SamplerPage({ track, trackIndex, runtime, record, pads, tracks, 
             {big === 'env' ? <ScaleSwap scale={scale} onChange={setScale} /> : null}
             <strong className={'drum-status status-' + status.toLowerCase()}><i aria-hidden="true" />{status}</strong>
             {big !== 'env' && runtime?.seconds ? <span className="smp-rack-len">{fmtS(runtime.seconds)}</span> : null}
+            {big !== 'env' && runtime?.stereo ? <span className="smp-rack-stereo" title="A stereo sample: it plays in stereo">Stereo</span> : null}
           </div></div>
           {chopShown ? <ChopOut spec={spec} runtime={runtime} selected={sel} onSend={() => setSending(s => !s)} /> : null}
         </div>

@@ -179,7 +179,8 @@ def render_shape(sample, shape, rate, step=1., native=True):
         out = segment
     else:
         out = array('f', _shape_python(list(segment), p))
-    return replace(sample, data=out, frames=len(out))
+    mono = dict(side=None, lr_peak=None) if getattr(sample, 'side', None) is not None else {}   # pads shape a mono copy
+    return replace(sample, data=out, frames=len(out), **mono)
 
 
 class PadShaper:

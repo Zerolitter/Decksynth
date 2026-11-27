@@ -462,6 +462,7 @@
 .sampler-page .smp-rack-display .status-loading i{background:var(--t-double)}
 .sampler-page .smp-rack-display :is(.status-missing,.status-error) i{background:#ff6b6b}
 .sampler-page .smp-rack-len{text-align:center;font:700 15px/1 ui-monospace,'DejaVu Sans Mono',monospace;color:#f1c27d;letter-spacing:.02em}
+.sampler-page .smp-rack-stereo{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ui-text-3)}
 .sampler-page .smp-rack-display .smp-scale-swap{border-color:var(--ui-line);background:var(--ui-well)}
 .sampler-page .smp-side>.smp-amp-card{gap:2px}
 .sampler-page .smp-side .smp-amp-knobs{margin:auto 0}

@@ -2015,7 +2015,12 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 self.drums[tr].render_into_buffers(left,right,pos,count)
             elif kind=='sampler':
                 smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(getattr(self,'_block_start',0)+pos)/self.fpb if self.playing else None
-                smp.render_into_buffer(left,pos,count)
+                if drum_right[tr] is not None:
+                    # A stereo sample: the track carries its own right channel, like a Drum Rack.
+                    ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)
+                    smp.render_into_buffer(left,pos,count,right)
+                    if not smp.stereo:ctypes.memmove(cbus.addr(right,pos),cbus.addr(left,pos),8*count)  # it turned mono in this block
+                else:smp.render_into_buffer(left,pos,count)
     def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on,external=None,external_at=0):
         """FX, sends, mix and master for a block whose audio is in C buffers (the C twin of the Python mix in
         _render_bus, same order and arithmetic). Returns the interleaved block, or None when the master stage
@@ -2177,7 +2182,10 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 bufs=self._cbufs=getattr(self,'_cbufs',None) or cbus.TrackBuffers();bufs.ensure(len(self.synths))
             track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
             # Drum Rack tracks carry their own right channel (per-pad pan); synth tracks stay mono into the FX.
-            drum_right=[[] if stereo and device_kind(t) in ('drum_rack','plugin') else None for t in self.project.tracks]
+            # A Sampler playing a stereo sample does too (27 Nov).
+            drum_right=[[] if stereo and (device_kind(t) in ('drum_rack','plugin') or
+                                          (device_kind(t)=='sampler' and tr<len(self.samplers) and self.samplers[tr].stereo)) else None
+                        for tr,t in enumerate(self.project.tracks)]
             # A live VST's block is this Plugin track's audio (sliced per event below), never a separate mix input.
             self._ext=external_stereo;self._ext_at=external_at
             for pos,nextpos in zip(offsets,offsets[1:]):
@@ -2232,7 +2240,11 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                             rpart=list(part);self.drums[tr].render_into(part,count,rpart);drum_right[tr].extend(rpart)
                         else:self.drums[tr].render_into(part,count)
                     elif device_kind(self.project.tracks[tr])=='sampler':
-                        smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(start+pos)/self.fpb if self.playing else None;smp.render_into(part,count)
+                        smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(start+pos)/self.fpb if self.playing else None
+                        if drum_right[tr] is not None:
+                            rpart=list(part);smp.render_into(part,count,rpart)
+                            drum_right[tr].extend(rpart if smp.stereo else part)
+                        else:smp.render_into(part,count)
                     buf.extend(part)
                 if self.click_age>=self.rate*.025:click.extend([None]*count)  # metronome silent: no per-sample work
                 else:

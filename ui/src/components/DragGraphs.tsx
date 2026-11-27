@@ -227,9 +227,12 @@ function useLive(onLive: (k: string, v: number) => void, onCommit: (p: Record<st
   };
 }
 
-/** The Sampler's amp envelope over its sound: Attack, Decay (with the sustain level) and Release to drag. */
-export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], playing = [], reverse = false, scale: scaleProp, onLive, onCommit }: {
+/** The Sampler's amp envelope over its sound: Attack, Decay (with the sustain level) and Release to drag, and (27 Nov)
+ *  Fade in and Fade out on the sound's middle line at the start and end of what plays, like the Drum Rack's. */
+export function SamplerEnvView({ env, fades, seconds, region, peaks, view = [0, 1], playing = [], reverse = false, scale: scaleProp, onLive, onCommit }: {
   env: { attack: number; decay: number; sustain: number; release: number }; seconds: number; region: [number, number]; peaks: number[][];
+  /** the fades (seconds of the sample); left out in Grain mode. A loop never reaches End, so it has no Fade out point. */
+  fades?: { fade_in: number; fade_out: number; looping: boolean };
   /** the part of the sample (0..1) the peaks cover */ view?: number[];
   /** where the sounding voices are, 0..1 of the sample */ playing?: number[]; reverse?: boolean;
   /** the time scale, when the tool rack holds its switch (Whole : Env) */ scale?: 'sound' | 'env';
@@ -237,6 +240,9 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
   const d = useLive(onLive, onCommit);
   const e = { ...env, ...d.draft };
   const span = Math.max(1e-4, (region[1] - region[0]) * seconds);
+  const fadeIn = fades ? Math.min(span, Math.max(0, d.draft.fade_in ?? fades.fade_in)) : 0;
+  const fadeOut = fades && !fades.looping ? Math.min(span, Math.max(0, d.draft.fade_out ?? fades.fade_out)) : 0;
+  const fadeGain = (t: number) => (fadeIn > 0 && t < fadeIn ? t / fadeIn : 1) * (fadeOut > 0 && t > span - fadeOut ? Math.max(0, span - t) / fadeOut : 1);
   // Sound: the whole sample with the key held until near its end (like the Drum Rack). Envelope: zoomed in on the ADSR times.
   const [ownScale, setScale] = useState<'sound' | 'env'>('sound');
   const scale = scaleProp ?? ownScale;
@@ -263,7 +269,7 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
   };
   const top: string[] = [], bottom: string[] = [], line: string[] = [], htop: string[] = [], hbottom: string[] = [];
   for (let i = 0; i <= N; i++) {
-    const t = T * i / N, a = Math.min(1, amp(t)) * .4 * H, x = (i / N * W).toFixed(1), h = a * level(t);
+    const t = T * i / N, a = Math.min(1, amp(t)) * .4 * H, x = (i / N * W).toFixed(1), h = a * level(t) * fadeGain(t);
     top.push(x + ' ' + (H / 2 - a).toFixed(1)); bottom.unshift(x + ' ' + (H / 2 + a).toFixed(1));
     htop.push(x + ' ' + (H / 2 - h).toFixed(1)); hbottom.unshift(x + ' ' + (H / 2 + h).toFixed(1));
     line.push(x + ' ' + (LEVEL_Y(level(t)) * H).toFixed(1));
@@ -273,6 +279,9 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
     { key: 'decay', label: 'Decay · Sustain', x: (e.attack + e.decay) / T, y: LEVEL_Y(e.sustain), axis: 'xy', text: msText(e.decay) + ', sustain ' + Math.round(e.sustain * 100) + '%' },
     { key: 'release', label: 'Release', x: (keyUp + e.release) / T, y: LEVEL_Y(0), axis: 'x', text: msText(e.release) },
   ];
+  if (fades) handles.push({ key: 'fade_in', label: 'Fade in', x: fadeIn / T, y: .5, axis: 'x', text: fadeIn > 0 ? msText(fadeIn) : 'off' });
+  if (fades && !fades.looping && span <= T) handles.push({ key: 'fade_out', label: 'Fade out', x: (span - fadeOut) / T, y: .5, axis: 'x', text: fadeOut > 0 ? msText(fadeOut) : 'off' });
+  const fade = (v: number) => { const c = clamp(v, 0, Math.min(2, span)); return c < .002 ? 0 : Math.round(c * 1000) / 1000; };
   const r3 = (v: number) => Math.round(clamp(v, 0, 3) * 1000) / 1000;
   const move = (key: string, x: number, y: number) => {
     if (frozen === null) setFrozen(T);
@@ -280,12 +289,14 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
     if (key === 'attack') d.move({ attack: r3(t) });
     if (key === 'decay') d.move({ decay: r3(t - e.attack), sustain: Math.round(clamp((.9 - y) / .8) * 100) / 100 });
     if (key === 'release') d.move({ release: r3(t - keyUp) });
+    if (key === 'fade_in') d.move({ fade_in: fade(t) });
+    if (key === 'fade_out') d.move({ fade_out: fade(span - t) });
   };
   const ticks = [0, .25, .5, .75, 1];
   return <div className="drag-graph drag-envelope smp-drag">
-    <DragBox label="Amp envelope: drag Attack, Decay and Release" handles={handles} onMove={move}
+    <DragBox label={fades ? 'Amp envelope: drag Attack, Decay, Release and the fades' : 'Amp envelope: drag Attack, Decay and Release'} handles={handles} onMove={move}
       onDone={() => { d.done(); setFrozen(null); }}
-      onReset={key => onCommit(key === 'decay' ? { decay: 0, sustain: 1 } : key === 'release' ? { release: .25 } : { attack: 0 })}>
+      onReset={key => onCommit(key === 'decay' ? { decay: 0, sustain: 1 } : key === 'release' ? { release: .25 } : key === 'fade_in' || key === 'fade_out' ? { [key]: 0 } : { attack: 0 })}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
         {[1, .5, .25].map(l => <line key={l} className="grid" x1={0} x2={W} y1={LEVEL_Y(l) * H} y2={LEVEL_Y(l) * H} />)}
         <line className="grid zero" x1={0} x2={W} y1={H / 2} y2={H / 2} />
@@ -293,6 +304,10 @@ export function SamplerEnvView({ env, seconds, region, peaks, view = [0, 1], pla
         <path className="wave-heard" d={'M' + htop.join('L') + 'L' + hbottom.join('L') + 'Z'} />
         <path className="env-fill" d={'M0 ' + LEVEL_Y(0) * H + 'L' + line.join('L') + 'L' + W + ' ' + LEVEL_Y(0) * H + 'Z'} />
         <path className="env-line" d={'M' + line.join('L')} vectorEffect="non-scaling-stroke" />
+        {fadeIn > 0 ? <><path className="fade-zone" d={`M0 0L${fadeIn / T * W} 0L0 ${H}Z`} />
+          <line className="fade-line" x1={0} y1={H} x2={fadeIn / T * W} y2={0} vectorEffect="non-scaling-stroke" /></> : null}
+        {fadeOut > 0 && span <= T ? <><path className="fade-zone" d={`M${(span - fadeOut) / T * W} 0L${span / T * W} 0L${span / T * W} ${H}Z`} />
+          <line className="fade-line" x1={(span - fadeOut) / T * W} y1={0} x2={span / T * W} y2={H} vectorEffect="non-scaling-stroke" /></> : null}
         <line className="grid end" x1={keyUp / T * W} x2={keyUp / T * W} y1={0} y2={H} />
         {span < T ? <line className="grid end" x1={span / T * W} x2={span / T * W} y1={0} y2={H} /> : null}
         {heads.map((h, i) => <line key={i} className="playhead" x1={h / T * W} x2={h / T * W} y1={0} y2={H} vectorEffect="non-scaling-stroke" />)}

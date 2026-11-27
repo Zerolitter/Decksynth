@@ -194,9 +194,10 @@ def _spawn(v, c, g, grains, slot, at):
     return gap
 
 
-def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
-    """sampler_grain_mix, line for line."""
-    from .sampler import _interp, voice_filter
+def mix_grains_python(voices, clouds, p, g, grains, data, out, frames, side=None, right=None):
+    """sampler_grain_mix, line for line. side and right: a stereo sample's side channel and the right output."""
+    from .sampler import _interp, voice_filter, side_filter
+    stereo = side is not None and right is not None
     window = TABLES_BY_ADDRESS[g.window]
     for slot, v in enumerate(voices):
         if not v.active: continue
@@ -210,7 +211,7 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
         while offset >= zone: offset -= zone
         while offset < 0.: offset += zone
         c.offset = offset
-        buf = [0.]*frames
+        buf = [0.]*frames; sbuf = [0.]*frames if stereo else None
         for gr in grains[:g.grains]:
             if not gr.active or gr.voice != slot: continue
             pos, wpos, left = gr.pos, gr.wpos, gr.left
@@ -219,12 +220,15 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
                 w = int(wpos); frac = wpos - w
                 shape = window[w] + (window[w + 1] - window[w])*frac
                 buf[f] += _interp(data, p, v, pos)*shape*gr.amp
+                if stereo: sbuf[f] += _interp(side, p, v, pos)*shape*gr.amp
                 pos += gr.step; wpos += gr.winc; left -= 1; f += 1
             gr.pos, gr.wpos, gr.left, gr.delay = pos, wpos, left, 0
             if left <= 0: gr.active = 0
         for f in range(frames):
-            value = buf[f]
-            if p.filter > 0: value = voice_filter(v, p.filter, value)
+            value = buf[f]; sv = sbuf[f] if stereo else 0.
+            if p.filter > 0:
+                value = voice_filter(v, p.filter, value)
+                if stereo: sv = side_filter(v, p.filter, sv)
             if v.stage == 0:
                 v.env += p.attack*v.amul
                 if v.env >= 1.: v.env = 1.; v.stage = 1
@@ -234,12 +238,13 @@ def mix_grains_python(voices, clouds, p, g, grains, data, out, frames):
             elif v.stage == 3:
                 v.env -= v.rel
                 if v.env <= 0.: v.env = 0.; v.active = 0
-            value *= v.env*v.gain
+            level = v.env*v.gain; value *= level; sv *= level
             if v.fade_left >= 0:
-                value *= float(v.fade_left)/float(v.fade_len)
+                k = float(v.fade_left)/float(v.fade_len); value *= k; sv *= k
                 v.fade_left -= 1
                 if v.fade_left < 0: v.active = 0
-            out[f] += value
+            if stereo: out[f] += value + sv; right[f] += value - sv
+            else: out[f] += value
             if v.glide != 0.:
                 v.step += v.glide
                 if (v.glide > 0. and v.step >= v.target) or (v.glide < 0. and v.step <= v.target):
