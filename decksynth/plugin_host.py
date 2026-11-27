@@ -29,6 +29,7 @@ DEV_VST3_HOST = Path(__file__).parent.parent / '.tools' / 'vst3-host-bin' / 'dec
 MAX_PLUGINS = 400
 MAX_DEPTH = 4
 LOAD_TIMEOUT = 20.
+WARMUP = 3.                                        # seconds after Live starts in which a late helper is not a fault
 MAX_LIVE_EVENTS = 512                              # the helpers' limit per block
 ALL_NOTES_OFF = b'\xb0\x7b\x00'                     # MIDI CC 123, channel 1
 NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
@@ -109,7 +110,7 @@ class PluginHost:
         self.plugins = []; self.vst2 = 0; self.scanning = False; self.scanned = False
         self.loaded = None; self.busy = None; self.editor = False; self.load_deadline = None
         self.setup = None                              # a running set up: dict(proc, progress)
-        self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=8); self.live_seq = 0; self.live_reply_seq = 0; self.live_delay_blocks = 0; self.live_fault = None; self.live_reset = False
+        self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=8); self.live_seq = 0; self.live_reply_seq = 0; self.live_delay_blocks = 0; self.live_fault = None; self.live_reset = False; self.live_warm_until = 0.
         self.revision = 0; self._scan_result = None
         self._listen = None; self.listening = None
         self.backend = None
@@ -310,6 +311,9 @@ class PluginHost:
         if not self.loaded: raise ValueError('Load a plugin first')
         if enabled and self.loaded.get('kind')!='instrument': raise ValueError('Live mode is for instrument plugins')
         self.loaded['live'] = bool(enabled); self.live_fault = None
+        # A Windows plugin can take a moment after Live starts (Wine warming up): for WARMUP seconds a late helper
+        # skips blocks instead of counting as fallen behind.
+        self.live_warm_until = time.monotonic() + WARMUP if enabled else 0.
         # Notes held while Live was off (or before it fell behind) would hang in the plugin: release them first.
         self.live_reset = bool(enabled)
         self._send('live_enable' if enabled else 'live_disable', rate=self.rate)
@@ -319,7 +323,9 @@ class PluginHost:
         if not self.loaded or not self.loaded.get('live') or self.live_socket is None: return
         # live_blocks is not an in-flight counter (pull_live() may already have mixed a reply); the reader's
         # acknowledged sequence is. More than four blocks without a reply: the renderer cannot keep up.
-        if self.live_seq - self.live_reply_seq > 4: self._live_failed('Live renderer fell behind'); return
+        if self.live_seq - self.live_reply_seq > 4:
+            if time.monotonic() < self.live_warm_until: return
+            self._live_failed('Live renderer fell behind'); return
         if self.live_reset: events = [(0, ALL_NOTES_OFF)] + list(events); self.live_reset = False
         events = events[:MAX_LIVE_EVENTS]
         body = b''.join(struct.pack('<H3s', int(at), msg) for at, msg in events)

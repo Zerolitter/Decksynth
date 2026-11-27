@@ -1767,6 +1767,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             notes=sorted(set(notes))
         state=self.project.performance; channel=state['scale']['input_channel']
         if channel and ch!=channel-1:return
+        if kind in (0xa0,0xb0,0xd0,0xe0) and self.live_midi_out and self.selected==self.plugin_track:
+            # Pitch, mod, aftertouch and sustain go to a Plugin track's plugin as they are.
+            self._record_live_midi(kind,note,value)
         if kind==0x90 and value:
             for k in list(self.pending):
                 if k[:2]==key:self.close_note(k)

@@ -9,13 +9,16 @@ import { deckStore, useDeck } from '../deck-store';
 import { useFrame } from '../frame-clock';
 import { CommittedKnob } from './DrumRack';
 import { ValueBox } from './ValueBox';
-import { noteName, PluginSetup, usePlugins } from './PluginHost';
-import type { PluginParam, PluginStatus, PluginTake, PluginTrackStatus, Track } from '../types';
+import { TouchKeys } from './Performance';
+import { PluginSetup, usePlugins } from './PluginHost';
+import { noteName, type PluginParam, type PluginStatus, type PluginTake, type PluginTrackStatus, type Track } from '../types';
 
 type Send = (cmd: string, args?: unknown) => void;
-const BLACK = new Set([1, 3, 6, 8, 10]);
 const QUICK = 8;
 const RING = 1024;                                   // live blocks kept for the Output wave (5.5 s at 48 kHz)
+/** A plugin's own value text, without the long tails some hosts give it: "0.7520000" → "0.752", "-12.000000 st" → "-12 st". */
+export const tidy = (text: string) => text.replace(/-?\d+\.\d+/g, m => { const v = Number(m), a = Math.abs(v);
+  return String(Number(v.toFixed(a >= 100 ? 1 : a >= 10 ? 2 : 3))); });
 const dB = (v: number) => v < .00003 ? '−∞' : (20 * Math.log10(v)).toFixed(1);
 
 function usePluginTrack(): PluginTrackStatus | null {
@@ -36,6 +39,7 @@ deckStore.subscribe(() => {
 function Output({ name, bpm, live }: { name: string; bpm: number; live: boolean }) {
   const wave = useRef<HTMLCanvasElement>(null), meter = useRef<HTMLCanvasElement>(null), lamp = useRef<HTMLSpanElement>(null), peak = useRef<HTMLElement>(null);
   const bpmRef = useRef(bpm); bpmRef.current = bpm;
+  useEffect(() => { if (!live) { ring.l.fill(0); ring.r.fill(0); ring.hold = [0, 0]; } }, [live]);   // no stale wave under "not playing"
   useFrame(() => {
     const c = wave.current, m = meter.current; if (!c || !m) return;
     const css = getComputedStyle(c), left = css.getPropertyValue('--c-plugin').trim(), right = css.getPropertyValue('--c-plugin-r').trim();
@@ -83,39 +87,16 @@ function Output({ name, bpm, live }: { name: string; bpm: number; live: boolean 
   </section>;
 }
 
-/** The keys: two and a half octaves that play the plugin (through this track, so Perform, the arp and REC hear them). */
+/** The keys: Perform's own keyboard, with its Pitch, Mod and AT strips, played through this track (so Perform,
+ *  the arp and REC hear them, and the strips reach the plugin). Three octaves from `base`. */
+const NO_NOTES: number[] = [], NONE = new Set<number>();
 function Keys({ onMidi, base, setBase }: { onMidi: (s: number, a: number, b: number) => void; base: number; setBase: (n: number) => void }) {
-  const keys = Array.from({ length: 30 }, (_, i) => base + i), whites = keys.filter(n => !BLACK.has(n % 12));
-  const pointers = useRef(new Map<number, number>()), send = useRef(onMidi); send.current = onMidi;
-  const [down, setDown] = useState<number[]>([]);
-  const sync = () => setDown([...new Set(pointers.current.values())]);
-  const noteAt = (x: number, y: number) => { const n = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>('[data-note]')?.dataset.note; return n === undefined ? null : Number(n); };
-  const velocity = (y: number, el: Element | null) => { if (!el) return 100; const r = el.getBoundingClientRect(); return Math.max(1, Math.min(127, Math.round(40 + 87 * ((y - r.top) / Math.max(1, r.height))))); };
-  const press = (id: number, note: number, vel: number) => {
-    const old = pointers.current.get(id); if (old === note) return;
-    if (old !== undefined && ![...pointers.current.entries()].some(([k, n]) => k !== id && n === old)) send.current(0x80, old, 0);
-    pointers.current.set(id, note); send.current(0x90, note, vel); sync();
-  };
-  const release = (id: number) => { const old = pointers.current.get(id); pointers.current.delete(id);
-    if (old !== undefined && ![...pointers.current.values()].includes(old)) send.current(0x80, old, 0); sync(); };
-  useEffect(() => () => { for (const id of [...pointers.current.keys()]) release(id); }, [base]); // eslint-disable-line react-hooks/exhaustive-deps
   return <section className="pt-keys-card" aria-label="Keys">
     <header><b>Keys</b><span>play the plugin</span><i />
       <div className="pt-oct"><button type="button" aria-label="Octave down" disabled={base <= 12} onClick={() => setBase(base - 12)}>−</button>
-        <span>{noteName(base)}–{noteName(base + 29)}</span>
+        <span>{noteName(base)}–{noteName(base + 36)}</span>
         <button type="button" aria-label="Octave up" disabled={base >= 84} onClick={() => setBase(base + 12)}>+</button></div></header>
-    <div className="pt-keys" role="group" aria-label="Plugin keyboard"
-      onPointerDown={e => { if (e.button !== 0) return; const n = noteAt(e.clientX, e.clientY); if (n === null) return;
-        e.currentTarget.setPointerCapture(e.pointerId); press(e.pointerId, n, velocity(e.clientY, (e.target as HTMLElement).closest('[data-note]'))); }}
-      onPointerMove={e => { if (!pointers.current.has(e.pointerId)) return; const n = noteAt(e.clientX, e.clientY);
-        if (n !== null) press(e.pointerId, n, velocity(e.clientY, (e.target as HTMLElement).closest('[data-note]'))); }}
-      onPointerUp={e => release(e.pointerId)} onPointerCancel={e => release(e.pointerId)} onLostPointerCapture={e => release(e.pointerId)}
-      onContextMenu={e => e.preventDefault()}>
-      {whites.map(n => <span key={n} data-note={n} className={'pt-white' + (down.includes(n) ? ' down' : '')}>{n % 12 === 0 ? <em>{noteName(n)}</em> : null}</span>)}
-      {keys.filter(n => BLACK.has(n % 12)).map(n => { const left = whites.filter(w => w < n).length;
-        return <span key={n} data-note={n} className={'pt-black' + (down.includes(n) ? ' down' : '')}
-          style={{ left: 'calc(' + (left / whites.length * 100) + '% - ' + (100 / whites.length * .31) + '%)', width: (100 / whites.length * .62) + '%' }} />; })}
-    </div>
+    <TouchKeys id="plugin-keys" base={base} keyCount={37} held={NO_NOTES} sounding={NONE} channel={0} onMidi={onMidi} chord={null} scale={null} />
   </section>;
 }
 
@@ -128,7 +109,7 @@ function QuickKnob({ track, slot, q, value, send, onPick, learning }: { track: n
   const raw = value?.[0] ?? 0, text = value?.[1] ?? '';
   return <div className={'pt-qk' + (learning ? ' learning' : '')}>
     <CommittedKnob id={'plug-' + track + '-q' + slot} name={q.name} value={raw} min={0} max={1} step={.001} description={q.name + ' in the plugin'}
-      format={n => text && Math.abs(n - raw) < .0005 ? text : Math.round(n * 100) + ' %'}
+      format={n => text && Math.abs(n - raw) < .0005 ? tidy(text) : Math.round(n * 100) + ' %'}
       onDraft={n => { const now = performance.now(); if (now - last.current > 40) { last.current = now; send('plugin', ['set', q.i, n]); } }}
       onCommit={n => send('plugin', ['set', q.i, n])} />
   </div>;
@@ -169,7 +150,7 @@ function QuickSheet({ track, spec, status, send, slot, setSlot, learning, onClos
       </div>
       {hits.length ? <div className="pt-params">{hits.slice(0, SHOWN).map(p => <button key={p.i} type="button" aria-pressed={q?.i === p.i}
           onClick={() => send('plugin_track', ['quick', track, slot, p.i, p.name])}>
-          {p.name}<small>{p.text ? p.text + (p.label && !p.text.endsWith(p.label) ? ' ' + p.label : '') : Math.round(p.raw * 100) + ' %'}</small></button>)}</div>
+          {p.name}<small>{p.text ? tidy(p.text) + (p.label && !p.text.endsWith(p.label) ? ' ' + p.label : '') : Math.round(p.raw * 100) + ' %'}</small></button>)}</div>
         : <p>{params.length ? 'No parameter matches “' + find + '”.' : 'This plugin shows no parameters to the host: use Learn, or its own window.'}</p>}
       {hits.length > SHOWN ? <p>Showing {SHOWN} of {paged ? total : hits.length}: type more of a name to narrow them.</p> : null}
     </div>
@@ -313,7 +294,8 @@ export function PluginTrackPage({ track, trackIndex, bpm, bars, send, onMidi }: 
   return <div className="pt-page" style={{ ['--pad-accent' as string]: 'var(--c-plugin)' }}>
     <div className="pt-top">
       <section className="pt-rack" aria-label="Plugin tools">
-        <div className="pt-display"><b title={spec.path}>{spec.name}</b><span className={live ? 'ok' : l?.live_fault || (!here && status?.error) ? 'bad' : ''}>{live ? '● ' : ''}{words}</span></div>
+        <div className="pt-display"><b title={spec.path}>{spec.name}</b><span className={live ? 'ok' : l?.live_fault || (!here && status?.error) ? 'bad' : ''}>{live ? '● ' : ''}{words}</span>
+          {here && !live && l?.live_fault ? <button type="button" className="pt-again" onClick={() => send('plugin_track', ['activate', trackIndex])}><RefreshCw size={16} />Start again</button> : null}</div>
         <div className="pt-tools">
           <button type="button" className={'pt-tool win' + (here && l?.editor ? ' on' : '')} aria-pressed={here && !!l?.editor} disabled={!here || !!status?.busy}
             onClick={() => send('plugin', [l?.editor ? 'editor_close' : 'editor'])}><AppWindow size={24} />{l?.editor && here ? 'Close window' : 'Window'}</button>

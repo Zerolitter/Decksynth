@@ -133,6 +133,13 @@ class LiveTransport(unittest.TestCase):
         self.host.send_live([])
         self.assertEqual(self.packet(), (1, 256, []))
 
+    def test_a_renderer_warming_up_skips_blocks_instead_of_failing(self):
+        import time
+        self.host.live_warm_until = time.monotonic() + 60
+        for _ in range(8): self.host.send_live([])
+        self.assertTrue(self.host.loaded['live']); self.assertIsNone(self.host.live_fault)
+        self.assertEqual(self.host.live_seq, 5)                 # five blocks went out; the rest waited for the helper
+
     def test_a_renderer_that_stops_answering_turns_live_off_with_a_reason(self):
         revision = self.host.revision
         for _ in range(6): self.host.send_live([])
