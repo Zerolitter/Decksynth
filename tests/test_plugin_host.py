@@ -28,6 +28,30 @@ except ImportError:
 R = 48000
 
 
+class LiveEngine(unittest.TestCase):
+    """The live VST bridge needs note timing and a pre-master stereo inlet."""
+
+    def test_drain_live_midi_keeps_original_note_offsets(self):
+        engine = Engine(R)
+        engine.voice_on(0, 60, 100, ('test', 'on'))
+        engine.absolute_frame = 17
+        engine.voice_off(0, 60, ('test', 'on'))
+        self.assertEqual(engine.drain_live_midi(0, 64), [
+            (0, b'\x90\x3c\x64'),
+            (17, b'\x80\x3c\x00'),
+        ])
+
+    def test_external_stereo_is_audible_without_changing_block_size(self):
+        engine = Engine(R)
+        engine.master_enabled = False
+        dry = engine.render_stereo(256)
+        engine = Engine(R)
+        engine.master_enabled = False
+        wet = engine.render_stereo(256, external_stereo=[.25, .5] * 256)
+        self.assertEqual((len(dry), len(wet)), (512, 512))
+        self.assertEqual(wet[:8], [.25, .5] * 4)
+
+
 def bundle(root, *parts, windows=False):
     path = Path(root, *parts); (path / 'Contents' / 'x86_64-linux').mkdir(parents=True)
     if windows: (path / 'Contents' / 'x86_64-win').mkdir()

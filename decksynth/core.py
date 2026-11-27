@@ -810,7 +810,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.lead_from=None; self.last_chord=None; self.chord_step=0; self.chord_now=-1
         self.explicit_keys=set(); self.pad_keys=set(); self.live_velocity={}
         self.chord_loops={}; self.chord_phrase_frame=0; self.chord_key_frame=-10**9
-        self.scheduled_live=[]; self.absolute_frame=0
+        self.scheduled_live=[]; self.absolute_frame=0; self._live_midi=deque(maxlen=4096)
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
@@ -1323,6 +1323,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 for n in clip:
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
+        self._record_live_midi(bytes((0x90, int(note), int(velocity))))
         if device_kind(self.project.tracks[track])=='sampler':
             empty=not any(v.active for v in self.samplers[track].voices)
             hit=False if self.project.tracks[track]['mute'] else self.samplers[track].on(note,velocity,token)
@@ -1389,7 +1390,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         for fx in self.fx:fx.clear_gate_events()
         for keys in self.drum_gate_keys:keys.clear()
         self.drum_keys.clear(); self.freeze_ring.clear()
-        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear()
+        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear(); self._live_midi.clear()
     def close_generated(self,prefix):
         """End the REC notes the arp/sequencer was playing when it is cut short (keys let go, arp or step
         changed): their note-off never comes, so they would stay open and be closed far too long."""
@@ -1942,8 +1943,19 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.drum_keys.clear()
         for fx in self.fx:fx.clear_gate_events(reset_origin=False)
         for keys in self.drum_gate_keys:keys.clear()
+    def _record_live_midi(self,message):
+        self._live_midi.append((self.absolute_frame if self._event_frame is None else self._event_frame,message))
+    def drain_live_midi(self,start_frame,frames):
+        end=start_frame+frames;out=[];later=deque(maxlen=self._live_midi.maxlen)
+        while self._live_midi:
+            frame,message=self._live_midi.popleft()
+            if start_frame<=frame<end:out.append((frame-start_frame,message))
+            elif frame>=end:later.append((frame,message))
+        self._live_midi=later;return out
     def render(self,frames):return self._render_bus(frames,False)
-    def render_stereo(self,frames):return self._render_bus(frames,True)
+    def render_stereo(self,frames,external_stereo=None):
+        if external_stereo is not None and len(external_stereo)!=frames*2:raise ValueError('External stereo block has the wrong length')
+        return self._render_bus(frames,True,external_stereo)
     def export_wav(self,path,seconds=None):
         from .render_export import export_wav
         return export_wav(self,path,seconds)
@@ -2033,8 +2045,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             for j,v in enumerate(click):
                 k=v*.25 if v is not None else 0.;mix[j]=mix[j]+k;mix_r[j]=mix_r[j]+k
         return bufs.master(master,n)
-    def _render_bus(self,frames,stereo):
-        result=[]; remaining=frames
+    def _render_bus(self,frames,stereo,external_stereo=None):
+        result=[]; remaining=frames; external_at=0
         while remaining:
             n=self.automation_block(min(remaining,128))
             if self.recording:n=min(n,max(1,self.record_end-self.frame))
@@ -2258,6 +2270,10 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         for bus,a in feeds:
                             bl=bus_in[bus][0]
                             for j,v in enumerate(audio):bl[j]+=v*vol*a
+            if external_stereo is not None:
+                for j in range(n):
+                    mix[j]+=external_stereo[2*(external_at+j)]
+                    right[j]+=external_stereo[2*(external_at+j)+1]
             # Standalone dry sample audition uses the real native audio clock.
             # It never alters a pad, SONG notes, the FX chain, or playback state.
             if not use_c:
@@ -2303,6 +2319,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             if self.playing:self.frame+=n
             self.absolute_frame+=n
             self._event_frame=None
+            external_at+=n
             if self.recording and self.frame>=self.record_end:self.finish_record()
             if self.count_end is not None and self.absolute_frame>=self.count_end:self._count_done()
             remaining-=n

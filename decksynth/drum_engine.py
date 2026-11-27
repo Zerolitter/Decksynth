@@ -244,6 +244,7 @@ class DrumEngine:
         return True  # Pitch, sustain and scale/chord transforms do not affect one-shots.
 
     def voice_off(self, track, note, token=None):
+        self._record_live_midi(bytes((0x80, int(note), 0)))
         kind = device_kind(self.project.tracks[track])
         if kind == 'drum_rack':
             self.drum_gate_keys[track].discard(token);self.drums[track].off(note,token)
