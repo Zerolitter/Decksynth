@@ -40,7 +40,7 @@ class Host:
     def __init__(self, pb, np, live_socket=None):
         self.pb, self.np = pb, np
         self.plugin = None; self.path = None; self.editor_close = None
-        self.live_socket=live_socket;self.live_stop=threading.Event();self.live_thread=None;self.live_enabled=False
+        self.live_socket = live_socket; self.live_thread = None
 
     # -- loading and parameters ---------------------------------------------------------------
     def params(self):
@@ -102,40 +102,51 @@ class Host:
 
     def live_enable(self, rate):
         if not self.need().is_instrument: raise ValueError('Live mode is for instrument plugins')
-        self.rate=int(rate)
-        if self.live_thread is None or not self.live_thread.is_alive():
-            self.live_stop.clear();self.live_thread=threading.Thread(target=self._live_loop,daemon=True);self.live_thread.start()
-        self.live_enabled=True;return dict(live=True)
+        if self.live_socket is None: raise ValueError('Live audio transport is unavailable')
+        if self.live_thread is not None and not self.live_thread.is_alive(): raise ValueError('Live renderer stopped')
+        self.rate = int(rate)
+        if self.live_thread is None:
+            # One reader for the socket's whole life: a second one would split its blocks between them.
+            self.live_thread = threading.Thread(target=self._live_loop, name='live', daemon=True); self.live_thread.start()
+        return dict(live=True)
 
     def live_disable(self):
-        self.live_enabled=False;self.live_stop.set();return dict(live=False)
+        return dict(live=False)   # Decksynth stops sending blocks; the reader stays for the next time
 
-    def _recv(self,n):
-        out=b''
-        while len(out)<n:
-            part=self.live_socket.recv(n-len(out))
-            if not part:return b''
-            out+=part
-        return out
+    def _recv(self, n):
+        out = bytearray()
+        while len(out) < n:
+            part = self.live_socket.recv(n - len(out))
+            if not part: return None
+            out += part
+        return bytes(out)
 
     def _live_loop(self):
+        """Blocks from Decksynth: (sequence, frames, count) and count (offset, 3-byte MIDI) events. Each gets
+        one stereo reply with the same sequence. Decksynth sends only while Live is on, and a block that arrives just
+        before live_enable is read must still play: its MIDI (the first note, the all-notes-off) would be lost."""
+        np = self.np
         try:
-            while not self.live_stop.is_set():
-                head=self._recv(8)
-                if not head:break
-                seq,frames,count=struct.unpack('<IHH',head);events=[]
-                for _ in range(count):
-                    entry=self._recv(5)
-                    if not entry:return
-                    at,msg=struct.unpack('<H3s',entry);events.append((msg,at/self.rate))
-                audio=self.need()(events,duration=frames/self.rate,sample_rate=self.rate,num_channels=2,buffer_size=frames,reset=False)
-                audio=self.np.asarray(audio,dtype=self.np.float32)
-                if audio.ndim==1:audio=audio[None,:]
-                if audio.shape[0]==1:audio=self.np.vstack([audio,audio])
-                audio=self.np.nan_to_num(audio[:2,:frames],nan=0.,posinf=0.,neginf=0.)
-                if audio.shape[1]<frames:audio=self.np.pad(audio,((0,0),(0,frames-audio.shape[1])))
-                self.live_socket.sendall(struct.pack('<IH',seq,frames)+audio.T.astype('<f4',copy=False).tobytes())
-        except Exception: pass
+            while True:
+                head = self._recv(8)
+                if head is None: break
+                seq, frames, count = struct.unpack('<IHH', head)
+                body = self._recv(5 * count) if count else b''
+                if body is None or not 0 < frames <= 2048: break
+                events = [(msg, at / self.rate) for at, msg in struct.iter_unpack('<H3s', body) if at < frames and msg[0] & 0x80]
+                if self.plugin is not None:
+                    audio = np.asarray(self.plugin(events, duration=frames / self.rate, sample_rate=self.rate, num_channels=2,
+                                                   buffer_size=frames, reset=False), dtype=np.float32)
+                    if audio.ndim == 1: audio = audio[None, :]
+                    if audio.shape[0] == 1: audio = np.vstack([audio, audio])
+                    audio = np.nan_to_num(audio[:2, :frames], nan=0., posinf=0., neginf=0.)
+                    if audio.shape[1] < frames: audio = np.pad(audio, ((0, 0), (0, frames - audio.shape[1])))
+                else: audio = np.zeros((2, frames), np.float32)
+                self.live_socket.sendall(struct.pack('<IH', seq, frames) + audio.T.astype('<f4').tobytes())
+        except Exception as exc: print('live renderer stopped: %s' % exc, file=sys.stderr, flush=True)
+        # Decksynth's reader sees the socket close and turns Live off with a reason, instead of waiting forever.
+        try: self.live_socket.shutdown(socket.SHUT_RDWR)
+        except OSError: pass
 
     # -- rendering ----------------------------------------------------------------------------
     def render(self, req):

@@ -827,12 +827,14 @@ def worker(commands,updates):
                 fill_until=time.perf_counter()+FILL_LIMIT
                 while audio.queued()<latency.target and time.perf_counter()<fill_until:
                     # Keys are read before every block, so a key never waits for the whole queue to be topped up.
+                    # A live VST instrument hears this block's notes after it (send_live) and its audio comes back a few
+                    # blocks later (pull_live); without one the mix stays on the plain C path.
+                    live_on=engine.live_midi_out=bool(plugins.loaded and plugins.loaded.get('live'))
                     for rejection in midi.poll(engine):send(dict(error=rejection))
                     live_start=engine.absolute_frame
-                    live=plugins.pull_live(256) if plugins.loaded and plugins.loaded.get('live') else None
-                    t0=time.perf_counter(); block=engine.render_stereo(256,external_stereo=live or [0.]*512)
-                    if plugins.loaded and plugins.loaded.get('live'):
-                        plugins.send_live(engine.drain_live_midi(live_start,256))
+                    live=plugins.pull_live(256) if live_on else None
+                    t0=time.perf_counter(); block=engine.render_stereo(256,external_stereo=live)
+                    if live_on:plugins.send_live(engine.drain_live_midi(live_start,256))
                     load_peak=max(load_peak,(time.perf_counter()-t0)*audio.rate/256)
                     audio.write(block)
                     if watched:

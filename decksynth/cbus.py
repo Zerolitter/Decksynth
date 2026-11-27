@@ -75,6 +75,15 @@ def add_list(buf, values, n):
         lib().dsfx_buf_add(addr(buf), a.buffer_info()[0], n, 1.)
 
 
+
+def add_external(left, right, external, offset, n):
+    """Add a live VST block (a left/right pair, `offset` frames in) to the mix buffers, in C."""
+    for dst, src in zip((left, right), external):
+        if isinstance(src, array) and src.typecode == 'd':
+            lib().dsfx_buf_add(addr(dst), src.buffer_info()[0] + 8 * offset, n, 1.)
+        else:
+            add_list(dst, src[offset:offset + n], n)
+
 class Scan:
     """dsfx_buf_scan: is the buffer silent, are all samples finite, and its peak."""
     def __init__(self):

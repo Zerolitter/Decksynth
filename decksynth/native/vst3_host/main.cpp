@@ -85,10 +85,12 @@ private:
     double sampleRate = 48000.0;
     bool instrument = false;
     int liveFd = -1, editorRequest = 0;
-    std::atomic<bool> running { true }, liveRunning { false }, liveEnabled { false };
+    std::atomic<bool> running { true }, liveRunning { false };
     std::thread inputThread, liveThread;
     std::mutex requestsLock, outputLock;
     std::vector<Request> requests;
+    // Live render buffers, sized once when Live starts: the live thread never allocates per block.
+    juce::AudioBuffer<float> liveAudio; juce::MidiBuffer liveMidi; std::vector<float> liveInterleaved;
 
     void send (const juce::var& body) {
         const std::lock_guard<std::mutex> guard (outputLock);
@@ -239,14 +241,17 @@ private:
     }
     void enableLive (const Request& request) {
         needInstance(); if (liveFd < 0) throw std::runtime_error ("Live audio transport is unavailable");
-        if (! liveThread.joinable()) { liveRunning = true; liveThread = std::thread ([this] { renderLive(); }); }
+        if (! liveThread.joinable()) {
+            liveAudio.setSize (2, kMaxFrames); liveMidi.ensureSize (512 * 16); liveInterleaved.assign (static_cast<size_t> (kMaxFrames) * 2, 0.0f);
+            liveRunning = true; liveThread = std::thread ([this] { renderLive(); });
+        }
         else if (! liveRunning) throw std::runtime_error ("Live renderer stopped");
-        liveEnabled = true;
         auto reply = message (request.id); reply.getDynamicObject()->setProperty ("ok", true); reply.getDynamicObject()->setProperty ("live", true); send (reply);
     }
-    void disableLive (int id) { liveEnabled = false; auto reply = message (id); reply.getDynamicObject()->setProperty ("ok", true); reply.getDynamicObject()->setProperty ("live", false); send (reply); }
+    // Decksynth stops sending blocks while Live is off; the live thread stays for the next time.
+    void disableLive (int id) { auto reply = message (id); reply.getDynamicObject()->setProperty ("ok", true); reply.getDynamicObject()->setProperty ("live", false); send (reply); }
     void stopLive() {
-        liveEnabled = false; liveRunning = false;
+        liveRunning = false;
         if (! liveThread.joinable()) return;
         if (liveFd >= 0) ::shutdown (liveFd, SHUT_RD);
         liveThread.join();
@@ -257,17 +262,27 @@ private:
             const auto sequence = static_cast<uint32_t> (header[0]) | (static_cast<uint32_t> (header[1]) << 8) | (static_cast<uint32_t> (header[2]) << 16) | (static_cast<uint32_t> (header[3]) << 24);
             const auto frames = static_cast<int> (header[4] | (header[5] << 8)), count = static_cast<int> (header[6] | (header[7] << 8));
             if (frames <= 0 || frames > kMaxFrames || count > 512) break;
-            juce::MidiBuffer midi;
+            auto& midi = liveMidi; midi.clear(); bool complete = true;
             for (int event = 0; event < count; ++event) {
-                std::array<unsigned char, 5> packet {}; if (! readFully (liveFd, packet.data(), packet.size())) return;
-                const auto offset = static_cast<int> (packet[0] | (packet[1] << 8)); if (offset < frames) midi.addEvent (packet.data() + 2, 3, offset);
+                std::array<unsigned char, 5> packet {}; if (! readFully (liveFd, packet.data(), packet.size())) { complete = false; break; }
+                const auto offset = static_cast<int> (packet[0] | (packet[1] << 8));
+                if (offset < frames && (packet[2] & 0x80) != 0) midi.addEvent (packet.data() + 2, 3, offset);
             }
-            juce::AudioBuffer<float> audio (2, frames); audio.clear();
-            if (liveEnabled) { const juce::ScopedLock lock (needInstance().getCallbackLock()); if (! instance->isSuspended()) instance->processBlock (audio, midi); }
-            std::vector<float> interleaved (static_cast<size_t> (frames) * 2);
-            for (int frame = 0; frame < frames; ++frame) { interleaved[static_cast<size_t> (frame) * 2] = audio.getSample (0, frame); interleaved[static_cast<size_t> (frame) * 2 + 1] = audio.getSample (1, frame); }
+            if (! complete) break;
+            // The buffer keeps its kMaxFrames allocation; only the visible size changes.
+            auto& audio = liveAudio; audio.setSize (2, frames, false, false, true); audio.clear();
+            try {
+                // Every block that arrives is played, also one sent just before live_enable is dispatched: dropping
+                // it would lose its MIDI. instance is only replaced by load(), which stops this thread first.
+                if (instance != nullptr) { const juce::ScopedLock lock (instance->getCallbackLock()); if (! instance->isSuspended()) instance->processBlock (audio, midi); }
+            } catch (...) { break; }  // a throwing plugin ends Live (Decksynth reports it), never the helper
+            auto* interleaved = liveInterleaved.data();
+            for (int frame = 0; frame < frames; ++frame) {
+                const auto left = audio.getSample (0, frame), right = audio.getSample (1, frame);
+                interleaved[frame * 2] = std::isfinite (left) ? left : 0.0f; interleaved[frame * 2 + 1] = std::isfinite (right) ? right : 0.0f;
+            }
             std::array<unsigned char, 6> reply {{static_cast<unsigned char> (sequence), static_cast<unsigned char> (sequence >> 8), static_cast<unsigned char> (sequence >> 16), static_cast<unsigned char> (sequence >> 24), static_cast<unsigned char> (frames), static_cast<unsigned char> (frames >> 8)}};
-            if (! writeFully (liveFd, reply.data(), reply.size()) || ! writeFully (liveFd, interleaved.data(), interleaved.size() * sizeof (float))) break;
+            if (! writeFully (liveFd, reply.data(), reply.size()) || ! writeFully (liveFd, interleaved, static_cast<size_t> (frames) * 2 * sizeof (float))) break;
         }
         liveRunning = false; if (liveFd >= 0) ::shutdown (liveFd, SHUT_RDWR);
     }

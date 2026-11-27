@@ -62,6 +62,7 @@ VOICE_RANGES=dict(vcf_cutoff=(0,1),vcf_reso=(0,1),vcf_env=(-1,1),uni_detune=(0,1
 VOICE_RANGES.update(vcf_morph=(0,1),fenv_a=(.001,3),fenv_d=(.001,3),fenv_s=(0,1),fenv_r=(.01,3))
 FILTER_ENV=dict(fenv_a='attack',fenv_d='decay',fenv_s='sustain',fenv_r='release')
 VOICE_CHOICES=dict(vcf_type=(0,1,2,3),uni_voices=(1,2,3,4,5,7),sub_oct=(1,2))
+ALL_NOTES_OFF=b'\xb0\x7b\x00'  # MIDI CC 123 on channel 1: a live VST releases every held note
 EXPRESSION_DEFAULTS=dict(pan=0.,play_mode=0,glide=0.,pitch=0.,velocity_brightness=0.,velocity_cutoff=0.,vcf_keytrack=.5)
 VOICE_RANGES.update(pan=(-1,1),glide=(0,2),pitch=(-12,12),velocity_brightness=(-1,1),velocity_cutoff=(-1,1),vcf_keytrack=(0,1))
 VOICE_CHOICES['play_mode']=(0,1,2)
@@ -810,7 +811,9 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.lead_from=None; self.last_chord=None; self.chord_step=0; self.chord_now=-1
         self.explicit_keys=set(); self.pad_keys=set(); self.live_velocity={}
         self.chord_loops={}; self.chord_phrase_frame=0; self.chord_key_frame=-10**9
-        self.scheduled_live=[]; self.absolute_frame=0; self._live_midi=deque(maxlen=4096)
+        self.scheduled_live=[]; self.absolute_frame=0
+        # Notes for a live VST instrument (plugin_host), kept only while live_midi_out is on.
+        self._live_midi=deque(maxlen=4096); self.live_midi_out=False
         # Step record cursor (not saved): the step the next recorded key goes to.
         self.rec_step=0; self.rec_last=None
         self.clock_times=deque(maxlen=24);self.clock_following=False;self.clock_last_ts=0.
@@ -1323,7 +1326,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                 for n in clip:
                     n['start']%=self.project.beats; n['duration']=min(n['duration'],self.project.beats)
     def voice_on(self,track,note,velocity,token):
-        self._record_live_midi(bytes((0x90, int(note), int(velocity))))
+        if self.live_midi_out:self._record_live_midi(0x90,note,velocity)
         if device_kind(self.project.tracks[track])=='sampler':
             empty=not any(v.active for v in self.samplers[track].voices)
             hit=False if self.project.tracks[track]['mute'] else self.samplers[track].on(note,velocity,token)
@@ -1390,7 +1393,10 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         for fx in self.fx:fx.clear_gate_events()
         for keys in self.drum_gate_keys:keys.clear()
         self.drum_keys.clear(); self.freeze_ring.clear()
-        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear(); self._live_midi.clear()
+        self.perform_held.reset(); self.explicit_keys.clear(); self.live_note_map.clear(); self.scheduled_live.clear()
+        # A live VST keeps its own voices: release them instead of dropping their pending note-offs.
+        self._live_midi.clear()
+        if self.live_midi_out:self._live_midi.append((self.absolute_frame,ALL_NOTES_OFF))
     def close_generated(self,prefix):
         """End the REC notes the arp/sequencer was playing when it is cut short (keys let go, arp or step
         changed): their note-off never comes, so they would stay open and be closed far too long."""
@@ -1943,18 +1949,26 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
         self.drum_keys.clear()
         for fx in self.fx:fx.clear_gate_events(reset_origin=False)
         for keys in self.drum_gate_keys:keys.clear()
-    def _record_live_midi(self,message):
-        self._live_midi.append((self.absolute_frame if self._event_frame is None else self._event_frame,message))
+    def _record_live_midi(self,status,note,velocity):
+        if not 0<=note<=127:return  # a chord or transpose pushed it outside MIDI: the VST cannot play it
+        self._live_midi.append((self.absolute_frame if self._event_frame is None else self._event_frame,
+                                bytes((status,int(note),min(127,max(0,int(velocity)))))))
     def drain_live_midi(self,start_frame,frames):
-        end=start_frame+frames;out=[];later=deque(maxlen=self._live_midi.maxlen)
-        while self._live_midi:
-            frame,message=self._live_midi.popleft()
+        """The live VST's MIDI for the block [start_frame, start_frame+frames) as (offset, message).
+        Older events are dropped, later ones (strums, scheduled notes) wait for their block."""
+        q=self._live_midi
+        if not q:return []
+        end=start_frame+frames;out=[];later=[]
+        while q:
+            frame,message=q.popleft()
             if start_frame<=frame<end:out.append((frame-start_frame,message))
             elif frame>=end:later.append((frame,message))
-        self._live_midi=later;return out
+        q.extend(later);return out
     def render(self,frames):return self._render_bus(frames,False)
     def render_stereo(self,frames,external_stereo=None):
-        if external_stereo is not None and len(external_stereo)!=frames*2:raise ValueError('External stereo block has the wrong length')
+        """external_stereo: a (left, right) pair of `frames` floats (a live VST block), mixed before the master stage."""
+        if external_stereo is not None and (len(external_stereo)!=2 or any(len(ch)!=frames for ch in external_stereo)):
+            raise ValueError('External stereo block has the wrong length')
         return self._render_bus(frames,True,external_stereo)
     def export_wav(self,path,seconds=None):
         from .render_export import export_wav
@@ -1983,7 +1997,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
             elif kind=='sampler':
                 smp=self.samplers[tr];smp.bpm=self.project.bpm;smp.clock=(getattr(self,'_block_start',0)+pos)/self.fpb if self.playing else None
                 smp.render_into_buffer(left,pos,count)
-    def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on):
+    def _mix_c(self,bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on,external=None,external_at=0):
         """FX, sends, mix and master for a block whose audio is in C buffers (the C twin of the Python mix in
         _render_bus, same order and arithmetic). Returns the interleaved block, or None when the master stage
         is not there (bufs.mix then holds the mix for the Python limiter)."""
@@ -2036,6 +2050,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                                buses.c_left,buses.c_right,amount)
             self._pan_state[tr]=bufs.pan[0]
         self.send_buses.mix_into_c(bufs,bpm,beat)
+        if external is not None:cbus.add_external(mix,mix_r,external,external_at,n)  # a live VST, before the master
         # Standalone dry sample audition uses the real native audio clock.
         self._render_sample_preview_into(mix,mix_r,n)
         master=getattr(self,'master',None)
@@ -2138,8 +2153,7 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                     k+=1
             offsets=sorted(set(events)|{n})
             # The C path (cbus.py): each track's audio stays in its fixed C buffers for the whole block.
-            # The native mixer finalizes its master stage in-place. A live VST block must be added before that stage.
-            use_c=stereo and external_stereo is None and n<=cbus.BLOCK and cbus.available() and not getattr(self,'python_bus',False)
+            use_c=stereo and n<=cbus.BLOCK and cbus.available() and not getattr(self,'python_bus',False)
             if use_c:
                 bufs=self._cbufs=getattr(self,'_cbufs',None) or cbus.TrackBuffers();bufs.ensure(len(self.synths))
             track_audio=[[] for _ in self.synths]; click=[]; click_on=False; live_frozen=[False]*len(self.synths)
@@ -2202,7 +2216,8 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         else:click.append(None)
             mastered=None
             if use_c:
-                mastered=self._mix_c(bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on)
+                mastered=self._mix_c(bufs,n,start,abs_start,abs_end,frozen,live_frozen,drum_right,freeze_mode,click,click_on,
+                                     external_stereo,external_at)
                 if mastered is None:mix=bufs.mix[:n];right=bufs.mix_r[:n]  # no C master stage: the Python limiter below
                 else:click=()
             # Per-track FX run once per block, then the mix is summed in the original order.
@@ -2271,10 +2286,10 @@ class Engine(MidiImportEngine,PatternCatalogEngine,NoteEditEngine,WorkflowEngine
                         for bus,a in feeds:
                             bl=bus_in[bus][0]
                             for j,v in enumerate(audio):bl[j]+=v*vol*a
-            if external_stereo is not None:
+            if external_stereo is not None and not use_c:
+                ext_l,ext_r=external_stereo
                 for j in range(n):
-                    mix[j]+=external_stereo[2*(external_at+j)]
-                    right[j]+=external_stereo[2*(external_at+j)+1]
+                    mix[j]+=ext_l[external_at+j];right[j]+=ext_r[external_at+j]
             # Standalone dry sample audition uses the real native audio clock.
             # It never alters a pad, SONG notes, the FX chain, or playback state.
             if not use_c:

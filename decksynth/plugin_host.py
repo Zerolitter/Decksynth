@@ -18,6 +18,7 @@ import threading
 import time
 import socket
 import struct
+from array import array
 from collections import deque
 from pathlib import Path
 
@@ -28,6 +29,8 @@ DEV_VST3_HOST = Path(__file__).parent.parent / '.tools' / 'vst3-host-bin' / 'dec
 MAX_PLUGINS = 400
 MAX_DEPTH = 4
 LOAD_TIMEOUT = 20.
+MAX_LIVE_EVENTS = 512                              # the helpers' limit per block
+ALL_NOTES_OFF = b'\xb0\x7b\x00'                     # MIDI CC 123, channel 1
 NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
 
 
@@ -106,7 +109,7 @@ class PluginHost:
         self.plugins = []; self.vst2 = 0; self.scanning = False; self.scanned = False
         self.loaded = None; self.busy = None; self.editor = False; self.load_deadline = None
         self.setup = None                              # a running set up: dict(proc, progress)
-        self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=8); self.live_seq = 0; self.live_reply_seq = 0; self.live_delay_blocks = 0; self.live_fault = None
+        self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=8); self.live_seq = 0; self.live_reply_seq = 0; self.live_delay_blocks = 0; self.live_fault = None; self.live_reset = False
         self.revision = 0; self._scan_result = None
         self._listen = None; self.listening = None
         self.backend = None
@@ -184,31 +187,45 @@ class PluginHost:
         parent,child=socket.socketpair(); child.set_inheritable(True); env['DECKSYNTH_LIVE_FD']=str(child.fileno())
         self.proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, text=True, env=env, start_new_session=True, bufsize=1, pass_fds=(child.fileno(),))
-        child.close(); self.live_socket=parent; self.live_socket.setblocking(True); self.live_blocks.clear(); self.live_fault=None; self.live_seq=0; self.live_reply_seq=0; self.live_delay_blocks=3 if backend=='juce' else 0
+        child.close(); self.live_socket = parent; self.live_blocks.clear(); self.live_fault = None
+        self.live_seq = 0; self.live_reply_seq = 0; self.live_delay_blocks = 3 if backend == 'juce' else 0
         self.lines = queue.Queue(); self.log.clear(); self.ready = None
         threading.Thread(target=self._pump, args=(self.proc.stdout, self.lines), name='plugin-out', daemon=True).start()
         threading.Thread(target=self._pump, args=(self.proc.stderr, queue.Queue(), self.log), name='plugin-log', daemon=True).start()
-        threading.Thread(target=self._live_reader, name='plugin-live-audio', daemon=True).start()
+        threading.Thread(target=self._live_reader, args=(parent,), name='plugin-live-audio', daemon=True).start()
 
-    def _live_reader(self):
+    def _live_reader(self, sock):
+        """Live audio replies from the helper: (sequence, frames, interleaved float32 L R ...). This thread owns
+        one helper's socket, so a reader left over from an earlier helper can never read the new one. Each block
+        is split into left/right double arrays here, so the audio loop only adds them to its mix in C."""
         try:
-            while self.live_socket is not None:
-                head=self._recv_live(6)
-                if not head: break
-                seq,frames=struct.unpack('<IH',head); raw=self._recv_live(frames*8)
-                if len(raw)!=frames*8: break
-                self.live_reply_seq=max(self.live_reply_seq,seq+1)
-                self.live_blocks.append((seq,list(struct.unpack('<%df'%(frames*2),raw))))
+            while True:
+                head = self._recv_exact(sock, 6)
+                if head is None: break
+                seq, frames = struct.unpack('<IH', head); raw = self._recv_exact(sock, frames * 8)
+                if raw is None: break
+                block = array('f'); block.frombytes(raw)
+                if sys.byteorder != 'little': block.byteswap()
+                self.live_reply_seq = max(self.live_reply_seq, seq + 1)
+                self.live_blocks.append((seq, (array('d', block[0::2]), array('d', block[1::2]))))
         except OSError: pass
-        if self.proc is not None and self.proc.poll() is None and self.loaded and self.loaded.get('live'): self.live_fault='Live renderer stopped'
+        if sock is self.live_socket and self.loaded and self.loaded.get('live'):
+            self._live_failed('Live renderer stopped')
 
-    def _recv_live(self,n):
-        out=b''
-        while len(out)<n:
-            part=self.live_socket.recv(n-len(out))
-            if not part:return b''
-            out+=part
-        return out
+    @staticmethod
+    def _recv_exact(sock, n):
+        out = bytearray()
+        while len(out) < n:
+            part = sock.recv(n - len(out))
+            if not part: return None
+            out += part
+        return bytes(out)
+
+    def _live_failed(self, why):
+        """Live audio stops (the helper fell behind or went away); the screen shows why and Live turns off."""
+        self.live_fault = why
+        if self.loaded: self.loaded['live'] = False
+        self.revision += 1
 
     def _send(self, cmd, ctx=None, backend=None, **fields):
         self._start(backend)
@@ -223,10 +240,13 @@ class PluginHost:
     def stop(self):
         """Ends the helper (a hung plugin, or Unload). Its window, if open, closes with it."""
         if self.proc is not None: self._drop(self.proc)
-        if self.live_socket is not None:
-            try:self.live_socket.close()
-            except OSError:pass
-        self.live_socket=None; self.proc = None; self.pending.clear(); self.loaded = None; self.busy = None; self.editor = False; self.live_blocks.clear(); self.live_fault=None; self.backend=None
+        sock, self.live_socket = self.live_socket, None
+        if sock is not None:
+            try: sock.shutdown(socket.SHUT_RDWR)          # wakes its reader thread
+            except OSError: pass
+            sock.close()
+        self.proc = None; self.pending.clear(); self.loaded = None; self.busy = None; self.editor = False
+        self.live_blocks.clear(); self.live_fault = None; self.backend = None
         self.revision += 1
 
     @staticmethod
@@ -288,29 +308,41 @@ class PluginHost:
     def set_live(self, enabled):
         if not self.loaded: raise ValueError('Load a plugin first')
         if enabled and self.loaded.get('kind')!='instrument': raise ValueError('Live mode is for instrument plugins')
-        self.loaded['live']=bool(enabled); self.live_fault=None; self._send('live_enable' if enabled else 'live_disable', rate=self.rate)
+        self.loaded['live'] = bool(enabled); self.live_fault = None
+        # Notes held while Live was off (or before it fell behind) would hang in the plugin: release them first.
+        self.live_reset = bool(enabled)
+        self._send('live_enable' if enabled else 'live_disable', rate=self.rate)
 
     def send_live(self, events, frames=256):
-        if not self.loaded or not self.loaded.get('live') or self.live_socket is None:return
-        # The audio deque deliberately holds only the newest four blocks. It is not an
-        # in-flight counter: pull_live() may consume a healthy reply immediately. Use
-        # the reader's acknowledged sequence so a fast renderer is never disabled just
-        # because its audio was already mixed into Decksynth.
-        if self.live_seq-self.live_reply_seq>4:self.live_fault='Live renderer fell behind';self.loaded['live']=False;return
-        body=b''.join(struct.pack('<H3s',int(at),bytes(msg)) for at,msg in events)
-        try:self.live_socket.sendall(struct.pack('<IHH',self.live_seq,int(frames),len(events))+body);self.live_seq+=1
-        except OSError:self.live_fault='Live renderer stopped';self.loaded['live']=False
+        """Called by the audio loop after each block: send that block's MIDI to the helper. Never waits."""
+        if not self.loaded or not self.loaded.get('live') or self.live_socket is None: return
+        # live_blocks is not an in-flight counter (pull_live() may already have mixed a reply); the reader's
+        # acknowledged sequence is. More than four blocks without a reply: the renderer cannot keep up.
+        if self.live_seq - self.live_reply_seq > 4: self._live_failed('Live renderer fell behind'); return
+        if self.live_reset: events = [(0, ALL_NOTES_OFF)] + list(events); self.live_reset = False
+        events = events[:MAX_LIVE_EVENTS]
+        body = b''.join(struct.pack('<H3s', int(at), msg) for at, msg in events)
+        try:
+            # MSG_DONTWAIT: a full socket means the helper is stuck; that is a fault, never a wait in the audio loop.
+            packet = struct.pack('<IHH', self.live_seq, int(frames), len(events)) + body
+            if self.live_socket.send(packet, socket.MSG_DONTWAIT) != len(packet):
+                self.live_socket.shutdown(socket.SHUT_RDWR)   # half a block would garble every later one
+                raise OSError('partial live block')
+            self.live_seq += 1
+        except OSError: self._live_failed('Live renderer stopped')
 
     def pull_live(self, frames=256):
-        if not self.loaded or not self.loaded.get('live'):return None
-        # yabridge/Wine returns a block a little after its MIDI block. Keep a
-        # bounded three-block playout delay so we mix ordered audio instead of
-        # continually discarding the just-late block.
-        wanted=self.live_seq-1-self.live_delay_blocks
-        if wanted < 0:return None
-        while self.live_blocks and self.live_blocks[0][0]<wanted:self.live_blocks.popleft()
-        if self.live_blocks and self.live_blocks[0][0]==wanted:
-            _,block=self.live_blocks.popleft();return block if len(block)==frames*2 else None
+        """Called by the audio loop before each block: the helper's audio as a (left, right) pair, or None."""
+        if not self.loaded or not self.loaded.get('live'): return None
+        # yabridge/Wine returns a block a little after its MIDI block. A bounded playout delay mixes ordered
+        # audio instead of continually discarding the just-late block. A block that is still missing is silence.
+        wanted = self.live_seq - 1 - self.live_delay_blocks
+        if wanted < 0: return None
+        blocks = self.live_blocks
+        while blocks and blocks[0][0] < wanted: blocks.popleft()
+        if blocks and blocks[0][0] == wanted:
+            block = blocks.popleft()[1]
+            return block if len(block[0]) == frames else None
         return None
 
     def open_editor(self):

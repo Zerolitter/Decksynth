@@ -5,6 +5,8 @@ The helper needs numpy. Where it is not installed, the end-to-end tests skip; se
 folder that holds numpy to run them anyway."""
 import os
 import shutil
+import socket
+import struct
 import sys
 import tempfile
 import time
@@ -14,7 +16,7 @@ from pathlib import Path
 
 os.environ.setdefault('DECKSYNTH_NO_AUTOSAVE', '1')
 
-from decksynth import backend
+from decksynth import backend, cbus
 from decksynth.core import Engine
 from decksynth.plugin_host import PluginHost, friendly, note_name, scan
 from decksynth.sample_library import SampleLibrary
@@ -34,7 +36,7 @@ class LiveEngine(unittest.TestCase):
     """The live VST bridge needs note timing and a pre-master stereo inlet."""
 
     def test_drain_live_midi_keeps_original_note_offsets(self):
-        engine = Engine(R)
+        engine = Engine(R); engine.live_midi_out = True
         engine.voice_on(0, 60, 100, ('test', 'on'))
         engine.absolute_frame = 17
         engine.voice_off(0, 60, ('test', 'on'))
@@ -49,9 +51,83 @@ class LiveEngine(unittest.TestCase):
         dry = engine.render_stereo(256)
         engine = Engine(R)
         engine.master_enabled = False
-        wet = engine.render_stereo(256, external_stereo=[.25, .5] * 256)
+        wet = engine.render_stereo(256, external_stereo=([.25] * 256, [.5] * 256))
         self.assertEqual((len(dry), len(wet)), (512, 512))
         self.assertEqual(wet[:8], [.25, .5] * 4)
+
+    def test_notes_are_kept_for_a_live_vst_only_while_one_listens(self):
+        engine = Engine(R)
+        engine.voice_on(0, 60, 100, ('test', 'on'))
+        self.assertEqual(engine.drain_live_midi(0, 256), [])
+
+    def test_notes_outside_midi_never_reach_the_live_vst(self):
+        engine = Engine(R); engine.live_midi_out = True
+        engine.voice_on(0, 130, 100, ('test', 'high')); engine.voice_on(0, -3, 100, ('test', 'low'))
+        self.assertEqual(engine.drain_live_midi(0, 256), [])
+
+    def test_stop_releases_the_live_vst_notes_instead_of_dropping_their_note_offs(self):
+        engine = Engine(R); engine.live_midi_out = True
+        engine.voice_on(0, 60, 100, ('test', 'on')); engine.drain_live_midi(0, 256)
+        engine.stop()
+        self.assertEqual(engine.drain_live_midi(engine.absolute_frame, 256), [(0, b'\xb0\x7b\x00')])
+
+    def test_later_live_events_wait_for_their_block(self):
+        engine = Engine(R); engine.live_midi_out = True
+        engine._event_frame = 300; engine.voice_on(0, 60, 100, ('test', 'on')); engine._event_frame = None
+        self.assertEqual(engine.drain_live_midi(0, 256), [])
+        self.assertEqual(engine.drain_live_midi(256, 256), [(44, b'\x90\x3c\x64')])
+
+    @unittest.skipUnless(cbus.available(), 'needs the native mix library')
+    def test_a_live_block_keeps_the_c_mix_and_sounds_the_same_as_the_python_mix(self):
+        ext = ([.1 * (j % 7) for j in range(256)], [-.05 * (j % 5) for j in range(256)])
+        outs = []
+        for python_bus in (False, True):
+            engine = Engine(R); engine.python_bus = python_bus
+            engine.voice_on(0, 60, 100, ('test', 'on'))
+            outs.append(engine.render_stereo(256, external_stereo=ext))
+        self.assertEqual(len(outs[0]), 512)
+        self.assertLess(max(abs(a - b) for a, b in zip(*outs)), 1e-6)
+
+
+class LiveTransport(unittest.TestCase):
+    """The audio loop's side of the live socket, without a helper: it never waits and never hangs a note."""
+    def setUp(self):
+        self.host = PluginHost(None, R)
+        self.host.live_socket, self.helper = socket.socketpair()
+        self.host.loaded = dict(path='x', name='X', kind='instrument', live=True)
+        self.helper.settimeout(2)
+
+    def tearDown(self):
+        self.host.live_socket.close(); self.helper.close()
+
+    def packet(self):
+        seq, frames, count = struct.unpack('<IHH', self.helper.recv(8))
+        events = [struct.unpack('<H3s', self.helper.recv(5)) for _ in range(count)]
+        return seq, frames, events
+
+    def test_turning_live_on_first_releases_notes_the_plugin_still_holds(self):
+        self.host.live_reset = True
+        self.host.send_live([(5, b'\x90\x40\x64')])
+        self.assertEqual(self.packet(), (0, 256, [(0, b'\xb0\x7b\x00'), (5, b'\x90\x40\x64')]))
+        self.host.send_live([])
+        self.assertEqual(self.packet(), (1, 256, []))
+
+    def test_a_renderer_that_stops_answering_turns_live_off_with_a_reason(self):
+        revision = self.host.revision
+        for _ in range(6): self.host.send_live([])
+        self.assertFalse(self.host.loaded['live'])
+        self.assertIn('fell behind', self.host.live_fault)
+        self.assertGreater(self.host.revision, revision)
+
+    def test_a_full_socket_never_blocks_the_audio_loop(self):
+        self.host.live_reply_seq = 10 ** 9   # pretend every block was answered, so only the socket can fill
+        many = [(0, b'\x90\x40\x64')] * 512
+        start = time.monotonic()
+        while self.host.loaded['live'] and time.monotonic() - start < 5:
+            self.host.live_reply_seq = self.host.live_seq
+            self.host.send_live(many)
+        self.assertFalse(self.host.loaded['live'])
+        self.assertLess(time.monotonic() - start, 5)
 
 
 def bundle(root, *parts, windows=False):
@@ -253,8 +329,19 @@ class LiveHelper(HelperBase, unittest.TestCase):
         while time.monotonic()<end and block is None:
             block=self.host.pull_live();time.sleep(.01)
         self.assertIsNotNone(block)
-        self.assertEqual(len(block),512)
-        self.assertGreater(max(map(abs,block)),.01)
+        self.assertEqual([len(ch) for ch in block],[256,256])
+        self.assertGreater(max(map(abs,block[0])),.01)
+
+    def test_live_can_be_turned_off_and_on_again(self):
+        self.load('Fake synth')
+        for enabled in (True, False, True):
+            self.host.set_live(enabled); self.wait(lambda: not any(c.startswith('live') for c, _ in self.host.pending.values()))
+        self.host.send_live([(0, b'\x90\x45\x64')])
+        end=time.monotonic()+3;block=None
+        while time.monotonic()<end and block is None:
+            block=self.host.pull_live();time.sleep(.01)
+        self.assertIsNotNone(block)
+        self.assertTrue(self.host.loaded['live'])
 
     def test_live_is_rejected_for_effect_plugins(self):
         self.load('Fake gain')
