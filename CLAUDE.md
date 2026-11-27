@@ -86,6 +86,7 @@ The UI is a touch instrument, and the maintainer has fixed design rules. The sho
 
 - **CI** (`.github/workflows/ci.yml`) runs on every push to `main` and every PR: build the native kernels, `./check.sh`, UI build, UI unit tests. Python 3.12 only. It does not run screen tests.
 - **Releases:** pushing a `v*` tag runs the release workflow and builds the Linux download. The Flatpak recipe in `packaging/flatpak/` is what Flathub builds. A tag needs the maintainer's go.
+- **Which build the shortcut runs:** one launcher only, `launch.sh` in the main checkout, which runs whatever is built in that folder's `ui/dist` (and its `.tools/vst3-host-bin` helper). Keep the main checkout on `main` and run `cd ui && npm run build` after every merge or branch switch, with Decksynth closed. Never point a `.desktop` file at a worktree or another clone; try a batch from a terminal with `DECKSYNTH_ROOT=<folder> ./launch.sh` instead. Check what is built with `git branch --show-current`.
 - `launch.sh` runs the app; the desktop shortcut runs it with `DECKSYNTH_USER_APP=1`, which is how `deck_busy.sh` knows the maintainer's app from a test run. Do not set that variable in tests.
 
 ## AI-specific instructions
