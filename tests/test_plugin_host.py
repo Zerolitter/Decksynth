@@ -235,6 +235,14 @@ class LiveHelper(HelperBase, unittest.TestCase):
         self.host.close_editor();self.wait(lambda:not self.host.editor)
         self.assertTrue(self.host.status()['loaded']['live'])
 
+    def test_a_plugin_load_deadline_stops_waiting_for_a_stuck_host(self):
+        self.host.load(self.path('Fake synth'))
+        self.host.load_deadline = time.monotonic() - .01
+        self.host.poll()
+        self.assertIsNone(self.host.busy)
+        self.assertIsNone(self.host.loaded)
+        self.assertIn('timed out', self.host.error)
+
 
 @unittest.skipUnless(HAVE_NUMPY, 'the plugin helper needs numpy')
 class Backend(HelperBase, unittest.TestCase):

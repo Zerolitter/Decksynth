@@ -24,6 +24,7 @@ WORKER = Path(__file__).with_name('plugin_worker.py')
 SETUP = Path(__file__).with_name('plugin_setup.py')
 MAX_PLUGINS = 400
 MAX_DEPTH = 4
+LOAD_TIMEOUT = 20.
 NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
 
 
@@ -99,7 +100,7 @@ class PluginHost:
         self.next_id = 1; self.pending = {}
         self.ready = None; self.version = None        # None: the helper has not answered yet
         self.plugins = []; self.vst2 = 0; self.scanning = False; self.scanned = False
-        self.loaded = None; self.busy = None; self.editor = False
+        self.loaded = None; self.busy = None; self.editor = False; self.load_deadline = None
         self.setup = None                              # a running set up: dict(proc, progress)
         self.take = None; self.error = None; self.live_socket = None; self.live_blocks = deque(maxlen=4); self.live_seq = 0; self.live_fault = None
         self.revision = 0; self._scan_result = None
@@ -233,7 +234,7 @@ class PluginHost:
         f = self._state_file(path)
         name = next(p['name'] for p in self.plugins if p['path'] == path)
         self.stop()                                    # one plugin at a time: a fresh helper for each
-        self.error = None; self.busy = 'loading'
+        self.error = None; self.busy = 'loading'; self.load_deadline = time.monotonic()+LOAD_TIMEOUT
         self._send('load', dict(path=path, name=name), path=path, state_file=str(f) if f else None)
 
     def set_param(self, index, raw):
@@ -321,6 +322,10 @@ class PluginHost:
                 except ValueError: continue
                 if 'progress' in msg: self.setup['progress'] = float(msg['progress'])
                 if msg.get('error'): self.error = str(msg['error'])[:300]
+        if self.busy=='loading' and self.load_deadline is not None and time.monotonic()>=self.load_deadline:
+            self.stop(); self.load_deadline=None
+            self.error='Plugin load timed out after %d seconds; this VST is not responding to Pedalboard/yabridge' % LOAD_TIMEOUT
+            out.append(dict(error='Plugin: '+self.error)); return out
         if self.proc is None: return out
         while True:
             try: line = self.lines.get_nowait()
@@ -350,7 +355,7 @@ class PluginHost:
             self.pending.pop(rid)
             err = msg.get('error')
             if cmd == 'load':
-                self.busy = None; self.revision += 1
+                self.busy = None; self.load_deadline = None; self.revision += 1
                 if err:
                     self.error = friendly(str(err), list(self.log), ctx.get('name'))[:400]; out.append(dict(error=self.error))
                     continue
