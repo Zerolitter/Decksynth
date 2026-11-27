@@ -40,7 +40,7 @@ const SECTIONS:{id:SectionId;label:string;icon:React.ReactNode;colour:string}[]=
   {id:'recording',label:'Recording',icon:<CircleDot size={18}/>,colour:'var(--ui-rec)'},
   {id:'display',label:'Display',icon:<Monitor size={18}/>,colour:'var(--c-guide)'},
   {id:'sound',label:'Sound and editing',icon:<Zap size={18}/>,colour:'var(--c-fx)'},
-  {id:'plugins',label:'Plugins',icon:<Plug size={18}/>,colour:'var(--c-plugin)'},
+  {id:'plugins',label:'Plugins (Beta)',icon:<Plug size={18}/>,colour:'var(--c-plugin)'},
   {id:'hotkeys',label:'Hotkeys',icon:<Keyboard size={18}/>,colour:'var(--t-help)'},
   {id:'cleanup',label:'Clean up',icon:<Eraser size={18}/>,colour:'var(--t-reset)'},
 ];
@@ -230,8 +230,8 @@ export function Settings({settings,onSettings,trackName,onCleanup,midiName,bridg
     if(command){
       const ready=plugins?.setup==='ready',l=plugins?.loaded;
       add({sec:'plugins',title:'Plugin hosting',kw:'vst vst3 plugin host set up install pedalboard',
-        hint:ready?'VST3 plugins run in a helper of their own: one that hangs or crashes never stops Decksynth.'
-          :'Hosts Linux VST3 plugins in a helper of their own, so a plugin can never stop the sound. Set up downloads pedalboard and numpy (about 21 MB, from PyPI) into Decksynth\'s data folder.',
+        hint:ready?'Beta: VST3 plugins run in a helper of their own: one that hangs or crashes never stops Decksynth.'
+          :'Beta: hosts Linux VST3 plugins in a helper of their own, so a plugin can never stop the sound. Set up downloads pedalboard and numpy (about 21 MB, from PyPI) into Decksynth\'s data folder.',
         control:<PluginSetup status={plugins} send={command}/>});
       if(plugins&&ready){
         add({sec:'plugins',group:'Plugins',title:'Plugins found',wide:true,kw:'vst vst3 yabridge windows load list',control:<PluginList status={plugins} send={command}/>});

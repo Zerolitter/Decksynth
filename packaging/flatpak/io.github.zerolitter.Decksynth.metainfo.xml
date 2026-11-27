@@ -16,6 +16,9 @@
   <launchable type="desktop-id">io.github.zerolitter.Decksynth.desktop</launchable>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-11-27">
+      <description><p>Plugins (Beta): host a VST3 plugin (Linux, or Windows through yabridge) in a helper of its own, play it live from MIDI, and record it into a Sampler. This part is a public beta and will change.</p></description>
+    </release>
     <release version="0.2.2" date="2026-11-16">
       <description><p>Sends: a shared reverb and delay every track can feed.</p></description>
     </release>
