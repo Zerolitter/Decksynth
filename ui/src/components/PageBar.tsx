@@ -1,5 +1,5 @@
 import {useContextTarget,useContextNavigation} from './ContextWheel';
-import { useRef, type ReactNode } from 'react';
+import { Fragment, useRef, type ReactNode } from 'react';
 import { useFrame } from '../frame-clock';
 import { CircleDot, Disc3, Link2, Plus, Snowflake, Sparkles, Waves } from 'lucide-react';
 import type { Source } from './ModParts';
@@ -53,11 +53,12 @@ export function LinkBox({armed,name,onClear,onOpen}:{armed:Source|null;name:stri
 }
 
 /** The second row on Sound, FX and Perform: the track you are working on, and the page's own tools on the right. */
-export function PageBar({tracks,selected,onSelect,beats,playing,tools,freeze,onContext,onAdd,onRemove}:Props&{onAdd?:()=>void;onRemove?:(track:number)=>void}){
+export function PageBar({tracks,selected,onSelect,beats,playing,tools,freeze,onContext,onAdd,onRemove,chipExtra}:Props&{onAdd?:()=>void;onRemove?:(track:number)=>void;
+  /** Something beside a track's chip (a Plugin track's window button). */ chipExtra?:(track:number)=>ReactNode}){
   const navigation=useContextNavigation(),context=useContextTarget(el=>{const h=el.closest<HTMLElement>('[data-track-index]');if(!h)return null;const i=Number(h.dataset.trackIndex);return {area:tracks[i].device==='drum_rack'?'drum':'sound',kind:'track.header',label:'Track '+(i+1),caps:{...navigation,focus:()=>onSelect(i),...(onContext?.(i)??{}),...(onAdd&&tracks.length<MAX_TRACKS?{addTrack:onAdd}:{}),...(onRemove&&tracks.length>MIN_TRACKS?{removeTrack:()=>onRemove(i)}:{})}};});
   return <nav {...context} className="page-bar" aria-label="Tracks">
     <div className={"page-tracks"+(tracks.length>5?" many":"")} role="group" aria-label="Track to edit">
-      {tracks.map((t,i)=><button data-track-index={i} key={i} type="button" aria-pressed={i===selected}
+      {tracks.map((t,i)=><Fragment key={i}><button data-track-index={i} type="button" aria-pressed={i===selected}
         aria-label={'Edit track '+(i+1)+' '+deviceName(t)}
         className={'page-track'+(i===selected?' active':'')+(t.mute?' muted':'')}
         style={{['--track-accent' as string]:TRACK_COLORS[i]}} onClick={()=>onSelect(i)}>
@@ -65,7 +66,7 @@ export function PageBar({tracks,selected,onSelect,beats,playing,tools,freeze,onC
         <span className="page-track-text"><span className="page-track-name">{deviceName(t)}</span>
           <NoteLine track={t} beats={beats} playing={playing}/></span>
         {freeze?.[i]?.state==='frozen'?<span className="page-track-ice" title="Frozen: plays as audio"><Snowflake size={14}/></span>:null}
-      </button>)}
+      </button>{chipExtra?.(i)}</Fragment>)}
       {onAdd&&tracks.length<MAX_TRACKS?<button type="button" className="page-track-add" aria-label="Add track" title={'Add a track ('+tracks.length+' of '+MAX_TRACKS+'). Right-click a track to remove it.'} onClick={onAdd}><Plus size={18}/></button>:null}
     </div>
     {tools?<div className="page-tools">{tools}</div>:null}
@@ -73,6 +74,6 @@ export function PageBar({tracks,selected,onSelect,beats,playing,tools,freeze,onC
 }
 
 /** What a track plays, in the words its page uses. */
-export function deviceName(t:{device?:string;preset:string;sampler?:{name:string;source:unknown}}){
-  return t.device==='drum_rack'?'Drum Rack':t.device==='sampler'?(t.sampler?.source?t.sampler.name:'Sampler'):t.preset;
+export function deviceName(t:{device?:string;preset:string;sampler?:{name:string;source:unknown};plugin?:{name:string}}){
+  return t.device==='drum_rack'?'Drum Rack':t.device==='sampler'?(t.sampler?.source?t.sampler.name:'Sampler'):t.device==='plugin'?(t.plugin?.name||'Plugin'):t.preset;
 }

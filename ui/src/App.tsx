@@ -51,6 +51,8 @@ import { TRACK_COLORS, clamp, type BridgeMessage, type DeckUpdate, type FxBus, t
 import previewState from './preview-state.json';
 import { voiceChord } from './chords';
 import './styles.css';
+import './plugin-track.css';
+import {PluginTrackPage,PluginWindowButton} from './components/PluginTrack';
 
 type Dialog = 'settings'|'help'|null;
 const api=window.deckApi;
@@ -617,6 +619,7 @@ function App() {
     {project&&track?<>
       {page!=='SONG'&&<PageBar freeze={snapshot?.freeze} onContext={i=>i===selected?{synth:()=>command('set_device',[i,'synth']),drums:()=>command('set_device',[i,'drum_rack']),mute:()=>command('track',[i,'mute',!track.mute]),presets:()=>{setPage('SOUND');if(track.device==='drum_rack')setKitBrowserTrack(i);else requestAnimationFrame(()=>document.querySelector<HTMLButtonElement>('[aria-label="Browse presets"]')?.click());}}:{}} onAdd={()=>command('add_track',null)} onRemove={i=>{command('remove_track',i);setToast('Removed track '+(i+1)+'. Undo brings it back.');}} tracks={project.tracks} selected={busView?-1:selected}
         onSelect={index=>{setFxBus(null);command('select',index);}} beats={project.bars*4} playing={snapshot?.playing??false}
+        chipExtra={i=>project.tracks[i].device==='plugin'?<PluginWindowButton track={i} spec={project.tracks[i].plugin} send={command}/>:null}
         tools={page==='SOUND'?<>
           {(track.device??'synth')==='synth'?<div className="sound-workflow" role="group" aria-label="Sound workflow">
             {(['A','B'] as const).map(slot=><button key={slot} type="button" aria-label={'Compare sound '+slot} aria-pressed={(track.sound_ab?.active??'A')===slot} onClick={()=>command('sound_ab',[selected,slot])}>{slot}</button>)}
@@ -680,14 +683,14 @@ function App() {
         onChooseLibrary={chooseDrumLibrary} onRefreshLibrary={()=>command('drum_library_refresh')}
         onPlayOnKeys={isPreview?undefined:pad=>setKeysSheet({track:selected,pad})}
         record={snapshot?.sampler_record} send={(cmd,args)=>command(cmd,args)}/>
+      :page==='SOUND'&&track.device==='plugin'?<PluginTrackPage key={selected} track={track} trackIndex={selected} bpm={project.bpm} bars={project.bars}
+        send={command} onMidi={(s,a,b)=>command('midi',[s,a,b])}/>
       :page==='SOUND'&&track.device==='sampler'?<SamplerPage key={selected+':'+track.sampler?.id} track={track} trackIndex={selected}
         runtime={snapshot?.samplers?.[selected]} record={snapshot?.sampler_record} pads={padChoices(project.tracks)} tracks={project.tracks} bpm={project.bpm}
         library={snapshot?.sample_library} onChooseFolder={()=>isPreview||!api?Promise.resolve(null):api.chooseFile('open','sample_folder')}
         onLoadWav={async()=>{if(isPreview||!api){setToast('Open the native audio app to load a WAV');return;}
           const id=track.sampler?.id,tr=selected;const filepath=await api.chooseFile('open','sample');
           if(filepath&&id)command('sampler_load_wav',[tr,id,filepath]);}}
-        pluginName={snapshot?.plugins?.loaded?.kind==='instrument'?snapshot.plugins.loaded.name:undefined}
-        onPlugin={()=>{setSettingsSection('plugins');setDialog('settings');}}
         send={(cmd,args)=>command(cmd,args)}
         onEdit={(key,value)=>{if(track.sampler)command('sampler_edit',[selected,track.sampler.id,key,value]);}}
         onDetect={()=>{if(track.sampler)command('sampler_detect',[selected,track.sampler.id]);}}
@@ -761,8 +764,7 @@ function App() {
         midiName={snapshot?.connected?renderMIDI(snapshot.connected):null} bridgeStatus={bridgeStatus} bufferMs={snapshot?.buffer_ms} session={snapshot?.session} onSession={c=>command('session',c)}
         devices={snapshot?.devices??[]} audioOutput={snapshot?.audio_output||'System default'} audioOutputs={snapshot?.audio_outputs??[]}
         onDevice={d=>command('device',d)} onAudio={d=>command('audio_device',d)} onPanic={()=>command('panic')}
-        command={command} pluginTrack={{index:selected,device:track?.device??'synth',samplerId:track?.device==='sampler'?track.sampler?.id??null:null,
-          hasSample:!!(track?.device==='sampler'&&track.sampler?.source),sampleName:track?.device==='sampler'?track.sampler?.name??null:null}}
+        command={command}
         initialSection={settingsSection} onClose={()=>{setSettingsSection(undefined);setDialog(null)}}/>
       :<Help section={helpSection} invoker={helpOrigin.current} close={()=>setDialog(null)}/>}
     </div>:null}

@@ -44,7 +44,9 @@ export type Track = {
   clip_names?:string[];
   sound_ab?:{active:'A'|'B';A:unknown;B:unknown};automation?:AutomationLane[];
   midi_cc?:import('./parameter-registry').MidiMapping[];
-  device?:'synth'|'drum_rack'|'sampler';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
+  /** A VST3 instrument on this track (decksynth/plugin_track.py): which plugin, and its eight quick knobs. */
+  plugin?:PluginSpec;
+  device?:'synth'|'drum_rack'|'sampler'|'plugin';drum_rack?:{version:1;id:string;pads:DrumPad[];name?:string};
   /** A pad played across the keys (decksynth/sampler.py). */
   sampler?:SamplerSpec;
   name: string; preset: string; instrument: Instrument;
@@ -178,12 +180,21 @@ export type DeckUpdate = {
   /** The loaded plugin's parameters (sent when it loads and when its window closes), and one that just changed. */
   plugin_params?: {path:string;params:PluginParam[];parameter_count?:number;parameter_offset?:number};
   plugin_param?: {i:number;raw:number;text:string};
+  plugin_track?: PluginTrackStatus;
 };
+export type PluginSpec={version:1;path:string;name:string;vendor:string;quick:({i:number;name:string}|null)[]};
+/** A Resample take (decksynth/plugin_track.py Capture): wave points are [min L, max L, min R, max R]. */
+export type PluginTake={mode:'loop'|'play'|'note';state:'armed'|'recording'|'done'|'empty';seconds:number;peak:number;
+  wave:[number,number,number,number][];track:number;span?:[number,number]};
+/** Plugin tracks: peaks of the plugin's live output since the last packet ([L, R] per 256 frames), the quick knobs'
+ *  values ([raw, text] per slot), the take, which slot is learning, and whether a kept take is being saved. */
+export type PluginTrackStatus={out:[number,number][];quick:([number,string]|null)[]|null;take:PluginTake|null;
+  learning:[number,number]|null;saving:boolean};
 export type PluginParam={i:number;name:string;raw:number;text:string;label:string;kind:'value'|'options'|'switch';options?:string[]};
 export type PluginStatus={setup:'missing'|'installing'|'ready';progress:number|null;version:string|null;
   native_ready?:boolean;native_version?:string|null;
   plugins:{path:string;name:string;windows:boolean}[];vst2:number;scanning:boolean;scanned:boolean;
-  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';paged?:boolean;editor:boolean;live:boolean;live_fault:string|null}|null;
+  loaded:{path:string;name:string;vendor:string;kind:'instrument'|'effect';paged?:boolean;editor:boolean;live:boolean;live_fault:string|null;track?:number|null}|null;
   busy:'loading'|'listen'|'record'|null;take:{name:string;seconds:number;where:string;clipped:boolean}|null;error:string|null;revision:number};
 export type BridgeMessage = Partial<DeckUpdate> & { error?: string; message?: string; bridge?: string;
   midi_file?: { path: string; channels: { channel: number; notes: number; low: number; high: number }[] } };
