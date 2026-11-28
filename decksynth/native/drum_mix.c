@@ -23,23 +23,29 @@ typedef struct {
     int64_t old_age, old_remaining;
     double old_scalar, last;
     double gl, gr, old_gl, old_gr;
+    const float *side, *old_side;   /* a stereo pad's side channel (left - right) / 2; NULL for a mono pad */
 } DrumVoice;
 
 size_t drum_voice_size(void) { return sizeof(DrumVoice); }
 
-static double value(const float *data, int64_t frames, double pos,
-                    int64_t age, double gain, int attack) {
+/* The pad's mono value (the mid for a stereo pad); *wide gets the side value (0 for a mono pad). */
+static double value(const float *data, const float *side, int64_t frames, double pos,
+                    int64_t age, double gain, int attack, double *wide) {
     int64_t index = (int64_t)pos;
+    *wide = 0.0;
     if (index >= frames) return 0.0;
     double fraction = pos - (double)index;
     double a = data[index];
     double b = index + 1 < frames ? data[index + 1] : 0.0;
     double pcm = a + (b - a) * fraction;
+    double sa = 0.0, sb = 0.0;
+    if (side) { sa = side[index]; sb = index + 1 < frames ? side[index + 1] : 0.0; }
     double env = (double)age / (double)attack;
     if (env > 1.0) env = 1.0;
     double end = ((double)frames - pos) / (double)attack;
     if (end < env) env = end;
     if (env < 0.0) env = 0.0;
+    if (side) *wide = (sa + (sb - sa) * fraction) * gain * env;
     return pcm * gain * env;
 }
 
@@ -57,24 +63,27 @@ void drum_mix(DrumVoice *voices, int count, double *out, int frames,
             continue;
         }
         for (int frame = 0; frame < frames; ++frame) {
-            double mixed = 0.0, left = 0.0, rgt = 0.0;
+            double mixed = 0.0, left = 0.0, rgt = 0.0, wide = 0.0;
             if (v->data) {
-                mixed = value(v->data, v->frames, v->pos, v->age, v->gain, attack);
+                mixed = value(v->data, v->side, v->frames, v->pos, v->age, v->gain, attack, &wide);
                 if (v->remaining >= 0) {
-                    mixed *= (double)v->remaining / (double)fade;
+                    double k = (double)v->remaining / (double)fade;
+                    mixed *= k; wide *= k;
                     --v->remaining;
                 }
                 v->pos += v->step;
                 ++v->age;
                 if (v->pos >= v->frames || v->remaining == 0) v->data = NULL;
-                left = mixed * v->gl; rgt = mixed * v->gr;
+                left = (mixed + wide) * v->gl; rgt = (mixed - wide) * v->gr;
             }
             if (v->old_remaining > 0) {
+                double oldwide = 0.0;
                 double old = v->old_data
-                    ? value(v->old_data, v->old_frames, v->old_pos, v->old_age, v->old_gain, attack)
+                    ? value(v->old_data, v->old_side, v->old_frames, v->old_pos, v->old_age, v->old_gain, attack, &oldwide)
                     : v->old_scalar;
-                old *= (double)v->old_remaining / (double)fade;
-                mixed += old; left += old * v->old_gl; rgt += old * v->old_gr;
+                double k = (double)v->old_remaining / (double)fade;
+                old *= k; oldwide *= k;
+                mixed += old; left += (old + oldwide) * v->old_gl; rgt += (old - oldwide) * v->old_gr;
                 if (v->old_data) {
                     v->old_pos += v->old_step;
                     ++v->old_age;
@@ -90,6 +99,17 @@ void drum_mix(DrumVoice *voices, int count, double *out, int frames,
                 break;
             }
         }
+    }
+}
+
+/* drum_ms_lr: a stereo pad is shaped as a left and a right copy; this turns the pair into mid and side in place
+ * (to_ms != 0: a = (l + r) / 2, b = (l - r) / 2) or back (a = m + s, b = m - s). Runs on the shaping thread with
+ * Python's lock released. */
+void drum_ms_lr(float *a, float *b, int64_t n, int to_ms) {
+    for (int64_t i = 0; i < n; ++i) {
+        double x = a[i], y = b[i];
+        if (to_ms) { a[i] = (float)((x + y) * .5); b[i] = (float)((x - y) * .5); }
+        else { a[i] = (float)(x + y); b[i] = (float)(x - y); }
     }
 }
 

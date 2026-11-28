@@ -36,7 +36,7 @@ export const DEFAULT_DRUM_SHAPE:DrumShape={start:0,end:1,reverse:false,fade_in:0
 export type DrumLibraryState = {root:string|null;folders:{id:string;name:string;count:number}[];scanning:boolean;loading:boolean;loading_track:number|null;error:string|null;memory_error?:string|null;
   sample_page?:{folder:string;page:number;total:number;items:{index:number;name:string;filename:string}[]}|null;
   preview?:{folder:string;index:number;loading:boolean;active:boolean}|null};
-export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;peaks:number[][];event:number;playing:boolean;error?:string;
+export type DrumRuntime = {accelerated?:boolean;native_warning?:string|null;pads:{status:string;stereo?:boolean;peaks:number[][];event:number;playing:boolean;error?:string;
   /** Where the pad's sounding voices are, 0..1 of the sample (round 2: a moving playhead). */ at?:number[];/** while playing: dBFS going into the compressor and coming out */lvl?:number[]|null}[]};
 export type AutomationLane={module:string;param:string;points:[number,number][]};
 export type Track = {

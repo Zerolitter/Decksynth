@@ -464,6 +464,13 @@
 .sampler-page .smp-rack-len{text-align:center;font:700 15px/1 ui-monospace,'DejaVu Sans Mono',monospace;color:#f1c27d;letter-spacing:.02em}
 .sampler-page .smp-rack-stereo{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ui-text-3)}
 .sampler-page .smp-rack-display .smp-scale-swap{border-color:var(--ui-line);background:var(--ui-well)}
+/* In the rack display (80 px wide) Whole and Env stack, so the box fits and Clear is not pushed out of the grid. */
+.sampler-page .smp-rack-display{min-width:0;overflow:hidden}
+.sampler-page .smp-rack-display .smp-scale-swap{display:grid;grid-template-columns:minmax(0,1fr) 13px;grid-template-rows:auto auto;align-items:center;column-gap:2px;row-gap:0;padding:0 4px 0 7px;min-width:0;text-align:left;line-height:1.15}
+.sampler-page .smp-rack-display .smp-scale-swap i{display:none}
+.sampler-page .smp-rack-display .smp-scale-swap b{grid-column:1;grid-row:1}
+.sampler-page .smp-rack-display .smp-scale-swap em{grid-column:1;grid-row:2}
+.sampler-page .smp-rack-display .smp-scale-swap svg{grid-column:2;grid-row:1 / span 2;margin:0}
 .sampler-page .smp-side>.smp-amp-card{gap:2px}
 .sampler-page .smp-side .smp-amp-knobs{margin:auto 0}
 .sampler-page .smp-power[aria-checked="true"],.sampler-page .smp-power:hover{background:none;border:0;box-shadow:none}

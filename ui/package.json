@@ -23,6 +23,7 @@
     "test:spectral-s5": "node tests/spectral_s5_acceptance.cjs",
     "test:spectral-s6": "node tests/spectral_s6_acceptance.cjs",
     "test:sampler-stereo": "[ ! -f ../tools/deck_busy.sh ] || sh ../tools/deck_busy.sh && HEIGHT=718 node tests/sampler_stereo_fades.cjs && HEIGHT=800 node tests/sampler_stereo_fades.cjs",
+    "test:stereo-finish": "[ ! -f ../tools/deck_busy.sh ] || sh ../tools/deck_busy.sh && HEIGHT=718 node tests/stereo_finish_acceptance.cjs && HEIGHT=800 node tests/stereo_finish_acceptance.cjs",
     "test:plugin-track": "[ ! -f ../tools/deck_busy.sh ] || sh ../tools/deck_busy.sh && node tests/plugin_track_acceptance.cjs",
     "test:spectral-s7": "node ../tools/check-spectral-s7.cjs"
   },

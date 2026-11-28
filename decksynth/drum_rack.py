@@ -238,12 +238,17 @@ class DrumRack:
             v.old_scalar = 0.; v.last = 0.
 
     def _value(self, sample, pos, age, gain):
+        """(mid, side) of the pad at pos; side is 0 for a mono pad."""
         i = int(pos)
-        if i >= sample.frames: return 0.
+        if i >= sample.frames: return 0., 0.
         data = sample.data; frac = pos-i
         value = data[i] + ((data[i+1] if i+1 < sample.frames else 0.)-data[i])*frac
-        env = min(1., age/self.attack_frames, (sample.frames-pos)/self.attack_frames)
-        return value*gain*max(0., env)
+        env = max(0., min(1., age/self.attack_frames, (sample.frames-pos)/self.attack_frames))
+        side = getattr(sample, 'side', None)
+        wide = 0.
+        if side is not None and len(side) == sample.frames:
+            wide = (side[i] + ((side[i+1] if i+1 < sample.frames else 0.)-side[i])*frac)*gain*env
+        return value*gain*env, wide
 
     def render_into_buffers(self, left, right, offset, frames):
         """Add the pads, each with its pan, into the engine's C buffers (cbus.py) from offset on."""
@@ -266,19 +271,19 @@ class DrumRack:
                 v.last = 0.
                 continue
             for i in range(frames):
-                value = left = rgt = 0.
+                value = left = rgt = wide = 0.
                 if v.sample is not None:
-                    value = self._value(v.sample, v.pos, v.age, v.gain)
+                    value, wide = self._value(v.sample, v.pos, v.age, v.gain)
                     if v.remaining >= 0:
-                        value *= v.remaining/self.fade_frames; v.remaining -= 1
+                        k = v.remaining/self.fade_frames; value *= k; wide *= k; v.remaining -= 1
                     v.pos += v.step; v.age += 1
                     if v.pos >= v.sample.frames or v.remaining == 0: v.sample = None
-                    left = value*v.gl; rgt = value*v.gr
+                    left = (value+wide)*v.gl; rgt = (value-wide)*v.gr
                 if v.old_remaining > 0:
-                    old = (self._value(v.old_sample, v.old_pos, v.old_age, v.old_gain)
-                           if v.old_sample is not None else v.old_scalar)
-                    old *= v.old_remaining/self.fade_frames
-                    value += old; left += old*v.old_gl; rgt += old*v.old_gr
+                    old, oldwide = (self._value(v.old_sample, v.old_pos, v.old_age, v.old_gain)
+                                    if v.old_sample is not None else (v.old_scalar, 0.))
+                    k = v.old_remaining/self.fade_frames; old *= k; oldwide *= k
+                    value += old; left += (old+oldwide)*v.old_gl; rgt += (old-oldwide)*v.old_gr
                     if v.old_sample is not None:
                         v.old_pos += v.old_step; v.old_age += 1
                         if v.old_pos >= v.old_sample.frames: v.old_remaining = 1
@@ -313,7 +318,7 @@ class DrumRack:
                       'MISSING' if sample is None else 'MUTED' if muted else 'PLAYING' if playing else 'READY')
             at = [round(v.pos/sample.frames, 4) for v in self.voices
                   if sample is not None and v.sample is sample and v.pad == i and sample.frames][:4]
-            pads.append(dict(status=status, peaks=sample.peaks if sample else [],
+            pads.append(dict(status=status, peaks=sample.peaks if sample else [], stereo=bool(sample is not None and getattr(sample, 'side', None) is not None),
                              event=self.events[i], playing=playing, error=self.errors[i], at=at, lvl=self._level(i, sample)))
         return dict(pads=pads, voices=self.active_count, voice_limit=VOICE_LIMIT, output='stereo',
                     accelerated=self._native is not None,

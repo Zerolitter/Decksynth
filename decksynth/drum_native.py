@@ -27,6 +27,7 @@ _FIELDS = [
     ('old_age', C.c_int64), ('old_remaining', C.c_int64),
     ('old_scalar', C.c_double), ('last', C.c_double),
     ('gl', C.c_double), ('gr', C.c_double), ('old_gl', C.c_double), ('old_gr', C.c_double),
+    ('side', C.c_void_p), ('old_side', C.c_void_p),
 ]
 _SYNC_FIELDS = ('pos', 'step', 'gain', 'age', 'remaining', 'old_pos', 'old_step',
                 'old_gain', 'old_age', 'old_remaining', 'old_scalar', 'last',
@@ -76,6 +77,7 @@ _kernel = None
 _library = None
 _shape = None
 _codec = None
+_ms = None
 _error = None
 
 
@@ -111,6 +113,10 @@ def native_kernel():
                 side = shape_library.drum_decode_side
                 side.argtypes = [C.c_char_p, C.c_int64, C.c_int64, C.c_int, C.c_void_p, C.POINTER(C.c_double)]
                 side.restype = C.c_double
+                global _ms
+                _ms = shape_library.drum_ms_lr
+                _ms.argtypes = [C.c_void_p, C.c_void_p, C.c_int64, C.c_int]
+                _ms.restype = None
                 _library, _kernel, _shape, _codec = library, kernel, shape, (decode, resample, side)
             except (OSError, RuntimeError, ValueError, AttributeError, subprocess.SubprocessError) as error:
                 _error = str(error)
@@ -123,6 +129,12 @@ def native_shape():
     return _shape
 
 
+def native_ms():
+    """drum_ms_lr (mid/side to left/right and back, in C), or None when only Python is available."""
+    native_kernel()
+    return _ms
+
+
 def native_codec():
     """(decode, resample, side) in C for samples.py, or None when only Python is available."""
     native_kernel()
@@ -131,6 +143,12 @@ def native_codec():
 
 def native_error():
     return _error
+
+
+def _side_address(sample):
+    """Where a stereo pad's side channel lives (0 for a mono pad). The sample keeps the array alive."""
+    side = getattr(sample, 'side', None) if sample is not None else None
+    return side.buffer_info()[0] if side is not None and len(side) == sample.frames else None
 
 
 class NativeDrumMixer:
@@ -167,6 +185,8 @@ class NativeDrumMixer:
             state.frames = voice.sample.frames if voice.sample is not None else 0
             state.old_data = voice.old_sample.data.buffer_info()[0] if voice.old_sample is not None else None
             state.old_frames = voice.old_sample.frames if voice.old_sample is not None else 0
+            state.side = _side_address(voice.sample)
+            state.old_side = _side_address(voice.old_sample)
             for field in _SYNC_FIELDS:
                 setattr(state, field, getattr(voice, field))
         if not live:

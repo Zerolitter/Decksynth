@@ -172,15 +172,36 @@ def render_shape(sample, shape, rate, step=1., native=True):
     p = _params(shape, rate, step, len(segment), cut_head, cut_tail, gate)
     if gate:  # the release after the hold is the ramp at the tail
         p[7] = float(max(p[7], min(len(segment) // 2, int(RELEASE * t))))
-    from .drum_native import native_shape
+    from .drum_native import native_shape, native_ms
     kernel = native_shape() if native else None
-    if kernel is not None and len(segment):
-        kernel(segment.buffer_info()[0], len(segment), (ctypes.c_double * len(p))(*p))
-        out = segment
+
+    def run(channel):
+        if kernel is not None and len(channel):
+            kernel(channel.buffer_info()[0], len(channel), (ctypes.c_double * len(p))(*p))
+            return channel
+        return array('f', _shape_python(list(channel), p))
+
+    side = getattr(sample, 'side', None)
+    if side is None or len(side) != n:
+        return replace(sample, data=run(segment), frames=len(segment), **({} if side is None else dict(side=None, lr_peak=None)))
+    # A stereo pad (27 Nov): the left and the right copy are shaped alike (same fades, envelope and EQ), then go
+    # back to mid and side. The pad's compressor and drive see each side on its own.
+    wide = array('f', side[a:b])
+    if shape['reverse']: wide.reverse()
+    wide = wide[:len(segment)]
+    ms = native_ms() if native else None
+    if ms is not None and len(segment):
+        ms(segment.buffer_info()[0], wide.buffer_info()[0], len(segment), 0)
     else:
-        out = array('f', _shape_python(list(segment), p))
-    mono = dict(side=None, lr_peak=None) if getattr(sample, 'side', None) is not None else {}   # pads shape a mono copy
-    return replace(sample, data=out, frames=len(out), **mono)
+        for i in range(len(segment)): segment[i], wide[i] = segment[i] + wide[i], segment[i] - wide[i]
+    mid, rest = run(segment), run(wide)   # now the left and right copies
+    if ms is not None and len(mid):
+        ms(mid.buffer_info()[0], rest.buffer_info()[0], len(mid), 1)
+    else:
+        for i in range(len(mid)): mid[i], rest[i] = (mid[i] + rest[i]) * .5, (mid[i] - rest[i]) * .5
+    if not any(rest):   # shaping left both channels the same: a mono copy
+        return replace(sample, data=mid, frames=len(mid), side=None, lr_peak=None)
+    return replace(sample, data=mid, frames=len(mid), side=rest)
 
 
 class PadShaper:

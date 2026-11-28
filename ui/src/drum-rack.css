@@ -412,3 +412,4 @@
 .harness-shell .drum-rack .drum-pad.is-recording .drum-pad-top b,.harness-shell .drum-rack .drum-pad.is-recording .drum-pad-top>span,.harness-shell .drum-rack .drum-pad.is-recording .drum-pad-name{color:var(--ui-white)}
 @keyframes drum-rec-pulse{from{box-shadow:0 0 0 0 #f2795a80}to{box-shadow:0 0 0 5px #f2795a00}}
 @media (prefers-reduced-motion:reduce){.harness-shell .drum-rack .drum-pads .drum-pad.is-recording{animation:none}}
+.drum-pad-sound .smp-rack-stereo{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ui-text-3)}

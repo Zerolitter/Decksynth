@@ -34,7 +34,7 @@
 
 /* ---------- tools: a coloured icon and a short label ---------- */
 .harness-shell .pf [style*="--tool"] svg,.harness-shell .pf [style*="--tool"]>b{color:var(--tool)}
-.harness-shell .pf .pf-rail{grid-auto-rows:50px}
+.harness-shell .pf .pf-rail{grid-auto-rows:44px}  /* 7 rows of 44 fit the 344 px beside the roll at 718; 50 px rows pushed the roll and its Vel lane under the bottom bar */
 .harness-shell .pf .pf-rail button{flex-direction:column;gap:2px;background:color-mix(in srgb,var(--tool) 10%,var(--ui-surface));
   border-color:color-mix(in srgb,var(--tool) 40%,var(--ui-line-soft))}
 .harness-shell .pf .pf-rail button>span,.harness-shell .pf .pf-lib-btn>span{font-size:9.5px;font-weight:800;line-height:1;color:color-mix(in srgb,var(--tool) 55%,#e6efec)}

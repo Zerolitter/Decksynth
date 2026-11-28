@@ -208,6 +208,7 @@ function RackSurface({browserOpen,onBrowserOpen,track,trackIndex,runtime,onNote,
           <strong className="drum-sound-name" title={pad.name+' · pad '+(selected+1)+' · MIDI '+pad.note}>{padLabel(pad.name,kit.name)||'Empty pad'}</strong>
           <span className="drum-source-file" title={pad.source?.path}>{fileName??'No sample assigned'}</span>
           <span className={'drum-status status-'+status.toLowerCase()}>{status}</span>
+          {live?.stereo?<span className="smp-rack-stereo" title="A stereo sample: it plays in stereo">Stereo</span>:null}
           <div className="drum-import-actions">
           {onPlayOnKeys?<button type="button" className="drum-play-keys" aria-label="Play this pad on the keys" title="Make a Sampler track that plays this sound on the keys" disabled={!sourceReady} onClick={()=>onPlayOnKeys(selected)}><KeyboardMusic size={17}/></button>:null}
           <button type="button" aria-label="Browse and audition sample sounds" title="Listen to library sounds and swap this pad" onClick={()=>setBrowsing(true)}><ListMusic size={17}/></button>

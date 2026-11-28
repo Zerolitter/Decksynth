@@ -204,8 +204,8 @@
 .harness-shell .pf-ctl-seq .pf-info{margin:0}
 
 .harness-shell .pf-lane-seq{gap:6px}
-.harness-shell .pf-seq-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px}
-.harness-shell .pf-rail{display:grid;grid-template-columns:44px 44px;grid-auto-rows:44px;gap:6px 6px;align-content:start;
+.harness-shell .pf-seq-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 96px;grid-template-rows:minmax(0,1fr);gap:6px}
+.harness-shell .pf-rail{display:grid;grid-template-columns:44px 44px;grid-auto-rows:44px;gap:4px 6px;align-content:start;
   padding:4px;border-radius:9px;background:var(--pf-deep);border:1px solid var(--ui-line-soft)}
 .harness-shell .pf-rail button{min-height:0;padding:0}
 .harness-shell .pf-rail button.primary{background:color-mix(in srgb,var(--accent) 24%,var(--ui-surface-hi));border-color:var(--accent);color:var(--ui-text-hi)}
