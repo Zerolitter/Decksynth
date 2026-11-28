@@ -8,7 +8,8 @@ require('./deck_guard.cjs');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process'), { _electron } = require('playwright');
 const ROOT = path.resolve(__dirname, '..'), SHOTS = process.env.DECKSYNTH_SHOTS || path.join(os.tmpdir(), 'plugin-track-shots');
-const PATH = '/home/deck/.vst3/yabridge/Massive X.vst3';
+const VST3 = path.join(os.homedir(), '.vst3');
+const PATH = path.join(VST3, 'yabridge', 'Massive X.vst3');
 
 function project(dir) {
   const file = path.join(dir, 'plugin.decksynth');
@@ -33,7 +34,7 @@ async function main() {
   try {
     await p.waitForFunction(() => document.querySelector('.footer-status')?.textContent?.includes('CONNECTED'), null, { timeout: 30000 });
     // The plugin host's side, played in from the main process (the engine's own plugin packets are held back).
-    await app.evaluate(({ BrowserWindow }, PATH) => {
+    await app.evaluate(({ BrowserWindow }, { PATH, VITAL, PIGMENTS }) => {
       const w = BrowserWindow.getAllWindows()[0], real = w.webContents.send.bind(w.webContents);
       const params = ['Cutoff', 'Resonance', 'Drive', 'Macro 1', 'Attack', 'Release', 'Osc 1 Pitch', 'Osc 1 Wave', 'Osc 2 Pitch', 'Osc 2 Wave', 'Filter Mode', 'Filter Env',
         'Env 1 Decay', 'Env 1 Sustain', 'Lfo 1 Rate', 'Lfo 1 Depth', 'Noise Level', 'Noise Colour', 'Macro 2', 'Macro 3', 'Macro 4', 'Delay Mix', 'Reverb Mix', 'Master Level']
@@ -41,7 +42,7 @@ async function main() {
       globalThis.fake = { live: true, editor: false, take: null, learning: null, loaded: true, track: 1, t: 0 };
       const plugins = () => ({ setup: 'ready', progress: null, version: '0.9.16', native_ready: true, native_version: '1', vst2: 0, scanning: false, scanned: true,
         plugins: [{ path: PATH, name: 'Massive X', windows: true }, { path: '/usr/lib/vst3/Surge XT.vst3', name: 'Surge XT', windows: false },
-          { path: '/home/deck/.vst3/Vital.vst3', name: 'Vital', windows: false }, { path: '/home/deck/.vst3/yabridge/Pigments.vst3', name: 'Pigments', windows: true }],
+          { path: VITAL, name: 'Vital', windows: false }, { path: PIGMENTS, name: 'Pigments', windows: true }],
         loaded: fake.loaded ? { path: PATH, name: 'Massive X', vendor: '', kind: 'instrument', paged: false, editor: fake.editor, live: fake.live, live_fault: fake.fault || null, track: fake.track } : null,
         busy: null, take: null, error: null, revision: 1 });
       const out = () => Array.from({ length: 19 }, () => { const t = fake.t++, beat = (t % 94) / 94, env = Math.exp(-beat * 3.2) * (.55 + .3 * Math.sin(t / 40));
@@ -53,7 +54,7 @@ async function main() {
       };
       globalThis.fakeTimer = setInterval(() => real('deck-message', { plugins: plugins(), plugin_params: { path: PATH, params, parameter_count: params.length },
         plugin_track: { out: fake.live ? out() : [], quick, take: fake.take, learning: fake.learning, saving: false } }), 100);
-    }, PATH);
+    }, { PATH, VITAL: path.join(VST3, 'Vital.vst3'), PIGMENTS: path.join(VST3, 'yabridge', 'Pigments.vst3') });
     await p.evaluate(f => window.deckApi.send('load', f), file);
     await p.waitForTimeout(600);
     await p.evaluate(() => window.deckApi.send('select', 1));
